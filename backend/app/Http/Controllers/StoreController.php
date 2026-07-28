@@ -138,6 +138,7 @@ class StoreController extends Controller
             'store_title' => 'required|string|max:255',
             'store_slogan' => 'nullable|string|max:255',
             'store_logo_url' => 'nullable|string|max:1000',
+            'store_theme' => 'nullable|string|max:50',
             'whatsapp_number' => 'nullable|string|max:50',
             'enable_wa_direct' => 'nullable|boolean',
             'enable_wa_rekber' => 'nullable|boolean',

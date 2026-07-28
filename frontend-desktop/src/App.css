@@ -68,12 +68,12 @@
 }
 
 .btn-secondary {
-  background: #131916;
-  color: var(--text-primary);
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
   padding: 0.65rem 1.25rem;
   border-radius: 0.75rem;
   font-weight: 600;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--btn-secondary-border);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -82,7 +82,7 @@
 }
 
 .btn-secondary:hover {
-  background: #1b241f;
+  opacity: 0.88;
   border-color: var(--border-hover);
 }
 
@@ -550,11 +550,11 @@
 
 .form-input, .form-textarea, .form-select {
   width: 100%;
-  background: #131916;
+  background: var(--bg-card-hover);
   border: 1px solid var(--border-light);
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.95rem;
   transition: var(--transition-smooth);
 }
@@ -562,7 +562,8 @@
 .form-input:focus, .form-textarea:focus, .form-select:focus {
   outline: none;
   border-color: var(--primary);
-  background: #1b241f;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .form-row {

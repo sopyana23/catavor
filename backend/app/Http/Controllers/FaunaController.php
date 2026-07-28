@@ -94,6 +94,8 @@ class FaunaController extends Controller
             'description' => 'required|string',
             'image_url' => 'required|string|url',
             'detailed_info' => 'nullable|array',
+            'product_type' => 'nullable|string|in:physical,digital,fauna,service,food',
+            'attributes' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -152,17 +154,19 @@ class FaunaController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'scientific_name' => 'required|string|max:255',
+            'scientific_name' => 'nullable|string|max:255',
             'class' => 'required|string|max:255',
-            'habitat' => 'required|string|max:255',
-            'diet' => 'required|string|max:255',
-            'conservation_status' => 'required|string|max:255',
+            'habitat' => 'nullable|string|max:255',
+            'diet' => 'nullable|string|max:255',
+            'conservation_status' => 'nullable|string|max:255',
             'price' => 'required|integer|min:0',
             'video_url' => 'nullable|string|url',
             'is_shipping_available' => 'required|boolean',
             'description' => 'required|string',
             'image_url' => 'required|string|url',
             'detailed_info' => 'nullable|array',
+            'product_type' => 'nullable|string|in:physical,digital,fauna,service,food',
+            'attributes' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {

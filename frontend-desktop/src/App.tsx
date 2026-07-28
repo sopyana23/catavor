@@ -74,6 +74,53 @@ import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 
+// Top-level Store Slug Resolver (Accessible before component mount)
+function getStoreSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname.toLowerCase();
+  const parts = path.split('/').filter(Boolean);
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+  
+  if (parts.length === 0) return null;
+  if (reservedPortal.includes(parts[0])) return null;
+  
+  return parts[0];
+}
+
+// Fast Base64 Logo Cacher & Resolver for 0ms Instant Rendering
+function getFastStoreLogo(slug: string | null, defaultUrl: string | undefined): string {
+  if (!slug) return defaultUrl || '';
+  try {
+    const cachedB64 = localStorage.getItem(`catavor_logo_b64_${slug.toLowerCase()}`);
+    if (cachedB64 && cachedB64.startsWith('data:image')) {
+      return cachedB64;
+    }
+  } catch {}
+  return defaultUrl || '';
+}
+
+function cacheLogoAsBase64(slug: string, url: string) {
+  if (!slug || !url || url.startsWith('data:')) return;
+  try {
+    const img = new window.Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width || 120;
+        canvas.height = img.height || 120;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const dataURL = canvas.toDataURL('image/png');
+          localStorage.setItem(`catavor_logo_b64_${slug.toLowerCase()}`, dataURL);
+        }
+      } catch {}
+    };
+    img.src = url;
+  } catch {}
+}
+
 interface Fauna {
   id: number
   name: string
@@ -236,6 +283,7 @@ interface ShopSettings {
   social_links?: string
   store_title?: string
   store_logo_url?: string
+  store_theme?: string
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -297,20 +345,13 @@ function App() {
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register'];
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return null;
     
-    if (parts.length === 1) {
-      if (!reserved.includes(parts[0])) return parts[0];
-      return null;
+    if (!reserved.includes(parts[0])) {
+      return parts[0];
     }
-    
-    if (parts.length === 2 && (parts[1] === 'admin' || parts[1] === 'about')) {
-      if (!reserved.includes(parts[0])) return parts[0];
-      return null;
-    }
-    
     return null;
   };
   const [storeSlug, setStoreSlug] = useState<string | null>(getStoreSlug());
@@ -671,10 +712,53 @@ function App() {
 
   const [faunas, setFaunas] = useState<Fauna[]>([])
   const [isAppInitializing, setIsAppInitializing] = useState<boolean>(true)
+
+  // Stable gate logo ref to prevent mid-stream flickering/swapping during initialization
+  const initialGateLogoRef = useRef<string | null>(null);
+  if (!initialGateLogoRef.current) {
+    const slug = getStoreSlug();
+    if (slug) {
+      const fastLogo = getFastStoreLogo(slug, '');
+      if (fastLogo) {
+        initialGateLogoRef.current = fastLogo;
+      } else {
+        try {
+          const storeCached = localStorage.getItem(`catavor_store_${slug.toLowerCase()}`);
+          if (storeCached) {
+            const parsed = JSON.parse(storeCached);
+            if (parsed?.store_logo_url) {
+              initialGateLogoRef.current = parsed.store_logo_url;
+            }
+          }
+        } catch {}
+      }
+    }
+    if (!initialGateLogoRef.current) {
+      initialGateLogoRef.current = APP_LOGO_BASE64;
+    }
+  }
+
   const [settings, setSettings] = useState<ShopSettings>(() => {
     try {
+      const slug = getStoreSlug();
+      if (slug) {
+        const storeCached = localStorage.getItem(`catavor_store_${slug.toLowerCase()}`);
+        if (storeCached) {
+          const parsed = JSON.parse(storeCached);
+          if (parsed && typeof parsed === 'object') {
+            parsed.store_logo_url = getFastStoreLogo(slug, parsed.store_logo_url);
+            return parsed;
+          }
+        }
+      }
       const cached = localStorage.getItem('catavor_settings');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          parsed.store_logo_url = getFastStoreLogo(slug, parsed.store_logo_url);
+          return parsed;
+        }
+      }
     } catch {}
     return {
       whatsapp_number: '628123456789',
@@ -683,6 +767,7 @@ function App() {
       articles_enabled: '1',
       store_title: 'Catavor',
       store_logo_url: '',
+      store_theme: 'emerald',
       default_is_comments_enabled: '1',
       default_require_comment_approval: '0',
       default_require_comment_email: '0',
@@ -690,6 +775,8 @@ function App() {
     };
   })
   const [selectedFauna, setSelectedFauna] = useState<Fauna | null>(null)
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
+  const [activePublicTab, setActivePublicTab] = useState<'catalog' | 'about' | 'sightings' | 'articles'>('catalog')
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
@@ -782,6 +869,7 @@ function App() {
 
   // Authentication State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
+  const isPopStateRef = useRef<boolean>(false)
   const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_plan?: string} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
@@ -914,15 +1002,93 @@ function App() {
   const [crudLoading, setCrudLoading] = useState<boolean>(false)
   const [crudError, setCrudError] = useState<string | null>(null)
 
-  // Detect URL path to determine Admin Mode
+  // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
+  useEffect(() => {
+    if (storeSlug) {
+      const activeTheme = (settingsForm as any).store_theme || (settings as any).store_theme || 'emerald';
+      document.documentElement.setAttribute('data-theme', activeTheme);
+      document.body.setAttribute('data-theme', activeTheme);
+    } else {
+      document.documentElement.setAttribute('data-theme', 'emerald');
+      document.body.setAttribute('data-theme', 'emerald');
+    }
+  }, [storeSlug, (settingsForm as any).store_theme, (settings as any).store_theme]);
+
+  // Detect & parse URL path on mount (Desktop)
   useEffect(() => {
     const slug = getStoreSlug();
     setStoreSlug(slug);
 
-    if (window.location.pathname.endsWith('/admin')) {
-      setView('admin');
-    } else {
-      setView('catalog');
+    if (slug) {
+      const path = window.location.pathname.toLowerCase();
+      const parts = path.split('/').filter(Boolean);
+      const urlParams = new URLSearchParams(window.location.search);
+
+      if (parts.length >= 2) {
+        const sub = parts[1];
+        if (sub === 'admin') {
+          setView('admin');
+          const pageSub = parts[2] || urlParams.get('sub');
+          const subSub = parts[3];
+          const paramId = parts[4];
+
+          if (pageSub === 'items') {
+            setAdminTab('items');
+            if (subSub === 'create' || subSub === 'new') {
+              setCrudMode('create');
+              setShowCrudModal(true);
+            } else if (subSub === 'edit' && paramId) {
+              setCrudMode('edit');
+              setEditId(parseInt(paramId, 10));
+              setShowCrudModal(true);
+            }
+          } else if (pageSub === 'articles') {
+            setAdminTab('articles');
+            if (subSub === 'comments') {
+              setArticleTabState('comments');
+            } else if (subSub === 'create' || subSub === 'new') {
+              setView('article-editor');
+              setEditingArticle(null);
+            }
+          } else if (pageSub === 'settings') {
+            setAdminTab('settings');
+            const sec = subSub || urlParams.get('section') || 'general';
+            if (['general', 'features', 'about', 'social', 'master'].includes(sec)) {
+              setSettingsSubTab(sec as any);
+            }
+          } else if (pageSub === 'profile') setAdminTab('profile');
+          else if (pageSub === 'policies') setAdminTab('policies');
+          else setAdminTab('items');
+        } else if (sub === 'about') {
+          setView('catalog');
+          setActivePublicTab('about');
+        } else if (sub === 'sightings') {
+          setView('catalog');
+          setActivePublicTab('sightings');
+        } else if (sub === 'articles') {
+          setView('catalog');
+          setActivePublicTab('articles');
+        }
+      } else {
+        const qTab = urlParams.get('tab');
+        if (qTab === 'admin') {
+          setView('admin');
+          const pageSub = urlParams.get('sub');
+          if (pageSub === 'items') setAdminTab('items');
+          else if (pageSub === 'articles') setAdminTab('articles');
+          else if (pageSub === 'settings') {
+            setAdminTab('settings');
+            const sec = urlParams.get('section');
+            if (sec && ['general', 'features', 'about', 'social', 'master'].includes(sec)) {
+              setSettingsSubTab(sec as any);
+            }
+          } else if (pageSub === 'profile') setAdminTab('profile');
+          else if (pageSub === 'policies') setAdminTab('policies');
+        } else if (qTab === 'about') { setView('catalog'); setActivePublicTab('about'); }
+        else if (qTab === 'sightings') { setView('catalog'); setActivePublicTab('sightings'); }
+        else if (qTab === 'articles') { setView('catalog'); setActivePublicTab('articles'); }
+        else { setView('catalog'); setActivePublicTab('catalog'); }
+      }
     }
 
     // STRICT FLOW: If the user visits the admin page on mount but they haven't completed changing their password,
@@ -936,6 +1102,50 @@ function App() {
       setIsPasswordChanged(false)
     }
   }, [adminUser, token])
+
+  // Auto-open fauna item modal if ?item=ID is in URL or /admin/items/edit/ID
+  useEffect(() => {
+    if (!faunas || faunas.length === 0) return;
+    const path = window.location.pathname.toLowerCase();
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
+      const targetId = parseInt(parts[4], 10);
+      const found = faunas.find(f => f.id === targetId);
+      if (found && (!showCrudModal || editId !== targetId)) {
+        openEditModal(found);
+      }
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const itemId = urlParams.get('item');
+    if (itemId && !selectedFauna) {
+      const found = faunas.find(f => f.id.toString() === itemId);
+      if (found) setSelectedFauna(found);
+    }
+  }, [faunas]);
+
+  // Auto-open article modal if ?article=ID_OR_SLUG is in URL or /admin/articles/edit/ID
+  useEffect(() => {
+    if (!articles || articles.length === 0) return;
+    const path = window.location.pathname.toLowerCase();
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'articles' && parts[3] === 'edit') {
+      const artId = parts[4];
+      const found = articles.find(a => a.id.toString() === artId || a.slug === artId);
+      if (found && (!editingArticle || editingArticle.id !== found.id)) {
+        openEditArticleModal(found);
+      }
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const articleId = urlParams.get('article');
+    if (articleId && !selectedArticle) {
+      const found = articles.find(a => a.id.toString() === articleId || a.slug === articleId);
+      if (found) setSelectedArticle(found);
+    }
+  }, [articles]);
 
   // Redirect if article module is disabled
   useEffect(() => {
@@ -961,13 +1171,76 @@ function App() {
   // Listen to popstate for back navigation & gesture support across clean URL paths (/ , /login , /register/step-X)
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      isPopStateRef.current = true;
       const slug = getStoreSlug();
       setStoreSlug(slug);
       if (slug) {
-        if (window.location.pathname.endsWith('/admin')) {
-          setView('admin');
+        const path = window.location.pathname.toLowerCase();
+        const parts = path.split('/').filter(Boolean);
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (parts.length >= 2) {
+          const sub = parts[1];
+          if (sub === 'admin') {
+            setView('admin');
+            const pageSub = parts[2] || urlParams.get('sub');
+            const subSub = parts[3];
+            const paramId = parts[4];
+
+            if (pageSub === 'items') {
+              setAdminTab('items');
+              if (subSub === 'create' || subSub === 'new') {
+                setCrudMode('create');
+                setShowCrudModal(true);
+              } else if (subSub === 'edit' && paramId) {
+                setCrudMode('edit');
+                setEditId(parseInt(paramId, 10));
+                setShowCrudModal(true);
+              } else {
+                setShowCrudModal(false);
+              }
+            } else if (pageSub === 'articles') {
+              setAdminTab('articles');
+              if (subSub === 'comments') {
+                setArticleTabState('comments');
+                setView('admin');
+              } else if (subSub === 'create' || subSub === 'new') {
+                setView('article-editor');
+                setEditingArticle(null);
+              } else if (subSub === 'edit' && paramId) {
+                const found = articles.find(a => a.id.toString() === paramId || a.slug === paramId);
+                if (found) {
+                  setView('article-editor');
+                  setEditingArticle(found);
+                }
+              } else {
+                setView('admin');
+                setArticleTabState('articles');
+              }
+            } else if (pageSub === 'settings') {
+              setAdminTab('settings');
+              setView('admin');
+              const sec = subSub || urlParams.get('section') || 'general';
+              if (['general', 'features', 'about', 'social', 'master'].includes(sec)) {
+                setSettingsSubTab(sec as any);
+              }
+            } else if (pageSub === 'profile') {
+              setAdminTab('profile');
+              setView('admin');
+            } else if (pageSub === 'policies') {
+              setAdminTab('policies');
+              setView('admin');
+            } else {
+              setAdminTab('items');
+              setView('admin');
+            }
+          } else if (sub === 'about') { setView('catalog'); setActivePublicTab('about'); }
+          else if (sub === 'sightings') { setView('catalog'); setActivePublicTab('sightings'); }
+          else if (sub === 'articles') { setView('catalog'); setActivePublicTab('articles'); }
+          else { setView('catalog'); setActivePublicTab('catalog'); }
         } else {
           setView('catalog');
+          setActivePublicTab('catalog');
         }
         return;
       }
@@ -1045,14 +1318,18 @@ function App() {
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
     if (parts[0] === 'register') return false;
     
-    if (parts.length === 2 && (parts[1] === 'admin' || parts[1] === 'about')) {
-      if (!reserved.includes(parts[0])) return false;
+    if (!reservedPortal.includes(parts[0])) {
+      const storeSub = parts[1];
+      const validStoreSubs = ['admin', 'about', 'sightings', 'articles'];
+      if (validStoreSubs.includes(storeSub)) {
+        return false;
+      }
     }
     
     return true;
@@ -1097,14 +1374,34 @@ function App() {
             social_links: store.social_links ? JSON.stringify(store.social_links) : '',
             store_title: store.store_title || 'Catavor',
             store_logo_url: store.store_logo_url || '',
+            store_theme: store.store_theme || 'emerald',
             default_is_comments_enabled: '0',
             default_require_comment_approval: '0',
             default_require_comment_email: '0',
             default_verify_comment_email_domain: '0'
           };
           
+          // Preload and convert custom store logo to Base64 in RAM/Storage FIRST
+          if (fetchedSettings.store_logo_url) {
+            try {
+              cacheLogoAsBase64(slug, fetchedSettings.store_logo_url);
+              await new Promise<void>((resolve) => {
+                const img = new window.Image();
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+                img.src = fetchedSettings.store_logo_url;
+                setTimeout(resolve, 300);
+              });
+            } catch {}
+            // Use fast Base64 data URI if available
+            fetchedSettings.store_logo_url = getFastStoreLogo(slug, fetchedSettings.store_logo_url);
+          }
+          
           setSettings(fetchedSettings);
           try {
+            if (slug) {
+              localStorage.setItem(`catavor_store_${slug.toLowerCase()}`, JSON.stringify(fetchedSettings));
+            }
             localStorage.setItem('catavor_settings', JSON.stringify(fetchedSettings));
           } catch {}
           if (token && adminUser && slug && (adminUser.store_slug?.toLowerCase() === slug.toLowerCase() || (adminUser as any).username?.toLowerCase() === slug.toLowerCase())) {
@@ -1279,27 +1576,84 @@ function App() {
     }, 200)
     return () => clearTimeout(delayDebounceFn)
   }, [search, classFilter, habitatFilter, storeSlug])
-  // Sync view state to browser URL pathname
+  // Sync view state, admin tab, sub-sub-paths, settings section, public tab & open modals to browser URL pathname
   useEffect(() => {
-    if (error || isInvalidRoute()) return;
+    if (!storeSlug || error || isInvalidRoute()) return;
 
-    if (!storeSlug) {
-      if (window.location.pathname !== '/') {
-        window.history.pushState({}, '', '/');
-      }
-      return;
-    }
-
-    const currentPath = window.location.pathname;
     let targetPath = `/${storeSlug}`;
-    if (view === 'admin') {
-      targetPath = `/${storeSlug}/admin`;
+    const params = new URLSearchParams();
+
+    if (view === 'article-editor') {
+      if (editingArticle) {
+        targetPath += `/admin/articles/edit/${editingArticle.id}`;
+      } else {
+        targetPath += `/admin/articles/create`;
+      }
+    } else if (view === 'admin') {
+      if (adminTab === 'items') {
+        if (showCrudModal) {
+          if (crudMode === 'create') {
+            targetPath += `/admin/items/create`;
+          } else if (crudMode === 'edit' && editId) {
+            targetPath += `/admin/items/edit/${editId}`;
+          } else {
+            targetPath += `/admin/items`;
+          }
+        } else {
+          targetPath += `/admin/items`;
+        }
+      } else if (adminTab === 'articles') {
+        if (articleTabState === 'comments') {
+          targetPath += `/admin/articles/comments`;
+        } else {
+          targetPath += `/admin/articles`;
+        }
+      } else if (adminTab === 'settings') {
+        const sec = settingsSubTab || 'general';
+        targetPath += `/admin/settings/${sec}`;
+      } else if (adminTab === 'profile') {
+        targetPath += `/admin/profile`;
+      } else if (adminTab === 'policies') {
+        targetPath += `/admin/policies`;
+      } else {
+        targetPath += `/admin/items`;
+      }
+    } else {
+      if (activePublicTab === 'about') {
+        targetPath += `/about`;
+      } else if (activePublicTab === 'sightings') {
+        targetPath += `/sightings`;
+      } else if (activePublicTab === 'articles') {
+        targetPath += `/articles`;
+      }
     }
 
-    if (currentPath !== targetPath) {
-      window.history.pushState({}, '', targetPath);
+    if (selectedFauna && !showCrudModal) {
+      params.set('item', selectedFauna.id.toString());
+    } else if (selectedArticle && view !== 'article-editor') {
+      params.set('article', selectedArticle.slug || selectedArticle.id.toString());
     }
-  }, [view, storeSlug, error]);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const fullTarget = `${targetPath}${queryString}`;
+
+    if (window.location.pathname + window.location.search !== fullTarget) {
+      if (isPopStateRef.current) {
+        isPopStateRef.current = false;
+        window.history.replaceState(
+          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, article: selectedArticle?.id },
+          '',
+          fullTarget
+        );
+      } else {
+        window.history.pushState(
+          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, article: selectedArticle?.id },
+          '',
+          fullTarget
+        );
+      }
+    }
+  }, [view, adminTab, settingsSubTab, showCrudModal, crudMode, editId, editingArticle, articleTabState, activePublicTab, selectedFauna, selectedArticle, storeSlug, error]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
@@ -2595,15 +2949,36 @@ function App() {
   }
 
 
+  // Dynamic Theme Primary Accent Resolver for Multi-Tenant Loading Gate
+  const getThemeAccentColor = (themeName?: string) => {
+    const theme = (themeName || 'emerald').toLowerCase();
+    switch (theme) {
+      case 'cyberpunk': return '#a855f7';
+      case 'sunset': return '#f59e0b';
+      case 'ocean': return '#3b82f6';
+      case 'pastel': return '#e11d48';
+      case 'cream': return '#059669';
+      case 'emerald':
+      default: return '#10b981';
+    }
+  };
+
   // Render App Readiness Loader Gate Screen
   if (isAppInitializing) {
+    const currentSlug = getStoreSlug();
+    const activeTheme = currentSlug ? ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || 'emerald') : 'emerald';
+    const accentColor = getThemeAccentColor(activeTheme);
+    const displayLogo = initialGateLogoRef.current || APP_LOGO_BASE64;
+    const displayTitle = (currentSlug && settings.store_title && settings.store_title !== 'Catavor')
+      ? settings.store_title
+      : (currentSlug ? currentSlug.charAt(0).toUpperCase() + currentSlug.slice(1) : 'Catavor');
+
     return (
       <div style={{
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        backgroundColor: '#060907',
-        backgroundImage: 'radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.15) 0%, transparent 65%)',
+        backgroundColor: '#0a0e17',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -2617,54 +2992,44 @@ function App() {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(300%); }
           }
-          @keyframes pulseGlow {
-            0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 20px rgba(16, 185, 129, 0.45)); }
-            50% { transform: scale(1.08); opacity: 0.85; filter: drop-shadow(0 0 30px rgba(16, 185, 129, 0.75)); }
-          }
         `}</style>
+
+        {/* Clean Logo Box */}
         <div style={{
-          position: 'relative',
+          width: '88px',
+          height: '88px',
+          borderRadius: '1.25rem',
+          backgroundColor: '#ffffff',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: '0.75rem',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.35)',
           marginBottom: '1.35rem'
         }}>
-          <div style={{
-            width: '96px',
-            height: '96px',
-            borderRadius: '1.25rem',
-            backgroundColor: '#ffffff',
-            border: '2px solid #10b981',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0.8rem',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5), 0 0 25px rgba(16, 185, 129, 0.5)',
-            animation: 'pulseGlow 1.8s infinite ease-in-out'
-          }}>
-            <img 
-              src={APP_LOGO_BASE64} 
-              alt="Catavor Logo" 
-              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} 
-            />
-          </div>
+          <img 
+            src={displayLogo} 
+            alt={displayTitle} 
+            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }} 
+          />
         </div>
 
+        {/* Store Title */}
         <h3 style={{
           margin: '0 0 0.35rem 0',
-          fontSize: '1.3rem',
+          fontSize: '1.25rem',
           fontWeight: 800,
-          letterSpacing: '-0.02em',
-          background: 'linear-gradient(135deg, #ffffff 0%, #a7f3d0 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
+          color: '#ffffff',
+          letterSpacing: '-0.01em'
         }}>
-          Catavor
+          {displayTitle}
         </h3>
         
+        {/* Subtitle */}
         <p style={{
           margin: 0,
-          fontSize: '0.85rem',
+          fontSize: '0.82rem',
           color: '#9ca3af',
           fontWeight: 500,
           letterSpacing: '0.01em'
@@ -2672,11 +3037,12 @@ function App() {
           Mempersiapkan Halaman...
         </p>
 
+        {/* Minimalist Progress Line */}
         <div style={{
-          width: '150px',
-          height: '3.5px',
+          width: '140px',
+          height: '3px',
           backgroundColor: 'rgba(255, 255, 255, 0.08)',
-          borderRadius: '4px',
+          borderRadius: '2px',
           marginTop: '1.35rem',
           overflow: 'hidden',
           position: 'relative'
@@ -2684,10 +3050,9 @@ function App() {
           <div style={{
             width: '40%',
             height: '100%',
-            backgroundColor: '#10b981',
-            borderRadius: '4px',
-            boxShadow: '0 0 12px #10b981',
-            animation: 'loaderSlide 1.2s infinite ease-in-out'
+            backgroundColor: accentColor,
+            borderRadius: '2px',
+            animation: 'loaderSlide 1.1s infinite ease-in-out'
           }} />
         </div>
       </div>
@@ -5555,6 +5920,95 @@ function App() {
 
               {adminTab === 'settings' && (
                 <>
+                  {/* Desktop Settings Sub-Tab Pills */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${settingsSubTab === 'general' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('general')}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: settingsSubTab === 'general' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'general' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'general' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      🏬 Informasi Toko (General)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${settingsSubTab === 'features' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('features')}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: settingsSubTab === 'features' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'features' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'features' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      ⚡ Fitur & Modul
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${settingsSubTab === 'about' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('about')}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: settingsSubTab === 'about' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'about' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      📖 Profil Toko (Tentang Kami)
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${settingsSubTab === 'social' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('social')}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: settingsSubTab === 'social' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'social' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'social' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      🌐 Media Sosial & Kontak
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-secondary ${settingsSubTab === 'master' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('master')}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: settingsSubTab === 'master' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'master' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'master' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      🗂️ Data Master & Kategori
+                    </button>
+                  </div>
+
                   <form onSubmit={handleSettingsSave} style={{ maxWidth: '600px', marginTop: '1rem' }}>
                   {settingsSuccess && (
                     <div className="alert-message alert-success">
@@ -7736,13 +8190,16 @@ function App() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {crudImages.map((imgUrl, index) => (
-                      <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: '#0b0e0c', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                      <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
                         {/* Preview Thumbnail */}
-                        <div style={{ width: '60px', height: '60px', borderRadius: '0.35rem', overflow: 'hidden', border: '1px solid var(--border-light)', background: '#131916', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <div style={{ width: '60px', height: '60px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                           {imgUrl ? (
                             <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
                           ) : (
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Kosong</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                              <Image size={16} style={{ color: 'var(--primary)' }} />
+                              <span style={{ fontSize: '0.6rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                            </div>
                           )}
                           {uploadingIndex === index && (
                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

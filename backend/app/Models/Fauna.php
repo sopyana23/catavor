@@ -19,13 +19,16 @@ class Fauna extends Model
         'price',
         'video_url',
         'is_shipping_available',
-        'store_id'
+        'store_id',
+        'product_type',
+        'attributes'
     ];
 
     protected $casts = [
         'detailed_info' => 'array',
         'price' => 'integer',
-        'is_shipping_available' => 'boolean'
+        'is_shipping_available' => 'boolean',
+        'attributes' => 'array'
     ];
 
     public function store()

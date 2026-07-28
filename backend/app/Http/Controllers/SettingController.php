@@ -26,6 +26,7 @@ class SettingController extends Controller
             'about_hours' => '08:00 - 21:00 WIB (Setiap Hari)',
             'about_disclaimer' => 'Catavor berkomitmen penuh terhadap kepatuhan hukum dan perlindungan privasi konsumen. Setiap transaksi dan konten katalog tunduk pada Syarat & Ketentuan serta Kebijakan Privasi resmi.',
             'app_theme' => 'dark',
+            'store_theme' => 'emerald',
             'about_cards' => json_encode([
                 ['title' => 'Garansi Keamanan Data', 'content' => 'Data usaha dan privasi pengguna dilindungi dengan enkripsi standar industri.', 'icon' => 'shield'],
                 ['title' => 'Kemudahan Transaksi', 'content' => 'Mendukung pemesanan langsung WhatsApp Direct dan Rekber Terpercaya.', 'icon' => 'lock'],
@@ -66,6 +67,7 @@ class SettingController extends Controller
             'settings.whatsapp_number' => 'nullable|string|max:50',
             'settings.store_slogan' => 'nullable|string|max:255',
             'settings.promo_banner' => 'nullable|string|max:1000',
+            'settings.store_theme' => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {

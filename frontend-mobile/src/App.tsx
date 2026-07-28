@@ -73,6 +73,53 @@ import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 
+// Top-level Store Slug Resolver (Accessible before component mount)
+function getStoreSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname.toLowerCase();
+  const parts = path.split('/').filter(Boolean);
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+  
+  if (parts.length === 0) return null;
+  if (reservedPortal.includes(parts[0])) return null;
+  
+  return parts[0];
+}
+
+// Fast Base64 Logo Cacher & Resolver for 0ms Instant Rendering
+function getFastStoreLogo(slug: string | null, defaultUrl: string | undefined): string {
+  if (!slug) return defaultUrl || '';
+  try {
+    const cachedB64 = localStorage.getItem(`catavor_logo_b64_${slug.toLowerCase()}`);
+    if (cachedB64 && cachedB64.startsWith('data:image')) {
+      return cachedB64;
+    }
+  } catch {}
+  return defaultUrl || '';
+}
+
+function cacheLogoAsBase64(slug: string, url: string) {
+  if (!slug || !url || url.startsWith('data:')) return;
+  try {
+    const img = new window.Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width || 120;
+        canvas.height = img.height || 120;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const dataURL = canvas.toDataURL('image/png');
+          localStorage.setItem(`catavor_logo_b64_${slug.toLowerCase()}`, dataURL);
+        }
+      } catch {}
+    };
+    img.src = url;
+  } catch {}
+}
+
 interface ShopSettings {
   plan?: string
   enable_wa_direct?: boolean
@@ -91,6 +138,7 @@ interface ShopSettings {
   social_links?: string
   store_title?: string
   store_logo_url?: string
+  store_theme?: string
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -115,6 +163,25 @@ interface Fauna {
   is_shipping_available: boolean
   description: string
   image_url: string
+  product_type?: 'physical' | 'digital' | 'fauna' | 'service' | 'food'
+  attributes?: {
+    stock?: number
+    condition?: string
+    weight?: number
+    download_url?: string
+    file_format?: string
+    file_size?: string
+    scientific_name?: string
+    fauna_class?: string
+    fauna_status?: string
+    duration?: string
+    service_location?: string
+    service_area?: string
+    expired_info?: string
+    storage_temp?: string
+    certification?: string
+    [key: string]: any
+  }
   detailed_info?: {
     native_region: string
     lifespan: string
@@ -388,20 +455,13 @@ function App() {
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register'];
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return null;
     
-    if (parts.length === 1) {
-      if (!reserved.includes(parts[0])) return parts[0];
-      return null;
+    if (!reserved.includes(parts[0])) {
+      return parts[0];
     }
-    
-    if (parts.length === 2 && (parts[1] === 'admin' || parts[1] === 'about')) {
-      if (!reserved.includes(parts[0])) return parts[0];
-      return null;
-    }
-    
     return null;
   };
   const [storeSlug, setStoreSlug] = useState<string | null>(getStoreSlug());
@@ -482,11 +542,46 @@ function App() {
   const [paymentProofNote, setPaymentProofNote] = useState<string>('');
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
   const [copiedAccountToast, setCopiedAccountToast] = useState<boolean>(false);
-  const [notifications, setNotifications] = useState<any[]>([
-    { id: 1, title: 'Status Verifikasi Plan Pro', message: 'Bukti pembayaran Anda sedang diproses oleh Tim Admin. Akses Plan Free aktif sementara (Est. 1x24 jam).', time: 'Baru saja', read: false, type: 'info' },
-    { id: 2, title: 'Selamat Datang di Catavor!', message: 'Katalog interaktif Anda berhasil dibuat. Tambahkan produk pertama Anda.', time: '10 menit lalu', read: false, type: 'success' }
+  const [notifications, setNotifications] = useState<Array<{
+    id: number;
+    title: string;
+    message: string;
+    type: 'order' | 'comment' | 'system' | 'stock' | 'info' | 'success';
+    timestamp?: string;
+    time?: string;
+    read: boolean;
+    linkSubTab?: 'items' | 'settings';
+  }>>([
+    {
+      id: 1,
+      title: 'Sistem Toko Siap',
+      message: 'Toko Anda telah berhasil dikonfigurasi dan siap melayani transaksi.',
+      type: 'system',
+      timestamp: '5 menit lalu',
+      time: '5 menit lalu',
+      read: false
+    },
+    {
+      id: 2,
+      title: 'Manajemen Inventaris',
+      message: 'Data produk & katalog digital dapat dikelola sewaktu-waktu di menu inventaris.',
+      type: 'order',
+      timestamp: '1 jam lalu',
+      time: '1 jam lalu',
+      read: false,
+      linkSubTab: 'items'
+    },
+    {
+      id: 3,
+      title: 'Konfigurasi Toko',
+      message: 'Informasi profil toko, media sosial & logo dapat disesuaikan pada menu pengaturan.',
+      type: 'system',
+      timestamp: '3 jam lalu',
+      time: '3 jam lalu',
+      read: true,
+      linkSubTab: 'settings'
+    }
   ]);
-  const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [heroEmailInput, setHeroEmailInput] = useState('');
   const [featuredStores, setFeaturedStores] = useState<any[]>([]);
   // Policy & Privacy System States
@@ -875,10 +970,53 @@ function App() {
 
   const [faunas, setFaunas] = useState<Fauna[]>([])
   const [isAppInitializing, setIsAppInitializing] = useState<boolean>(true)
+
+  // Stable gate logo ref to prevent mid-stream flickering/swapping during initialization
+  const initialGateLogoRef = useRef<string | null>(null);
+  if (!initialGateLogoRef.current) {
+    const slug = getStoreSlug();
+    if (slug) {
+      const fastLogo = getFastStoreLogo(slug, '');
+      if (fastLogo) {
+        initialGateLogoRef.current = fastLogo;
+      } else {
+        try {
+          const storeCached = localStorage.getItem(`catavor_store_${slug.toLowerCase()}`);
+          if (storeCached) {
+            const parsed = JSON.parse(storeCached);
+            if (parsed?.store_logo_url) {
+              initialGateLogoRef.current = parsed.store_logo_url;
+            }
+          }
+        } catch {}
+      }
+    }
+    if (!initialGateLogoRef.current) {
+      initialGateLogoRef.current = APP_LOGO_BASE64;
+    }
+  }
+
   const [settings, setSettings] = useState<ShopSettings>(() => {
     try {
+      const slug = getStoreSlug();
+      if (slug) {
+        const storeCached = localStorage.getItem(`catavor_store_${slug.toLowerCase()}`);
+        if (storeCached) {
+          const parsed = JSON.parse(storeCached);
+          if (parsed && typeof parsed === 'object') {
+            parsed.store_logo_url = getFastStoreLogo(slug, parsed.store_logo_url);
+            return parsed;
+          }
+        }
+      }
       const cached = localStorage.getItem('catavor_settings');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          parsed.store_logo_url = getFastStoreLogo(slug, parsed.store_logo_url);
+          return parsed;
+        }
+      }
     } catch {}
     return {
       whatsapp_number: '628123456789',
@@ -887,6 +1025,7 @@ function App() {
       articles_enabled: '1',
       store_title: 'Catavor',
       store_logo_url: '',
+      store_theme: 'emerald',
       default_is_comments_enabled: '1',
       default_require_comment_approval: '0',
       default_require_comment_email: '0',
@@ -930,9 +1069,10 @@ function App() {
   }
 
   // Mobile navigation views: 'tabs' | 'article-editor'
+  const isPopStateRef = useRef<boolean>(false)
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor'>('tabs')
-  const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'articles' | 'admin'>('catalog')
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'settings' | 'profile' | 'articles' | 'policies'>('menu')
+  const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications'>('menu')
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -944,6 +1084,15 @@ function App() {
   const [articlesPage, setArticlesPage] = useState(1)
   const [itemsPage, setItemsPage] = useState<number>(1)
   const [logoUploading, setLogoUploading] = useState<boolean>(false)
+
+  // Notifications Filter State
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
+
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+  const filteredNotifications = useMemo(() => {
+    if (notifFilter === 'unread') return notifications.filter(n => !n.read);
+    return notifications;
+  }, [notifications, notifFilter]);
 
   // Articles state
   const [articles, setArticles] = useState<Article[]>([])
@@ -984,6 +1133,8 @@ function App() {
   const [classFilter, setClassFilter] = useState<string>('all')
   const [habitatFilter, setHabitatFilter] = useState<string>('all')
   const [commentFilter, setCommentFilter] = useState<'all' | 'pending' | 'approved'>('all')
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
+  const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
 
   // Dynamically derived filter options & filtered items strictly from store items
   const availableCategories = useMemo(() => {
@@ -1005,10 +1156,11 @@ function App() {
       
       const matchesClass = classFilter === 'all' || item.class === classFilter;
       const matchesHabitat = habitatFilter === 'all' || item.habitat === habitatFilter;
+      const matchesProductType = productTypeFilter === 'all' || (item.product_type || 'physical') === productTypeFilter;
 
-      return matchesSearch && matchesClass && matchesHabitat;
+      return matchesSearch && matchesClass && matchesHabitat && matchesProductType;
     });
-  }, [faunas, search, classFilter, habitatFilter]);
+  }, [faunas, search, classFilter, habitatFilter, productTypeFilter]);
 
   // Bottom Sheets
   const [showCrudSheet, setShowCrudSheet] = useState<boolean>(false)
@@ -1082,10 +1234,10 @@ function App() {
   const [crudForm, setCrudForm] = useState({
     name: '',
     scientific_name: '',
-    class: 'Ikan Hias',
-    habitat: 'Air Tawar',
+    class: 'Umum',
+    habitat: 'General',
     diet: '',
-    conservation_status: 'Tersedia (For Sale)',
+    conservation_status: 'Tersedia',
     price: 0,
     video_url: '',
     is_shipping_available: true,
@@ -1097,7 +1249,25 @@ function App() {
     shipping_terms: '',
     warranty_info: '',
     shipping_coverage: 'Bisa Kirim se-Indonesia',
-    purchase_links: [] as { platform: string, url: string }[]
+    purchase_links: [] as { platform: string, url: string }[],
+    product_type: 'physical' as 'physical' | 'digital' | 'fauna' | 'service' | 'food',
+    attributes: {
+      stock: 1,
+      condition: 'Baru',
+      weight: 100,
+      download_url: '',
+      file_format: 'PDF',
+      file_size: '10 MB',
+      scientific_name: '',
+      fauna_class: 'Reptil',
+      fauna_status: 'Ready Stock',
+      duration: '1 Sesi / 1 Jam',
+      service_location: 'Datang ke Toko',
+      service_area: 'Jabodetabek',
+      expired_info: '7 Hari',
+      storage_temp: 'Suhu Ruang',
+      certification: 'Halal'
+    }
   })
 
   // Dynamic Master dropdown custom inputs
@@ -1141,6 +1311,7 @@ function App() {
     articles_enabled: '1',
     store_title: '',
     store_logo_url: '',
+    store_theme: 'emerald',
     default_is_comments_enabled: '1',
     default_require_comment_approval: '0',
     default_require_comment_email: '0',
@@ -1148,7 +1319,20 @@ function App() {
   })
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [mobileSettingsTab, setMobileSettingsTab] = useState<'menu' | 'general' | 'features' | 'about' | 'social' | 'master'>('menu')
+  const [mobileSettingsTab, setMobileSettingsTab] = useState<'menu' | 'general' | 'features' | 'about' | 'social' | 'master' | 'theme'>('menu')
+
+  // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
+  useEffect(() => {
+    if (storeSlug) {
+      const activeTheme = (settingsForm as any).store_theme || (settings as any).store_theme || 'emerald';
+      document.documentElement.setAttribute('data-theme', activeTheme);
+      document.body.setAttribute('data-theme', activeTheme);
+    } else {
+      // Non-store routes (Landing Portal, Login, Register, Terms & Policy Pages) enforce default platform theme
+      document.documentElement.setAttribute('data-theme', 'emerald');
+      document.body.setAttribute('data-theme', 'emerald');
+    }
+  }, [storeSlug, (settingsForm as any).store_theme, (settings as any).store_theme]);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -1164,14 +1348,88 @@ function App() {
   const [crudError, setCrudError] = useState<string | null>(null)
 
   // Detect URL path on mount
+  // Detect & parse URL path on mount (Mobile)
   useEffect(() => {
     const slug = getStoreSlug();
     setStoreSlug(slug);
 
-    if (window.location.pathname.endsWith('/admin')) {
-      setActiveTab('admin');
-    } else {
-      setActiveTab('catalog');
+    if (slug) {
+      const path = window.location.pathname.toLowerCase();
+      const parts = path.split('/').filter(Boolean);
+      const urlParams = new URLSearchParams(window.location.search);
+
+      if (parts.length >= 2) {
+        const sub = parts[1];
+        if (sub === 'admin') {
+          setActiveTab('admin');
+          const pageSub = parts[2] || urlParams.get('sub');
+          const subSub = parts[3];
+          const paramId = parts[4];
+
+          if (pageSub === 'items') {
+            setAdminSubTab('items');
+            if (subSub === 'create' || subSub === 'new') {
+              setCrudMode('create');
+              setView('fauna-editor');
+              setShowCrudSheet(true);
+            } else if (subSub === 'edit' && paramId) {
+              setCrudMode('edit');
+              setEditId(parseInt(paramId, 10));
+              setView('fauna-editor');
+              setShowCrudSheet(true);
+            } else {
+              setView('tabs');
+            }
+          } else if (pageSub === 'articles') {
+            setAdminSubTab('articles');
+            if (subSub === 'comments') {
+              setArticleTabState('comments');
+              setView('tabs');
+            } else if (subSub === 'create' || subSub === 'new') {
+              setView('article-editor');
+              setEditingArticle(null);
+            } else {
+              setView('tabs');
+            }
+          } else if (pageSub === 'settings') {
+            setAdminSubTab('settings');
+            setView('tabs');
+            const sec = subSub || urlParams.get('section') || 'general';
+            if (['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
+              setMobileSettingsTab(sec as any);
+            }
+          } else if (pageSub === 'profile') {
+            setAdminSubTab('profile');
+            setView('tabs');
+          } else if (pageSub === 'policies') {
+            setAdminSubTab('policies');
+            setView('tabs');
+          } else {
+            setAdminSubTab('menu');
+            setView('tabs');
+          }
+        } else if (sub === 'about') setActiveTab('about');
+        else if (sub === 'sightings') setActiveTab('sightings');
+        else if (sub === 'articles') setActiveTab('articles');
+      } else {
+        const qTab = urlParams.get('tab');
+        if (qTab === 'admin') {
+          setActiveTab('admin');
+          const pageSub = urlParams.get('sub');
+          if (pageSub === 'items') setAdminSubTab('items');
+          else if (pageSub === 'articles') setAdminSubTab('articles');
+          else if (pageSub === 'settings') {
+            setAdminSubTab('settings');
+            const sec = urlParams.get('section');
+            if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
+              setMobileSettingsTab(sec as any);
+            }
+          } else if (pageSub === 'profile') setAdminSubTab('profile');
+          else if (pageSub === 'policies') setAdminSubTab('policies');
+        } else if (qTab === 'about') setActiveTab('about');
+        else if (qTab === 'sightings') setActiveTab('sightings');
+        else if (qTab === 'articles') setActiveTab('articles');
+      }
     }
 
     // STRICT FLOW: If the user visits the admin page on mount but they haven't completed changing their password,
@@ -1185,6 +1443,36 @@ function App() {
       setIsPasswordChanged(false)
     }
   }, [adminUser, token])
+
+  // Auto-open fauna item sheet if ?item=ID is in URL or /admin/items/edit/ID
+  useEffect(() => {
+    if (!faunas || faunas.length === 0) return;
+    const path = window.location.pathname.toLowerCase();
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
+      const targetId = parseInt(parts[4], 10);
+      const found = faunas.find(f => f.id === targetId);
+      if (found && (!showCrudSheet || editId !== targetId)) {
+        openEditSheet(found);
+      }
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const itemId = urlParams.get('item');
+    if (itemId && !selectedFauna) {
+      const found = faunas.find(f => f.id.toString() === itemId);
+      if (found) setSelectedFauna(found);
+    }
+  }, [faunas]);
+
+  // Article feature disabled/unused
+  /*
+  useEffect(() => {
+    if (!articles || articles.length === 0) return;
+    ...
+  }, [articles]);
+  */
 
   // Lock scroll when bottom sheets are open
   useEffect(() => {
@@ -1201,15 +1489,96 @@ function App() {
   // Listen to popstate for clean policy & portal routes
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      isPopStateRef.current = true;
       const slug = getStoreSlug();
       setStoreSlug(slug);
 
       if (slug) {
-        if (window.location.pathname.endsWith('/admin')) {
-          setActiveTab('admin');
-        } else if (window.location.pathname.endsWith('/about')) {
-          setActiveTab('about');
+        const path = window.location.pathname.toLowerCase();
+        const parts = path.split('/').filter(Boolean);
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (parts.length >= 2) {
+          const sub = parts[1];
+          if (sub === 'admin') {
+            setActiveTab('admin');
+            const pageSub = parts[2] || urlParams.get('sub');
+            const subSub = parts[3];
+            const paramId = parts[4];
+
+            if (pageSub === 'items') {
+              setAdminSubTab('items');
+              if (subSub === 'create' || subSub === 'new') {
+                const prodType = parts[4];
+                if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
+                  setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+                  setCrudMode('create');
+                  setView('fauna-editor');
+                  setShowProductTypeSelector(false);
+                } else {
+                  setShowProductTypeSelector(true);
+                  setView('tabs');
+                }
+              } else if (subSub === 'edit' && paramId) {
+                let actualId = paramId;
+                let prodType = 'physical';
+                if (parts.length >= 5) {
+                  prodType = parts[3];
+                  actualId = parts[4];
+                }
+                setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+                setCrudMode('edit');
+                setEditId(parseInt(actualId, 10));
+                setView('fauna-editor');
+                setShowProductTypeSelector(false);
+              } else {
+                setView('tabs');
+                setShowProductTypeSelector(false);
+              }
+            } else if (pageSub === 'articles') {
+              setAdminSubTab('articles');
+              if (subSub === 'comments') {
+                setArticleTabState('comments');
+                setView('tabs');
+              } else if (subSub === 'create' || subSub === 'new') {
+                setView('article-editor');
+                setEditingArticle(null);
+              } else if (subSub === 'edit' && paramId) {
+                const found = articles.find(a => a.id.toString() === paramId || a.slug === paramId);
+                if (found) {
+                  setView('article-editor');
+                  setEditingArticle(found);
+                }
+              } else {
+                setView('tabs');
+                setArticleTabState('articles');
+              }
+            } else if (pageSub === 'settings') {
+              setAdminSubTab('settings');
+              setView('tabs');
+              const sec = subSub || urlParams.get('section') || 'general';
+              if (['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
+                setMobileSettingsTab(sec as any);
+              }
+            } else if (pageSub === 'profile') {
+              setAdminSubTab('profile');
+              setView('tabs');
+            } else if (pageSub === 'policies') {
+              setAdminSubTab('policies');
+              setView('tabs');
+            } else if (pageSub === 'notifications') {
+              setAdminSubTab('notifications');
+              setView('tabs');
+            } else {
+              setAdminSubTab('menu');
+              setView('tabs');
+            }
+          } else if (sub === 'about') { setView('tabs'); setActiveTab('about'); }
+          else if (sub === 'sightings') { setView('tabs'); setActiveTab('sightings'); }
+          else if (sub === 'articles') { setView('tabs'); setActiveTab('articles'); }
+          else { setView('tabs'); setActiveTab('catalog'); }
         } else {
+          setView('tabs');
           setActiveTab('catalog');
         }
         return;
@@ -1288,14 +1657,18 @@ function App() {
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
     if (parts[0] === 'register') return false;
     
-    if (parts.length === 2 && (parts[1] === 'admin' || parts[1] === 'about')) {
-      if (!reserved.includes(parts[0])) return false;
+    if (!reservedPortal.includes(parts[0])) {
+      const storeSub = parts[1];
+      const validStoreSubs = ['admin', 'about', 'sightings', 'articles'];
+      if (validStoreSubs.includes(storeSub)) {
+        return false;
+      }
     }
     
     return true;
@@ -1340,14 +1713,34 @@ function App() {
             social_links: store.social_links ? JSON.stringify(store.social_links) : '',
             store_title: store.store_title || 'Catavor',
             store_logo_url: store.store_logo_url || '',
+            store_theme: store.store_theme || 'emerald',
             default_is_comments_enabled: '0',
             default_require_comment_approval: '0',
             default_require_comment_email: '0',
             default_verify_comment_email_domain: '0'
           };
           
+          // Preload and convert custom store logo to Base64 in RAM/Storage FIRST
+          if (fetchedSettings.store_logo_url) {
+            try {
+              cacheLogoAsBase64(slug, fetchedSettings.store_logo_url);
+              await new Promise<void>((resolve) => {
+                const img = new window.Image();
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+                img.src = fetchedSettings.store_logo_url;
+                setTimeout(resolve, 300);
+              });
+            } catch {}
+            // Use fast Base64 data URI if available
+            fetchedSettings.store_logo_url = getFastStoreLogo(slug, fetchedSettings.store_logo_url);
+          }
+          
           setSettings(fetchedSettings);
           try {
+            if (slug) {
+              localStorage.setItem(`catavor_store_${slug.toLowerCase()}`, JSON.stringify(fetchedSettings));
+            }
             localStorage.setItem('catavor_settings', JSON.stringify(fetchedSettings));
           } catch {}
           if (token && adminUser && slug && (adminUser.store_slug?.toLowerCase() === slug.toLowerCase() || (adminUser as any).username?.toLowerCase() === slug.toLowerCase())) {
@@ -1678,26 +2071,83 @@ function App() {
     }, 200)
     return () => clearTimeout(delayDebounceFn)
   }, [search, classFilter, habitatFilter, storeSlug])
-  // Sync activeTab state to browser URL pathname
+  // Sync activeTab state, admin sub-tab, sub-sub-paths, settings section, and open views/modals to browser URL
   useEffect(() => {
-    if (error || isInvalidRoute()) return;
+    if (!storeSlug || error || isInvalidRoute()) return;
 
-    if (!storeSlug) {
-      return;
-    }
-
-    const currentPath = window.location.pathname;
     let targetPath = `/${storeSlug}`;
-    if (activeTab === 'admin') {
-      targetPath = `/${storeSlug}/admin`;
+    const params = new URLSearchParams();
+
+    if (view === 'fauna-editor') {
+      const prodType = crudForm.product_type || 'physical';
+      if (crudMode === 'edit' && editId) {
+        targetPath += `/admin/items/edit/${prodType}/${editId}`;
+      } else {
+        targetPath += `/admin/items/create/${prodType}`;
+      }
+    } else if (view === 'article-editor') {
+      if (editingArticle) {
+        targetPath += `/admin/articles/edit/${editingArticle.id}`;
+      } else {
+        targetPath += `/admin/articles/create`;
+      }
+    } else if (activeTab === 'admin') {
+      if (adminSubTab === 'items') {
+        if (showProductTypeSelector) {
+          targetPath += `/admin/items/create`;
+        } else {
+          targetPath += `/admin/items`;
+        }
+      } else if (adminSubTab === 'articles') {
+        if (articleTabState === 'comments') {
+          targetPath += `/admin/articles/comments`;
+        } else {
+          targetPath += `/admin/articles`;
+        }
+      } else if (adminSubTab === 'settings') {
+        const sec = mobileSettingsTab && mobileSettingsTab !== 'menu' ? mobileSettingsTab : 'general';
+        targetPath += `/admin/settings/${sec}`;
+      } else if (adminSubTab === 'profile') {
+        targetPath += `/admin/profile`;
+      } else if (adminSubTab === 'policies') {
+        targetPath += `/admin/policies`;
+      } else {
+        targetPath += `/admin`;
+      }
     } else if (activeTab === 'about') {
-      targetPath = `/${storeSlug}/about`;
+      targetPath += `/about`;
+    } else if (activeTab === 'sightings') {
+      targetPath += `/sightings`;
+    } else if (activeTab === 'articles') {
+      targetPath += `/articles`;
     }
 
-    if (currentPath !== targetPath) {
-      window.history.pushState({}, '', targetPath);
+    if (selectedFauna && view !== 'fauna-editor') {
+      params.set('item', selectedFauna.id.toString());
+    } else if (selectedArticle && view !== 'article-editor') {
+      params.set('article', selectedArticle.slug || selectedArticle.id.toString());
     }
-  }, [activeTab, storeSlug, error]);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const fullTarget = `${targetPath}${queryString}`;
+
+    if (window.location.pathname + window.location.search !== fullTarget) {
+      if (isPopStateRef.current) {
+        isPopStateRef.current = false;
+        window.history.replaceState(
+          { tab: activeTab, subTab: adminSubTab, section: mobileSettingsTab, view, item: selectedFauna?.id, article: selectedArticle?.id },
+          '',
+          fullTarget
+        );
+      } else {
+        window.history.pushState(
+          { tab: activeTab, subTab: adminSubTab, section: mobileSettingsTab, view, item: selectedFauna?.id, article: selectedArticle?.id },
+          '',
+          fullTarget
+        );
+      }
+    }
+  }, [activeTab, adminSubTab, mobileSettingsTab, crudMode, editId, view, editingArticle, articleTabState, selectedFauna, selectedArticle, storeSlug, error]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
@@ -2421,11 +2871,16 @@ function App() {
           about_disclaimer: store.about_disclaimer || '',
           social_links: store.social_links ? JSON.stringify(store.social_links) : '',
           store_title: store.store_title || 'Catavor',
-          store_logo_url: store.store_logo_url || ''
+          store_logo_url: store.store_logo_url || '',
+          store_theme: store.store_theme || settingsForm.store_theme || 'emerald'
         }
         setSettings(updated)
         setSettingsForm(updated)
-        showToast('Pengaturan toko Anda berhasil disimpan!')
+        try {
+          localStorage.setItem('catavor_settings', JSON.stringify(updated));
+        } catch {}
+        document.documentElement.setAttribute('data-theme', updated.store_theme);
+        showToast('Pengaturan toko & tema tampilan berhasil disimpan!')
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -2461,7 +2916,12 @@ function App() {
 
       const data = await res.json()
       if (res.ok && data.success) {
+        const slug = getStoreSlug();
+        if (slug) {
+          cacheLogoAsBase64(slug, data.url);
+        }
         setSettingsForm(prev => ({ ...prev, store_logo_url: data.url }))
+        setSettings(prev => ({ ...prev, store_logo_url: data.url }))
         showToast('Gambar logo berhasil diunggah!')
       } else {
         showToast(data.message || 'Gagal mengunggah gambar logo.', 'error')
@@ -2480,15 +2940,20 @@ function App() {
       showToast('Batas postingan Plan Gratis (Maksimal 10 produk) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
       return
     }
+    setShowProductTypeSelector(true)
+  }
+
+  const handleSelectProductType = (type: 'physical' | 'digital' | 'fauna' | 'service' | 'food') => {
+    setShowProductTypeSelector(false)
     setCrudMode('create')
     setEditId(null)
     setCrudForm({
       name: '',
       scientific_name: '',
-      class: 'Ikan Hias',
-      habitat: 'Air Tawar',
+      class: type === 'fauna' ? 'Reptil' : 'Umum',
+      habitat: 'General',
       diet: '',
-      conservation_status: 'Tersedia (For Sale)',
+      conservation_status: 'Tersedia',
       price: 0,
       video_url: '',
       is_shipping_available: true,
@@ -2500,7 +2965,25 @@ function App() {
       shipping_terms: '',
       warranty_info: '',
       shipping_coverage: 'Bisa Kirim se-Indonesia',
-      purchase_links: []
+      purchase_links: [],
+      product_type: type,
+      attributes: {
+        stock: 1,
+        condition: 'Baru',
+        weight: 100,
+        download_url: '',
+        file_format: 'PDF',
+        file_size: '10 MB',
+        scientific_name: '',
+        fauna_class: 'Reptil',
+        fauna_status: 'Ready Stock',
+        duration: '1 Sesi / 1 Jam',
+        service_location: 'Datang ke Toko',
+        service_area: 'Jabodetabek',
+        expired_info: '7 Hari',
+        storage_temp: 'Suhu Ruang',
+        certification: 'Halal'
+      }
     })
     setCustomClass('')
     setShowCustomClassInput(false)
@@ -2544,7 +3027,25 @@ function App() {
         ...(item.detailed_info?.lazada_url ? [{ platform: 'Lazada', url: item.detailed_info.lazada_url }] : []),
         ...(item.detailed_info?.bukalapak_url ? [{ platform: 'Bukalapak', url: item.detailed_info.bukalapak_url }] : []),
         ...(item.detailed_info?.custom_shop_url ? [{ platform: item.detailed_info.custom_shop_name || 'Marketplace', url: item.detailed_info.custom_shop_url }] : [])
-      ]
+      ],
+      product_type: item.product_type || 'physical',
+      attributes: {
+        stock: item.attributes?.stock ?? 1,
+        condition: (item.attributes?.condition as any) || 'Baru',
+        weight: item.attributes?.weight ?? 100,
+        download_url: item.attributes?.download_url || '',
+        file_format: item.attributes?.file_format || 'PDF',
+        file_size: item.attributes?.file_size || '10 MB',
+        scientific_name: item.attributes?.scientific_name || item.scientific_name || '',
+        fauna_class: item.attributes?.fauna_class || item.class || 'Reptil',
+        fauna_status: item.attributes?.fauna_status || item.conservation_status || 'Ready Stock',
+        duration: item.attributes?.duration || '1 Sesi / 1 Jam',
+        service_location: item.attributes?.service_location || 'Datang ke Toko',
+        service_area: item.attributes?.service_area || 'Jabodetabek',
+        expired_info: item.attributes?.expired_info || '7 Hari',
+        storage_temp: item.attributes?.storage_temp || 'Suhu Ruang',
+        certification: item.attributes?.certification || 'Halal'
+      }
     })
     setCustomClass('')
     setShowCustomClassInput(false)
@@ -2609,16 +3110,18 @@ function App() {
 
     const payload = {
       name: crudForm.name,
-      scientific_name: crudForm.scientific_name,
-      class: selectedClass,
-      habitat: selectedHabitat,
-      diet: crudForm.diet,
-      conservation_status: selectedConservationStatus,
+      scientific_name: crudForm.scientific_name || 'N/A',
+      class: selectedClass || 'Umum',
+      habitat: selectedHabitat || 'General',
+      diet: crudForm.diet || 'N/A',
+      conservation_status: selectedConservationStatus || 'Tersedia',
       price: crudForm.price,
       video_url: crudForm.video_url || null,
       is_shipping_available: !selectedShippingCoverage.toLowerCase().includes('ambil sendiri'),
       description: crudForm.description,
       image_url: filteredImages[0],
+      product_type: crudForm.product_type,
+      attributes: crudForm.attributes,
       detailed_info: {
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
@@ -3036,15 +3539,36 @@ function App() {
     return combined.slice(0, 4)
   }
 
+  // Dynamic Theme Primary Accent Resolver for Multi-Tenant Loading Gate
+  const getThemeAccentColor = (themeName?: string) => {
+    const theme = (themeName || 'emerald').toLowerCase();
+    switch (theme) {
+      case 'cyberpunk': return '#a855f7';
+      case 'sunset': return '#f59e0b';
+      case 'ocean': return '#3b82f6';
+      case 'pastel': return '#e11d48';
+      case 'cream': return '#059669';
+      case 'emerald':
+      default: return '#10b981';
+    }
+  };
+
   // Render App Readiness Loader Gate Screen
   if (isAppInitializing) {
+    const currentSlug = getStoreSlug();
+    const activeTheme = currentSlug ? ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || 'emerald') : 'emerald';
+    const accentColor = getThemeAccentColor(activeTheme);
+    const displayLogo = initialGateLogoRef.current || APP_LOGO_BASE64;
+    const displayTitle = (currentSlug && settings.store_title && settings.store_title !== 'Catavor')
+      ? settings.store_title
+      : (currentSlug ? currentSlug.charAt(0).toUpperCase() + currentSlug.slice(1) : 'Catavor');
+
     return (
       <div style={{
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        backgroundColor: '#060907',
-        backgroundImage: 'radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.15) 0%, transparent 65%)',
+        backgroundColor: '#0a0e17',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -3058,51 +3582,41 @@ function App() {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(300%); }
           }
-          @keyframes pulseGlow {
-            0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.4)); }
-            50% { transform: scale(1.08); opacity: 0.85; filter: drop-shadow(0 0 25px rgba(16, 185, 129, 0.7)); }
-          }
         `}</style>
+
+        {/* Clean Logo Box */}
         <div style={{
-          position: 'relative',
+          width: '80px',
+          height: '80px',
+          borderRadius: '1.25rem',
+          backgroundColor: '#ffffff',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: '0.65rem',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.35)',
           marginBottom: '1.25rem'
         }}>
-          <div style={{
-            width: '88px',
-            height: '88px',
-            borderRadius: '1.25rem',
-            backgroundColor: '#ffffff',
-            border: '2px solid #10b981',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0.75rem',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5), 0 0 25px rgba(16, 185, 129, 0.5)',
-            animation: 'pulseGlow 1.8s infinite ease-in-out'
-          }}>
-            <img 
-              src={APP_LOGO_BASE64} 
-              alt="Catavor Logo" 
-              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} 
-            />
-          </div>
+          <img 
+            src={displayLogo} 
+            alt={displayTitle} 
+            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }} 
+          />
         </div>
 
+        {/* Store Title */}
         <h3 style={{
           margin: '0 0 0.35rem 0',
           fontSize: '1.15rem',
           fontWeight: 800,
-          letterSpacing: '-0.02em',
-          background: 'linear-gradient(135deg, #ffffff 0%, #a7f3d0 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
+          color: '#ffffff',
+          letterSpacing: '-0.01em'
         }}>
-          Catavor
+          {displayTitle}
         </h3>
         
+        {/* Subtitle */}
         <p style={{
           margin: 0,
           fontSize: '0.78rem',
@@ -3113,11 +3627,12 @@ function App() {
           Mempersiapkan Halaman...
         </p>
 
+        {/* Minimalist Progress Line */}
         <div style={{
-          width: '130px',
-          height: '3px',
+          width: '120px',
+          height: '2.5px',
           backgroundColor: 'rgba(255, 255, 255, 0.08)',
-          borderRadius: '3px',
+          borderRadius: '2px',
           marginTop: '1.25rem',
           overflow: 'hidden',
           position: 'relative'
@@ -3125,10 +3640,9 @@ function App() {
           <div style={{
             width: '40%',
             height: '100%',
-            backgroundColor: '#10b981',
-            borderRadius: '3px',
-            boxShadow: '0 0 10px #10b981',
-            animation: 'loaderSlide 1.2s infinite ease-in-out'
+            backgroundColor: accentColor,
+            borderRadius: '2px',
+            animation: 'loaderSlide 1.1s infinite ease-in-out'
           }} />
         </div>
       </div>
@@ -3150,9 +3664,9 @@ function App() {
                     type="button"
                     onClick={() => setPortalTab(previousPortalTab || 'home')}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: '#ffffff',
+                      background: 'var(--btn-secondary-bg)',
+                      border: '1px solid var(--btn-secondary-border)',
+                      color: 'var(--btn-secondary-text)',
                       fontSize: '0.78rem',
                       fontWeight: 700,
                       padding: '0.35rem 0.65rem',
@@ -3165,14 +3679,14 @@ function App() {
                       touchAction: 'manipulation'
                     }}
                   >
-                    <ArrowLeft size={15} />
+                    <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
                     <span>Kembali</span>
                   </button>
-                  <span style={{ color: 'rgba(255, 255, 255, 0.2)' }}>|</span>
+                  <span style={{ color: 'var(--border-light)' }}>|</span>
                   <span style={{ 
                     fontSize: '0.92rem', 
                     fontWeight: 800, 
-                    color: '#ffffff', 
+                    color: 'var(--text-primary)', 
                     letterSpacing: '-0.01em',
                     fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif",
                     whiteSpace: 'nowrap',
@@ -4661,34 +5175,41 @@ function App() {
           <div style={{
             position: 'sticky',
             top: 0,
-            backgroundColor: 'var(--bg-card)',
-            borderBottom: '1px solid var(--border-light)',
+            backgroundColor: '#080c14',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
             padding: '0.85rem 1rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            zIndex: 100
+            zIndex: 100,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button 
                 onClick={() => {
                   setIsDetailActive(false);
                   setSelectedFauna(null);
                 }}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-primary)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  color: '#ffffff',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  padding: '0.38rem 0.75rem',
+                  borderRadius: '0.5rem',
                   cursor: 'pointer',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0.25rem'
+                  gap: '0.35rem'
                 }}
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={15} style={{ color: '#10b981' }} />
+                <span>Kembali</span>
               </button>
-              <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>Detail Produk</span>
+              <span style={{ fontWeight: 800, fontSize: '0.98rem', color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Detail Produk</span>
             </div>
             
             <button
@@ -4904,7 +5425,9 @@ function App() {
             bottom: 0,
             left: 0,
             right: 0,
-            backgroundColor: '#0b0e0c',
+            background: 'var(--header-bg)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             borderTop: '1px solid var(--border-light)',
             padding: '0.75rem 1rem',
             display: 'flex',
@@ -5192,11 +5715,12 @@ function App() {
             right: 0, 
             height: '3.5rem', 
             zIndex: 100, 
-            backgroundColor: 'rgba(11, 14, 12, 0.95)',
-            backdropFilter: 'blur(10px)',
+            backgroundColor: '#080c14',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             padding: '0 1rem', 
-            borderBottom: '1px solid var(--border-light)',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
           }}>
             <button 
               type="button"
@@ -5208,17 +5732,17 @@ function App() {
               style={{
                 fontSize: '0.8rem',
                 padding: '0.35rem 0.65rem',
-                borderRadius: '0.35rem',
+                borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.25rem',
                 cursor: 'pointer',
-                background: 'var(--border-light)',
-                border: 'none',
-                color: 'var(--text-secondary)'
+                background: 'var(--btn-secondary-bg)',
+                border: '1px solid var(--btn-secondary-border)',
+                color: 'var(--btn-secondary-text)'
               }}
             >
-              <ArrowLeft size={14} /> Kembali
+              <ArrowLeft size={14} style={{ color: 'var(--primary)' }} /> Kembali
             </button>
             <span style={{ 
               color: 'var(--text-primary)', 
@@ -5462,43 +5986,63 @@ function App() {
             right: 0, 
             height: '3.5rem', 
             zIndex: 100, 
-            backgroundColor: 'rgba(11, 14, 12, 0.95)',
-            backdropFilter: 'blur(10px)',
+            backgroundColor: '#080c14',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             padding: '0 1rem', 
-            borderBottom: '1px solid var(--border-light)',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
           }}>
             <button 
               type="button"
-              className="btn-secondary"
               onClick={() => {
                 setView('tabs')
                 setActiveTab('admin')
                 setAdminSubTab('items')
               }}
               style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                color: '#ffffff',
                 fontSize: '0.8rem',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.35rem',
+                fontWeight: 700,
+                padding: '0.38rem 0.75rem',
+                borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.25rem',
+                gap: '0.35rem',
                 cursor: 'pointer'
               }}
             >
-              <ArrowLeft size={14} /> Batal
+              <ArrowLeft size={15} style={{ color: '#10b981' }} />
+              <span style={{ color: '#ffffff', fontWeight: 700 }}>Batal</span>
             </button>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              {crudMode === 'create' ? 'Tambah Postingan Hewan' : 'Edit Postingan Hewan'}
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)', margin: 0 }}>
+              {crudMode === 'create' ? 'Tambah Postingan Produk' : 'Edit Postingan Produk'}
             </h3>
             <div style={{ width: '60px' }} /> {/* Spacer to center the title */}
           </div>
 
           {/* Form Content */}
           <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
-              Silakan isi data inventaris toko dengan benar untuk menjaga kualitas katalog.
-            </p>
+            {/* Banner Switcher Tipe Produk */}
+            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Tipe Produk:</span>
+                <span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 800, backgroundColor: crudForm.product_type === 'digital' ? '#8b5cf6' : crudForm.product_type === 'physical' ? '#3b82f6' : crudForm.product_type === 'service' ? '#f59e0b' : crudForm.product_type === 'food' ? '#ef4444' : '#10b981', color: crudForm.product_type === 'service' ? '#000' : '#fff' }}>
+                  {crudForm.product_type === 'digital' ? '💾 Barang Digital' : crudForm.product_type === 'physical' ? '📦 Barang Fisik' : crudForm.product_type === 'service' ? '🛠️ Jasa & Layanan' : crudForm.product_type === 'food' ? '🍱 Makanan & Minuman' : '🐾 Hewan / Living Fauna'}
+                </span>
+              </div>
+              {crudMode === 'create' && (
+                <button 
+                  type="button" 
+                  onClick={() => setShowProductTypeSelector(true)}
+                  style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Ganti Tipe
+                </button>
+              )}
+            </div>
 
             {crudError && (
               <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '1.25rem' }}>
@@ -5507,151 +6051,19 @@ function App() {
             )}
 
             <form onSubmit={handleFaunaSubmit}>
-              <div className="form-group">
-                <label className="form-label">Nama Hewan *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Nama hewan hias..."
-                  required
-                  value={crudForm.name}
-                  onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nama Ilmiah *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Nama ilmiah/taksonomi..."
-                  required
-                  value={crudForm.scientific_name}
-                  onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+              {/* Standar Fields: Nama & Harga */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Kelas *</label>
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <select 
-                      className="form-select"
-                      style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      value={showCustomClassInput ? '__NEW__' : crudForm.class}
-                      onChange={(e) => {
-                        if (e.target.value === '__NEW__') {
-                          setShowCustomClassInput(true)
-                          setCustomClass('')
-                        } else {
-                          setShowCustomClassInput(false)
-                          setCrudForm({ ...crudForm, class: e.target.value })
-                        }
-                      }}
-                    >
-                      {getUniqueClasses().map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                      <option value="__NEW__">+ Tambah Baru...</option>
-                    </select>
-                  </div>
-                  {showCustomClassInput && (
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      style={{ marginTop: '0.35rem' }} 
-                      placeholder="Ketik Kelas Baru..." 
-                      value={customClass} 
-                      onChange={(e) => setCustomClass(e.target.value)} 
-                      required 
-                    />
-                  )}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Habitat *</label>
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <select 
-                      className="form-select"
-                      style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      value={showCustomHabitatInput ? '__NEW__' : crudForm.habitat}
-                      onChange={(e) => {
-                        if (e.target.value === '__NEW__') {
-                          setShowCustomHabitatInput(true)
-                          setCustomHabitat('')
-                        } else {
-                          setShowCustomHabitatInput(false)
-                          setCrudForm({ ...crudForm, habitat: e.target.value })
-                        }
-                      }}
-                    >
-                      {getUniqueHabitats().map((h) => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                      <option value="__NEW__">+ Tambah Baru...</option>
-                    </select>
-                  </div>
-                  {showCustomHabitatInput && (
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      style={{ marginTop: '0.35rem' }} 
-                      placeholder="Ketik Habitat Baru..." 
-                      value={customHabitat} 
-                      onChange={(e) => setCustomHabitat(e.target.value)} 
-                      required 
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Makanan/Diet *</label>
+                  <label className="form-label">Nama Produk / Item / Layanan *</label>
                   <input 
                     type="text" 
                     className="form-input" 
-                    placeholder="Cacing/Katak/Pelet..."
+                    placeholder="Nama produk/layanan..."
                     required
-                    value={crudForm.diet}
-                    onChange={(e) => setCrudForm({ ...crudForm, diet: e.target.value })}
+                    value={crudForm.name}
+                    onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Status *</label>
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <select 
-                      className="form-select"
-                      style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      value={showCustomConservationStatusInput ? '__NEW__' : crudForm.conservation_status}
-                      onChange={(e) => {
-                        if (e.target.value === '__NEW__') {
-                          setShowCustomConservationStatusInput(true)
-                          setCustomConservationStatus('')
-                        } else {
-                          setShowCustomConservationStatusInput(false)
-                          setCrudForm({ ...crudForm, conservation_status: e.target.value })
-                        }
-                      }}
-                    >
-                      {getUniqueConservationStatuses().map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                      <option value="__NEW__">+ Tambah Baru...</option>
-                    </select>
-                  </div>
-                  {showCustomConservationStatusInput && (
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      style={{ marginTop: '0.35rem' }} 
-                      placeholder="Ketik Status Baru..." 
-                      value={customConservationStatus} 
-                      onChange={(e) => setCustomConservationStatus(e.target.value)} 
-                      required 
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <div className="form-group">
                   <label className="form-label">Harga (IDR) *</label>
                   <input 
@@ -5664,6 +6076,210 @@ function App() {
                   />
                 </div>
               </div>
+
+              {/* DYNAMIC FIELDS SPECIFIC TO PRODUCT TYPE */}
+              {crudForm.product_type === 'physical' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Stok (Unit) *</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      placeholder="Stok barang..."
+                      required
+                      value={crudForm.attributes.stock}
+                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, stock: parseInt(e.target.value) || 0 } })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Kondisi *</label>
+                    <select 
+                      className="form-select"
+                      value={crudForm.attributes.condition}
+                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
+                    >
+                      <option value="Baru">Baru</option>
+                      <option value="Bekas">Bekas / Second</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Berat (Gram) *</label>
+                    <input 
+                      type="number" 
+                      className="form-input" 
+                      placeholder="Contoh: 500"
+                      required
+                      value={crudForm.attributes.weight}
+                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, weight: parseInt(e.target.value) || 0 } })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {crudForm.product_type === 'digital' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Link Akses / Download File *</label>
+                    <input 
+                      type="url" 
+                      className="form-input" 
+                      placeholder="https://drive.google.com/file/d/..."
+                      required
+                      value={crudForm.attributes.download_url}
+                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Format File *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: PDF / ZIP / MP3"
+                        required
+                        value={crudForm.attributes.file_format}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Ukuran File *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 15 MB"
+                        required
+                        value={crudForm.attributes.file_size}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_size: e.target.value } })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {crudForm.product_type === 'fauna' && (
+                <>
+                  <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                    <label className="form-label">Nama Ilmiah / Taksonomi *</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Nama latin atau taksonomi..."
+                      required
+                      value={crudForm.scientific_name}
+                      onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Kelas / Kategori *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: Reptil / Burung / Ikan Hias"
+                        required
+                        value={crudForm.class}
+                        onChange={(e) => setCrudForm({ ...crudForm, class: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Status Ketersediaan *</label>
+                      <select 
+                        className="form-select"
+                        value={crudForm.conservation_status}
+                        onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
+                      >
+                        <option value="Ready Stock">Ready Stock</option>
+                        <option value="Pre-Order">Pre-Order</option>
+                        <option value="Tersedia">Tersedia</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {crudForm.product_type === 'service' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Durasi Layanan *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 1 Sesi / 1 Jam / 1 Hari"
+                        required
+                        value={crudForm.attributes.duration}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, duration: e.target.value } })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Metode Layanan *</label>
+                      <select 
+                        className="form-select"
+                        value={crudForm.attributes.service_location}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
+                      >
+                        <option value="Datang ke Toko">Datang ke Toko</option>
+                        <option value="Home Visit (Ke Rumah)">Home Visit (Ke Rumah)</option>
+                        <option value="Online">Online / Jarak Jauh</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Area Jangkauan Operasional *</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Contoh: Jabodetabek / Bandung / Online"
+                      required
+                      value={crudForm.attributes.service_area}
+                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {crudForm.product_type === 'food' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Ketahanan / Expired Date *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: 7 Hari / 3 Bulan / Fresh Daily"
+                        required
+                        value={crudForm.attributes.expired_info}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Suhu Penyimpanan *</label>
+                      <select 
+                        className="form-select"
+                        value={crudForm.attributes.storage_temp}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                      >
+                        <option value="Suhu Ruang">Suhu Ruang</option>
+                        <option value="Dingin (Chiller)">Dingin (Chiller)</option>
+                        <option value="Beku (Freezer)">Beku (Freezer)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Sertifikasi / Label *</label>
+                    <select 
+                      className="form-select"
+                      value={crudForm.attributes.certification}
+                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                    >
+                      <option value="Halal">Sertifikat Halal</option>
+                      <option value="BPOM">Izin BPOM</option>
+                      <option value="Home-made">Home-made / Buatan Sendiri</option>
+                      <option value="Fresh / Tanpa Pengawet">Fresh / Tanpa Pengawet</option>
+                    </select>
+                  </div>
+                </div>
+              )}
               {/* Multi-image upload section */}
               <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -5680,15 +6296,18 @@ function App() {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {crudImages.map((imgUrl, index) => (
-                    <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'rgba(255,255,255,0.01)', padding: '0.5rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)' }}>
+                    <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
                       {/* Preview Thumbnail */}
-                      <div style={{ width: '45px', height: '45px', borderRadius: '0.25rem', overflow: 'hidden', border: '1px solid var(--border-light)', background: '#131916', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                         {imgUrl ? (
                           <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
                         ) : (
-                          <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Foto</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                            <Image size={13} style={{ color: 'var(--primary)' }} />
+                            <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                          </div>
                         )}
                         {uploadingIndex === index && (
                           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -5710,13 +6329,30 @@ function App() {
                             setCrudImages(newImages)
                           }}
                           required={index === 0}
-                          style={{ height: '34px', fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
+                          style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
                         />
                         
                         {/* Device File Upload Button */}
-                        <label className="btn-secondary" style={{ padding: '0.35rem 0.5rem', height: '34px', borderRadius: '0.25rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.15rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                          <Upload size={12} />
-                          Upload
+                        <label 
+                          className="btn-secondary" 
+                          style={{ 
+                            padding: '0.35rem 0.65rem', 
+                            height: '36px', 
+                            borderRadius: '0.4rem', 
+                            fontSize: '0.75rem', 
+                            fontWeight: 700,
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '0.25rem', 
+                            cursor: 'pointer', 
+                            whiteSpace: 'nowrap',
+                            background: 'var(--btn-secondary-bg)',
+                            color: 'var(--btn-secondary-text)',
+                            border: '1px solid var(--btn-secondary-border)'
+                          }}
+                        >
+                          <Upload size={12} style={{ color: 'var(--primary)' }} />
+                          <span>Upload</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -5735,7 +6371,20 @@ function App() {
                         <button
                           type="button"
                           className="btn-secondary"
-                          style={{ padding: '0.35rem', color: 'var(--danger)', borderColor: 'var(--danger-border)', height: '34px', width: '34px', borderRadius: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          style={{ 
+                            padding: '0.35rem', 
+                            color: '#f87171', 
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)', 
+                            border: '1px solid rgba(239, 68, 68, 0.3)', 
+                            height: '36px', 
+                            width: '36px', 
+                            borderRadius: '0.4rem', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            flexShrink: 0,
+                            cursor: 'pointer' 
+                          }}
                           onClick={() => {
                             const newImages = crudImages.filter((_, i) => i !== index)
                             setCrudImages(newImages)
@@ -5880,13 +6529,16 @@ function App() {
             position: 'sticky', 
             top: 0, 
             zIndex: 100, 
-            backgroundColor: 'var(--bg-card)', 
+            backgroundColor: '#080c14', 
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
             paddingTop: '1rem',
             paddingBottom: '0.75rem', 
-            borderBottom: '1px solid var(--border-light)', 
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)', 
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
             marginTop: '-1rem', 
             marginLeft: '-1rem', 
             marginRight: '-1rem', 
@@ -5895,33 +6547,38 @@ function App() {
             marginBottom: '1.25rem' 
           }}>
             <button 
+              type="button"
               onClick={() => {
                 setView('tabs')
                 setActiveTab('admin')
                 setAdminSubTab('articles')
               }}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                fontSize: '0.85rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                color: '#ffffff',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                padding: '0.38rem 0.75rem',
+                borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.25rem',
-                cursor: 'pointer',
-                fontWeight: 600
+                gap: '0.35rem',
+                cursor: 'pointer'
               }}
             >
-              <ArrowLeft size={16} /> Batal
+              <ArrowLeft size={15} style={{ color: '#10b981' }} />
+              <span style={{ color: '#ffffff', fontWeight: 700 }}>Batal</span>
             </button>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.98rem', color: '#ffffff', fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
               {editingArticle ? 'Edit Artikel' : 'Tulis Artikel'}
             </span>
             <button 
+              type="button"
               onClick={(e) => handleSaveArticle(e)}
               className="btn-primary"
               disabled={articlesLoading}
-              style={{ padding: '0.35rem 1rem', fontSize: '0.8rem', borderRadius: '0.35rem' }}
+              style={{ padding: '0.38rem 1rem', fontSize: '0.8rem', fontWeight: 800, borderRadius: '0.5rem' }}
             >
               {articlesLoading ? '...' : 'Terbitkan'}
             </button>
@@ -6222,7 +6879,7 @@ function App() {
                       borderRadius: '0.5rem',
                       marginBottom: '1rem',
                       border: '1px solid var(--border-light)',
-                      background: 'linear-gradient(135deg, #131916 0%, #0b0e0c 100%)',
+                      background: 'var(--card-bg-gradient)',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -6456,12 +7113,12 @@ function App() {
                         }
                       }}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
                         color: '#ffffff',
-                        fontSize: '0.78rem',
+                        fontSize: '0.8rem',
                         fontWeight: 700,
-                        padding: '0.35rem 0.65rem',
+                        padding: '0.38rem 0.75rem',
                         borderRadius: '0.5rem',
                         cursor: 'pointer',
                         display: 'inline-flex',
@@ -6473,12 +7130,12 @@ function App() {
                       }}
                     >
                       <ArrowLeft size={15} style={{ color: '#10b981' }} />
-                      <span>Kembali</span>
+                      <span style={{ color: '#ffffff', fontWeight: 700 }}>Kembali</span>
                     </button>
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0 }}>
                       <span style={{ 
-                        fontSize: '0.92rem', 
+                        fontSize: '0.98rem', 
                         fontWeight: 800, 
                         color: '#ffffff', 
                         letterSpacing: '-0.01em',
@@ -6486,18 +7143,20 @@ function App() {
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        textAlign: 'center'
+                        textAlign: 'center',
+                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.5)'
                       }}>
                         {adminSubTab === 'items' && 'Kelola Inventaris'}
-                        {adminSubTab === 'articles' && 'Kelola Artikel'}
                         {adminSubTab === 'settings' && (
                           mobileSettingsTab === 'general' ? 'Informasi Toko' :
                           mobileSettingsTab === 'about' ? 'Tentang Kami' :
                           mobileSettingsTab === 'social' ? 'Media Sosial' :
-                          mobileSettingsTab === 'master' ? 'Master Data' : 'Pengaturan Toko'
+                          mobileSettingsTab === 'master' ? 'Master Data' :
+                          mobileSettingsTab === 'theme' ? 'Tema & Tampilan' : 'Pengaturan Toko'
                         )}
                         {adminSubTab === 'profile' && 'Profil Admin'}
                         {adminSubTab === 'policies' && 'Legal & Kebijakan'}
+                        {adminSubTab === 'notifications' && 'Notifikasi & Aktivitas'}
                       </span>
                     </div>
 
@@ -6507,43 +7166,19 @@ function App() {
                           type="button"
                           className="btn-primary" 
                           style={{ 
-                            padding: '0.35rem 0.65rem', 
+                            padding: '0.38rem 0.75rem', 
                             borderRadius: '0.5rem', 
-                            fontSize: '0.72rem', 
+                            fontSize: '0.78rem', 
                             fontWeight: 800,
                             display: 'flex', 
                             alignItems: 'center', 
                             gap: '0.25rem',
-                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
                             cursor: 'pointer'
                           }}
                           onClick={openCreateSheet}
                         >
-                          <Plus size={13} />
+                          <Plus size={14} />
                           <span>Tambah</span>
-                        </button>
-                      )}
-                      {adminSubTab === 'articles' && (
-                        <button 
-                          type="button"
-                          className="btn-primary" 
-                          style={{ 
-                            padding: '0.35rem 0.65rem', 
-                            borderRadius: '0.5rem', 
-                            fontSize: '0.72rem', 
-                            fontWeight: 800,
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '0.25rem',
-                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
-                            cursor: 'pointer'
-                          }}
-                          onClick={openAddArticleSheet}
-                        >
-                          <Plus size={13} />
-                          <span>Baru</span>
                         </button>
                       )}
                     </div>
@@ -6557,18 +7192,15 @@ function App() {
               return (
                 <div className="mobile-header-bar" style={{ gap: scale.gap }}>
                   <div className="mobile-header-brand" style={{ gap: scale.gap }}>
-                    {settings.store_logo_url ? (
-                      <img 
-                        src={settings.store_logo_url} 
-                        alt="Logo" 
-                        style={{ height: `${scale.iconSize}px`, width: 'auto', maxWidth: '100px', objectFit: 'contain', borderRadius: '4px', flexShrink: 0 }} 
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ) : null}
+                    <img 
+                      src={settings.store_logo_url || APP_LOGO_BASE64} 
+                      alt="Logo" 
+                      style={{ height: `${scale.iconSize}px`, width: 'auto', maxWidth: '100px', objectFit: 'contain', borderRadius: '4px', flexShrink: 0 }} 
+                    />
                     <div className="mobile-header-title-wrapper" style={{ gap: '0.35rem' }}>
                       <h1 
                         className="logo-title" 
-                        style={{ fontSize: scale.titleFontSize, color: '#ffffff' }}
+                        style={{ fontSize: scale.titleFontSize }}
                         title={titleText}
                       >
                         {titleText}
@@ -6645,77 +7277,105 @@ function App() {
           </div>
         )}
 
-        {/* Modal Pusat Notifikasi Dashboard Mobile */}
-        {showNotificationModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-            <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '400px', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
-              <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Bell size={18} style={{ color: '#f59e0b' }} />
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Notifikasi Catavor</h3>
+        {/* Modal Pemilihan Tipe Usaha / Produk (Step 1 Input Data) */}
+        {showProductTypeSelector && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '420px', borderRadius: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.85)', overflow: 'hidden' }}>
+              <div style={{ padding: '1.15rem 1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Pilih Tipe Produk / Usaha</h3>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Step 1: Pilih kategori item yang ingin ditambahkan</span>
                 </div>
                 <button 
                   type="button"
-                  onClick={() => setShowNotificationModal(false)}
-                  style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}
+                  onClick={() => setShowProductTypeSelector(false)}
+                  style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer', fontWeight: 700 }}
                 >
                   ✕
                 </button>
               </div>
 
-              <div style={{ padding: '1rem', maxHeight: '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {notifications.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#9ca3af', padding: '1.5rem 0', fontSize: '0.78rem' }}>
-                    Belum ada notifikasi baru untuk Anda.
+              <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '440px', overflowY: 'auto' }}>
+                {/* 1. Barang Fisik */}
+                <div 
+                  onClick={() => handleSelectProductType('physical')}
+                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '1.3rem', flexShrink: 0 }}>
+                    📦
                   </div>
-                ) : (
-                  notifications.map(n => (
-                    <div 
-                      key={n.id} 
-                      style={{ 
-                        padding: '0.75rem', 
-                        borderRadius: '0.65rem', 
-                        backgroundColor: n.read ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', 
-                        border: n.read ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(16, 185, 129, 0.25)', 
-                        display: 'flex', 
-                        gap: '0.65rem', 
-                        alignItems: 'flex-start' 
-                      }}
-                    >
-                      <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: n.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {n.type === 'success' ? <CheckCircle size={15} style={{ color: '#10b981' }} /> : <Clock size={15} style={{ color: '#f59e0b' }} />}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.15rem' }}>
-                          <strong style={{ fontSize: '0.78rem', color: '#ffffff' }}>{n.title}</strong>
-                          <span style={{ fontSize: '0.62rem', color: '#6b7280' }}>{n.time}</span>
-                        </div>
-                        <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: 0, lineHeight: 1.35 }}>{n.message}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Barang Fisik</h4>
+                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Pakaian, Aksesoris, Gadget, Kerajinan, dll. (Form: Stok, Kondisi, Berat)</p>
+                  </div>
+                  <ChevronRight size={18} style={{ color: '#3b82f6' }} />
+                </div>
 
-              <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                  style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                {/* 2. Barang Digital */}
+                <div 
+                  onClick={() => handleSelectProductType('digital')}
+                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
                 >
-                  Tandai Dibaca
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setShowNotificationModal(false)}
-                  style={{ padding: '0.35rem 0.85rem', borderRadius: '0.4rem', backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(139, 92, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6', fontSize: '1.3rem', flexShrink: 0 }}>
+                    💾
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Barang Digital</h4>
+                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>E-book, Template, File PDF, Source Code, Lisensi, dll. (Form: Link Download, Format, Size)</p>
+                  </div>
+                  <ChevronRight size={18} style={{ color: '#8b5cf6' }} />
+                </div>
+
+                {/* 3. Hewan / Binatang Hidup */}
+                <div 
+                  onClick={() => handleSelectProductType('fauna')}
+                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
                 >
-                  Tutup
-                </button>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontSize: '1.3rem', flexShrink: 0 }}>
+                    🐾
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Hewan & Living Fauna</h4>
+                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Pet Shop, Reptil, Burung, Ikan Hias, Tanaman, dll. (Form: Nama Latin, Kategori, Status)</p>
+                  </div>
+                  <ChevronRight size={18} style={{ color: '#10b981' }} />
+                </div>
+
+                {/* 4. Jasa & Layanan */}
+                <div 
+                  onClick={() => handleSelectProductType('service')}
+                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', fontSize: '1.3rem', flexShrink: 0 }}>
+                    🛠️
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Jasa & Layanan</h4>
+                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Grooming, Desain, Service, Les/Kursus, dll. (Form: Durasi, Sesi, Lokasi Service)</p>
+                  </div>
+                  <ChevronRight size={18} style={{ color: '#f59e0b' }} />
+                </div>
+
+                {/* 5. Makanan & Minuman */}
+                <div 
+                  onClick={() => handleSelectProductType('food')}
+                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: '1.3rem', flexShrink: 0 }}>
+                    🍱
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Makanan & Minuman (F&B)</h4>
+                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Kuliner, Camilan, Frozen Food, Katering, dll. (Form: Expired, Suhu Simpan, Sertifikasi)</p>
+                  </div>
+                  <ChevronRight size={18} style={{ color: '#ef4444' }} />
+                </div>
               </div>
             </div>
           </div>
         )}
+
+
         
         {/* ==========================================================
            TAB 1: CATALOG
@@ -6821,8 +7481,8 @@ function App() {
                       textAlign: 'center', 
                       borderRadius: '1rem',
                       border: '1px solid var(--border-light)',
-                      background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, rgba(9, 14, 12, 0.8) 100%)',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                      background: 'var(--card-bg-gradient)',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -6836,23 +7496,23 @@ function App() {
                         width: '60px', 
                         height: '60px', 
                         borderRadius: '50%', 
-                        backgroundColor: 'rgba(16, 185, 129, 0.12)', 
-                        border: '2px solid rgba(16, 185, 129, 0.3)', 
+                        backgroundColor: 'var(--primary-glow)', 
+                        border: '2px solid var(--border-light)', 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center',
-                        color: '#10b981',
-                        boxShadow: '0 0 18px rgba(16, 185, 129, 0.18)'
+                        color: 'var(--primary)',
+                        boxShadow: '0 0 18px var(--primary-glow)'
                       }}
                     >
                       <Layers size={28} />
                     </div>
                     <div>
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.35rem' }}>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
                         Katalog Masih Kosong
                       </h3>
-                      <p style={{ fontSize: '0.78rem', color: '#9ca3af', maxWidth: '320px', margin: '0 auto', lineHeight: 1.5 }}>
-                        Pemilik catalog <strong>{settings.store_title || 'ini'}</strong> belum mengunggah data ke dalam katalog ini. Silakan kunjungi kembali nanti!
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '320px', margin: '0 auto', lineHeight: 1.5 }}>
+                        Pemilik catalog <strong style={{ color: 'var(--text-primary)' }}>{settings.store_title || 'ini'}</strong> belum mengunggah data ke dalam katalog ini. Silakan kunjungi kembali nanti!
                       </p>
                     </div>
                     {isStoreOwner && (
@@ -6879,6 +7539,112 @@ function App() {
                           onChange={(e) => setSearch(e.target.value)}
                         />
                       </div>
+                      {/* Product Type Filter Tabs */}
+                      <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.4rem', marginBottom: '0.65rem', WebkitOverflowScrolling: 'touch' }}>
+                        <button
+                          type="button"
+                          onClick={() => setProductTypeFilter('all')}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                            color: productTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Semua Produk
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductTypeFilter('physical')}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: productTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+                            color: productTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          📦 Barang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductTypeFilter('digital')}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: productTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
+                            color: productTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          💾 Digital
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductTypeFilter('fauna')}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: productTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
+                            color: productTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          🐾 Hewan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductTypeFilter('service')}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: productTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
+                            color: productTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
+                          }}
+                        >
+                          🛠️ Jasa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductTypeFilter('food')}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: productTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
+                            color: productTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          🍱 Makanan
+                        </button>
+                      </div>
+
                       <div className="filters-row">
                         <select 
                           className="filter-select"
@@ -6928,8 +7694,35 @@ function App() {
                         style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
                       >
                         <div style={{ width: '100%', height: '130px', position: 'relative', overflow: 'hidden', backgroundColor: '#131916' }}>
+                          {/* Product Type Badge Overlay */}
+                          {item.product_type === 'digital' && (
+                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(139, 92, 246, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
+                              💾 Digital
+                            </span>
+                          )}
+                          {item.product_type === 'physical' && (
+                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(59, 130, 246, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
+                              📦 Barang
+                            </span>
+                          )}
+                          {item.product_type === 'service' && (
+                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(245, 158, 11, 0.9)', color: '#000', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
+                              🛠️ Jasa
+                            </span>
+                          )}
+                          {item.product_type === 'food' && (
+                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(239, 68, 68, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
+                              🍱 Makanan
+                            </span>
+                          )}
+                          {item.product_type === 'fauna' && (
+                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
+                              🐾 Hewan
+                            </span>
+                          )}
+
                           {/* Fallback displayed under the image */}
-                          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #131916 0%, #0b0e0c 100%)', color: 'var(--text-secondary)', zIndex: 1 }}>
+                          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--card-bg-gradient)', color: 'var(--text-secondary)', zIndex: 1 }}>
                             <Compass size={24} style={{ opacity: 0.3 }} />
                             <span style={{ fontSize: '0.7rem', marginTop: '0.25rem', opacity: 0.3 }}>No Photo</span>
                           </div>
@@ -6980,7 +7773,15 @@ function App() {
                               {item.name}
                             </h3>
                             <div style={{ fontStyle: 'italic', fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.5rem' }}>
-                              {item.scientific_name}
+                              {item.product_type === 'digital' 
+                                ? `Format: ${item.attributes?.file_format || 'PDF'} • ${item.attributes?.file_size || 'File'}`
+                                : item.product_type === 'physical'
+                                ? `Stok: ${item.attributes?.stock ?? 1} • ${item.attributes?.weight ?? 100}g`
+                                : item.product_type === 'service'
+                                ? `Durasi: ${item.attributes?.duration || '1 Sesi'} • ${item.attributes?.service_location || 'Toko'}`
+                                : item.product_type === 'food'
+                                ? `Exp: ${item.attributes?.expired_info || '7 Hari'} • ${item.attributes?.storage_temp || 'Suhu Ruang'}`
+                                : (item.scientific_name !== 'N/A' ? item.scientific_name : item.class)}
                             </div>
                           </div>
                         </div>
@@ -7057,7 +7858,7 @@ function App() {
           return (
             <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', color: 'var(--primary)', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', flexShrink: 0, justifyContent: 'center', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', flexShrink: 0, justifyContent: 'center', border: '1px solid var(--border-light)' }}>
                   <Info size={20} />
                 </div>
                 <div>
@@ -7072,8 +7873,8 @@ function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
                 {Array.isArray(parsedCards) && parsedCards.map((card: any, idx: number) => (
-                  <div key={idx} className="glass-panel" style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
-                    <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                  <div key={idx} className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+                    <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
                       {getPremiumIcon(card)}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -7084,8 +7885,8 @@ function App() {
                 ))}
                 
                 {settings.about_disclaimer && (
-                  <div className="glass-panel" style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
-                    <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                  <div className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+                    <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
                       <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -7102,8 +7903,8 @@ function App() {
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {/* Lokasi */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.05)', color: 'var(--primary)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
                       <MapPin size={16} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
@@ -7113,8 +7914,8 @@ function App() {
                   </div>
 
                   {/* Jam Operasional */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.05)', color: 'var(--primary)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
                       <Clock size={16} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
@@ -7128,9 +7929,9 @@ function App() {
                     href={`https://wa.me/${settings.whatsapp_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.25)', backgroundColor: 'rgba(16, 185, 129, 0.03)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--primary-glow)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
                       <MessageCircle size={16} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left' }}>
@@ -7207,10 +8008,13 @@ function App() {
                         fontWeight: 700,
                         width: '100%',
                         cursor: 'pointer',
-                        borderRadius: '0.5rem'
+                        borderRadius: '0.5rem',
+                        background: 'var(--btn-secondary-bg)',
+                        color: 'var(--btn-secondary-text)',
+                        border: '1px solid var(--btn-secondary-border)'
                       }}
                     >
-                      <Share2 size={16} /> Bagikan Toko Ini
+                      <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Toko Ini
                     </button>
                   </div>
                 </div>
@@ -7266,7 +8070,7 @@ function App() {
                         borderRadius: '0.35rem',
                         marginBottom: '0.25rem',
                         border: '1px solid var(--border-light)',
-                        background: 'linear-gradient(135deg, #131916 0%, #0b0e0c 100%)',
+                        background: 'var(--card-bg-gradient)',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -7505,114 +8309,155 @@ function App() {
             /* ADMIN DASHBOARD (MOBILE - LOGGED IN & PASSWORD CHANGED) */
             <div className="animate-fade-in" style={{ marginTop: '1rem' }}>
               {adminSubTab === 'menu' && (
-                /* MENU DASHBOARD VIEW */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                    <div>
-                      <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>Admin Dashboard</h2>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Halo, {adminUser?.name || 'Administrator'}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      {/* Notification Bell Button (Admin Only) */}
-                      <button 
-                        type="button" 
-                        onClick={() => setShowNotificationModal(true)}
-                        style={{ 
-                          position: 'relative', 
-                          background: 'rgba(255,255,255,0.06)', 
-                          border: '1px solid rgba(255,255,255,0.12)', 
-                          borderRadius: '0.5rem', 
-                          padding: '0.4rem 0.65rem', 
-                          cursor: 'pointer', 
-                          color: '#fff', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '0.3rem',
-                          fontSize: '0.72rem',
-                          fontWeight: 700
-                        }}
-                      >
-                        <Bell size={15} style={{ color: notifications.some(n => !n.read) ? '#f59e0b' : '#9ca3af' }} />
-                        <span>Notifikasi</span>
-                        {notifications.filter(n => !n.read).length > 0 && (
-                          <span style={{ backgroundColor: '#ef4444', color: '#fff', fontSize: '0.58rem', fontWeight: 900, borderRadius: '9999px', padding: '0.05rem 0.35rem' }}>
-                            {notifications.filter(n => !n.read).length}
-                          </span>
-                        )}
-                      </button>
+                /* SIMPLIFIED NATIVE MOBILE ADMIN DASHBOARD */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {/* Top Profile Card - Expert Refined Layout */}
+                  <div 
+                    className="glass-panel animate-fade-in" 
+                    style={{ 
+                      padding: '1.15rem', 
+                      borderRadius: '1.15rem', 
+                      border: '1px solid var(--border-light)', 
+                      background: 'var(--card-bg-gradient)', 
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem'
+                    }}
+                  >
+                    {/* Row 1: Avatar + Greeting + Icon Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          width: '46px',
+                          height: '46px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                          padding: '2px',
+                          boxShadow: '0 0 12px var(--primary-glow)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {settings.store_logo_url ? (
+                            <img 
+                              src={settings.store_logo_url} 
+                              alt="Logo" 
+                              style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', background: 'var(--bg-card)' }}
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontWeight: 800, fontSize: '1.15rem' }}>
+                              {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}
+                            </div>
+                          )}
+                        </div>
 
-                      <button 
-                        className="btn-danger" 
-                        style={{ padding: '0.4rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}
-                        onClick={handleLogout}
-                      >
-                        <LogOut size={14} />
-                        Keluar
-                      </button>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Selamat Datang</span>
+                          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Halo, {(adminUser?.name || 'Admin').trim().split(' ')[0]}
+                          </h2>
+                        </div>
+                      </div>
+
+                      {/* Clean Icon Action Buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                        <button 
+                          type="button"
+                          onClick={handleLogout}
+                          style={{ 
+                            background: 'rgba(239, 68, 68, 0.12)', 
+                            border: '1px solid rgba(239, 68, 68, 0.25)', 
+                            borderRadius: '50%', 
+                            width: '38px',
+                            height: '38px',
+                            cursor: 'pointer', 
+                            color: '#f87171', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                          title="Keluar / Logout"
+                        >
+                          <LogOut size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Status & Metric Metadata Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
+                      <span style={{ 
+                        fontSize: '0.62rem', 
+                        fontWeight: 900, 
+                        padding: '0.15rem 0.55rem', 
+                        borderRadius: '20px', 
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        backgroundColor: settings.plan === 'free' ? 'rgba(245, 158, 11, 0.15)' : 'var(--primary-glow)',
+                        color: settings.plan === 'free' ? '#f59e0b' : 'var(--primary)',
+                        border: settings.plan === 'free' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-light)'
+                      }}>
+                        {settings.plan === 'free' ? 'PLAN FREE' : 'PLAN PRO'}
+                      </span>
+
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        {faunas.length} Data Terdaftar
+                      </span>
                     </div>
                   </div>
 
-                  {/* Pending Pro Payment Verification Banner Mobile (ADMIN ONLY) */}
+                  {/* Pending Pro Payment Verification Banner */}
                   {adminUser?.payment_status === 'pending_approval' && (
-                    <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.25) 100%)', border: '1px solid rgba(245, 158, 11, 0.4)', color: '#fef3c7', fontSize: '0.75rem', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)' }}>
+                    <div style={{ padding: '0.85rem 1rem', borderRadius: '0.85rem', background: 'var(--card-bg-gradient)', border: '1px solid rgba(245, 158, 11, 0.4)', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Clock size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                        <strong style={{ color: '#ffffff', fontSize: '0.82rem' }}>Pembayaran Plan Pro Dalam Verifikasi (1x24 Jam)</strong>
+                        <Clock size={18} style={{ color: 'var(--secondary)', flexShrink: 0 }} />
+                        <strong style={{ color: 'var(--text-primary)', fontSize: '0.82rem' }}>Pembayaran Plan Pro Dalam Verifikasi (1x24 Jam)</strong>
                       </div>
-                      <p style={{ margin: 0, color: '#9ca3af', lineHeight: 1.35 }}>
+                      <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.35 }}>
                         Bukti pembayaran telah kami terima. Akun Anda dapat digunakan dengan fitur Plan Free sementara sampai disetujui Tim Admin.
                       </p>
                     </div>
                   )}
 
-                  {/* Premium SaaS Free Plan Promotional Upgrade Panel (Mobile) */}
+                  {/* Premium Free Plan Upgrade Promo Card */}
                   {settings.plan === 'free' && (
                     <div 
                       className="glass-panel animate-fade-in" 
                       style={{ 
-                        padding: '1.2rem', 
-                        marginBottom: '0.5rem', 
+                        padding: '1rem', 
                         borderRadius: '0.85rem', 
-                        border: '1px solid rgba(245, 158, 11, 0.35)', 
-                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.08) 100%)', 
+                        border: '1px solid var(--border-light)', 
+                        background: 'var(--card-bg-gradient)', 
                         display: 'flex', 
                         flexDirection: 'column', 
-                        gap: '0.85rem',
-                        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.2)'
+                        gap: '0.75rem',
+                        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.1)'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.1rem', boxShadow: '0 3px 10px rgba(245,158,11,0.4)', flexShrink: 0 }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1rem', boxShadow: '0 3px 10px rgba(245,158,11,0.4)', flexShrink: 0 }}>
                           ⚡
                         </div>
                         <div>
-                          <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#ffffff' }}>
-                            Status Akun: <span style={{ color: '#f59e0b', textTransform: 'uppercase' }}>Plan Gratis (Free)</span>
+                          <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                            Buka Fitur Unlimited <span style={{ color: 'var(--secondary)' }}>(Plan Pro)</span>
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3, marginTop: '0.1rem' }}>
-                            Toko Anda saat ini dibatasi maksimal 10 postingan produk &amp; tanpa Halaman Tentang Kami.
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.3, marginTop: '0.1rem' }}>
+                            Posting produk tanpa batas &amp; aktifkan Halaman Tentang Kami
                           </div>
                         </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}>
-                          ✨ Postingan Unlimited
-                        </span>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}>
-                          📖 Fitur Tentang Kami
-                        </span>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.45rem', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}>
-                          🚫 Bebas Watermark
-                        </span>
                       </div>
 
                       <button 
                         type="button"
                         className="btn-primary btn-full" 
                         style={{ 
-                          fontSize: '0.78rem', 
-                          padding: '0.6rem', 
+                          fontSize: '0.76rem', 
+                          padding: '0.55rem', 
                           background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)', 
                           border: 'none', 
                           color: '#fff', 
@@ -7622,93 +8467,208 @@ function App() {
                         }}
                         onClick={handleUpgradeToPro}
                       >
-                        🚀 Upgrade ke Plan Pro Sekarang
+                        🚀 Upgrade ke Plan Pro (Rp 30rb/bln)
                       </button>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {/* Item 1: Inventaris */}
+                  {/* MENU GRID SECTION */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    
+                    {/* Item 1: Kelola Kategori */}
                     <div 
                       className="glass-panel" 
                       onClick={() => setAdminSubTab('items')}
-                      style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'var(--transition-smooth)' }}
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '1rem', 
+                        cursor: 'pointer', 
+                        border: '1px solid var(--border-light)', 
+                        borderRadius: '0.9rem', 
+                        background: 'var(--card-bg-gradient)',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s ease',
+                        WebkitTapHighlightColor: 'transparent',
+                        touchAction: 'manipulation'
+                      }}
                     >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                        <Database size={20} />
+                      <div style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '0.75rem', 
+                        background: 'var(--primary-glow)', 
+                        border: '1px solid var(--border-light)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        color: 'var(--primary)',
+                        flexShrink: 0
+                      }}>
+                        <Database size={22} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Kelola Inventaris</h3>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>Kelola data fauna, harga, status, & foto</p>
+                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Kelola Kategori</h3>
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                          {faunas.length} Data Terdaftar
+                        </span>
                       </div>
                       <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
                     </div>
 
-                    {/* Item 2: Artikel */}
-                    {false && settings.articles_enabled !== '0' && (
-                      <div 
-                        className="glass-panel" 
-                        onClick={() => { setAdminSubTab('articles'); setArticleTabState('hub'); }}
-                        style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'var(--transition-smooth)' }}
-                      >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                          <FileText size={20} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Kelola Artikel</h3>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>Tulis artikel edukasi, permalink, & SEO</p>
-                        </div>
-                        <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+                    {/* Item 1.5: Notifikasi & Aktivitas */}
+                    <div 
+                      className="glass-panel" 
+                      onClick={() => {
+                        setAdminSubTab('notifications');
+                        const slug = getStoreSlug();
+                        if (slug) {
+                          window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                        }
+                      }}
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '1rem', 
+                        cursor: 'pointer', 
+                        border: unreadCount > 0 ? '1px solid var(--primary)' : '1px solid var(--border-light)', 
+                        borderRadius: '0.9rem', 
+                        background: 'var(--card-bg-gradient)',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s ease',
+                        WebkitTapHighlightColor: 'transparent',
+                        touchAction: 'manipulation'
+                      }}
+                    >
+                      <div style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '0.75rem', 
+                        background: 'var(--primary-glow)', 
+                        border: '1px solid var(--border-light)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        color: 'var(--primary)',
+                        flexShrink: 0,
+                        position: 'relative'
+                      }}>
+                        <Bell size={22} />
+                        {unreadCount > 0 && (
+                          <span style={{
+                            position: 'absolute',
+                            top: '-2px',
+                            right: '-2px',
+                            width: '9px',
+                            height: '9px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--primary)',
+                            boxShadow: '0 0 8px var(--primary)'
+                          }} />
+                        )}
                       </div>
-                    )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Notifikasi &amp; Aktivitas</h3>
+                          {unreadCount > 0 && (
+                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: '9999px', background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
+                              {unreadCount} Baru
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                          Pesanan, Komentar, &amp; Info Sistem
+                        </span>
+                      </div>
+                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+                    </div>
 
-                    {/* Item 3: Toko */}
+                    {/* Item 2: Pengaturan */}
                     <div 
                       className="glass-panel" 
                       onClick={() => setAdminSubTab('settings')}
-                      style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'var(--transition-smooth)' }}
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '1rem', 
+                        cursor: 'pointer', 
+                        border: '1px solid var(--border-light)', 
+                        borderRadius: '0.9rem', 
+                        background: 'var(--card-bg-gradient)',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s ease',
+                        WebkitTapHighlightColor: 'transparent',
+                        touchAction: 'manipulation'
+                      }}
                     >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                        <Settings size={20} />
+                      <div style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '0.75rem', 
+                        background: 'rgba(59, 130, 246, 0.12)', 
+                        border: '1px solid rgba(59, 130, 246, 0.28)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        color: '#3b82f6',
+                        flexShrink: 0
+                      }}>
+                        <Settings size={22} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Pengaturan Toko</h3>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>Ubah slogan toko dan nomor WhatsApp admin</p>
+                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Pengaturan</h3>
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                          Informasi Toko &amp; Akun Admin
+                        </span>
                       </div>
                       <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
                     </div>
 
-                    {/* Item 4: Profil */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => setAdminSubTab('profile')}
-                      style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'var(--transition-smooth)' }}
-                    >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                        <User size={20} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Profil Admin</h3>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>Ubah nama, email, dan password login</p>
-                      </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
-                    </div>
-
-                    {/* Item 5: Legal & Kebijakan Platform */}
+                    {/* Item 3: Legal & Kebijakan */}
                     <div 
                       className="glass-panel" 
                       onClick={() => { setAdminSubTab('policies'); fetchPolicies(); }}
-                      style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'var(--transition-smooth)' }}
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '1rem', 
+                        cursor: 'pointer', 
+                        border: '1px solid var(--border-light)', 
+                        borderRadius: '0.9rem', 
+                        background: 'var(--card-bg-gradient)',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s ease',
+                        WebkitTapHighlightColor: 'transparent',
+                        touchAction: 'manipulation'
+                      }}
                     >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                        <ShieldCheck size={20} />
+                      <div style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '0.75rem', 
+                        background: 'rgba(245, 158, 11, 0.12)', 
+                        border: '1px solid rgba(245, 158, 11, 0.28)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        color: '#f59e0b',
+                        flexShrink: 0
+                      }}>
+                        <ShieldCheck size={22} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Legal &amp; Kebijakan Platform</h3>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>Lihat Syarat, Privasi, &amp; Ketentuan Layanan</p>
+                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Legal &amp; Kebijakan</h3>
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                          Syarat &amp; Privasi Platform
+                        </span>
                       </div>
                       <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
                     </div>
+
                   </div>
                 </div>
               )}
@@ -7900,6 +8860,21 @@ function App() {
 
                       <div 
                         className="glass-panel"
+                        onClick={() => setMobileSettingsTab('theme')}
+                        style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
+                      >
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
+                          🎨
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Tema &amp; Tampilan Toko</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Pilih palet warna &amp; gaya visual estetik toko (Canva-Style)</p>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+
+                      <div 
+                        className="glass-panel"
                         onClick={() => setMobileSettingsTab('master')}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
@@ -7918,6 +8893,73 @@ function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {mobileSettingsTab !== 'master' ? (
                         <form onSubmit={handleSettingsSave} className="glass-panel animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border-light)' }}>
+                          {mobileSettingsTab === 'theme' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                              <div style={{ paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-light)' }}>
+                                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Pilih Preset Tema Estetik Toko</h3>
+                                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                  Ubah warna background, kartu produk, tombol WhatsApp &amp; aksen katalog secara instan.
+                                </p>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                                {[
+                                  { id: 'emerald', name: '🌲 Midnight Emerald', desc: 'Sleek Dark Glass & Emerald Precision', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a' },
+                                  { id: 'cyberpunk', name: '🍇 Cyberpunk Neon', desc: 'Futuristic Royal Violet & Cyan Glow', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a' },
+                                  { id: 'sunset', name: '🌅 Warm Sunset', desc: 'Luxury Dark Onyx, Amber Gold & Coral', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411' },
+                                  { id: 'ocean', name: '🌊 Oceanic Azure', desc: 'Fresh Corporate Deep Blue & Sky Cyan', bg: '#081021', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38' },
+                                  { id: 'pastel', name: '🌸 Pastel Bloom', desc: 'Soft Aesthetic Light Mode & Rose Pink', bg: '#f8fafc', primary: '#e11d48', accent: '#f59e0b', cardBg: '#ffffff', light: true }
+                                ].map(t => {
+                                  const isActive = (settingsForm.store_theme || 'emerald') === t.id;
+                                  return (
+                                    <div 
+                                      key={t.id}
+                                      onClick={() => {
+                                        setSettingsForm({ ...settingsForm, store_theme: t.id });
+                                        setSettings({ ...settings, store_theme: t.id });
+                                        document.documentElement.setAttribute('data-theme', t.id);
+                                        document.body.setAttribute('data-theme', t.id);
+                                      }}
+                                      style={{
+                                        padding: '1rem',
+                                        borderRadius: '0.85rem',
+                                        border: isActive ? `2px solid ${t.primary}` : '1px solid var(--border-light)',
+                                        background: t.cardBg,
+                                        cursor: 'pointer',
+                                        boxShadow: isActive ? `0 0 16px ${t.primary}35` : '0 4px 12px rgba(0,0,0,0.15)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '0.85rem',
+                                        transition: 'all 0.2s ease',
+                                        WebkitTapHighlightColor: 'transparent',
+                                        touchAction: 'manipulation'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: 'flex', gap: '4px', background: t.bg, padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+                                          <span style={{ width: '15px', height: '15px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 6px ${t.primary}` }} />
+                                          <span style={{ width: '15px', height: '15px', borderRadius: '50%', backgroundColor: t.accent }} />
+                                        </div>
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                          <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
+                                          <span style={{ fontSize: '0.7rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {t.desc}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {isActive && (
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: t.primary, padding: '0.2rem 0.55rem', borderRadius: '20px', backgroundColor: `${t.primary}20`, border: `1px solid ${t.primary}50`, flexShrink: 0 }}>
+                                          AKTIF
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           {mobileSettingsTab === 'general' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                               <div className="form-group">
@@ -7934,19 +8976,19 @@ function App() {
 
                               <div className="form-group">
                                 <label className="form-label">Logo Toko</label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                                   {settingsForm.store_logo_url && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-light)', borderRadius: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem', backgroundColor: 'var(--bg-card-hover)', border: '1px dashed var(--border-hover)', borderRadius: '0.5rem' }}>
                                       <img 
                                         src={settingsForm.store_logo_url} 
                                         alt="Logo Preview" 
-                                        style={{ height: '36px', width: 'auto', objectFit: 'contain' }} 
+                                        style={{ height: '38px', width: 'auto', objectFit: 'contain', borderRadius: '4px' }} 
                                       />
                                       <button 
                                         type="button" 
                                         className="btn-danger btn-small"
                                         onClick={() => setSettingsForm({ ...settingsForm, store_logo_url: '' })}
-                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '0.35rem', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171' }}
                                       >
                                         Hapus Logo
                                       </button>
@@ -7965,9 +9007,24 @@ function App() {
                                     <label 
                                       htmlFor="store-logo-file-input" 
                                       className="btn-secondary"
-                                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem 1rem', fontSize: '0.8rem', width: '100%' }}
+                                      style={{ 
+                                        display: 'inline-flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        gap: '0.5rem', 
+                                        cursor: 'pointer', 
+                                        padding: '0.65rem 1rem', 
+                                        fontSize: '0.82rem', 
+                                        fontWeight: 700,
+                                        width: '100%',
+                                        borderRadius: '0.5rem',
+                                        background: 'var(--btn-secondary-bg)',
+                                        color: 'var(--btn-secondary-text)',
+                                        border: '1px solid var(--btn-secondary-border)'
+                                      }}
                                     >
-                                      {logoUploading ? 'Mengunggah...' : 'Pilih File Logo dari Perangkat'}
+                                      <Upload size={14} style={{ color: 'var(--primary)' }} />
+                                      <span>{logoUploading ? 'Mengunggah...' : 'Pilih File Logo dari Perangkat'}</span>
                                     </label>
                                   </div>
 
@@ -7977,7 +9034,7 @@ function App() {
                                     placeholder="Atau tempel URL gambar logo langsung..."
                                     value={settingsForm.store_logo_url || ''}
                                     onChange={(e) => setSettingsForm({ ...settingsForm, store_logo_url: e.target.value })}
-                                    style={{ fontSize: '0.8rem' }}
+                                    style={{ fontSize: '0.82rem' }}
                                   />
                                 </div>
                               </div>
@@ -8800,6 +9857,160 @@ function App() {
                   </div>
                 </div>
               )}
+
+              {adminSubTab === 'notifications' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+                  {/* Action Bar / Filter Tabs */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setNotifFilter('all')}
+                        style={{
+                          padding: '0.38rem 0.75rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: '1px solid',
+                          borderColor: notifFilter === 'all' ? 'var(--primary)' : 'var(--border-light)',
+                          backgroundColor: notifFilter === 'all' ? 'var(--primary-glow)' : 'var(--btn-secondary-bg)',
+                          color: notifFilter === 'all' ? 'var(--primary)' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Semua ({notifications.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNotifFilter('unread')}
+                        style={{
+                          padding: '0.38rem 0.75rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: '1px solid',
+                          borderColor: notifFilter === 'unread' ? 'var(--primary)' : 'var(--border-light)',
+                          backgroundColor: notifFilter === 'unread' ? 'var(--primary-glow)' : 'var(--btn-secondary-bg)',
+                          color: notifFilter === 'unread' ? 'var(--primary)' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Belum Dibaca ({unreadCount})
+                      </button>
+                    </div>
+
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                          showToast('Semua notifikasi telah ditandai dibaca!');
+                        }}
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          color: 'var(--primary)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Tandai Dibaca
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Notifications List */}
+                  {filteredNotifications.length === 0 ? (
+                    <div className="glass-panel" style={{ padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                      <Bell size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan dan notifikasi aktivitas akan tampil di sini.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {filteredNotifications.map((item) => (
+                        <div
+                          key={item.id}
+                          className="glass-panel"
+                          onClick={() => {
+                            // Mark as read
+                            setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+                            if (item.linkSubTab) {
+                              setAdminSubTab(item.linkSubTab);
+                              const slug = getStoreSlug();
+                              if (slug) {
+                                window.history.pushState({}, '', `/${slug}/admin/${item.linkSubTab}`);
+                              }
+                            }
+                          }}
+                          style={{
+                            padding: '1rem 1.15rem',
+                            borderRadius: '0.9rem',
+                            border: item.read ? '1px solid var(--border-light)' : '1px solid var(--primary)',
+                            background: 'var(--card-bg-gradient)',
+                            boxShadow: item.read ? 'none' : '0 4px 20px var(--primary-glow)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            gap: '0.85rem',
+                            alignItems: 'center',
+                            position: 'relative',
+                            transition: 'all 0.2s ease',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          {/* Notification Type Icon */}
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            flexShrink: 0
+                          }}>
+                            {item.type === 'order' && <ShoppingBag size={18} style={{ color: 'var(--primary)' }} />}
+                            {item.type === 'comment' && <MessageCircle size={18} style={{ color: 'var(--accent-blue)' }} />}
+                            {(item.type === 'system' || item.type === 'info' || item.type === 'success' || item.type === 'stock') && <Sparkles size={18} style={{ color: 'var(--secondary)' }} />}
+                          </div>
+
+                          {/* Notification Content */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                              <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{item.title}</h4>
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>{item.timestamp || item.time}</span>
+                            </div>
+                            <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>{item.message}</p>
+                          </div>
+
+                          {/* Unread Glow Dot & Navigation Arrow */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                            {!item.read && (
+                              <div style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: 'var(--primary)',
+                                boxShadow: '0 0 8px var(--primary)'
+                              }} />
+                            )}
+                            {item.linkSubTab && (
+                              <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )
         )}
@@ -9128,15 +10339,18 @@ function App() {
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                     {crudImages.map((imgUrl, index) => (
-                      <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'rgba(255,255,255,0.01)', padding: '0.5rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)' }}>
+                      <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
                         {/* Preview Thumbnail */}
-                        <div style={{ width: '45px', height: '45px', borderRadius: '0.25rem', overflow: 'hidden', border: '1px solid var(--border-light)', background: '#131916', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                           {imgUrl ? (
                             <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
                           ) : (
-                            <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Mamp</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                              <Image size={13} style={{ color: 'var(--primary)' }} />
+                              <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                            </div>
                           )}
                           {uploadingIndex === index && (
                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -9158,13 +10372,30 @@ function App() {
                               setCrudImages(newImages)
                             }}
                             required={index === 0}
-                            style={{ height: '34px', fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
+                            style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
                           />
                           
                           {/* Device File Upload Button */}
-                          <label className="btn-secondary" style={{ padding: '0.35rem 0.5rem', height: '34px', borderRadius: '0.25rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.15rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                            <Upload size={12} />
-                            Upload
+                          <label 
+                            className="btn-secondary" 
+                            style={{ 
+                              padding: '0.35rem 0.65rem', 
+                              height: '36px', 
+                              borderRadius: '0.4rem', 
+                              fontSize: '0.75rem', 
+                              fontWeight: 700,
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.25rem', 
+                              cursor: 'pointer', 
+                              whiteSpace: 'nowrap',
+                              background: 'var(--btn-secondary-bg)',
+                              color: 'var(--btn-secondary-text)',
+                              border: '1px solid var(--btn-secondary-border)'
+                            }}
+                          >
+                            <Upload size={12} style={{ color: 'var(--primary)' }} />
+                            <span>Upload</span>
                             <input
                               type="file"
                               accept="image/*"
@@ -9183,7 +10414,20 @@ function App() {
                           <button
                             type="button"
                             className="btn-secondary"
-                            style={{ padding: '0.35rem', color: 'var(--danger)', borderColor: 'var(--danger-border)', height: '34px', width: '34px', borderRadius: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                            style={{ 
+                              padding: '0.35rem', 
+                              color: '#f87171', 
+                              backgroundColor: 'rgba(239, 68, 68, 0.12)', 
+                              border: '1px solid rgba(239, 68, 68, 0.3)', 
+                              height: '36px', 
+                              width: '36px', 
+                              borderRadius: '0.4rem', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              flexShrink: 0,
+                              cursor: 'pointer' 
+                            }}
                             onClick={() => {
                               const newImages = crudImages.filter((_, i) => i !== index)
                               setCrudImages(newImages)
