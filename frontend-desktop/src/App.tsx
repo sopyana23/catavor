@@ -1181,12 +1181,16 @@ function App() {
 
           if (pageSub === 'items') {
             setAdminTab('items');
-            if (subSub === 'create' || subSub === 'new') {
+            if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
               setCrudMode('create');
               setShowCrudModal(true);
             } else if (subSub === 'edit' && paramId) {
+              let actualId = paramId;
+              if (parts.length >= 5 && !isNaN(parseInt(parts[4], 10))) {
+                actualId = parts[4];
+              }
               setCrudMode('edit');
-              setEditId(parseInt(paramId, 10));
+              setEditId(parseInt(actualId, 10));
               setShowCrudModal(true);
             }
           } else if (pageSub === 'articles') {
@@ -1369,12 +1373,16 @@ function App() {
 
             if (pageSub === 'items') {
               setAdminTab('items');
-              if (subSub === 'create' || subSub === 'new') {
+              if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
                 setCrudMode('create');
                 setShowCrudModal(true);
               } else if (subSub === 'edit' && paramId) {
+                let actualId = paramId;
+                if (parts.length >= 5 && !isNaN(parseInt(parts[4], 10))) {
+                  actualId = parts[4];
+                }
                 setCrudMode('edit');
-                setEditId(parseInt(paramId, 10));
+                setEditId(parseInt(actualId, 10));
                 setShowCrudModal(true);
               } else {
                 setShowCrudModal(false);

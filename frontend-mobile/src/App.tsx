@@ -1165,9 +1165,9 @@ function App() {
     }
   }
 
-  // Mobile navigation views: 'tabs' | 'article-editor'
+  // Mobile navigation views: 'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'
   const isPopStateRef = useRef<boolean>(false)
-  const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor'>('tabs')
+  const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
   const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help'>('menu')
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
@@ -1513,17 +1513,32 @@ function App() {
 
           if (pageSub === 'items') {
             setAdminSubTab('items');
-            if (subSub === 'create' || subSub === 'new') {
-              setCrudMode('create');
-              setView('fauna-editor');
-              setShowCrudSheet(true);
+            if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
+              const prodType = parts[4];
+              if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
+                setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+                setCrudMode('create');
+                setView('fauna-editor');
+                setShowProductTypeSelector(false);
+              } else {
+                setShowProductTypeSelector(true);
+                setView('product-type-selector');
+              }
             } else if (subSub === 'edit' && paramId) {
+              let actualId = paramId;
+              let prodType = 'physical';
+              if (parts.length >= 5) {
+                prodType = parts[3];
+                actualId = parts[4];
+              }
+              setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
               setCrudMode('edit');
-              setEditId(parseInt(paramId, 10));
+              setEditId(parseInt(actualId, 10));
               setView('fauna-editor');
-              setShowCrudSheet(true);
+              setShowProductTypeSelector(false);
             } else {
               setView('tabs');
+              setShowProductTypeSelector(false);
             }
           } else if (pageSub === 'articles') {
             setAdminSubTab('articles');
@@ -1766,7 +1781,7 @@ function App() {
                   setShowProductTypeSelector(false);
                 } else {
                   setShowProductTypeSelector(true);
-                  setView('tabs');
+                  setView('product-type-selector');
                 }
               } else if (subSub === 'edit' && paramId) {
                 let actualId = paramId;
@@ -2348,7 +2363,9 @@ function App() {
     let targetPath = `/${storeSlug}`;
     const params = new URLSearchParams();
 
-    if (view === 'fauna-editor') {
+    if (view === 'product-type-selector') {
+      targetPath += `/admin/items/create`;
+    } else if (view === 'fauna-editor') {
       const prodType = crudForm.product_type || 'physical';
       if (crudMode === 'edit' && editId) {
         targetPath += `/admin/items/edit/${prodType}/${editId}`;
@@ -2363,11 +2380,7 @@ function App() {
       }
     } else if (activeTab === 'admin') {
       if (adminSubTab === 'items') {
-        if (showProductTypeSelector) {
-          targetPath += `/admin/items/create`;
-        } else {
-          targetPath += `/admin/items`;
-        }
+        targetPath += `/admin/items`;
       } else if (adminSubTab === 'articles') {
         if (articleTabState === 'comments') {
           targetPath += `/admin/articles/comments`;
@@ -3291,6 +3304,7 @@ function App() {
       return
     }
     setShowProductTypeSelector(true)
+    setView('product-type-selector')
   }
 
   const handleSelectProductType = (type: 'physical' | 'digital' | 'fauna' | 'service' | 'food') => {
@@ -6433,7 +6447,7 @@ function App() {
               onClick={() => {
                 if (crudMode === 'create') {
                   setShowProductTypeSelector(true);
-                  setView('tabs');
+                  setView('product-type-selector');
                 } else {
                   setView('tabs');
                   setActiveTab('admin');
