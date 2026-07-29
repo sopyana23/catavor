@@ -30,8 +30,9 @@
   --card-bg-gradient: linear-gradient(180deg, rgba(17, 24, 21, 0.95) 0%, rgba(9, 14, 12, 0.98) 100%);
   --hero-title-gradient: linear-gradient(135deg, #ffffff 30%, #cbd5e1 70%, #94a3b8 100%);
   --emerald-title-gradient: linear-gradient(135deg, #34d399 0%, #10b981 60%, #059669 100%);
-  --btn-secondary-bg: rgba(255, 255, 255, 0.06);
+  --btn-secondary-bg: rgba(16, 185, 129, 0.18);
   --btn-secondary-text: #ffffff;
+  --btn-secondary-border: rgba(16, 185, 129, 0.45);
   --transition-smooth: all 0.2s ease-in-out;
 }
 
@@ -55,9 +56,9 @@
   --card-bg-gradient: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(9, 14, 26, 0.98) 100%);
   --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #ffffff 40%, #34d399 100%);
   --emerald-title-gradient: linear-gradient(135deg, #34d399 0%, #10b981 60%, #059669 100%);
-  --btn-secondary-bg: rgba(255, 255, 255, 0.06);
+  --btn-secondary-bg: rgba(16, 185, 129, 0.18);
   --btn-secondary-text: #ffffff;
-  --btn-secondary-border: rgba(255, 255, 255, 0.15);
+  --btn-secondary-border: rgba(16, 185, 129, 0.45);
 }
 
 /* 🍇 Theme 2: Cyberpunk Neon (Royal Violet & Cyan Glow) */
@@ -80,9 +81,9 @@
   --card-bg-gradient: linear-gradient(135deg, rgba(21, 13, 42, 0.95) 0%, rgba(13, 7, 26, 0.98) 100%);
   --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #ffffff 40%, #c084fc 100%);
   --emerald-title-gradient: linear-gradient(135deg, #c084fc 0%, #a855f7 60%, #7c3aed 100%);
-  --btn-secondary-bg: rgba(168, 85, 247, 0.12);
+  --btn-secondary-bg: rgba(168, 85, 247, 0.22);
   --btn-secondary-text: #ffffff;
-  --btn-secondary-border: rgba(168, 85, 247, 0.3);
+  --btn-secondary-border: rgba(168, 85, 247, 0.55);
 }
 
 /* 🌅 Theme 3: Warm Sunset (Amber Gold & Coral Flame) */
@@ -105,9 +106,9 @@
   --card-bg-gradient: linear-gradient(135deg, rgba(34, 20, 17, 0.95) 0%, rgba(20, 13, 11, 0.98) 100%);
   --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #ffffff 40%, #fbbf24 100%);
   --emerald-title-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 60%, #d97706 100%);
-  --btn-secondary-bg: rgba(245, 158, 11, 0.12);
+  --btn-secondary-bg: rgba(245, 158, 11, 0.22);
   --btn-secondary-text: #ffffff;
-  --btn-secondary-border: rgba(245, 158, 11, 0.3);
+  --btn-secondary-border: rgba(245, 158, 11, 0.55);
 }
 
 /* 🌊 Theme 4: Oceanic Azure (Deep Blue & Sky Cyan) */
@@ -130,9 +131,9 @@
   --card-bg-gradient: linear-gradient(135deg, rgba(15, 28, 56, 0.95) 0%, rgba(8, 16, 33, 0.98) 100%);
   --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #ffffff 40%, #60a5fa 100%);
   --emerald-title-gradient: linear-gradient(135deg, #60a5fa 0%, #3b82f6 60%, #2563eb 100%);
-  --btn-secondary-bg: rgba(59, 130, 246, 0.12);
+  --btn-secondary-bg: rgba(59, 130, 246, 0.22);
   --btn-secondary-text: #ffffff;
-  --btn-secondary-border: rgba(59, 130, 246, 0.3);
+  --btn-secondary-border: rgba(59, 130, 246, 0.55);
 }
 
 /* 🌸 Theme 5: Pastel Bloom (Soft Aesthetic Light Mode) */
@@ -155,9 +156,9 @@
   --card-bg-gradient: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   --hero-title-gradient: linear-gradient(135deg, #e11d48 0%, #e11d48 40%, #f43f5e 100%);
   --emerald-title-gradient: linear-gradient(135deg, #f43f5e 0%, #e11d48 60%, #be123c 100%);
-  --btn-secondary-bg: rgba(225, 29, 72, 0.08);
+  --btn-secondary-bg: rgba(225, 29, 72, 0.15);
   --btn-secondary-text: #0f172a;
-  --btn-secondary-border: rgba(225, 29, 72, 0.25);
+  --btn-secondary-border: rgba(225, 29, 72, 0.45);
 }
 
 /* Warm Luxury Cream Base & Deep Forest Emerald Theme */
@@ -181,9 +182,9 @@
   --card-bg-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 247, 242, 0.96) 100%);
   --hero-title-gradient: linear-gradient(135deg, #0F5132 0%, #0F5132 40%, #047857 100%);
   --emerald-title-gradient: linear-gradient(135deg, #0F5132 0%, #059669 60%, #10B981 100%);
-  --btn-secondary-bg: rgba(15, 81, 50, 0.08);
+  --btn-secondary-bg: rgba(15, 81, 50, 0.15);
   --btn-secondary-text: #1C2A24;
-  --btn-secondary-border: rgba(15, 81, 50, 0.22);
+  --btn-secondary-border: rgba(15, 81, 50, 0.42);
 }
 
 * {
@@ -435,15 +436,15 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Circular Header Back Button (Matches User Theme Dynamically) */
+/* Circular Header Back Button (Matches User Theme Dynamically with High Contrast) */
 .btn-back-circle {
   width: 2.25rem;
   height: 2.25rem;
   min-width: 2.25rem;
   min-height: 2.25rem;
   border-radius: 50%;
-  background: var(--primary-glow);
-  border: 1px solid var(--border-hover);
+  background: var(--bg-card);
+  border: 1.5px solid var(--primary);
   color: var(--primary);
   display: inline-flex;
   align-items: center;
@@ -455,7 +456,7 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   outline: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
 }
 
 .btn-back-circle:hover, .btn-back-circle:active {

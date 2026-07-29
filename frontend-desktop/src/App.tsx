@@ -3455,26 +3455,11 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setPortalTab('home')}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: '#ffffff',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      padding: '0.4rem 0.85rem',
-                      borderRadius: '0.55rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.2s ease'
-                    }}
+                    className="btn-back-circle"
+                    title="Kembali"
                   >
-                    <ArrowLeft size={16} />
-                    <span>Kembali</span>
-                  </button>
-                  <span style={{ color: 'rgba(255, 255, 255, 0.2)' }}>|</span>
-                  <span style={{ 
+                    <ChevronLeft size={20} />
+                  </button>                  <span style={{ 
                     fontSize: '1.05rem', 
                     fontWeight: 800, 
                     color: '#ffffff', 
