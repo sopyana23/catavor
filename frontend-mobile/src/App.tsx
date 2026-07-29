@@ -3886,25 +3886,109 @@ function App() {
     return combined.slice(0, 4)
   }
 
-  // Dynamic Theme Primary Accent Resolver for Multi-Tenant Loading Gate
-  const getThemeAccentColor = (themeName?: string) => {
+  // Dynamic Theme Style Resolver for Multi-Tenant Loading Gate Screen
+  const getThemeGateStyles = (themeName?: string) => {
     const theme = (themeName || 'emerald').toLowerCase();
     switch (theme) {
-      case 'cyberpunk': return '#a855f7';
-      case 'sunset': return '#f59e0b';
-      case 'ocean': return '#3b82f6';
-      case 'pastel': return '#e11d48';
-      case 'cream': return '#059669';
+      case 'cyberpunk':
+        return {
+          bg: '#0b0716',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(168, 85, 247, 0.22) 0%, rgba(11, 7, 22, 0.98) 70%)',
+          cardBg: '#150d2a',
+          logoBoxBg: '#150d2a',
+          logoBoxBorder: '1px solid rgba(168, 85, 247, 0.35)',
+          logoBoxShadow: '0 10px 30px rgba(168, 85, 247, 0.25)',
+          titleColor: '#ffffff',
+          subtitleColor: '#e9d5ff',
+          trackBg: 'rgba(168, 85, 247, 0.18)',
+          accent: '#a855f7'
+        };
+      case 'sunset':
+        return {
+          bg: '#140d0b',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(245, 158, 11, 0.22) 0%, rgba(20, 13, 11, 0.98) 70%)',
+          cardBg: '#221411',
+          logoBoxBg: '#221411',
+          logoBoxBorder: '1px solid rgba(245, 158, 11, 0.35)',
+          logoBoxShadow: '0 10px 30px rgba(245, 158, 11, 0.25)',
+          titleColor: '#ffffff',
+          subtitleColor: '#fde68a',
+          trackBg: 'rgba(245, 158, 11, 0.18)',
+          accent: '#f59e0b'
+        };
+      case 'ocean':
+        return {
+          bg: '#081021',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(59, 130, 246, 0.22) 0%, rgba(8, 16, 33, 0.98) 70%)',
+          cardBg: '#0f1c38',
+          logoBoxBg: '#0f1c38',
+          logoBoxBorder: '1px solid rgba(59, 130, 246, 0.35)',
+          logoBoxShadow: '0 10px 30px rgba(59, 130, 246, 0.25)',
+          titleColor: '#ffffff',
+          subtitleColor: '#bfdbfe',
+          trackBg: 'rgba(59, 130, 246, 0.18)',
+          accent: '#3b82f6'
+        };
+      case 'pastel':
+        return {
+          bg: '#f8fafc',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(225, 29, 72, 0.12) 0%, #f8fafc 70%)',
+          cardBg: '#ffffff',
+          logoBoxBg: '#ffffff',
+          logoBoxBorder: '1px solid rgba(225, 29, 72, 0.28)',
+          logoBoxShadow: '0 10px 30px rgba(225, 29, 72, 0.15)',
+          titleColor: '#0f172a',
+          subtitleColor: '#475569',
+          trackBg: 'rgba(225, 29, 72, 0.15)',
+          accent: '#e11d48'
+        };
+      case 'cream':
+        return {
+          bg: '#faf7f2',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(15, 81, 50, 0.12) 0%, #faf7f2 70%)',
+          cardBg: '#ffffff',
+          logoBoxBg: '#ffffff',
+          logoBoxBorder: '1px solid rgba(15, 81, 50, 0.28)',
+          logoBoxShadow: '0 10px 30px rgba(15, 81, 50, 0.15)',
+          titleColor: '#1c2a24',
+          subtitleColor: '#4a5d54',
+          trackBg: 'rgba(15, 81, 50, 0.15)',
+          accent: '#0f5132'
+        };
       case 'emerald':
-      default: return '#10b981';
+      default:
+        return {
+          bg: '#080c14',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(16, 185, 129, 0.22) 0%, rgba(8, 12, 20, 0.98) 70%)',
+          cardBg: '#0f172a',
+          logoBoxBg: '#0f172a',
+          logoBoxBorder: '1px solid rgba(16, 185, 129, 0.35)',
+          logoBoxShadow: '0 10px 30px rgba(16, 185, 129, 0.25)',
+          titleColor: '#ffffff',
+          subtitleColor: '#cbd5e1',
+          trackBg: 'rgba(16, 185, 129, 0.18)',
+          accent: '#10b981'
+        };
     }
   };
 
   // Render App Readiness Loader Gate Screen
   if (isAppInitializing) {
     const currentSlug = getStoreSlug();
-    const activeTheme = currentSlug ? ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || 'emerald') : 'emerald';
-    const accentColor = getThemeAccentColor(activeTheme);
+    let themeFromCache = 'emerald';
+    if (currentSlug) {
+      try {
+        const storeCached = localStorage.getItem(`catavor_store_${currentSlug.toLowerCase()}`);
+        if (storeCached) {
+          const parsed = JSON.parse(storeCached);
+          if (parsed?.store_theme) {
+            themeFromCache = parsed.store_theme;
+          }
+        }
+      } catch {}
+    }
+    const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'emerald';
+    const themeStyles = getThemeGateStyles(activeTheme);
     const displayLogo = initialGateLogoRef.current || APP_LOGO_BASE64;
     const displayTitle = (currentSlug && settings.store_title && settings.store_title !== 'Catavor')
       ? settings.store_title
@@ -3915,13 +3999,14 @@ function App() {
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        backgroundColor: '#0a0e17',
+        backgroundColor: themeStyles.bg,
+        backgroundImage: themeStyles.bgGradient,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '1.5rem',
-        color: '#ffffff',
+        color: themeStyles.titleColor,
         fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
       }}>
         <style>{`
@@ -3936,13 +4021,13 @@ function App() {
           width: '80px',
           height: '80px',
           borderRadius: '1.25rem',
-          backgroundColor: '#ffffff',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          backgroundColor: themeStyles.logoBoxBg,
+          border: themeStyles.logoBoxBorder,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0.65rem',
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.35)',
+          boxShadow: themeStyles.logoBoxShadow,
           marginBottom: '1.25rem'
         }}>
           <img 
@@ -3957,7 +4042,7 @@ function App() {
           margin: '0 0 0.35rem 0',
           fontSize: '1.15rem',
           fontWeight: 800,
-          color: '#ffffff',
+          color: themeStyles.titleColor,
           letterSpacing: '-0.01em'
         }}>
           {displayTitle}
@@ -3967,7 +4052,7 @@ function App() {
         <p style={{
           margin: 0,
           fontSize: '0.78rem',
-          color: '#9ca3af',
+          color: themeStyles.subtitleColor,
           fontWeight: 500,
           letterSpacing: '0.01em'
         }}>
@@ -3978,7 +4063,7 @@ function App() {
         <div style={{
           width: '120px',
           height: '2.5px',
-          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+          backgroundColor: themeStyles.trackBg,
           borderRadius: '2px',
           marginTop: '1.25rem',
           overflow: 'hidden',
@@ -3987,7 +4072,7 @@ function App() {
           <div style={{
             width: '40%',
             height: '100%',
-            backgroundColor: accentColor,
+            backgroundColor: themeStyles.accent,
             borderRadius: '2px',
             animation: 'loaderSlide 1.1s infinite ease-in-out'
           }} />
