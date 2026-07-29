@@ -98,6 +98,12 @@ function getStoreSlug(): string | null {
 // Fast Base64 Logo Cacher & Resolver for 0ms Instant Rendering
 function getFastStoreLogo(slug: string | null, defaultUrl: string | undefined): string {
   if (!slug) return defaultUrl || '';
+  if (defaultUrl === '') {
+    try {
+      localStorage.removeItem(`catavor_logo_b64_${slug.toLowerCase()}`);
+    } catch {}
+    return '';
+  }
   try {
     const cachedB64 = localStorage.getItem(`catavor_logo_b64_${slug.toLowerCase()}`);
     if (cachedB64 && cachedB64.startsWith('data:image')) {
@@ -108,7 +114,14 @@ function getFastStoreLogo(slug: string | null, defaultUrl: string | undefined): 
 }
 
 function cacheLogoAsBase64(slug: string, url: string) {
-  if (!slug || !url || url.startsWith('data:')) return;
+  if (!slug) return;
+  if (!url) {
+    try {
+      localStorage.removeItem(`catavor_logo_b64_${slug.toLowerCase()}`);
+    } catch {}
+    return;
+  }
+  if (url.startsWith('data:')) return;
   try {
     const img = new window.Image();
     img.crossOrigin = 'Anonymous';
