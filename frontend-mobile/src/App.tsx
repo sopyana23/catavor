@@ -7542,11 +7542,13 @@ function App() {
               return (
                 <div className="mobile-header-bar" style={{ gap: scale.gap }}>
                   <div className="mobile-header-brand" style={{ gap: scale.gap }}>
-                    <img 
-                      src={settings.store_logo_url || APP_LOGO_BASE64} 
-                      alt="Logo" 
-                      style={{ height: `${scale.iconSize}px`, width: 'auto', maxWidth: '100px', objectFit: 'contain', borderRadius: '4px', flexShrink: 0 }} 
-                    />
+                    {settings.store_logo_url ? (
+                      <img 
+                        src={settings.store_logo_url} 
+                        alt="Logo" 
+                        style={{ height: `${scale.iconSize}px`, width: 'auto', maxWidth: '100px', objectFit: 'contain', borderRadius: '4px', flexShrink: 0 }} 
+                      />
+                    ) : null}
                     <div className="mobile-header-title-wrapper" style={{ gap: '0.35rem' }}>
                       <h1 
                         className="logo-title" 
