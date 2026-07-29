@@ -7706,21 +7706,10 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setShowProductTypeSelector(false)}
-                  style={{
-                    background: 'var(--btn-secondary-bg)',
-                    border: '1px solid var(--btn-secondary-border)',
-                    borderRadius: '50%',
-                    width: '36px',
-                    height: '36px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
+                  className="btn-back-circle"
+                  title="Kembali"
                 >
-                  <ArrowLeft size={18} />
+                  <ChevronLeft size={20} />
                 </button>
                 <div>
                   <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
