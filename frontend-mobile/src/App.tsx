@@ -75,7 +75,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Filter,
-  Palette
+  Palette,
+  Package,
+  FileCode,
+  Wrench
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -7727,100 +7730,405 @@ function App() {
           </div>
         )}
 
-        {/* Modal Pemilihan Tipe Usaha / Produk (Step 1 Input Data) */}
+        {/* Full-Page Pemilihan Tipe Usaha / Produk (Step 1 Input Data) */}
         {showProductTypeSelector && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-            <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '420px', borderRadius: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.85)', overflow: 'hidden' }}>
-              <div style={{ padding: '1.15rem 1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Pilih Tipe Produk / Usaha</h3>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Step 1: Pilih kategori item yang ingin ditambahkan</span>
-                </div>
-                <button 
+          <div 
+            className="ambient-glow-bg animate-fade-in"
+            style={{ 
+              position: 'fixed', 
+              inset: 0, 
+              zIndex: 1050, 
+              overflowY: 'auto', 
+              backgroundColor: 'var(--bg-deep)', 
+              display: 'flex', 
+              flexDirection: 'column' 
+            }}
+          >
+            {/* Sticky Header Bar */}
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 50,
+              backgroundColor: 'var(--header-bg)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              borderBottom: '1px solid var(--border-light)',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
                   type="button"
                   onClick={() => setShowProductTypeSelector(false)}
-                  style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer', fontWeight: 700 }}
+                  style={{
+                    background: 'var(--btn-secondary-bg)',
+                    border: '1px solid var(--btn-secondary-border)',
+                    borderRadius: '50%',
+                    width: '36px',
+                    height: '36px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
                 >
-                  ✕
+                  <ArrowLeft size={18} />
                 </button>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
+                    Pilih Tipe Produk / Usaha
+                  </h3>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    Step 1 dari 2: Kategori Item Katalog
+                  </span>
+                </div>
               </div>
 
-              <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '440px', overflowY: 'auto' }}>
+              <button 
+                type="button"
+                onClick={() => setShowProductTypeSelector(false)}
+                style={{ 
+                  background: 'var(--btn-secondary-bg)', 
+                  border: '1px solid var(--btn-secondary-border)', 
+                  color: 'var(--text-secondary)', 
+                  fontSize: '0.75rem', 
+                  cursor: 'pointer', 
+                  fontWeight: 700,
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '9999px'
+                }}
+              >
+                Batal
+              </button>
+            </div>
+
+            {/* Page Body Container */}
+            <div style={{ flex: 1, padding: '1.25rem 1rem 3rem 1rem', maxWidth: '600px', width: '100%', margin: '0 auto' }}>
+              
+              {/* Hero Banner Header */}
+              <div 
+                className="glass-panel" 
+                style={{ 
+                  padding: '1.25rem', 
+                  borderRadius: '1.15rem', 
+                  marginBottom: '1.25rem', 
+                  border: '1px solid var(--border-light)', 
+                  background: 'var(--card-bg-gradient)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)' 
+                }}
+              >
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.65rem', borderRadius: '9999px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, marginBottom: '0.65rem' }}>
+                  <Sparkles size={12} /> Tipe Katalog Item
+                </div>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
+                  Mau Menambahkan Item Apa Hari Ini?
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
+                  Pilih tipe item di bawah agar struktur form, bidang input, dan fitur pendukung secara otomatis disesuaikan dengan jenis produk atau jasa Anda.
+                </p>
+              </div>
+
+              {/* Product Type Options Grid / List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                
                 {/* 1. Barang Fisik */}
                 <div 
                   onClick={() => handleSelectProductType('physical')}
-                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
                 >
-                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '1.3rem', flexShrink: 0 }}>
-                    📦
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)', 
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    boxShadow: '0 4px 15px rgba(59, 130, 246, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#3b82f6', 
+                    flexShrink: 0 
+                  }}>
+                    <Package size={24} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Barang Fisik</h4>
-                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Pakaian, Aksesoris, Gadget, Kerajinan, dll. (Form: Stok, Kondisi, Berat)</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Barang Fisik
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                        Fisik & Stok
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      Pakaian, Aksesoris, Gadget, Kerajinan, & Produk Manufaktur.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: Stok, Kondisi (Baru/Bekas), Berat, Variasi
+                    </div>
                   </div>
-                  <ChevronRight size={18} style={{ color: '#3b82f6' }} />
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#3b82f6' }} />
+                  </div>
                 </div>
 
                 {/* 2. Barang Digital */}
                 <div 
                   onClick={() => handleSelectProductType('digital')}
-                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
                 >
-                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(139, 92, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6', fontSize: '1.3rem', flexShrink: 0 }}>
-                    💾
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(139, 92, 246, 0.15)', 
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    boxShadow: '0 4px 15px rgba(139, 92, 246, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#8b5cf6', 
+                    flexShrink: 0 
+                  }}>
+                    <FileCode size={24} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Barang Digital</h4>
-                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>E-book, Template, File PDF, Source Code, Lisensi, dll. (Form: Link Download, Format, Size)</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Barang Digital
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                        File & Lisensi
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      E-book, Template, File PDF, Source Code, Lisensi, & File Unduhan.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: Link Download, Format File, Ukuran File
+                    </div>
                   </div>
-                  <ChevronRight size={18} style={{ color: '#8b5cf6' }} />
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#8b5cf6' }} />
+                  </div>
                 </div>
 
-                {/* 3. Hewan / Binatang Hidup */}
+                {/* 3. Hewan & Living Fauna */}
                 <div 
                   onClick={() => handleSelectProductType('fauna')}
-                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
                 >
-                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontSize: '1.3rem', flexShrink: 0 }}>
-                    🐾
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)', 
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#10b981', 
+                    flexShrink: 0 
+                  }}>
+                    <PawPrint size={24} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Hewan & Living Fauna</h4>
-                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Pet Shop, Reptil, Burung, Ikan Hias, Tanaman, dll. (Form: Nama Latin, Kategori, Status)</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Hewan & Living Fauna
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        Satwa & Fauna
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      Pet Shop, Reptil, Burung, Ikan Hias, Tanaman Hias, & Biota.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: Nama Latin, Kategori Fauna, Status Konservasi
+                    </div>
                   </div>
-                  <ChevronRight size={18} style={{ color: '#10b981' }} />
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#10b981' }} />
+                  </div>
                 </div>
 
                 {/* 4. Jasa & Layanan */}
                 <div 
                   onClick={() => handleSelectProductType('service')}
-                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
                 >
-                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', fontSize: '1.3rem', flexShrink: 0 }}>
-                    🛠️
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)', 
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    boxShadow: '0 4px 15px rgba(245, 158, 11, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#f59e0b', 
+                    flexShrink: 0 
+                  }}>
+                    <Wrench size={24} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Jasa & Layanan</h4>
-                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Grooming, Desain, Service, Les/Kursus, dll. (Form: Durasi, Sesi, Lokasi Service)</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Jasa & Layanan
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                        Jasa & Sesi
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      Grooming, Desain, Service, Repair, Les/Kursus, & Konsultasi.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: Durasi Layanan, Sesi, Lokasi Service
+                    </div>
                   </div>
-                  <ChevronRight size={18} style={{ color: '#f59e0b' }} />
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#f59e0b' }} />
+                  </div>
                 </div>
 
-                {/* 5. Makanan & Minuman */}
+                {/* 5. Makanan & Minuman (F&B) */}
                 <div 
                   onClick={() => handleSelectProductType('food')}
-                  style={{ padding: '0.9rem', borderRadius: '0.85rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.28)', display: 'flex', alignItems: 'center', gap: '0.85rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
                 >
-                  <div style={{ width: '42px', height: '42px', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: '1.3rem', flexShrink: 0 }}>
-                    🍱
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    boxShadow: '0 4px 15px rgba(239, 68, 68, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#ef4444', 
+                    flexShrink: 0 
+                  }}>
+                    <Utensils size={24} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Makanan & Minuman (F&B)</h4>
-                    <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0.15rem 0 0 0', lineHeight: 1.3 }}>Kuliner, Camilan, Frozen Food, Katering, dll. (Form: Expired, Suhu Simpan, Sertifikasi)</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Makanan & Minuman (F&B)
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                        Kuliner & F&B
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      Kuliner, Camilan, Frozen Food, Minuman Olahan, & Katering.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: Expired Date, Suhu Simpan, Sertifikasi
+                    </div>
                   </div>
-                  <ChevronRight size={18} style={{ color: '#ef4444' }} />
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#ef4444' }} />
+                  </div>
                 </div>
+
               </div>
+
+              {/* Bottom Cancel Action */}
+              <div style={{ marginTop: '1.75rem', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowProductTypeSelector(false)}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'var(--btn-secondary-bg)',
+                    color: 'var(--btn-secondary-text)',
+                    border: '1px solid var(--btn-secondary-border)',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <ArrowLeft size={16} /> Batal & Kembali ke Kelola Item
+                </button>
+              </div>
+
             </div>
           </div>
         )}
