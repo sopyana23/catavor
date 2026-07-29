@@ -3141,10 +3141,14 @@ function App() {
         setSettings(updated)
         setSettingsForm(updated)
         try {
+          const slug = getStoreSlug();
+          if (slug && updated.store_logo_url) {
+            cacheLogoAsBase64(slug, updated.store_logo_url);
+          }
           localStorage.setItem('catavor_settings', JSON.stringify(updated));
         } catch {}
         document.documentElement.setAttribute('data-theme', updated.store_theme);
-        showToast('Pengaturan toko & tema tampilan berhasil disimpan!')
+        showToast('Pengaturan toko & logo berhasil disimpan!')
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -3213,6 +3217,27 @@ function App() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // 1. Validate Square (1:1 Aspect Ratio) Image
+    const isSquare = await new Promise<boolean>((resolve) => {
+      const img = new window.Image()
+      const objectUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+        resolve(Math.abs(img.width - img.height) <= 2)
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        resolve(false)
+      }
+      img.src = objectUrl
+    })
+
+    if (!isSquare) {
+      showToast('⚠️ Logo/Ikon harus berukuran persegi (rasio 1:1, contoh: 512x512px atau 200x200px)!', 'error')
+      e.target.value = ''
+      return
+    }
+
     setLogoUploading(true)
     const formData = new FormData()
     formData.append('image', file)
@@ -3229,13 +3254,8 @@ function App() {
 
       const data = await res.json()
       if (res.ok && data.success) {
-        const slug = getStoreSlug();
-        if (slug) {
-          cacheLogoAsBase64(slug, data.url);
-        }
         setSettingsForm(prev => ({ ...prev, store_logo_url: data.url }))
-        setSettings(prev => ({ ...prev, store_logo_url: data.url }))
-        showToast('Gambar logo berhasil diunggah!')
+        showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo toko.')
       } else {
         showToast(data.message || 'Gagal mengunggah gambar logo.', 'error')
       }
@@ -3244,6 +3264,7 @@ function App() {
       showToast('Koneksi terputus ke server saat mengunggah logo.', 'error')
     } finally {
       setLogoUploading(false)
+      e.target.value = ''
     }
   }
 
