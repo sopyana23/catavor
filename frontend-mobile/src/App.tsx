@@ -4112,24 +4112,10 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setPortalTab(previousPortalTab || 'home')}
-                    style={{
-                      background: 'var(--btn-secondary-bg)',
-                      border: '1px solid var(--btn-secondary-border)',
-                      color: 'var(--btn-secondary-text)',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      padding: '0.35rem 0.65rem',
-                      borderRadius: '0.5rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      WebkitTapHighlightColor: 'transparent',
-                      touchAction: 'manipulation'
-                    }}
+                    className="btn-back-circle"
+                    title="Kembali"
                   >
-                    <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
-                    <span>Kembali</span>
+                    <ChevronLeft size={20} />
                   </button>
                   <span style={{ color: 'var(--border-light)' }}>|</span>
                   <span style={{ 
@@ -5641,22 +5627,10 @@ function App() {
                   setIsDetailActive(false);
                   setSelectedFauna(null);
                 }}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.18)',
-                  color: '#ffffff',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  padding: '0.38rem 0.75rem',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
+                className="btn-back-circle"
+                title="Kembali"
               >
-                <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
-                <span>Kembali</span>
+                <ChevronLeft size={20} />
               </button>
               <span style={{ fontWeight: 800, fontSize: '0.98rem', color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Detail Produk</span>
             </div>
@@ -6171,27 +6145,16 @@ function App() {
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
           }}>
-            <button 
+            <button
               type="button"
-              className="btn-secondary"
+              className="btn-back-circle"
               onClick={() => {
                 setSelectedArticle(null);
                 window.scrollTo({ top: 0, behavior: 'instant' });
               }}
-              style={{
-                fontSize: '0.8rem',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                cursor: 'pointer',
-                background: 'var(--btn-secondary-bg)',
-                border: '1px solid var(--btn-secondary-border)',
-                color: 'var(--btn-secondary-text)'
-              }}
+              title="Kembali"
             >
-              <ArrowLeft size={14} style={{ color: 'var(--primary)' }} /> Kembali
+              <ChevronLeft size={20} />
             </button>
             <span style={{ 
               color: 'var(--text-primary)', 
@@ -6206,7 +6169,7 @@ function App() {
             }}>
               Edukasi {settings.store_title || 'Catavor'}
             </span>
-            <div style={{ width: '48px' }} /> {/* To balance the back button */}
+            <div style={{ width: '2.25rem' }} /> {/* To balance the back button */}
           </div>
 
           {/* Article Reading Content */}
@@ -6455,27 +6418,15 @@ function App() {
                   setShowProductTypeSelector(false);
                 }
               }}
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                color: '#ffffff',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                padding: '0.38rem 0.75rem',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                cursor: 'pointer'
-              }}
+              className="btn-back-circle"
+              title="Batal"
             >
-              <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Batal</span>
+              <ChevronLeft size={20} />
             </button>
             <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)', margin: 0 }}>
               {crudMode === 'create' ? 'Tambah Postingan Produk' : 'Edit Postingan Produk'}
             </h3>
-            <div style={{ width: '60px' }} /> {/* Spacer to center the title */}
+            <div style={{ width: '2.25rem' }} /> {/* Spacer to center the title */}
           </div>
 
           {/* Form Content */}
@@ -7008,22 +6959,10 @@ function App() {
                 setActiveTab('admin')
                 setAdminSubTab('articles')
               }}
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                color: '#ffffff',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                padding: '0.38rem 0.75rem',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                cursor: 'pointer'
-              }}
+              className="btn-back-circle"
+              title="Batal"
             >
-              <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Batal</span>
+              <ChevronLeft size={20} />
             </button>
             <span style={{ fontSize: '0.98rem', color: '#ffffff', fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
               {editingArticle ? 'Edit Artikel' : 'Tulis Artikel'}
@@ -7580,26 +7519,10 @@ function App() {
                           }
                         }
                       }}
-                      style={{
-                        backgroundColor: 'var(--btn-secondary-bg)',
-                        border: '1px solid var(--btn-secondary-border)',
-                        color: 'var(--btn-secondary-text)',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation',
-                        flexShrink: 0,
-                        whiteSpace: 'nowrap'
-                      }}
+                      className="btn-back-circle"
+                      title="Kembali"
                     >
-                      <ArrowLeft size={14} style={{ color: 'var(--primary)' }} />
-                      <span>Kembali</span>
+                      <ChevronLeft size={20} />
                     </button>
 
                     <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>

@@ -434,3 +434,44 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Circular Header Back Button (Matches User Theme Dynamically) */
+.btn-back-circle {
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: 50%;
+  background: var(--primary-glow);
+  border: 1px solid var(--border-hover);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  padding: 0;
+  flex-shrink: 0;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-back-circle:hover, .btn-back-circle:active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  transform: scale(1.06);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.btn-back-circle svg {
+  color: inherit;
+  transition: transform 0.2s ease;
+}
+
+.btn-back-circle:active svg {
+  transform: translateX(-1px);
+}
+
