@@ -66,7 +66,16 @@ import {
   Copy,
   Download,
   Send,
-  Bell
+  Bell,
+  HelpCircle,
+  Mail,
+  ExternalLink,
+  PhoneCall,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  Filter,
+  Palette
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -149,6 +158,78 @@ interface ShopSettings {
   payment_qris_image?: string
   master_coupons?: string
 }
+
+interface TicketMessage {
+  id: string;
+  sender: 'user' | 'support';
+  sender_name: string;
+  message: string;
+  timestamp: string;
+}
+
+interface SupportTicket {
+  id: string;
+  subject: string;
+  category: 'payment' | 'technical' | 'account' | 'feature' | 'other';
+  priority: 'normal' | 'high' | 'urgent';
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  created_at: string;
+  updated_at: string;
+  messages: TicketMessage[];
+}
+
+const INITIAL_TICKETS: SupportTicket[] = [
+  {
+    id: 'TK-9402',
+    subject: 'Verifikasi Upgrade Paket Pro Toko Catavor',
+    category: 'payment',
+    priority: 'high',
+    status: 'in_progress',
+    created_at: '28 Jul 2026, 14:20',
+    updated_at: '28 Jul 2026, 14:35',
+    messages: [
+      {
+        id: 'msg-1',
+        sender: 'user',
+        sender_name: 'Admin Toko',
+        message: 'Halo Tim Catavor, saya sudah melakukan pembayaran transaksi upgrade ke Paket Pro via QRIS. Mohon bantuannya untuk verifikasi agar fitur Pro aktif.',
+        timestamp: '28 Jul 2026, 14:20'
+      },
+      {
+        id: 'msg-2',
+        sender: 'support',
+        sender_name: 'Catavor Official Support',
+        message: 'Halo Admin Toko! Terima kasih telah melakukan upgrade. Tim Billing kami sedang memverifikasi mutasi transaksi Anda. Paket Pro akan diaktifkan secara otomatis dalam 5-10 menit.',
+        timestamp: '28 Jul 2026, 14:35'
+      }
+    ]
+  },
+  {
+    id: 'TK-8291',
+    subject: 'Kustomisasi Domain Slug Toko',
+    category: 'technical',
+    priority: 'normal',
+    status: 'resolved',
+    created_at: '25 Jul 2026, 09:15',
+    updated_at: '25 Jul 2026, 09:40',
+    messages: [
+      {
+        id: 'msg-10',
+        sender: 'user',
+        sender_name: 'Admin Toko',
+        message: 'Bagaimana cara mengubah URL toko saya agar lebih ringkas?',
+        timestamp: '25 Jul 2026, 09:15'
+      },
+      {
+        id: 'msg-11',
+        sender: 'support',
+        sender_name: 'Catavor Official Support',
+        message: 'Halo! Anda dapat menyesuaikan slug toko pada menu Pengaturan Toko > Informasi Toko. Pastikan slug yang digunakan huruf kecil tanpa spasi dan belum dipakai oleh toko lain.',
+        timestamp: '25 Jul 2026, 09:40'
+      }
+    ]
+  }
+];
 
 interface Fauna {
   id: number
@@ -645,8 +726,8 @@ function App() {
             return (
               <div key={idx} style={{ marginTop: idx > 0 ? '0.85rem' : '0.2rem', marginBottom: '0.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                  <span style={{ width: '4px', height: '16px', borderRadius: '4px', background: 'linear-gradient(180deg, #10b981 0%, #059669 100%)', flexShrink: 0, boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
+                  <span style={{ width: '4px', height: '16px', borderRadius: '4px', background: 'var(--primary)', flexShrink: 0, boxShadow: '0 0 8px var(--primary-glow)' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
                     {headerText}
                   </h4>
                 </div>
@@ -658,8 +739,8 @@ function App() {
           if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
             const itemText = trimmed.replace(/^[-•]\s*/, '');
             return (
-              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', paddingLeft: '0.6rem', color: '#cbd5e1', fontSize: '0.82rem', lineHeight: '1.6' }}>
-                <span style={{ color: '#10b981', fontSize: '0.9rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
+              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', paddingLeft: '0.6rem', color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: '1.6' }}>
+                <span style={{ color: 'var(--primary)', fontSize: '0.9rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
                 <span>{itemText}</span>
               </div>
             );
@@ -667,7 +748,7 @@ function App() {
 
           // Regular paragraph text
           return (
-            <p key={idx} style={{ margin: 0, color: '#cbd5e1', fontSize: '0.82rem', lineHeight: '1.65' }}>
+            <p key={idx} style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: '1.65' }}>
               {trimmed}
             </p>
           );
@@ -1072,7 +1153,7 @@ function App() {
   const isPopStateRef = useRef<boolean>(false)
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications'>('menu')
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help'>('menu')
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -1087,6 +1168,54 @@ function App() {
 
   // Notifications Filter State
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
+
+  // Support Ticket System State
+  const [tickets, setTickets] = useState<SupportTicket[]>(() => {
+    try {
+      const saved = localStorage.getItem('catavor_support_tickets');
+      return saved ? JSON.parse(saved) : INITIAL_TICKETS;
+    } catch (e) {
+      return INITIAL_TICKETS;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('catavor_support_tickets', JSON.stringify(tickets));
+    } catch (e) {}
+  }, [tickets]);
+
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
+  const [ticketSearch, setTicketSearch] = useState<string>('');
+  const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
+  const [ticketReplyText, setTicketReplyText] = useState<string>('');
+
+  const [newTicketForm, setNewTicketForm] = useState<{
+    subject: string;
+    category: SupportTicket['category'];
+    priority: SupportTicket['priority'];
+    message: string;
+  }>({
+    subject: '',
+    category: 'payment',
+    priority: 'normal',
+    message: ''
+  });
+
+  const filteredTickets = useMemo(() => {
+    return tickets.filter(t => {
+      const matchesSearch = !ticketSearch.trim() || 
+        t.subject.toLowerCase().includes(ticketSearch.toLowerCase()) || 
+        t.id.toLowerCase().includes(ticketSearch.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'in_progress';
+      if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
+      return true;
+    });
+  }, [tickets, ticketFilter, ticketSearch]);
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
   const filteredNotifications = useMemo(() => {
@@ -1304,19 +1433,19 @@ function App() {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
 
   // Settings Form State
-  const [settingsForm, setSettingsForm] = useState<ShopSettings>({
+  const [settingsForm, setSettingsForm] = useState<ShopSettings>(() => ({
     whatsapp_number: '',
     store_slogan: '',
     promo_banner: '',
     articles_enabled: '1',
     store_title: '',
     store_logo_url: '',
-    store_theme: 'emerald',
+    store_theme: (settings as any)?.store_theme || 'emerald',
     default_is_comments_enabled: '1',
     default_require_comment_approval: '0',
     default_require_comment_email: '0',
     default_verify_comment_email_domain: '0'
-  })
+  }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
   const [mobileSettingsTab, setMobileSettingsTab] = useState<'menu' | 'general' | 'features' | 'about' | 'social' | 'master' | 'theme'>('menu')
@@ -1324,7 +1453,7 @@ function App() {
   // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
   useEffect(() => {
     if (storeSlug) {
-      const activeTheme = (settingsForm as any).store_theme || (settings as any).store_theme || 'emerald';
+      const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || 'emerald';
       document.documentElement.setAttribute('data-theme', activeTheme);
       document.body.setAttribute('data-theme', activeTheme);
     } else {
@@ -1332,7 +1461,7 @@ function App() {
       document.documentElement.setAttribute('data-theme', 'emerald');
       document.body.setAttribute('data-theme', 'emerald');
     }
-  }, [storeSlug, (settingsForm as any).store_theme, (settings as any).store_theme]);
+  }, [storeSlug, (settings as any)?.store_theme, (settingsForm as any)?.store_theme]);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -1394,9 +1523,11 @@ function App() {
           } else if (pageSub === 'settings') {
             setAdminSubTab('settings');
             setView('tabs');
-            const sec = subSub || urlParams.get('section') || 'general';
-            if (['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
+            const sec = subSub || urlParams.get('section');
+            if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
               setMobileSettingsTab(sec as any);
+            } else {
+              setMobileSettingsTab('menu');
             }
           } else if (pageSub === 'profile') {
             setAdminSubTab('profile');
@@ -1404,6 +1535,27 @@ function App() {
           } else if (pageSub === 'policies') {
             setAdminSubTab('policies');
             setView('tabs');
+          } else if (pageSub === 'notifications') {
+            setAdminSubTab('notifications');
+            setView('tabs');
+          } else if (pageSub === 'help' || pageSub === 'bantuan') {
+            setAdminSubTab('help');
+            setView('tabs');
+            const ticketParam = urlParams.get('ticket');
+            if (ticketParam) {
+              const savedTickets = (() => {
+                try {
+                  const s = localStorage.getItem('catavor_support_tickets');
+                  return s ? JSON.parse(s) : INITIAL_TICKETS;
+                } catch {
+                  return INITIAL_TICKETS;
+                }
+              })();
+              const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+              if (found) {
+                setSelectedTicket(found);
+              }
+            }
           } else {
             setAdminSubTab('menu');
             setView('tabs');
@@ -1426,6 +1578,23 @@ function App() {
             }
           } else if (pageSub === 'profile') setAdminSubTab('profile');
           else if (pageSub === 'policies') setAdminSubTab('policies');
+          else if (pageSub === 'notifications') setAdminSubTab('notifications');
+          else if (pageSub === 'help') {
+            setAdminSubTab('help');
+            const ticketParam = urlParams.get('ticket');
+            if (ticketParam) {
+              const savedTickets = (() => {
+                try {
+                  const s = localStorage.getItem('catavor_support_tickets');
+                  return s ? JSON.parse(s) : INITIAL_TICKETS;
+                } catch {
+                  return INITIAL_TICKETS;
+                }
+              })();
+              const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+              if (found) setSelectedTicket(found);
+            }
+          }
         } else if (qTab === 'about') setActiveTab('about');
         else if (qTab === 'sightings') setActiveTab('sightings');
         else if (qTab === 'articles') setActiveTab('articles');
@@ -1443,6 +1612,70 @@ function App() {
       setIsPasswordChanged(false)
     }
   }, [adminUser, token])
+
+  // Browser Back/Forward PopState Event Listener for Mobile Navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const slug = getStoreSlug();
+      if (slug) {
+        const path = window.location.pathname.toLowerCase();
+        const parts = path.split('/').filter(Boolean);
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (parts.length >= 2 && parts[1] === 'admin') {
+          setActiveTab('admin');
+          const pageSub = parts[2] || urlParams.get('sub');
+          if (pageSub === 'notifications') {
+            setAdminSubTab('notifications');
+            setSelectedTicket(null);
+          } else if (pageSub === 'help' || pageSub === 'bantuan') {
+            setAdminSubTab('help');
+            const ticketParam = urlParams.get('ticket');
+            if (ticketParam) {
+              const savedTickets = (() => {
+                try {
+                  const s = localStorage.getItem('catavor_support_tickets');
+                  return s ? JSON.parse(s) : INITIAL_TICKETS;
+                } catch {
+                  return INITIAL_TICKETS;
+                }
+              })();
+              const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+              if (found) setSelectedTicket(found);
+              else setSelectedTicket(null);
+            } else {
+              setSelectedTicket(null);
+            }
+          } else if (pageSub === 'items') {
+            setAdminSubTab('items');
+            setSelectedTicket(null);
+          } else if (pageSub === 'settings') {
+            setAdminSubTab('settings');
+            const subSub = parts[3];
+            const sec = subSub || urlParams.get('section');
+            if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
+              setMobileSettingsTab(sec as any);
+            } else {
+              setMobileSettingsTab('menu');
+            }
+            setSelectedTicket(null);
+          } else if (pageSub === 'policies') {
+            setAdminSubTab('policies');
+            setSelectedTicket(null);
+          } else if (pageSub === 'profile') {
+            setAdminSubTab('profile');
+            setSelectedTicket(null);
+          } else {
+            setAdminSubTab('menu');
+            setSelectedTicket(null);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Auto-open fauna item sheet if ?item=ID is in URL or /admin/items/edit/ID
   useEffect(() => {
@@ -1556,9 +1789,11 @@ function App() {
             } else if (pageSub === 'settings') {
               setAdminSubTab('settings');
               setView('tabs');
-              const sec = subSub || urlParams.get('section') || 'general';
-              if (['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
+              const sec = subSub || urlParams.get('section');
+              if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
                 setMobileSettingsTab(sec as any);
+              } else {
+                setMobileSettingsTab('menu');
               }
             } else if (pageSub === 'profile') {
               setAdminSubTab('profile');
@@ -1569,6 +1804,25 @@ function App() {
             } else if (pageSub === 'notifications') {
               setAdminSubTab('notifications');
               setView('tabs');
+            } else if (pageSub === 'help' || pageSub === 'bantuan') {
+              setAdminSubTab('help');
+              setView('tabs');
+              const ticketParam = urlParams.get('ticket');
+              if (ticketParam) {
+                const savedTickets = (() => {
+                  try {
+                    const s = localStorage.getItem('catavor_support_tickets');
+                    return s ? JSON.parse(s) : INITIAL_TICKETS;
+                  } catch {
+                    return INITIAL_TICKETS;
+                  }
+                })();
+                const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+                if (found) setSelectedTicket(found);
+                else setSelectedTicket(null);
+              } else {
+                setSelectedTicket(null);
+              }
             } else {
               setAdminSubTab('menu');
               setView('tabs');
@@ -1641,7 +1895,7 @@ function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
-  }, [activeTab]);
+  }, [activeTab, adminSubTab, mobileSettingsTab, selectedTicket]);
 
   // Get headers helper
   const getAuthHeaders = () => {
@@ -2105,12 +2359,22 @@ function App() {
           targetPath += `/admin/articles`;
         }
       } else if (adminSubTab === 'settings') {
-        const sec = mobileSettingsTab && mobileSettingsTab !== 'menu' ? mobileSettingsTab : 'general';
-        targetPath += `/admin/settings/${sec}`;
+        if (mobileSettingsTab && mobileSettingsTab !== 'menu') {
+          targetPath += `/admin/settings/${mobileSettingsTab}`;
+        } else {
+          targetPath += `/admin/settings`;
+        }
       } else if (adminSubTab === 'profile') {
         targetPath += `/admin/profile`;
       } else if (adminSubTab === 'policies') {
         targetPath += `/admin/policies`;
+      } else if (adminSubTab === 'notifications') {
+        targetPath += `/admin/notifications`;
+      } else if (adminSubTab === 'help') {
+        targetPath += `/admin/help`;
+        if (selectedTicket) {
+          params.set('ticket', selectedTicket.id);
+        }
       } else {
         targetPath += `/admin`;
       }
@@ -2135,19 +2399,19 @@ function App() {
       if (isPopStateRef.current) {
         isPopStateRef.current = false;
         window.history.replaceState(
-          { tab: activeTab, subTab: adminSubTab, section: mobileSettingsTab, view, item: selectedFauna?.id, article: selectedArticle?.id },
+          { tab: activeTab, subTab: adminSubTab, section: mobileSettingsTab, view, item: selectedFauna?.id, article: selectedArticle?.id, ticket: selectedTicket?.id },
           '',
           fullTarget
         );
       } else {
         window.history.pushState(
-          { tab: activeTab, subTab: adminSubTab, section: mobileSettingsTab, view, item: selectedFauna?.id, article: selectedArticle?.id },
+          { tab: activeTab, subTab: adminSubTab, section: mobileSettingsTab, view, item: selectedFauna?.id, article: selectedArticle?.id, ticket: selectedTicket?.id },
           '',
           fullTarget
         );
       }
     }
-  }, [activeTab, adminSubTab, mobileSettingsTab, crudMode, editId, view, editingArticle, articleTabState, selectedFauna, selectedArticle, storeSlug, error]);
+  }, [activeTab, adminSubTab, mobileSettingsTab, crudMode, editId, view, editingArticle, articleTabState, selectedFauna, selectedArticle, selectedTicket, storeSlug, error]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
@@ -2895,6 +3159,55 @@ function App() {
       setSettingsLoading(false)
     }
   }
+
+  const handleThemeSelect = async (themeId: string, themeName: string) => {
+    setSettingsForm((prev: any) => ({ ...prev, store_theme: themeId }));
+    setSettings((prev: any) => ({ ...prev, store_theme: themeId }));
+    document.documentElement.setAttribute('data-theme', themeId);
+    document.body.setAttribute('data-theme', themeId);
+
+    const slug = getStoreSlug();
+
+    // 1. Immediately persist to LocalStorage for instant F5 refresh persistence
+    try {
+      if (slug) {
+        const key = `catavor_store_${slug.toLowerCase()}`;
+        const existing = localStorage.getItem(key);
+        let parsed = existing ? JSON.parse(existing) : {};
+        parsed.store_theme = themeId;
+        localStorage.setItem(key, JSON.stringify(parsed));
+        localStorage.setItem('catavor_settings', JSON.stringify({ ...settings, store_theme: themeId }));
+      }
+    } catch (e) {}
+
+    // 2. Immediately persist to API Database in background
+    if (token) {
+      try {
+        const payload = {
+          store_theme: themeId
+        };
+
+        const res = await fetch(`${API_BASE}/stores/update`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const resData = await res.json();
+        if (res.ok && resData.success) {
+          showToast(`✨ Tema "${themeName}" berhasil diterapkan & disimpan!`, 'success');
+        } else {
+          console.warn('API store_theme update response:', resData);
+          showToast(`✨ Tema "${themeName}" diterapkan!`, 'success');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast(`✨ Tema "${themeName}" diterapkan secara lokal!`, 'info');
+      }
+    } else {
+      showToast(`✨ Tema "${themeName}" diterapkan!`, 'success');
+    }
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -5206,7 +5519,7 @@ function App() {
                   gap: '0.35rem'
                 }}
               >
-                <ArrowLeft size={15} style={{ color: '#10b981' }} />
+                <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
                 <span>Kembali</span>
               </button>
               <span style={{ fontWeight: 800, fontSize: '0.98rem', color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Detail Produk</span>
@@ -6014,8 +6327,8 @@ function App() {
                 cursor: 'pointer'
               }}
             >
-              <ArrowLeft size={15} style={{ color: '#10b981' }} />
-              <span style={{ color: '#ffffff', fontWeight: 700 }}>Batal</span>
+              <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
+              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Batal</span>
             </button>
             <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)', margin: 0 }}>
               {crudMode === 'create' ? 'Tambah Postingan Produk' : 'Edit Postingan Produk'}
@@ -6567,8 +6880,8 @@ function App() {
                 cursor: 'pointer'
               }}
             >
-              <ArrowLeft size={15} style={{ color: '#10b981' }} />
-              <span style={{ color: '#ffffff', fontWeight: 700 }}>Batal</span>
+              <ArrowLeft size={15} style={{ color: 'var(--primary)' }} />
+              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Batal</span>
             </button>
             <span style={{ fontSize: '0.98rem', color: '#ffffff', fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
               {editingArticle ? 'Edit Artikel' : 'Tulis Artikel'}
@@ -7068,7 +7381,7 @@ function App() {
               <span style={{ 
                 fontSize: '1.25rem', 
                 fontWeight: 800, 
-                color: '#ffffff',
+                color: 'var(--text-primary)',
                 letterSpacing: '-0.01em',
                 fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
               }}>
@@ -7102,49 +7415,62 @@ function App() {
               // Admin Panel Sub-Pages Header (Hides store title & share button, shows back button + menu title + action button)
               if (activeTab === 'admin' && adminSubTab !== 'menu') {
                 return (
-                  <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.5rem' }}>
+                  <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '0.6rem' }}>
                     <button
                       type="button"
                       onClick={() => {
-                        if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
+                        const slug = getStoreSlug();
+                        if (adminSubTab === 'help' && selectedTicket) {
+                          setSelectedTicket(null);
+                          if (slug) {
+                            window.history.pushState({}, '', `/${slug}/admin/help`);
+                          }
+                        } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
                           setMobileSettingsTab('menu');
+                          if (slug) {
+                            window.history.pushState({}, '', `/${slug}/admin/settings`);
+                          }
                         } else {
                           setAdminSubTab('menu');
+                          setSelectedTicket(null);
+                          if (slug) {
+                            window.history.pushState({}, '', `/${slug}/admin`);
+                          }
                         }
                       }}
                       style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.18)',
-                        color: '#ffffff',
-                        fontSize: '0.8rem',
+                        backgroundColor: 'var(--btn-secondary-bg)',
+                        border: '1px solid var(--btn-secondary-border)',
+                        color: 'var(--btn-secondary-text)',
+                        fontSize: '0.78rem',
                         fontWeight: 700,
-                        padding: '0.38rem 0.75rem',
+                        padding: '0.35rem 0.65rem',
                         borderRadius: '0.5rem',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem',
+                        gap: '0.3rem',
                         WebkitTapHighlightColor: 'transparent',
                         touchAction: 'manipulation',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap'
                       }}
                     >
-                      <ArrowLeft size={15} style={{ color: '#10b981' }} />
-                      <span style={{ color: '#ffffff', fontWeight: 700 }}>Kembali</span>
+                      <ArrowLeft size={14} style={{ color: 'var(--primary)' }} />
+                      <span>Kembali</span>
                     </button>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
                       <span style={{ 
-                        fontSize: '0.98rem', 
+                        fontSize: '0.94rem', 
                         fontWeight: 800, 
-                        color: '#ffffff', 
+                        color: 'var(--text-primary)', 
                         letterSpacing: '-0.01em',
                         fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif",
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        textAlign: 'center',
-                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.5)'
+                        textAlign: 'left'
                       }}>
                         {adminSubTab === 'items' && 'Kelola Inventaris'}
                         {adminSubTab === 'settings' && (
@@ -7157,31 +7483,34 @@ function App() {
                         {adminSubTab === 'profile' && 'Profil Admin'}
                         {adminSubTab === 'policies' && 'Legal & Kebijakan'}
                         {adminSubTab === 'notifications' && 'Notifikasi & Aktivitas'}
+                        {adminSubTab === 'help' && (
+                          selectedTicket ? `Detail Tiket #${selectedTicket.id}` : 'Pusat Bantuan & Support'
+                        )}
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0, minWidth: '70px' }}>
-                      {adminSubTab === 'items' && (
-                        <button 
-                          type="button"
-                          className="btn-primary" 
-                          style={{ 
-                            padding: '0.38rem 0.75rem', 
-                            borderRadius: '0.5rem', 
-                            fontSize: '0.78rem', 
-                            fontWeight: 800,
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '0.25rem',
-                            cursor: 'pointer'
-                          }}
-                          onClick={openCreateSheet}
-                        >
-                          <Plus size={14} />
-                          <span>Tambah</span>
-                        </button>
-                      )}
-                    </div>
+                    {adminSubTab === 'items' && (
+                      <button 
+                        type="button"
+                        className="btn-primary" 
+                        style={{ 
+                          padding: '0.35rem 0.65rem', 
+                          borderRadius: '0.5rem', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 800,
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.2rem',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}
+                        onClick={openCreateSheet}
+                      >
+                        <Plus size={14} />
+                        <span>Tambah</span>
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -7929,13 +8258,13 @@ function App() {
                     href={`https://wa.me/${settings.whatsapp_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--primary-glow)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
                       <MessageCircle size={16} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Chat WhatsApp</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Chat WhatsApp</span>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>+{settings.whatsapp_number}</span>
                     </div>
                     <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
@@ -8478,7 +8807,11 @@ function App() {
                     {/* Item 1: Kelola Kategori */}
                     <div 
                       className="glass-panel" 
-                      onClick={() => setAdminSubTab('items')}
+                      onClick={() => {
+                        setAdminSubTab('items');
+                        const slug = getStoreSlug();
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      }}
                       style={{ 
                         padding: '1rem 1.15rem', 
                         display: 'flex', 
@@ -8533,7 +8866,7 @@ function App() {
                         alignItems: 'center', 
                         gap: '1rem', 
                         cursor: 'pointer', 
-                        border: unreadCount > 0 ? '1px solid var(--primary)' : '1px solid var(--border-light)', 
+                        border: '1px solid var(--border-light)', 
                         borderRadius: '0.9rem', 
                         background: 'var(--card-bg-gradient)',
                         boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
@@ -8588,7 +8921,12 @@ function App() {
                     {/* Item 2: Pengaturan */}
                     <div 
                       className="glass-panel" 
-                      onClick={() => setAdminSubTab('settings')}
+                      onClick={() => {
+                        setAdminSubTab('settings');
+                        setMobileSettingsTab('menu');
+                        const slug = getStoreSlug();
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
+                      }}
                       style={{ 
                         padding: '1rem 1.15rem', 
                         display: 'flex', 
@@ -8608,12 +8946,12 @@ function App() {
                         width: '44px', 
                         height: '44px', 
                         borderRadius: '0.75rem', 
-                        background: 'rgba(59, 130, 246, 0.12)', 
-                        border: '1px solid rgba(59, 130, 246, 0.28)',
+                        background: 'var(--primary-glow)', 
+                        border: '1px solid var(--border-light)',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center', 
-                        color: '#3b82f6',
+                        color: 'var(--primary)',
                         flexShrink: 0
                       }}>
                         <Settings size={22} />
@@ -8630,7 +8968,12 @@ function App() {
                     {/* Item 3: Legal & Kebijakan */}
                     <div 
                       className="glass-panel" 
-                      onClick={() => { setAdminSubTab('policies'); fetchPolicies(); }}
+                      onClick={() => { 
+                        setAdminSubTab('policies'); 
+                        fetchPolicies(); 
+                        const slug = getStoreSlug();
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
+                      }}
                       style={{ 
                         padding: '1rem 1.15rem', 
                         display: 'flex', 
@@ -8650,12 +8993,12 @@ function App() {
                         width: '44px', 
                         height: '44px', 
                         borderRadius: '0.75rem', 
-                        background: 'rgba(245, 158, 11, 0.12)', 
-                        border: '1px solid rgba(245, 158, 11, 0.28)',
+                        background: 'var(--primary-glow)', 
+                        border: '1px solid var(--border-light)',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center', 
-                        color: '#f59e0b',
+                        color: 'var(--primary)',
                         flexShrink: 0
                       }}>
                         <ShieldCheck size={22} />
@@ -8664,6 +9007,54 @@ function App() {
                         <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Legal &amp; Kebijakan</h3>
                         <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
                           Syarat &amp; Privasi Platform
+                        </span>
+                      </div>
+                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+
+                    {/* Item 4: Pusat Bantuan & Support */}
+                    <div 
+                      className="glass-panel" 
+                      onClick={() => {
+                        setAdminSubTab('help');
+                        const slug = getStoreSlug();
+                        if (slug) {
+                          window.history.pushState({}, '', `/${slug}/admin/help`);
+                        }
+                      }}
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '1rem', 
+                        cursor: 'pointer', 
+                        border: '1px solid var(--border-light)', 
+                        borderRadius: '0.9rem', 
+                        background: 'var(--card-bg-gradient)',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s ease',
+                        WebkitTapHighlightColor: 'transparent',
+                        touchAction: 'manipulation'
+                      }}
+                    >
+                      <div style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '0.75rem', 
+                        background: 'var(--primary-glow)', 
+                        border: '1px solid var(--border-light)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        color: 'var(--primary)',
+                        flexShrink: 0
+                      }}>
+                        <HelpCircle size={22} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Pusat Bantuan &amp; Support</h3>
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                          Kontak Admin WA, Email &amp; FAQ
                         </span>
                       </div>
                       <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
@@ -8798,11 +9189,15 @@ function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       <div 
                         className="glass-panel"
-                        onClick={() => setMobileSettingsTab('general')}
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('general');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/general`);
+                        }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
-                          ⚙️
+                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <Store size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Informasi Toko</h4>
@@ -8814,11 +9209,15 @@ function App() {
                       {false && (
                       <div 
                         className="glass-panel"
-                        onClick={() => setMobileSettingsTab('features')}
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('features');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/features`);
+                        }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
-                          💬
+                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <MessageCircle size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Fitur & Diskusi</h4>
@@ -8830,11 +9229,15 @@ function App() {
 
                       <div 
                         className="glass-panel"
-                        onClick={() => setMobileSettingsTab('about')}
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('about');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/about`);
+                        }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
-                          ℹ️
+                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <Info size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Tentang Kami</h4>
@@ -8845,11 +9248,15 @@ function App() {
 
                       <div 
                         className="glass-panel"
-                        onClick={() => setMobileSettingsTab('social')}
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('social');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/social`);
+                        }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
-                          🌐
+                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <Share2 size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Media Sosial</h4>
@@ -8860,11 +9267,15 @@ function App() {
 
                       <div 
                         className="glass-panel"
-                        onClick={() => setMobileSettingsTab('theme')}
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('theme');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/theme`);
+                        }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
-                          🎨
+                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <Palette size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Tema &amp; Tampilan Toko</h4>
@@ -8875,11 +9286,15 @@ function App() {
 
                       <div 
                         className="glass-panel"
-                        onClick={() => setMobileSettingsTab('master')}
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('master');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/master`);
+                        }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '1.25rem', flexShrink: 0 }}>
-                          📊
+                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                          <Database size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Pilihan Master Data</h4>
@@ -8914,12 +9329,7 @@ function App() {
                                   return (
                                     <div 
                                       key={t.id}
-                                      onClick={() => {
-                                        setSettingsForm({ ...settingsForm, store_theme: t.id });
-                                        setSettings({ ...settings, store_theme: t.id });
-                                        document.documentElement.setAttribute('data-theme', t.id);
-                                        document.body.setAttribute('data-theme', t.id);
-                                      }}
+                                      onClick={() => handleThemeSelect(t.id, t.name)}
                                       style={{
                                         padding: '1rem',
                                         borderRadius: '0.85rem',
@@ -8951,7 +9361,7 @@ function App() {
 
                                       {isActive && (
                                         <span style={{ fontSize: '0.65rem', fontWeight: 900, color: t.primary, padding: '0.2rem 0.55rem', borderRadius: '20px', backgroundColor: `${t.primary}20`, border: `1px solid ${t.primary}50`, flexShrink: 0 }}>
-                                          AKTIF
+                                          ✓ AKTIF &amp; TERSIMPAN
                                         </span>
                                       )}
                                     </div>
@@ -9476,14 +9886,16 @@ function App() {
                             </div>
                           )}
 
-                          <button 
-                            type="submit" 
-                            className="btn-full btn-primary" 
-                            disabled={settingsLoading}
-                            style={{ fontSize: '0.85rem', marginTop: '1.25rem' }}
-                          >
-                            {settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan'}
-                          </button>
+                          {mobileSettingsTab !== 'theme' && (
+                            <button 
+                              type="submit" 
+                              className="btn-full btn-primary" 
+                              disabled={settingsLoading}
+                              style={{ fontSize: '0.85rem', marginTop: '1.25rem' }}
+                            >
+                              {settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                            </button>
+                          )}
                         </form>
                       ) : (
                         /* Master Data Subtab on Mobile */
@@ -9782,7 +10194,7 @@ function App() {
               {adminSubTab === 'policies' && (
                 <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {/* Quick Switcher Tabs */}
-                  <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.3)', padding: '0.3rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.08)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--btn-secondary-bg)', padding: '0.3rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <button
                       type="button"
                       onClick={() => setMobilePolicyTab('terms')}
@@ -9792,11 +10204,11 @@ function App() {
                         borderRadius: '0.45rem',
                         fontSize: '0.72rem',
                         fontWeight: 800,
-                        border: 'none',
+                        border: mobilePolicyTab === 'terms' ? '1px solid var(--primary)' : '1px solid transparent',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
-                        backgroundColor: mobilePolicyTab === 'terms' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
-                        color: mobilePolicyTab === 'terms' ? '#34d399' : '#94a3b8',
+                        backgroundColor: mobilePolicyTab === 'terms' ? 'var(--primary-glow)' : 'transparent',
+                        color: mobilePolicyTab === 'terms' ? 'var(--primary)' : 'var(--text-secondary)',
                         transition: 'all 0.2s ease'
                       }}
                     >
@@ -9811,11 +10223,11 @@ function App() {
                         borderRadius: '0.45rem',
                         fontSize: '0.72rem',
                         fontWeight: 800,
-                        border: 'none',
+                        border: mobilePolicyTab === 'privacy' ? '1px solid var(--primary)' : '1px solid transparent',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
-                        backgroundColor: mobilePolicyTab === 'privacy' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
-                        color: mobilePolicyTab === 'privacy' ? '#34d399' : '#94a3b8',
+                        backgroundColor: mobilePolicyTab === 'privacy' ? 'var(--primary-glow)' : 'transparent',
+                        color: mobilePolicyTab === 'privacy' ? 'var(--primary)' : 'var(--text-secondary)',
                         transition: 'all 0.2s ease'
                       }}
                     >
@@ -9830,11 +10242,11 @@ function App() {
                         borderRadius: '0.45rem',
                         fontSize: '0.72rem',
                         fontWeight: 800,
-                        border: 'none',
+                        border: mobilePolicyTab === 'acceptable_use' ? '1px solid var(--primary)' : '1px solid transparent',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
-                        backgroundColor: mobilePolicyTab === 'acceptable_use' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
-                        color: mobilePolicyTab === 'acceptable_use' ? '#34d399' : '#94a3b8',
+                        backgroundColor: mobilePolicyTab === 'acceptable_use' ? 'var(--primary-glow)' : 'transparent',
+                        color: mobilePolicyTab === 'acceptable_use' ? 'var(--primary)' : 'var(--text-secondary)',
                         transition: 'all 0.2s ease'
                       }}
                     >
@@ -9843,12 +10255,12 @@ function App() {
                   </div>
 
                   {/* Document Card Panel */}
-                  <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(15, 23, 42, 0.95)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff' }}>
+                  <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                         {policies[mobilePolicyTab]?.title || 'Dokumen Resmi Platform'}
                       </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary)', background: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid var(--primary)' }}>
                         {policies[mobilePolicyTab]?.version || 'v1.0.0'}
                       </span>
                     </div>
@@ -10009,6 +10421,593 @@ function App() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {adminSubTab === 'help' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+                  
+                  {/* VIEW A: TICKET DETAIL & THREAD */}
+                  {selectedTicket ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '90px' }}>
+                      {/* Ticket Details Header & Status Bar */}
+                      <div className="glass-panel" style={{ padding: '1rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{selectedTicket.id}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>&bull; {selectedTicket.created_at}</span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              backgroundColor: selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: selectedTicket.status === 'resolved' ? '#10b981' : selectedTicket.status === 'in_progress' ? '#f59e0b' : '#3b82f6',
+                              border: `1px solid ${selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.3)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
+                            }}>
+                              {selectedTicket.status === 'resolved' ? '✓ Selesai' : selectedTicket.status === 'in_progress' ? '● Proses' : '● Open'}
+                            </span>
+
+                            {selectedTicket.status !== 'resolved' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTickets(prev => prev.map(t => t.id === selectedTicket.id ? { ...t, status: 'resolved', updated_at: 'Baru saja' } : t));
+                                  setSelectedTicket(prev => prev ? { ...prev, status: 'resolved' } : null);
+                                  showToast('Tiket telah ditandai Selesai.');
+                                }}
+                                style={{
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  color: '#10b981',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
+                                }}
+                              >
+                                ✓ Tandai Selesai
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem 0', lineHeight: 1.35 }}>
+                          {selectedTicket.subject}
+                        </h3>
+
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                            Kategori: {selectedTicket.category === 'payment' ? 'Pembayaran & Pro' : selectedTicket.category === 'technical' ? 'Pengaturan Toko' : selectedTicket.category === 'account' ? 'Akun' : 'Lainnya'}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: selectedTicket.priority === 'urgent' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)', color: selectedTicket.priority === 'urgent' ? '#ef4444' : 'var(--text-secondary)' }}>
+                            Urgensi: {selectedTicket.priority.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Discussion Thread Messages */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        {selectedTicket.messages.map((msg) => {
+                          const isUser = msg.sender === 'user';
+                          return (
+                            <div
+                              key={msg.id}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: isUser ? 'flex-end' : 'flex-start'
+                              }}
+                            >
+                              <div style={{
+                                maxWidth: '88%',
+                                padding: '0.85rem 1rem',
+                                borderRadius: isUser ? '1rem 1rem 0.2rem 1rem' : '1rem 1rem 1rem 0.2rem',
+                                backgroundColor: isUser ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                                border: isUser ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)',
+                                boxShadow: '0 4px 15px rgba(0,0,0,0.15)'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                                  <strong style={{ fontSize: '0.78rem', color: isUser ? '#10b981' : '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 800 }}>
+                                    {!isUser && <ShieldCheck size={14} color="#3b82f6" />}
+                                    {msg.sender_name}
+                                  </strong>
+                                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
+                                </div>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                                  {msg.message}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Sticky Mobile App Reply Bar */}
+                      {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
+                        <div style={{
+                          position: 'fixed',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          padding: '0.65rem 1rem',
+                          backgroundColor: 'var(--header-bg)',
+                          backdropFilter: 'blur(16px)',
+                          WebkitBackdropFilter: 'blur(16px)',
+                          borderTop: '1px solid var(--border-light)',
+                          zIndex: 200,
+                          display: 'flex',
+                          alignItems: 'flex-end',
+                          gap: '0.5rem',
+                          boxShadow: '0 -4px 20px rgba(0,0,0,0.3)'
+                        }}>
+                          <textarea
+                            id="mobile-reply-textarea"
+                            rows={1}
+                            className="form-input"
+                            placeholder="Ketik balasan untuk Tim Support Catavor..."
+                            value={ticketReplyText}
+                            onChange={(e) => {
+                              setTicketReplyText(e.target.value);
+                              e.target.style.height = 'auto';
+                              e.target.style.height = `${Math.min(e.target.scrollHeight, 125)}px`;
+                            }}
+                            style={{ 
+                              flex: 1, 
+                              borderRadius: '1.1rem', 
+                              padding: '0.65rem 0.9rem', 
+                              fontSize: '0.84rem', 
+                              lineHeight: '1.4', 
+                              minHeight: '40px', 
+                              maxHeight: '125px', 
+                              height: 'auto',
+                              resize: 'none', 
+                              overflowY: 'auto',
+                              border: '1px solid var(--border-light)', 
+                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              color: 'var(--text-primary)',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            disabled={!ticketReplyText.trim()}
+                            onClick={() => {
+                              if (!ticketReplyText.trim()) return;
+                              const userMsg: TicketMessage = {
+                                id: `msg-${Date.now()}`,
+                                sender: 'user',
+                                sender_name: 'Admin Toko',
+                                message: ticketReplyText.trim(),
+                                timestamp: 'Baru saja'
+                              };
+
+                              const updatedMessages = [...selectedTicket.messages, userMsg];
+                              const updatedTicket = {
+                                ...selectedTicket,
+                                messages: updatedMessages,
+                                updated_at: 'Baru saja',
+                                status: 'in_progress' as const
+                              };
+
+                              setTickets(prev => prev.map(t => t.id === selectedTicket.id ? updatedTicket : t));
+                              setSelectedTicket(updatedTicket);
+                              setTicketReplyText('');
+                              
+                              const el = document.getElementById('mobile-reply-textarea') as HTMLTextAreaElement;
+                              if (el) {
+                                el.style.height = '40px';
+                              }
+
+                              showToast('Balasan Anda telah terkirim!');
+
+                              setTimeout(() => {
+                                const csReply: TicketMessage = {
+                                  id: `msg-${Date.now() + 1}`,
+                                  sender: 'support',
+                                  sender_name: 'Catavor Official Support',
+                                  message: 'Pesan Anda telah diterima oleh Tim Support. Kami sedang mengecek detail permintaan ini.',
+                                  timestamp: 'Baru saja'
+                                };
+                                setTickets(prev => prev.map(t => {
+                                  if (t.id === selectedTicket.id) {
+                                    return { ...t, messages: [...t.messages, csReply] };
+                                  }
+                                  return t;
+                                }));
+                                setSelectedTicket(prev => prev ? { ...prev, messages: [...prev.messages, csReply] } : null);
+                              }, 1500);
+                            }}
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              marginBottom: '1px'
+                            }}
+                          >
+                            <Send size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="glass-panel" style={{ padding: '0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
+                            ✓ Tiket ini telah ditandai Selesai. Buat tiket baru jika ada pertanyaan lain.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* VIEW B: TICKET LIST & HERO STATS */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {/* Hero Header Card */}
+                      <div className="glass-panel" style={{ 
+                        padding: '1.15rem', 
+                        borderRadius: '1rem', 
+                        border: '1px solid var(--primary-glow)', 
+                        background: 'var(--card-bg-gradient)', 
+                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.3)' 
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div style={{ 
+                              width: '38px', 
+                              height: '38px', 
+                              borderRadius: '0.65rem', 
+                              backgroundColor: 'var(--primary-glow)', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              color: 'var(--primary)', 
+                              border: '1px solid var(--border-light)' 
+                            }}>
+                              <HelpCircle size={22} />
+                            </div>
+                            <div>
+                              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Pusat Tiket Support</h3>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Layanan Bantuan Interaktif Catavor</span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => setShowCreateTicketModal(true)}
+                            style={{
+                              padding: '0.45rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              boxShadow: '0 4px 12px var(--primary-glow)'
+                            }}
+                          >
+                            <Plus size={15} /> Buat Tiket
+                          </button>
+                        </div>
+
+                        {/* Search & Filter Bar */}
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem' }}>
+                          <div style={{ flex: 1, position: 'relative' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Cari ID atau judul tiket..."
+                              value={ticketSearch}
+                              onChange={(e) => setTicketSearch(e.target.value)}
+                              style={{ paddingLeft: '2.1rem', height: '36px', fontSize: '0.78rem', borderRadius: '0.55rem' }}
+                            />
+                            <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(0,0,0,0.3)', padding: '0.2rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)' }}>
+                            <button
+                              type="button"
+                              onClick={() => setTicketFilter('all')}
+                              style={{
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                border: 'none',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: ticketFilter === 'all' ? 'var(--primary)' : 'transparent',
+                                color: ticketFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Semua
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setTicketFilter('active')}
+                              style={{
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                border: 'none',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: ticketFilter === 'active' ? 'var(--primary)' : 'transparent',
+                                color: ticketFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Aktif
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setTicketFilter('resolved')}
+                              style={{
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                border: 'none',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: ticketFilter === 'resolved' ? 'var(--primary)' : 'transparent',
+                                color: ticketFilter === 'resolved' ? '#ffffff' : 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Selesai
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ticket Cards List */}
+                      {filteredTickets.length === 0 ? (
+                        <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
+                          <MessageSquare size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem' }} />
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Tidak Ada Tiket</h4>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Belum ada tiket support yang sesuai dengan filter Anda.</p>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => setShowCreateTicketModal(true)}
+                            style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem' }}
+                          >
+                            + Buat Tiket Baru
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {filteredTickets.map((ticket) => {
+                            const isResolved = ticket.status === 'resolved' || ticket.status === 'closed';
+                            const isInProgress = ticket.status === 'in_progress';
+                            const lastMsg = ticket.messages[ticket.messages.length - 1];
+
+                            return (
+                              <div
+                                key={ticket.id}
+                                className="glass-panel"
+                                onClick={() => {
+                                  setSelectedTicket(ticket);
+                                  const slug = getStoreSlug();
+                                  if (slug) {
+                                    window.history.pushState({}, '', `/${slug}/admin/help?ticket=${ticket.id}`);
+                                  }
+                                }}
+                                style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'var(--card-bg-gradient)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.55rem',
+                                  transition: 'all 0.2s ease',
+                                  WebkitTapHighlightColor: 'transparent'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{ticket.id}</span>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                      {ticket.category === 'payment' ? 'Pembayaran' : ticket.category === 'technical' ? 'Pengaturan' : 'Umum'}
+                                    </span>
+                                  </div>
+
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    padding: '0.15rem 0.55rem',
+                                    borderRadius: '999px',
+                                    whiteSpace: 'nowrap',
+                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                    color: isResolved ? '#10b981' : isInProgress ? '#f59e0b' : '#3b82f6'
+                                  }}>
+                                    {isResolved ? 'Selesai' : isInProgress ? 'Proses' : 'Open'}
+                                  </span>
+                                </div>
+
+                                <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.3 }}>
+                                  {ticket.subject}
+                                </h4>
+
+                                {lastMsg && (
+                                  <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#10b981' }}>{lastMsg.sender_name}:</strong> {lastMsg.message}
+                                  </p>
+                                )}
+
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                  <span>{ticket.messages.length} Pesan</span>
+                                  <span>Update: {ticket.updated_at}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* MODAL: CREATE TICKET */}
+                  {showCreateTicketModal && (
+                    <div style={{
+                      position: 'fixed',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: 'rgba(0,0,0,0.75)',
+                      backdropFilter: 'blur(6px)',
+                      zIndex: 9999,
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      justifyContent: 'center'
+                    }}>
+                      <div className="glass-panel animate-slide-up" style={{
+                        width: '100%',
+                        maxWidth: '500px',
+                        backgroundColor: 'var(--card-bg-gradient)',
+                        borderRadius: '1.25rem 1.25rem 0 0',
+                        padding: '1.25rem',
+                        border: '1px solid var(--border-light)',
+                        maxHeight: '90vh',
+                        overflowY: 'auto'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Plus size={18} color="var(--primary)" /> Buat Tiket Support Baru
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateTicketModal(false)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!newTicketForm.subject.trim() || !newTicketForm.message.trim()) {
+                            showToast('Mohon isi Judul dan Detail Kendala.');
+                            return;
+                          }
+
+                          const newId = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+                          const createdTicket: SupportTicket = {
+                            id: newId,
+                            subject: newTicketForm.subject.trim(),
+                            category: newTicketForm.category,
+                            priority: newTicketForm.priority,
+                            status: 'open',
+                            created_at: 'Baru saja',
+                            updated_at: 'Baru saja',
+                            messages: [
+                              {
+                                id: `msg-${Date.now()}`,
+                                sender: 'user',
+                                sender_name: 'Admin Toko',
+                                message: newTicketForm.message.trim(),
+                                timestamp: 'Baru saja'
+                              }
+                            ]
+                          };
+
+                          setTickets(prev => [createdTicket, ...prev]);
+                          setSelectedTicket(createdTicket);
+                          setShowCreateTicketModal(false);
+                          setNewTicketForm({ subject: '', category: 'payment', priority: 'normal', message: '' });
+                          showToast(`Tiket ${newId} berhasil dibuat!`);
+                        }} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+
+                          <div className="form-group">
+                            <label className="form-label" style={{ fontSize: '0.78rem' }}>Judul Kendala / Subjek *</label>
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
+                              value={newTicketForm.subject}
+                              onChange={(e) => setNewTicketForm({ ...newTicketForm, subject: e.target.value })}
+                              required
+                              style={{ fontSize: '0.8rem' }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div className="form-group">
+                              <label className="form-label" style={{ fontSize: '0.78rem' }}>Kategori *</label>
+                              <select
+                                className="form-input"
+                                value={newTicketForm.category}
+                                onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value as any })}
+                                style={{ fontSize: '0.8rem' }}
+                              >
+                                <option value="payment">Pembayaran & Paket Pro</option>
+                                <option value="technical">Pengaturan Toko / Domain</option>
+                                <option value="account">Kendala Akun</option>
+                                <option value="feature">Pertanyaan Fitur</option>
+                                <option value="other">Lainnya</option>
+                              </select>
+                            </div>
+
+                            <div className="form-group">
+                              <label className="form-label" style={{ fontSize: '0.78rem' }}>Tingkat Urgensi *</label>
+                              <select
+                                className="form-input"
+                                value={newTicketForm.priority}
+                                onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value as any })}
+                                style={{ fontSize: '0.8rem' }}
+                              >
+                                <option value="normal">Normal</option>
+                                <option value="high">Tinggi</option>
+                                <option value="urgent">Urgent</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label" style={{ fontSize: '0.78rem' }}>Detail Pesan & Pertanyaan *</label>
+                            <textarea
+                              rows={4}
+                              className="form-input"
+                              placeholder="Jelaskan detail kendala Anda selengkap mungkin..."
+                              value={newTicketForm.message}
+                              onChange={(e) => setNewTicketForm({ ...newTicketForm, message: e.target.value })}
+                              required
+                              style={{ fontSize: '0.8rem', resize: 'none' }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.5rem' }}>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => setShowCreateTicketModal(false)}
+                              style={{ flex: 1, padding: '0.65rem', borderRadius: '0.6rem', fontSize: '0.8rem' }}
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn-primary"
+                              style={{ flex: 1, padding: '0.65rem', borderRadius: '0.6rem', fontSize: '0.8rem', fontWeight: 800 }}
+                            >
+                              Kirim Tiket Support
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               )}
             </div>
@@ -11079,7 +12078,7 @@ function App() {
           <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '440px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '1.25rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <ShieldCheck size={18} style={{ color: '#10b981' }} />
+                <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
                 <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>
                   {showQuickPolicyModal === 'terms' ? 'Syarat & Ketentuan' : showQuickPolicyModal === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                 </span>

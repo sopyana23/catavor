@@ -73,9 +73,7 @@
 .logo-title {
   font-size: 1.15rem;
   font-weight: 800;
-  background: var(--hero-title-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary) !important;
   font-family: var(--font-heading);
   white-space: nowrap;
   overflow: hidden;
@@ -643,15 +641,17 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
-  background: #0b0e0c !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.2);
+  background: var(--header-bg) !important;
+  color: var(--text-primary) !important;
 }
 
 .admin-sub-tabs {
   position: sticky;
   top: 50px;
   z-index: 999;
-  background: #0b0e0c !important;
+  background: var(--header-bg) !important;
+  color: var(--text-primary) !important;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   margin-top: -0.5rem;

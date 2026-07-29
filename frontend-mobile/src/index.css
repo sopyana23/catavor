@@ -337,15 +337,17 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
 }
 
 .gradient-text-hero {
-  background: var(--hero-title-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary) !important;
+  background: none !important;
+  -webkit-text-fill-color: initial !important;
+  -webkit-background-clip: initial !important;
 }
 
 .gradient-text-emerald {
-  background: var(--emerald-title-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--primary) !important;
+  background: none !important;
+  -webkit-text-fill-color: initial !important;
+  -webkit-background-clip: initial !important;
 }
 
 .btn-primary {

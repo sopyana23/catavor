@@ -135,15 +135,15 @@ class StoreController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'store_title' => 'required|string|max:255',
+            'store_title' => 'sometimes|required|string|max:255',
             'store_slogan' => 'nullable|string|max:255',
-            'store_logo_url' => 'nullable|string|max:1000',
+            'store_logo_url' => 'nullable|string',
             'store_theme' => 'nullable|string|max:50',
             'whatsapp_number' => 'nullable|string|max:50',
             'enable_wa_direct' => 'nullable|boolean',
             'enable_wa_rekber' => 'nullable|boolean',
             'plan' => 'nullable|string|in:free,pro',
-            'promo_banner' => 'nullable|string|max:1000',
+            'promo_banner' => 'nullable|string',
             
             // About Us details
             'about_title' => 'nullable|string|max:255',
