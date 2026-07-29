@@ -1757,7 +1757,7 @@ function App() {
 
             if (pageSub === 'items') {
               setAdminSubTab('items');
-              if (subSub === 'create' || subSub === 'new') {
+              if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
                 const prodType = parts[4];
                 if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
                   setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
@@ -6431,9 +6431,15 @@ function App() {
             <button 
               type="button"
               onClick={() => {
-                setView('tabs')
-                setActiveTab('admin')
-                setAdminSubTab('items')
+                if (crudMode === 'create') {
+                  setShowProductTypeSelector(true);
+                  setView('tabs');
+                } else {
+                  setView('tabs');
+                  setActiveTab('admin');
+                  setAdminSubTab('items');
+                  setShowProductTypeSelector(false);
+                }
               }}
               style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
