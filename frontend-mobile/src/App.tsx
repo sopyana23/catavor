@@ -78,7 +78,8 @@ import {
   Palette,
   Package,
   FileCode,
-  Wrench
+  Wrench,
+  RefreshCw
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -3309,6 +3310,18 @@ function App() {
 
   const handleSelectProductType = (type: 'physical' | 'digital' | 'fauna' | 'service' | 'food') => {
     setShowProductTypeSelector(false)
+    setView('fauna-editor')
+
+    // If changing type from within an active form, preserve common fields like name, price, description, image_url
+    if (crudForm.name || crudForm.price > 0 || crudMode === 'edit') {
+      setCrudForm(prev => ({
+        ...prev,
+        product_type: type,
+        class: type === 'fauna' ? (prev.class === 'Umum' ? 'Reptil' : prev.class) : 'Umum'
+      }))
+      return
+    }
+
     setCrudMode('create')
     setEditId(null)
     setCrudForm({
@@ -6431,23 +6444,107 @@ function App() {
 
           {/* Form Content */}
           <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-            {/* Banner Switcher Tipe Produk */}
-            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Tipe Produk:</span>
-                <span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 800, backgroundColor: crudForm.product_type === 'digital' ? '#8b5cf6' : crudForm.product_type === 'physical' ? '#3b82f6' : crudForm.product_type === 'service' ? '#f59e0b' : crudForm.product_type === 'food' ? '#ef4444' : '#10b981', color: crudForm.product_type === 'service' ? '#000' : '#fff' }}>
-                  {crudForm.product_type === 'digital' ? '💾 Barang Digital' : crudForm.product_type === 'physical' ? '📦 Barang Fisik' : crudForm.product_type === 'service' ? '🛠️ Jasa & Layanan' : crudForm.product_type === 'food' ? '🍱 Makanan & Minuman' : '🐾 Hewan / Living Fauna'}
-                </span>
+            {/* Banner Switcher Tipe Produk (Premium Design) */}
+            <div style={{ 
+              padding: '0.85rem 1rem', 
+              borderRadius: '1rem', 
+              backgroundColor: 'var(--bg-card)', 
+              border: '1px solid var(--border-light)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              marginBottom: '1.25rem',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Subtle ambient radial glow behind banner */}
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                left: '-20%',
+                width: '140%',
+                height: '200%',
+                background: crudForm.product_type === 'digital'
+                  ? 'radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, transparent 70%)'
+                  : crudForm.product_type === 'physical'
+                  ? 'radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%)'
+                  : crudForm.product_type === 'service'
+                  ? 'radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, transparent 70%)'
+                  : crudForm.product_type === 'food'
+                  ? 'radial-gradient(circle, rgba(239, 68, 68, 0.12) 0%, transparent 70%)'
+                  : 'radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%)',
+                pointerEvents: 'none'
+              }} />
+
+              {/* Left Side: Category Icon + Title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'relative', zIndex: 1, minWidth: 0 }}>
+                <div style={{ 
+                  width: '38px', 
+                  height: '38px', 
+                  borderRadius: '0.65rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  backgroundColor: crudForm.product_type === 'digital' ? 'rgba(139, 92, 246, 0.15)' : crudForm.product_type === 'physical' ? 'rgba(59, 130, 246, 0.15)' : crudForm.product_type === 'service' ? 'rgba(245, 158, 11, 0.15)' : crudForm.product_type === 'food' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  border: crudForm.product_type === 'digital' ? '1px solid rgba(139, 92, 246, 0.3)' : crudForm.product_type === 'physical' ? '1px solid rgba(59, 130, 246, 0.3)' : crudForm.product_type === 'service' ? '1px solid rgba(245, 158, 11, 0.3)' : crudForm.product_type === 'food' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                  color: crudForm.product_type === 'digital' ? '#c084fc' : crudForm.product_type === 'physical' ? '#60a5fa' : crudForm.product_type === 'service' ? '#fbbf24' : crudForm.product_type === 'food' ? '#f87171' : '#34d399',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+                }}>
+                  {crudForm.product_type === 'digital' ? <FileCode size={20} /> : crudForm.product_type === 'physical' ? <Package size={20} /> : crudForm.product_type === 'service' ? <Wrench size={20} /> : crudForm.product_type === 'food' ? <Utensils size={20} /> : <PawPrint size={20} />}
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.1rem' }}>
+                    Tipe Produk
+                  </span>
+                  <span style={{ 
+                    fontSize: '0.88rem', 
+                    fontWeight: 800, 
+                    color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: 'block'
+                  }}>
+                    {crudForm.product_type === 'digital' ? 'Barang Digital' : crudForm.product_type === 'physical' ? 'Barang Fisik' : crudForm.product_type === 'service' ? 'Jasa & Layanan' : crudForm.product_type === 'food' ? 'Makanan & Minuman' : 'Hewan / Living Fauna'}
+                  </span>
+                </div>
               </div>
-              {crudMode === 'create' && (
-                <button 
-                  type="button" 
-                  onClick={() => setShowProductTypeSelector(true)}
-                  style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  Ganti Tipe
-                </button>
-              )}
+
+              {/* Right Side: Action Button "Ganti Tipe" */}
+              <button 
+                type="button" 
+                onClick={() => {
+                  setShowProductTypeSelector(true);
+                  setView('product-type-selector');
+                }}
+                style={{ 
+                  background: 'var(--primary-glow)', 
+                  border: '1px solid var(--primary)', 
+                  color: 'var(--primary)', 
+                  fontSize: '0.75rem', 
+                  fontWeight: 800, 
+                  cursor: 'pointer',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '9999px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
+                  zIndex: 1,
+                  flexShrink: 0
+                }}
+                className="btn-glow-hover"
+                title="Ganti Tipe Produk"
+              >
+                <RefreshCw size={13} />
+                <span>Ganti Tipe</span>
+              </button>
             </div>
 
             {crudError && (
