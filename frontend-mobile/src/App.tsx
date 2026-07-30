@@ -5610,16 +5610,16 @@ function App() {
           <div style={{
             position: 'sticky',
             top: 0,
-            backgroundColor: '#080c14',
+            backgroundColor: 'var(--header-bg)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            borderBottom: '1px solid var(--border-light)',
             padding: '0.85rem 1rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             zIndex: 100,
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button 
@@ -5632,7 +5632,7 @@ function App() {
               >
                 <ChevronLeft size={20} />
               </button>
-              <span style={{ fontWeight: 800, fontSize: '0.98rem', color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Detail Produk</span>
+              <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-primary)' }}>Detail Produk</span>
             </div>
             
             <button
@@ -6138,12 +6138,12 @@ function App() {
             right: 0, 
             height: '3.5rem', 
             zIndex: 100, 
-            backgroundColor: '#080c14',
+            backgroundColor: 'var(--header-bg)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
             padding: '0 1rem', 
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+            borderBottom: '1px solid var(--border-light)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
           }}>
             <button
               type="button"
@@ -6398,12 +6398,12 @@ function App() {
             right: 0, 
             height: '3.5rem', 
             zIndex: 100, 
-            backgroundColor: '#080c14',
+            backgroundColor: 'var(--header-bg)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
             padding: '0 1rem', 
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+            borderBottom: '1px solid var(--border-light)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
           }}>
             <button 
               type="button"
@@ -6423,7 +6423,7 @@ function App() {
             >
               <ChevronLeft size={20} />
             </button>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.5)', margin: 0 }}>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
               {crudMode === 'create' ? 'Tambah Postingan Produk' : 'Edit Postingan Produk'}
             </h3>
             <div style={{ width: '2.25rem' }} /> {/* Spacer to center the title */}
@@ -6935,7 +6935,7 @@ function App() {
             position: 'sticky', 
             top: 0, 
             zIndex: 100, 
-            backgroundColor: '#080c14', 
+            backgroundColor: 'var(--header-bg)', 
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
             display: 'flex', 
@@ -6943,8 +6943,8 @@ function App() {
             alignItems: 'center', 
             paddingTop: '1rem',
             paddingBottom: '0.75rem', 
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)', 
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+            borderBottom: '1px solid var(--border-light)', 
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
             marginTop: '-1rem', 
             marginLeft: '-1rem', 
             marginRight: '-1rem', 
@@ -6964,7 +6964,7 @@ function App() {
             >
               <ChevronLeft size={20} />
             </button>
-            <span style={{ fontSize: '0.98rem', color: '#ffffff', fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+            <span style={{ fontSize: '0.98rem', color: 'var(--text-primary)', fontWeight: 800 }}>
               {editingArticle ? 'Edit Artikel' : 'Tulis Artikel'}
             </span>
             <button 
