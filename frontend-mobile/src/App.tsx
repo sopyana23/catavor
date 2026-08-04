@@ -738,19 +738,19 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
           backgroundColor: 'var(--bg-card)', 
           textDecoration: 'none', 
           transition: 'var(--transition-smooth)',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.08)'
+          boxShadow: '0 4px 15px rgba(0,0,0,0.06)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.1) 100%)', color: '#10b981', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
           <MessageCircle size={18} />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{c.label || 'Chat WhatsApp Official'}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left', minWidth: 0 }}>
+          <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{c.label || 'WhatsApp Official'}</span>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 800 }}>
             {formatPhoneNumber(c.number)}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#10b981', color: '#ffffff', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 800 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', padding: '0.38rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 800, boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)', flexShrink: 0 }}>
           <span>Chat</span>
           <ChevronRight size={13} />
         </div>
@@ -764,26 +764,32 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
       border: '1px solid var(--border-light)', 
       backgroundColor: 'var(--bg-card)', 
       padding: '1rem',
-      boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
+      boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
       display: 'flex',
       flexDirection: 'column',
-      gap: '0.75rem'
+      gap: '0.8rem'
     }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', flexShrink: 0 }}>
-              <MessageCircle size={16} />
+      {/* Executive Header */}
+      <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.4rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.1) 100%)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', flexShrink: 0 }}>
+              <MessageCircle size={17} />
             </div>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-              Kontak WhatsApp CS
-            </h4>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                Kontak WhatsApp Official
+              </h4>
+              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                Layanan Customer Service Resmi Toko
+              </p>
+            </div>
           </div>
 
           <span style={{ 
             fontSize: '0.68rem', 
             fontWeight: 800, 
-            color: '#10b981', 
+            color: '#059669', 
             backgroundColor: 'rgba(16, 185, 129, 0.12)', 
             padding: '0.2rem 0.6rem', 
             borderRadius: '20px', 
@@ -792,19 +798,16 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.25rem',
-            marginLeft: 'auto'
+            flexShrink: 0
           }}>
             <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
             {contacts.length} CS Online
           </span>
         </div>
-
-        <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-          Layanan Customer Service Resmi Toko
-        </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+      {/* Contacts List Grid */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
         {contacts.map((c, idx) => {
           const cleanNum = c.number.replace(/\D/g, '');
           return (
@@ -818,26 +821,40 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '0.65rem',
-                padding: '0.65rem 0.8rem',
-                borderRadius: '0.55rem',
+                padding: '0.7rem 0.85rem',
+                borderRadius: '0.6rem',
                 backgroundColor: 'var(--bg-card-hover)',
                 border: '1px solid var(--border-light)',
-                textDecoration: 'none'
+                textDecoration: 'none',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
               }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', minWidth: 0, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                  <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase' }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 5px #10b981' }} />
+                  <span style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     {c.label || `CS ${idx + 1}`}
                   </span>
                 </div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 800 }}>
                   {formatPhoneNumber(c.number)}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)', color: '#10b981', padding: '0.3rem 0.65rem', borderRadius: '0.45rem', fontSize: '0.72rem', fontWeight: 800, flexShrink: 0 }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.25rem', 
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
+                color: '#ffffff', 
+                padding: '0.35rem 0.75rem', 
+                borderRadius: '0.5rem', 
+                fontSize: '0.74rem', 
+                fontWeight: 800, 
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                flexShrink: 0 
+              }}>
                 <span>Chat</span>
                 <ChevronRight size={12} />
               </div>
