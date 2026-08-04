@@ -646,24 +646,43 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
       borderRadius: '0.95rem', 
       border: '1px solid var(--border-light)', 
       backgroundColor: 'var(--bg-card)', 
-      padding: '1.1rem',
+      padding: '1.15rem',
       boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
       display: 'flex',
       flexDirection: 'column',
       gap: '0.9rem'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-            <MessageCircle size={18} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', flexShrink: 0 }}>
+            <MessageCircle size={20} />
           </div>
-          <div>
-            <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>Kontak WhatsApp Business</h4>
-            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Pilih layanan Customer Service resmi di bawah ini</p>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Kontak WhatsApp Official
+            </h4>
+            <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Customer Service Resmi Toko
+            </p>
           </div>
         </div>
-        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.12)', padding: '0.2rem 0.6rem', borderRadius: '999px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-          {contacts.length} Nomor Aktif
+
+        <span style={{ 
+          fontSize: '0.72rem', 
+          fontWeight: 800, 
+          color: '#10b981', 
+          backgroundColor: 'rgba(16, 185, 129, 0.12)', 
+          padding: '0.3rem 0.75rem', 
+          borderRadius: '20px', 
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem'
+        }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
+          {contacts.length} CS Online
         </span>
       </div>
 
