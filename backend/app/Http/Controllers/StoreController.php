@@ -150,7 +150,7 @@ class StoreController extends Controller
             'about_slogan' => 'nullable|string|max:255',
             'about_description' => 'nullable|string',
             'about_location' => 'nullable|string|max:255',
-            'about_hours' => 'nullable|string|max:255',
+            'about_hours' => 'nullable|string',
             'about_disclaimer' => 'nullable|string',
             'about_cards' => 'nullable|array',
             

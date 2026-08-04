@@ -26,7 +26,7 @@ return new class extends Migration
             $table->string('about_slogan')->nullable();
             $table->text('about_description')->nullable();
             $table->string('about_location')->nullable();
-            $table->string('about_hours')->nullable();
+            $table->text('about_hours')->nullable();
             $table->text('about_disclaimer')->nullable();
             $table->text('about_cards')->nullable(); // JSON Array
             
