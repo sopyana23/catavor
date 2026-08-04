@@ -677,6 +677,296 @@ export function formatPhoneNumber(phone: string | null | undefined): string {
   return (str.startsWith('+') ? '+' : '') + chunks.join(' ');
 }
 
+export interface WAContactItem {
+  label: string;
+  number: string;
+}
+
+export function parseWAContacts(raw: string | null | undefined): WAContactItem[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed
+          .map((item: any, idx: number) => ({
+            label: item.label || item.name || `WhatsApp ${idx + 1}`,
+            number: (item.number || item.phone || item.whatsapp || '').toString().trim()
+          }))
+          .filter(item => item.number !== '');
+      }
+    } catch {}
+  }
+
+  if (trimmed.includes(',')) {
+    const parts = trimmed.split(',').map(p => p.trim()).filter(Boolean);
+    return parts.map((num, idx) => ({
+      label: idx === 0 ? 'WhatsApp Utama' : `WhatsApp CS ${idx + 1}`,
+      number: num
+    }));
+  }
+
+  return [{
+    label: 'WhatsApp Utama',
+    number: trimmed
+  }];
+}
+
+export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber: string | null | undefined }) {
+  const contacts = useMemo(() => parseWAContacts(rawWhatsappNumber), [rawWhatsappNumber]);
+
+  if (contacts.length === 0) return null;
+
+  if (contacts.length === 1) {
+    const c = contacts[0];
+    const cleanNum = c.number.replace(/\D/g, '');
+    return (
+      <a 
+        href={`https://wa.me/${cleanNum}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.85rem', 
+          padding: '0.85rem 1rem', 
+          borderRadius: '0.75rem', 
+          border: '1px solid var(--border-light)', 
+          backgroundColor: 'var(--bg-card)', 
+          textDecoration: 'none', 
+          transition: 'var(--transition-smooth)',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.08)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+          <MessageCircle size={18} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{c.label || 'Chat WhatsApp Official'}</span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+            {formatPhoneNumber(c.number)}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#10b981', color: '#ffffff', padding: '0.35rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 800 }}>
+          <span>Chat</span>
+          <ChevronRight size={13} />
+        </div>
+      </a>
+    );
+  }
+
+  return (
+    <div style={{ 
+      borderRadius: '0.85rem', 
+      border: '1px solid var(--border-light)', 
+      backgroundColor: 'var(--bg-card)', 
+      padding: '1rem',
+      boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.75rem'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.65rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <MessageCircle size={16} />
+          </div>
+          <div>
+            <h4 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>Kontak WhatsApp Business</h4>
+            <p style={{ margin: 0, fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Layanan CS Resmi ({contacts.length} Nomor)</p>
+          </div>
+        </div>
+        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+          {contacts.length} CS Online
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+        {contacts.map((c, idx) => {
+          const cleanNum = c.number.replace(/\D/g, '');
+          return (
+            <a
+              key={idx}
+              href={`https://wa.me/${cleanNum}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.65rem',
+                padding: '0.65rem 0.8rem',
+                borderRadius: '0.55rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
+                textDecoration: 'none'
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                  <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase' }}>
+                    {c.label || `CS ${idx + 1}`}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                  {formatPhoneNumber(c.number)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)', color: '#10b981', padding: '0.3rem 0.65rem', borderRadius: '0.45rem', fontSize: '0.72rem', fontWeight: 800, flexShrink: 0 }}>
+                <span>Chat</span>
+                <ChevronRight size={12} />
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function WhatsAppContactsManager({ 
+  value, 
+  onChange 
+}: { 
+  value: string; 
+  onChange: (newVal: string) => void;
+}) {
+  const contacts = useMemo(() => parseWAContacts(value), [value]);
+
+  const updateContacts = (newContacts: WAContactItem[]) => {
+    onChange(JSON.stringify(newContacts));
+  };
+
+  const handleAdd = () => {
+    const nextIdx = contacts.length + 1;
+    const updated = [
+      ...contacts,
+      { label: `CS ${nextIdx} • Penjualan`, number: '' }
+    ];
+    updateContacts(updated);
+  };
+
+  const handleItemChange = (index: number, field: 'label' | 'number', val: string) => {
+    const updated = contacts.map((c, idx) => {
+      if (idx === index) {
+        return { ...c, [field]: val };
+      }
+      return c;
+    });
+    updateContacts(updated);
+  };
+
+  const handleDelete = (index: number) => {
+    if (contacts.length <= 1) {
+      updateContacts([{ label: 'WhatsApp Utama', number: '' }]);
+      return;
+    }
+    const updated = contacts.filter((_, idx) => idx !== index);
+    updateContacts(updated);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <label className="form-label" style={{ margin: 0 }}>Nomor WhatsApp Toko &amp; Customer Service *</label>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '12px' }}>
+          {contacts.length} Nomor WA
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {contacts.map((c, idx) => (
+          <div 
+            key={idx} 
+            style={{ 
+              padding: '0.75rem', 
+              borderRadius: '0.65rem', 
+              border: '1px solid var(--border-light)', 
+              backgroundColor: 'rgba(255,255,255,0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.55rem'
+            }}
+          >
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <label style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.15rem' }}>
+                  Label CS (Misal: CS Penjualan / CS 2)
+                </label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  placeholder="CS 1 • Penjualan"
+                  value={c.label}
+                  onChange={(e) => handleItemChange(idx, 'label', e.target.value)}
+                  style={{ padding: '0.4rem 0.55rem', fontSize: '0.8rem' }}
+                />
+              </div>
+
+              <div style={{ flex: 1.1, minWidth: 0 }}>
+                <label style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.15rem' }}>
+                  Nomor WA (Awali 62 / 0)
+                </label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  placeholder="628123456789"
+                  value={c.number}
+                  onChange={(e) => handleItemChange(idx, 'number', e.target.value)}
+                  style={{ padding: '0.4rem 0.55rem', fontSize: '0.8rem' }}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => handleDelete(idx)}
+                style={{ padding: '0.4rem 0.55rem', marginTop: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Hapus Nomor WA ini"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+
+            {c.number.trim() && (
+              <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span>📱 Tampilan Publik:</span>
+                <strong>{formatPhoneNumber(c.number)}</strong>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={handleAdd}
+        style={{
+          padding: '0.5rem 0.85rem',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          borderRadius: '0.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.35rem',
+          alignSelf: 'flex-start',
+          marginTop: '0.2rem'
+        }}
+      >
+        <Plus size={14} />
+        <span>Tambah Nomor WhatsApp CS Baru</span>
+      </button>
+    </div>
+  );
+}
+
 export function getOperationalStatus(data: OperationalHoursData) {
   const now = new Date();
   const dayMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -9275,24 +9565,8 @@ function App() {
                   {/* Jam Operasional */}
                   <OperationalHoursCard rawHours={settings.about_hours} />
 
-                  {/* WhatsApp */}
-                  <a 
-                    href={`https://wa.me/${settings.whatsapp_number}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
-                      <MessageCircle size={16} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Chat WhatsApp</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                        {formatPhoneNumber(settings.whatsapp_number)}
-                      </span>
-                    </div>
-                    <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-                  </a>
+                  {/* WhatsApp Contacts */}
+                  <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />
 
                   {/* Social Media Links */}
                   {(() => {
@@ -10475,23 +10749,10 @@ function App() {
                               </div>
 
                               <div className="form-group">
-                                <label className="form-label">Nomor WhatsApp *</label>
-                                <input 
-                                  type="text" 
-                                  className="form-input" 
-                                  placeholder="Contoh: 628123456789"
-                                  required
-                                  value={settingsForm.whatsapp_number}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, whatsapp_number: e.target.value })}
+                                <WhatsAppContactsManager 
+                                  value={settingsForm.whatsapp_number} 
+                                  onChange={(newVal) => setSettingsForm({ ...settingsForm, whatsapp_number: newVal })} 
                                 />
-                                {settingsForm.whatsapp_number && (
-                                  <small style={{ color: 'var(--primary)', fontSize: '0.72rem', marginTop: '0.35rem', display: 'block', fontWeight: 700 }}>
-                                    📱 Tampilan Publik: {formatPhoneNumber(settingsForm.whatsapp_number)}
-                                  </small>
-                                )}
-                                <small style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
-                                  Gunakan format kode negara (awali dengan 62) tanpa spasi atau tanda +.
-                                </small>
                               </div>
 
                               <div className="form-group">
