@@ -780,7 +780,7 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
               Kontak WhatsApp Official
             </h4>
             <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-              Layanan Customer Service Resmi Toko
+              Layanan Customer Service Resmi
             </p>
           </div>
         </div>
@@ -900,10 +900,10 @@ export function WhatsAppContactsManager({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <label className="form-label" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800 }}>
-            Nomor WhatsApp Toko &amp; CS *
+            Nomor WhatsApp Official &amp; CS *
           </label>
           <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
-            Kelola kontak CS resmi toko (Bisa tambahkan beberapa nomor)
+            Kelola kontak CS resmi (Bisa tambahkan beberapa nomor)
           </span>
         </div>
         <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '16px', border: '1px solid var(--border-light)', flexShrink: 0 }}>
@@ -1143,7 +1143,7 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                Jam Operasional Toko
+                Jam Operasional
               </h4>
             </div>
           </div>
@@ -9592,12 +9592,12 @@ function App() {
                 </div>
                 <div>
                   <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{settings.about_title || 'Tentang Catavor'}</h2>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{settings.about_slogan || 'Premium Quality Pet & Aquatic Gallery'}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{settings.about_slogan || 'Premium Quality Gallery & Information'}</p>
                 </div>
               </div>
 
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.6', margin: 0 }}>
-                {settings.about_description || 'Catavor adalah platform katalog produk & informasi bisnis terpercaya.'}
+                {settings.about_description || 'Platform katalog produk, galeri & informasi resmi terpercaya.'}
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
@@ -9628,7 +9628,7 @@ function App() {
 
               <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1rem', textAlign: 'center', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
-                  Hubungi Galeri Kami
+                  Hubungi Kami
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {/* Lokasi */}
@@ -9637,7 +9637,7 @@ function App() {
                       <MapPin size={16} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi Galeri</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location || 'Bandung, Jawa Barat, Indonesia'}</span>
                     </div>
                   </div>
@@ -9721,7 +9721,7 @@ function App() {
                         border: '1px solid var(--btn-secondary-border)'
                       }}
                     >
-                      <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Toko Ini
+                      <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Halaman Ini
                     </button>
                   </div>
                 </div>
@@ -10959,7 +10959,7 @@ function App() {
                                 <input 
                                   type="text" 
                                   className="form-input" 
-                                  placeholder="Contoh: Tentang Catavor Store"
+                                  placeholder="Contoh: Tentang Catavor"
                                   value={settingsForm.about_title || ''}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, about_title: e.target.value })}
                                 />
@@ -10970,7 +10970,7 @@ function App() {
                                 <input 
                                   type="text" 
                                   className="form-input" 
-                                  placeholder="Contoh: Premium Quality Pet Gallery"
+                                  placeholder="Contoh: Premium Quality Gallery & Information"
                                   value={settingsForm.about_slogan || ''}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, about_slogan: e.target.value })}
                                 />
@@ -10988,7 +10988,7 @@ function App() {
                               </div>
 
                               <div className="form-group">
-                                <label className="form-label">Lokasi Toko / Maps</label>
+                                <label className="form-label">Lokasi / Alamat Resmi</label>
                                 <input 
                                   type="text" 
                                   className="form-input" 
@@ -11019,7 +11019,7 @@ function App() {
                               {/* About Cards Builder */}
                               <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                                  <label className="form-label" style={{ margin: 0, fontSize: '0.85rem' }}>Kartu Komitmen / Nilai Toko</label>
+                                  <label className="form-label" style={{ margin: 0, fontSize: '0.85rem' }}>Kartu Komitmen / Nilai Unggulan</label>
                                   <button
                                     type="button"
                                     onClick={() => {

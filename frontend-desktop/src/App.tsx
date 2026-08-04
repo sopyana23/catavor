@@ -663,7 +663,7 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
               Kontak WhatsApp Official
             </h4>
             <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-              Layanan Customer Service Resmi Toko
+              Layanan Customer Service Resmi
             </p>
           </div>
         </div>
@@ -785,10 +785,10 @@ export function WhatsAppContactsManager({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <label className="form-label" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>
-            Nomor WhatsApp Toko &amp; Customer Service *
+            Nomor WhatsApp Official &amp; Customer Service *
           </label>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-            Kelola kontak CS resmi toko. Bisa menambahkan lebih dari 1 nomor.
+            Kelola kontak CS resmi. Bisa menambahkan lebih dari 1 nomor.
           </span>
         </div>
         <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.25rem 0.65rem', borderRadius: '20px', border: '1px solid var(--border-light)', flexShrink: 0 }}>
@@ -1031,7 +1031,7 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.25 }}>
-                Jam Operasional Toko
+                Jam Operasional
               </h4>
             </div>
           </div>
@@ -7352,7 +7352,7 @@ function App() {
                         border: settingsSubTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      📖 Profil Toko (Tentang Kami)
+                      📖 Profil &amp; Informasi (Tentang Kami)
                     </button>
                     <button
                       type="button"
@@ -7658,7 +7658,7 @@ function App() {
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Contoh: Tentang Catavor Store"
+                        placeholder="Contoh: Tentang Catavor"
                         value={settingsForm.about_title || ''}
                         onChange={(e) => setSettingsForm({ ...settingsForm, about_title: e.target.value })}
                       />
@@ -7669,7 +7669,7 @@ function App() {
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Contoh: Premium Quality Pet Gallery"
+                        placeholder="Contoh: Premium Quality Gallery & Information"
                         value={settingsForm.about_slogan || ''}
                         onChange={(e) => setSettingsForm({ ...settingsForm, about_slogan: e.target.value })}
                       />
@@ -7718,7 +7718,7 @@ function App() {
                     {/* Dynamic About Cards Builder */}
                     <div style={{ marginTop: '1.5rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Kartu Komitmen / Nilai Toko</label>
+                        <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Kartu Komitmen / Nilai Unggulan</label>
                         <button
                           type="button"
                           onClick={() => {
@@ -7851,7 +7851,7 @@ function App() {
                     {/* Dynamic Social Links Builder */}
                     <div style={{ marginTop: '1.5rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Tautan Media Sosial Toko</label>
+                        <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Tautan Media Sosial Resmi</label>
                         <button
                           type="button"
                           onClick={() => {
