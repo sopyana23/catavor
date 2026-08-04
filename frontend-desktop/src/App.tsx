@@ -720,66 +720,115 @@ export function WhatsAppContactsManager({
   value: string; 
   onChange: (newVal: string) => void;
 }) {
-  const contacts = useMemo(() => parseWAContacts(value), [value]);
+  const [localContacts, setLocalContacts] = useState<WAContactItem[]>(() => parseWAContacts(value));
 
-  const updateContacts = (newContacts: WAContactItem[]) => {
-    onChange(JSON.stringify(newContacts));
+  useEffect(() => {
+    const parsed = parseWAContacts(value);
+    if (JSON.stringify(parsed) !== JSON.stringify(localContacts)) {
+      setLocalContacts(parsed);
+    }
+  }, [value]);
+
+  const updateAll = (newList: WAContactItem[]) => {
+    setLocalContacts(newList);
+    onChange(JSON.stringify(newList));
   };
 
   const handleAdd = () => {
-    const nextIdx = contacts.length + 1;
-    const updated = [
-      ...contacts,
+    const nextIdx = localContacts.length + 1;
+    const newList = [
+      ...localContacts,
       { label: `CS ${nextIdx} • Penjualan`, number: '' }
     ];
-    updateContacts(updated);
+    updateAll(newList);
   };
 
   const handleItemChange = (index: number, field: 'label' | 'number', val: string) => {
-    const updated = contacts.map((c, idx) => {
+    const newList = localContacts.map((c, idx) => {
       if (idx === index) {
         return { ...c, [field]: val };
       }
       return c;
     });
-    updateContacts(updated);
+    updateAll(newList);
   };
 
   const handleDelete = (index: number) => {
-    if (contacts.length <= 1) {
-      updateContacts([{ label: 'WhatsApp Utama', number: '' }]);
+    if (localContacts.length <= 1) {
+      updateAll([{ label: 'WhatsApp Utama', number: '' }]);
       return;
     }
-    const updated = contacts.filter((_, idx) => idx !== index);
-    updateContacts(updated);
+    const newList = localContacts.filter((_, idx) => idx !== index);
+    updateAll(newList);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <label className="form-label" style={{ margin: 0 }}>Nomor WhatsApp Toko &amp; Customer Service *</label>
-        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '12px' }}>
-          {contacts.length} Nomor WA
+        <div>
+          <label className="form-label" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>
+            Nomor WhatsApp Toko &amp; Customer Service *
+          </label>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+            Kelola kontak CS resmi toko. Bisa menambahkan lebih dari 1 nomor.
+          </span>
+        </div>
+        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.25rem 0.65rem', borderRadius: '20px', border: '1px solid var(--border-light)', flexShrink: 0 }}>
+          {localContacts.length} Kontak WA
         </span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {contacts.map((c, idx) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        {localContacts.map((c, idx) => (
           <div 
             key={idx} 
             style={{ 
-              padding: '0.85rem', 
-              borderRadius: '0.75rem', 
+              padding: '1rem', 
+              borderRadius: '0.85rem', 
               border: '1px solid var(--border-light)', 
-              backgroundColor: 'rgba(255,255,255,0.02)',
+              backgroundColor: 'var(--bg-card-hover)',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.65rem'
+              gap: '0.75rem',
+              position: 'relative'
             }}
           >
-            <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Kontak CS #{idx + 1}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleDelete(idx)}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  color: '#ef4444',
+                  borderRadius: '0.5rem',
+                  padding: '0.3rem 0.65rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Hapus kontak ini"
+              >
+                <Trash2 size={13} />
+                <span>Hapus</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '0.75rem' }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.3rem' }}>
                   Label CS (Misal: CS Penjualan / CS 2)
                 </label>
                 <input 
@@ -788,13 +837,13 @@ export function WhatsAppContactsManager({
                   placeholder="CS 1 • Penjualan"
                   value={c.label}
                   onChange={(e) => handleItemChange(idx, 'label', e.target.value)}
-                  style={{ padding: '0.45rem 0.65rem', fontSize: '0.82rem' }}
+                  style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
                 />
               </div>
 
-              <div style={{ flex: 1.2, minWidth: 0 }}>
-                <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.2rem' }}>
-                  Nomor WA (Awali 62 / 0)
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.3rem' }}>
+                  Nomor WA (Contoh: 628123456789)
                 </label>
                 <input 
                   type="text" 
@@ -802,23 +851,13 @@ export function WhatsAppContactsManager({
                   placeholder="628123456789"
                   value={c.number}
                   onChange={(e) => handleItemChange(idx, 'number', e.target.value)}
-                  style={{ padding: '0.45rem 0.65rem', fontSize: '0.82rem' }}
+                  style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
                 />
               </div>
-
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={() => handleDelete(idx)}
-                style={{ padding: '0.45rem 0.65rem', marginTop: '1.15rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title="Hapus Nomor WA ini"
-              >
-                <Trash2 size={15} />
-              </button>
             </div>
 
             {c.number.trim() && (
-              <div style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '0.4rem', border: '1px solid rgba(16, 185, 129, 0.2)', width: 'fit-content' }}>
                 <span>📱 Tampilan Publik:</span>
                 <strong>{formatPhoneNumber(c.number)}</strong>
               </div>
@@ -832,20 +871,25 @@ export function WhatsAppContactsManager({
         className="btn-secondary"
         onClick={handleAdd}
         style={{
-          padding: '0.55rem 1rem',
-          fontSize: '0.8rem',
-          fontWeight: 700,
+          padding: '0.65rem 1.25rem',
+          fontSize: '0.82rem',
+          fontWeight: 800,
           borderRadius: '0.6rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '0.4rem',
-          alignSelf: 'flex-start',
+          gap: '0.45rem',
+          cursor: 'pointer',
+          border: '1px dashed var(--primary)',
+          color: 'var(--primary)',
+          backgroundColor: 'var(--primary-glow)',
+          transition: 'all 0.2s ease',
+          width: '100%',
           marginTop: '0.25rem'
         }}
       >
-        <Plus size={15} />
-        <span>Tambah Nomor WhatsApp CS Baru</span>
+        <Plus size={16} />
+        <span>+ Tambah Nomor WhatsApp CS Baru</span>
       </button>
     </div>
   );
