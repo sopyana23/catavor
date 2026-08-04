@@ -1230,16 +1230,9 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
           gap: '0.5rem', 
           animation: 'fadeIn 0.2s ease' 
         }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Calendar size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-              <span>RINCIAN JADWAL MINGGUAN ({data.timezone})</span>
-            </div>
-            {statusInfo.todayName && (
-              <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
-                Hari ini: {statusInfo.todayName}
-              </span>
-            )}
+          <div style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Calendar size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+            <span>RINCIAN JADWAL MINGGUAN ({data.timezone})</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -1269,11 +1262,6 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
                     <span style={{ color: isToday ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isToday ? 800 : 700 }}>
                       {day}
                     </span>
-                    {isToday && (
-                      <span style={{ fontSize: '0.6rem', backgroundColor: 'var(--primary)', color: '#ffffff', padding: '0.08rem 0.35rem', borderRadius: '10px', fontWeight: 800, marginLeft: '0.15rem' }}>
-                        Hari Ini
-                      </span>
-                    )}
                   </div>
                   <span style={{ 
                     display: 'inline-flex',
