@@ -64,7 +64,7 @@ class SettingController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'settings' => 'required|array',
-            'settings.whatsapp_number' => 'nullable|string|max:50',
+            'settings.whatsapp_number' => 'nullable|string',
             'settings.store_slogan' => 'nullable|string|max:255',
             'settings.promo_banner' => 'nullable|string|max:1000',
             'settings.store_theme' => 'nullable|string|max:50',

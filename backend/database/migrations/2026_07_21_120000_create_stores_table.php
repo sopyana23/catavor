@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('store_title')->default('DFauna');
             $table->string('store_slogan')->nullable();
             $table->string('store_logo_url')->nullable();
-            $table->string('whatsapp_number')->nullable();
+            $table->text('whatsapp_number')->nullable();
             $table->text('promo_banner')->nullable();
             
             // About Us details
