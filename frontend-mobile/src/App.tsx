@@ -79,7 +79,11 @@ import {
   Package,
   FileCode,
   Wrench,
-  RefreshCw
+  RefreshCw,
+  Calendar,
+  ChevronDown,
+  Briefcase,
+  Sliders
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -545,6 +549,537 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
       </button>
     </div>
   )
+}
+
+/* ==========================================================================
+   OPERATIONAL HOURS HELPER & DYNAMIC COMPONENTS
+   ========================================================================== */
+
+export interface DaySchedule {
+  open: string;
+  close: string;
+  status: 'open' | 'closed';
+}
+
+export interface OperationalHoursData {
+  mode: 'everyday' | 'weekdays_weekends' | 'custom' | 'manual';
+  timezone: string; // 'WIB' | 'WITA' | 'WIT'
+  display_text?: string;
+  manual_text?: string;
+  everyday?: DaySchedule;
+  weekdays?: DaySchedule;
+  weekends?: DaySchedule;
+  days?: Record<string, DaySchedule>;
+}
+
+export const INDO_DAYS_LIST = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'] as const;
+
+export const DEFAULT_OPERATIONAL_HOURS: OperationalHoursData = {
+  mode: 'everyday',
+  timezone: 'WIB',
+  everyday: { open: '08:00', close: '21:00', status: 'open' },
+  weekdays: { open: '08:00', close: '21:00', status: 'open' },
+  weekends: { open: '09:00', close: '22:00', status: 'open' },
+  days: {
+    'Senin': { open: '08:00', close: '21:00', status: 'open' },
+    'Selasa': { open: '08:00', close: '21:00', status: 'open' },
+    'Rabu': { open: '08:00', close: '21:00', status: 'open' },
+    'Kamis': { open: '08:00', close: '21:00', status: 'open' },
+    'Jumat': { open: '08:00', close: '21:00', status: 'open' },
+    'Sabtu': { open: '09:00', close: '22:00', status: 'open' },
+    'Minggu': { open: '09:00', close: '22:00', status: 'open' },
+  }
+};
+
+export function parseOperationalHours(raw?: string): OperationalHoursData {
+  if (!raw || !raw.trim()) {
+    return DEFAULT_OPERATIONAL_HOURS;
+  }
+
+  const str = raw.trim();
+
+  // Try JSON parse first
+  if (str.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(str);
+      if (parsed && typeof parsed === 'object' && parsed.mode) {
+        return {
+          ...DEFAULT_OPERATIONAL_HOURS,
+          ...parsed,
+          days: { ...DEFAULT_OPERATIONAL_HOURS.days, ...(parsed.days || {}) }
+        };
+      }
+    } catch (e) {
+      // ignore & fallback
+    }
+  }
+
+  // Regex string fallback
+  const timeMatch = str.match(/(\d{1,2}[:.]\d{2})\s*[-–s\/d]+\s*(\d{1,2}[:.]\d{2})/);
+  const tzMatch = str.match(/(WIB|WITA|WIT)/i);
+  const timezone = tzMatch ? tzMatch[1].toUpperCase() : 'WIB';
+
+  if (timeMatch) {
+    const open = timeMatch[1].replace('.', ':').padStart(5, '0');
+    const close = timeMatch[2].replace('.', ':').padStart(5, '0');
+    return {
+      mode: 'manual',
+      timezone,
+      manual_text: str,
+      display_text: str,
+      everyday: { open, close, status: 'open' },
+      weekdays: { open, close, status: 'open' },
+      weekends: { open, close, status: 'open' },
+      days: {
+        'Senin': { open, close, status: 'open' },
+        'Selasa': { open, close, status: 'open' },
+        'Rabu': { open, close, status: 'open' },
+        'Kamis': { open, close, status: 'open' },
+        'Jumat': { open, close, status: 'open' },
+        'Sabtu': { open, close, status: 'open' },
+        'Minggu': { open, close, status: 'open' },
+      }
+    };
+  }
+
+  return {
+    mode: 'manual',
+    timezone: 'WIB',
+    manual_text: str,
+    display_text: str,
+    everyday: { open: '08:00', close: '21:00', status: 'open' },
+    weekdays: { open: '08:00', close: '21:00', status: 'open' },
+    weekends: { open: '08:00', close: '21:00', status: 'open' },
+    days: DEFAULT_OPERATIONAL_HOURS.days
+  };
+}
+
+export function getOperationalStatus(data: OperationalHoursData) {
+  const now = new Date();
+  const dayMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const todayName = dayMap[now.getDay()];
+  const currentMin = now.getHours() * 60 + now.getMinutes();
+
+  let todaySched: DaySchedule = { open: '08:00', close: '21:00', status: 'open' };
+
+  if (data.days && data.days[todayName]) {
+    todaySched = data.days[todayName];
+  } else if (data.mode === 'everyday') {
+    todaySched = data.everyday || { open: '08:00', close: '21:00', status: 'open' };
+  } else if (data.mode === 'weekdays_weekends') {
+    const isWeekend = todayName === 'Sabtu' || todayName === 'Minggu';
+    todaySched = isWeekend ? (data.weekends || { open: '09:00', close: '22:00', status: 'open' }) : (data.weekdays || { open: '08:00', close: '21:00', status: 'open' });
+  } else {
+    todaySched = data.everyday || { open: '08:00', close: '21:00', status: 'open' };
+  }
+
+  const isClosed = todaySched.status === 'closed';
+  const summaryText = isClosed
+    ? `Hari ini (${todayName}): Tutup`
+    : `Hari ini (${todayName}): ${todaySched.open} - ${todaySched.close} ${data.timezone || 'WIB'}`;
+
+  if (isClosed) {
+    return {
+      status: 'closed',
+      badgeText: 'Tutup',
+      badgeColor: '#ef4444',
+      badgeBg: 'rgba(239, 68, 68, 0.15)',
+      badgeBorder: 'rgba(239, 68, 68, 0.3)',
+      summaryText,
+      todayScheduleText: `Hari ini (${todayName}): Tutup`,
+      todayName
+    };
+  }
+
+  const [openH, openM] = (todaySched.open || '08:00').split(':').map(Number);
+  const [closeH, closeM] = (todaySched.close || '21:00').split(':').map(Number);
+
+  const openMin = (openH || 0) * 60 + (openM || 0);
+  const closeMin = (closeH || 0) * 60 + (closeM || 0);
+
+  if (currentMin >= openMin && currentMin < closeMin) {
+    return {
+      status: 'open',
+      badgeText: 'Buka Sekarang',
+      badgeColor: '#10b981',
+      badgeBg: 'rgba(16, 185, 129, 0.15)',
+      badgeBorder: 'rgba(16, 185, 129, 0.3)',
+      summaryText,
+      todayScheduleText: `Hari ini (${todayName}): ${todaySched.open} - ${todaySched.close} ${data.timezone || 'WIB'}`,
+      todayName
+    };
+  } else {
+    return {
+      status: 'closed',
+      badgeText: 'Tutup',
+      badgeColor: '#ef4444',
+      badgeBg: 'rgba(239, 68, 68, 0.15)',
+      badgeBorder: 'rgba(239, 68, 68, 0.3)',
+      summaryText,
+      todayScheduleText: `Hari ini (${todayName}): ${todaySched.open} - ${todaySched.close} ${data.timezone || 'WIB'}`,
+      todayName
+    };
+  }
+}
+
+export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const data = useMemo(() => parseOperationalHours(rawHours), [rawHours]);
+  const statusInfo = useMemo(() => getOperationalStatus(data), [data]);
+
+  const getDaySchedule = (dayName: string): DaySchedule => {
+    if (data.mode === 'everyday') return data.everyday || { open: '08:00', close: '21:00', status: 'open' };
+    if (data.mode === 'weekdays_weekends') {
+      const isWk = dayName === 'Sabtu' || dayName === 'Minggu';
+      return isWk ? (data.weekends || { open: '09:00', close: '22:00', status: 'open' }) : (data.weekdays || { open: '08:00', close: '21:00', status: 'open' });
+    }
+    if (data.mode === 'custom' && data.days && data.days[dayName]) {
+      return data.days[dayName];
+    }
+    return data.everyday || { open: '08:00', close: '21:00', status: 'open' };
+  };
+
+  return (
+    <div style={{ borderRadius: '0.85rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', overflow: 'hidden', transition: 'all 0.2s ease', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+      {/* Clickable Header Banner */}
+      <div 
+        onClick={() => setExpanded(!expanded)}
+        style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          gap: '0.55rem', 
+          padding: '0.85rem 0.95rem', 
+          cursor: 'pointer', 
+          userSelect: 'none',
+          backgroundColor: expanded ? 'rgba(255,255,255,0.03)' : 'transparent',
+          transition: 'background-color 0.2s ease'
+        }}
+      >
+        {/* Row 1: Icon + Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+            <Clock size={15} />
+          </div>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            Jam Operasional Toko
+          </span>
+        </div>
+
+        {/* Row 2: Summary Text */}
+        <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 800, lineHeight: 1.4 }}>
+          {statusInfo.summaryText}
+        </div>
+
+        {/* Row 3: Status Badge & Dropdown Button Bersebelahan */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
+          {/* Status Badge */}
+          <span style={{ 
+            fontSize: '0.68rem', 
+            fontWeight: 800, 
+            padding: '0.22rem 0.65rem', 
+            borderRadius: '9999px', 
+            backgroundColor: statusInfo.badgeBg, 
+            color: statusInfo.badgeColor, 
+            border: `1px solid ${statusInfo.badgeBorder}`, 
+            letterSpacing: '0.01em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem'
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusInfo.badgeColor, display: 'inline-block' }} />
+            {statusInfo.badgeText}
+          </span>
+
+          {/* Interactive Schedule Dropdown Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              padding: '0.26rem 0.65rem',
+              borderRadius: '9999px',
+              fontSize: '0.68rem',
+              fontWeight: 800,
+              backgroundColor: expanded ? 'var(--primary)' : 'var(--primary-glow)',
+              color: expanded ? '#ffffff' : 'var(--primary)',
+              border: '1px solid var(--primary)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              flexShrink: 0,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+            }}
+          >
+            <Calendar size={12} style={{ flexShrink: 0, opacity: 0.95 }} />
+            <span>{expanded ? 'Tutup' : 'Jadwal 7 Hari'}</span>
+            <ChevronDown size={13} style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s ease', flexShrink: 0 }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Weekly Schedule Table */}
+      {expanded && (
+        <div style={{ 
+          padding: '0.85rem 0.8rem', 
+          borderTop: '1px dashed var(--border-light)', 
+          backgroundColor: 'var(--bg-secondary)', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '0.45rem', 
+          animation: 'fadeIn 0.2s ease' 
+        }}>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Calendar size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+              <span style={{ letterSpacing: '0.02em' }}>RINCIAN JADWAL MINGGUAN ({data.timezone})</span>
+            </div>
+            {statusInfo.todayName && (
+              <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
+                Hari ini: {statusInfo.todayName}
+              </span>
+            )}
+          </div>
+
+          {INDO_DAYS_LIST.map((day) => {
+            const isToday = day === statusInfo.todayName;
+            const daySched = getDaySchedule(day);
+            const isClosed = daySched.status === 'closed';
+
+            return (
+              <div 
+                key={day}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: isToday ? 'var(--primary-glow)' : 'var(--bg-card)',
+                  border: isToday ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                  fontSize: '0.78rem',
+                  boxShadow: isToday ? '0 2px 8px rgba(0,0,0,0.05)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: isToday ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isToday ? 800 : 700 }}>
+                    {day}
+                  </span>
+                </div>
+                <span style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  color: isClosed ? '#ef4444' : (isToday ? 'var(--primary)' : 'var(--text-primary)'), 
+                  fontWeight: isClosed ? 800 : (isToday ? 800 : 700),
+                  fontSize: isClosed ? '0.74rem' : '0.78rem',
+                  backgroundColor: isClosed ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                  padding: isClosed ? '0.12rem 0.5rem' : '0',
+                  borderRadius: isClosed ? '9999px' : '0',
+                  border: isClosed ? '1px solid rgba(239, 68, 68, 0.25)' : 'none'
+                }}>
+                  {isClosed ? (
+                    <>
+                      <AlertCircle size={11} style={{ flexShrink: 0, color: '#ef4444' }} />
+                      <span>TUTUP</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock size={11} style={{ flexShrink: 0, opacity: isToday ? 0.9 : 0.45, color: isToday ? 'var(--primary)' : 'var(--text-secondary)' }} />
+                      <span>{`${daySched.open} - ${daySched.close} ${data.timezone}`}</span>
+                    </>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function OperationalHoursBuilder({ 
+  value, 
+  onChange 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+}) {
+  const parsedData = useMemo(() => parseOperationalHours(value), [value]);
+
+  const [timezone, setTimezone] = useState<string>(parsedData.timezone || 'WIB');
+
+  // Custom 7 Days state
+  const [days, setDays] = useState<Record<string, DaySchedule>>(
+    parsedData.days || DEFAULT_OPERATIONAL_HOURS.days!
+  );
+
+  // Helper to emit JSON updates to parent
+  const emitUpdate = (newTz: string, newDays: Record<string, DaySchedule>) => {
+    const resultObj: OperationalHoursData = {
+      mode: 'custom',
+      timezone: newTz,
+      days: newDays,
+      display_text: `Kustom 7 Hari (${newTz})`
+    };
+    onChange(JSON.stringify(resultObj));
+  };
+
+  const handleTzChange = (newTz: string) => {
+    setTimezone(newTz);
+    emitUpdate(newTz, days);
+  };
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '0.75rem', 
+      padding: '0.85rem', 
+      borderRadius: '0.75rem', 
+      border: '1px solid var(--border-light)', 
+      backgroundColor: 'var(--bg-card)',
+      boxSizing: 'border-box',
+      width: '100%'
+    }}>
+      {/* Header + Timezone Selector */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <Calendar size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+          <span style={{ fontWeight: 800, fontSize: '0.82rem', color: 'var(--text-primary)', letterSpacing: '0.01em' }}>
+            Jam Operasional (7 Hari)
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Zona:</span>
+          <select 
+            className="form-input" 
+            style={{ width: 'auto', padding: '0.15rem 0.35rem', fontSize: '0.72rem', height: 'auto', borderRadius: '0.35rem', fontWeight: 700 }}
+            value={timezone}
+            onChange={(e) => handleTzChange(e.target.value)}
+          >
+            <option value="WIB">WIB (UTC+7)</option>
+            <option value="WITA">WITA (UTC+8)</option>
+            <option value="WIT">WIT (UTC+9)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Grid Table Column Headers */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: '48px minmax(0, 1fr) minmax(0, 1fr) auto', 
+        gap: '0.35rem', 
+        padding: '0.2rem 0.4rem 0.1rem 0.4rem', 
+        fontSize: '0.64rem', 
+        fontWeight: 800, 
+        color: 'var(--text-secondary)', 
+        textTransform: 'uppercase', 
+        letterSpacing: '0.03em'
+      }}>
+        <span>Hari</span>
+        <span style={{ textAlign: 'center' }}>Buka</span>
+        <span style={{ textAlign: 'center' }}>Tutup</span>
+        <span style={{ textAlign: 'center' }}>Aksi</span>
+      </div>
+
+      {/* 7 Days Table Rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', boxSizing: 'border-box' }}>
+        {INDO_DAYS_LIST.map((day) => {
+          const currentSched = days[day] || { open: '08:00', close: '21:00', status: 'open' };
+          const isClosed = currentSched.status === 'closed';
+
+          return (
+            <div 
+              key={day} 
+              style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '48px minmax(0, 1fr) minmax(0, 1fr) auto', 
+                alignItems: 'center', 
+                gap: '0.35rem', 
+                padding: '0.35rem 0.45rem', 
+                borderRadius: '0.45rem', 
+                backgroundColor: isClosed ? 'rgba(239, 68, 68, 0.04)' : 'rgba(255, 255, 255, 0.02)', 
+                border: isClosed ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--border-light)', 
+                boxSizing: 'border-box',
+                width: '100%',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Col 1: Day Name */}
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                {day}
+              </span>
+              
+              {/* Col 2 & 3: Time inputs or Closed Label */}
+              {isClosed ? (
+                <span style={{ gridColumn: 'span 2', fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, textAlign: 'center', letterSpacing: '0.03em' }}>
+                  TUTUP SEHARIAN
+                </span>
+              ) : (
+                <>
+                  <input 
+                    type="time" 
+                    className="form-input" 
+                    style={{ width: '100%', minWidth: 0, padding: '0.12rem 0.1rem', fontSize: '0.7rem', height: '26px', textAlign: 'center', borderRadius: '0.35rem', boxSizing: 'border-box' }} 
+                    value={currentSched.open} 
+                    onChange={(e) => {
+                      const updatedDays = { ...days, [day]: { ...currentSched, open: e.target.value } };
+                      setDays(updatedDays);
+                      emitUpdate(timezone, updatedDays);
+                    }} 
+                  />
+                  <input 
+                    type="time" 
+                    className="form-input" 
+                    style={{ width: '100%', minWidth: 0, padding: '0.12rem 0.1rem', fontSize: '0.7rem', height: '26px', textAlign: 'center', borderRadius: '0.35rem', boxSizing: 'border-box' }} 
+                    value={currentSched.close} 
+                    onChange={(e) => {
+                      const updatedDays = { ...days, [day]: { ...currentSched, close: e.target.value } };
+                      setDays(updatedDays);
+                      emitUpdate(timezone, updatedDays);
+                    }} 
+                  />
+                </>
+              )}
+
+              {/* Col 4: Status Toggle Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const newStatus = isClosed ? 'open' as const : 'closed' as const;
+                  const updatedDays = { ...days, [day]: { ...currentSched, status: newStatus } };
+                  setDays(updatedDays);
+                  emitUpdate(timezone, updatedDays);
+                }}
+                style={{ 
+                  fontSize: '0.62rem', 
+                  padding: '0.2rem 0.45rem', 
+                  borderRadius: '0.35rem', 
+                  backgroundColor: isClosed ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', 
+                  color: isClosed ? '#10b981' : '#ef4444', 
+                  border: isClosed ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)', 
+                  fontWeight: 800, 
+                  cursor: 'pointer', 
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {isClosed ? 'Buka' : 'Tutup'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function App() {
@@ -8701,15 +9236,7 @@ function App() {
                   </div>
 
                   {/* Jam Operasional */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
-                      <Clock size={16} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Jam Operasional</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_hours || '08:00 - 21:00 WIB (Setiap Hari)'}</span>
-                    </div>
-                  </div>
+                  <OperationalHoursCard rawHours={settings.about_hours} />
 
                   {/* WhatsApp */}
                   <a 
@@ -10086,13 +10613,9 @@ function App() {
                               </div>
 
                               <div className="form-group">
-                                <label className="form-label">Jam Operasional</label>
-                                <input 
-                                  type="text" 
-                                  className="form-input" 
-                                  placeholder="Contoh: 08:00 - 21:00 WIB"
+                                <OperationalHoursBuilder 
                                   value={settingsForm.about_hours || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_hours: e.target.value })}
+                                  onChange={(val) => setSettingsForm({ ...settingsForm, about_hours: val })}
                                 />
                               </div>
 
