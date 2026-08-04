@@ -654,6 +654,29 @@ export function parseOperationalHours(raw?: string): OperationalHoursData {
   };
 }
 
+export function formatPhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const str = phone.trim();
+  if (!str) return '';
+
+  const digits = str.replace(/\D/g, '');
+  if (!digits) return str;
+
+  if (digits.startsWith('62')) {
+    const main = digits.slice(2);
+    const chunks = main.match(/.{1,4}/g) || [];
+    return `+62 ${chunks.join(' ')}`;
+  }
+
+  if (digits.startsWith('0')) {
+    const chunks = digits.match(/.{1,4}/g) || [];
+    return chunks.join(' ');
+  }
+
+  const chunks = digits.match(/.{1,4}/g) || [];
+  return (str.startsWith('+') ? '+' : '') + chunks.join(' ');
+}
+
 export function getOperationalStatus(data: OperationalHoursData) {
   const now = new Date();
   const dayMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -9264,7 +9287,9 @@ function App() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1, textAlign: 'left' }}>
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Chat WhatsApp</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>+{settings.whatsapp_number}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                        {formatPhoneNumber(settings.whatsapp_number)}
+                      </span>
                     </div>
                     <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
                   </a>
@@ -10459,6 +10484,11 @@ function App() {
                                   value={settingsForm.whatsapp_number}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, whatsapp_number: e.target.value })}
                                 />
+                                {settingsForm.whatsapp_number && (
+                                  <small style={{ color: 'var(--primary)', fontSize: '0.72rem', marginTop: '0.35rem', display: 'block', fontWeight: 700 }}>
+                                    📱 Tampilan Publik: {formatPhoneNumber(settingsForm.whatsapp_number)}
+                                  </small>
+                                )}
                                 <small style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', display: 'block', marginTop: '0.2rem' }}>
                                   Gunakan format kode negara (awali dengan 62) tanpa spasi atau tanda +.
                                 </small>
