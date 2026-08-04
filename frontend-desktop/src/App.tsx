@@ -999,57 +999,83 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
   };
 
   return (
-    <div style={{ borderRadius: '0.85rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', overflow: 'hidden', transition: 'all 0.2s ease', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-      {/* Clickable Header Banner */}
+    <div style={{ 
+      borderRadius: '0.95rem', 
+      border: '1px solid var(--border-light)', 
+      backgroundColor: 'var(--bg-card)', 
+      overflow: 'hidden', 
+      transition: 'all 0.25s ease', 
+      boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* Top Banner */}
       <div 
         onClick={() => setExpanded(!expanded)}
         style={{ 
-          display: 'flex', 
-          flexDirection: 'column',
-          gap: '0.55rem', 
-          padding: '0.9rem 1.1rem', 
+          padding: '1.1rem 1.15rem', 
           cursor: 'pointer', 
           userSelect: 'none',
-          backgroundColor: expanded ? 'rgba(255,255,255,0.03)' : 'transparent',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.85rem',
+          backgroundColor: expanded ? 'var(--bg-card-hover)' : 'transparent',
           transition: 'background-color 0.2s ease'
         }}
       >
-        {/* Row 1: Icon + Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, border: '1px solid var(--border-light)' }}>
-            <Clock size={15} />
+        {/* Header Row: Icon + Title + Status Badge Pinned Top Right */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+              <Clock size={19} />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.25 }}>
+                Jam Operasional Toko
+              </h4>
+            </div>
           </div>
-          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-            Jam Operasional Toko
-          </span>
-        </div>
 
-        {/* Row 2: Summary Text */}
-        <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 800, lineHeight: 1.4 }}>
-          {statusInfo.summaryText}
-        </div>
-
-        {/* Row 3: Status Badge & Dropdown Button Bersebelahan */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
-          {/* Status Badge */}
           <span style={{ 
-            fontSize: '0.68rem', 
+            fontSize: '0.72rem', 
             fontWeight: 800, 
-            padding: '0.22rem 0.65rem', 
-            borderRadius: '9999px', 
+            padding: '0.28rem 0.7rem', 
+            borderRadius: '20px', 
             backgroundColor: statusInfo.badgeBg, 
             color: statusInfo.badgeColor, 
             border: `1px solid ${statusInfo.badgeBorder}`, 
-            letterSpacing: '0.01em',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.35rem'
+            gap: '0.35rem',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
           }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusInfo.badgeColor, display: 'inline-block' }} />
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusInfo.badgeColor, display: 'inline-block', boxShadow: `0 0 6px ${statusInfo.badgeColor}` }} />
             {statusInfo.badgeText}
           </span>
+        </div>
 
-          {/* Interactive Schedule Dropdown Button */}
+        {/* Schedule Info Box */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+          padding: '0.75rem 0.95rem',
+          borderRadius: '0.65rem',
+          backgroundColor: 'var(--bg-card-hover)',
+          border: '1px solid var(--border-light)'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0, flex: 1 }}>
+            <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Hari Ini ({statusInfo.todayName})
+            </span>
+            <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+              {statusInfo.todayScheduleText.split(': ')[1] || statusInfo.todayScheduleText}
+            </span>
+          </div>
+
           <button
             type="button"
             onClick={(e) => {
@@ -1061,20 +1087,20 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.35rem',
-              padding: '0.26rem 0.65rem',
-              borderRadius: '9999px',
-              fontSize: '0.68rem',
+              padding: '0.4rem 0.85rem',
+              borderRadius: '0.55rem',
+              fontSize: '0.75rem',
               fontWeight: 800,
               backgroundColor: expanded ? 'var(--primary)' : 'var(--primary-glow)',
               color: expanded ? '#ffffff' : 'var(--primary)',
-              border: '1px solid var(--primary)',
+              border: '1px solid var(--border-light)',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
               flexShrink: 0,
-              boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+              boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
             }}
           >
-            <Calendar size={12} style={{ flexShrink: 0, opacity: 0.95 }} />
+            <Calendar size={13} style={{ flexShrink: 0 }} />
             <span>{expanded ? 'Tutup' : 'Jadwal 7 Hari'}</span>
             <ChevronDown size={13} style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s ease', flexShrink: 0 }} />
           </button>
@@ -1084,18 +1110,18 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
       {/* Expanded Weekly Schedule Table */}
       {expanded && (
         <div style={{ 
-          padding: '0.85rem 0.8rem', 
-          borderTop: '1px dashed var(--border-light)', 
-          backgroundColor: 'var(--bg-secondary)', 
+          padding: '0.9rem 1.15rem 1.1rem', 
+          borderTop: '1px solid var(--border-light)', 
+          backgroundColor: 'var(--bg-card-hover)', 
           display: 'flex', 
           flexDirection: 'column', 
-          gap: '0.45rem', 
+          gap: '0.55rem', 
           animation: 'fadeIn 0.2s ease' 
         }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 800, marginBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <Calendar size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-              <span style={{ letterSpacing: '0.02em' }}>RINCIAN JADWAL MINGGUAN ({data.timezone})</span>
+              <span>RINCIAN JADWAL MINGGUAN ({data.timezone})</span>
             </div>
             {statusInfo.todayName && (
               <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
@@ -1104,59 +1130,67 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
             )}
           </div>
 
-          {INDO_DAYS_LIST.map((day) => {
-            const isToday = day === statusInfo.todayName;
-            const daySched = getDaySchedule(day);
-            const isClosed = daySched.status === 'closed';
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {INDO_DAYS_LIST.map((day) => {
+              const isToday = day === statusInfo.todayName;
+              const daySched = getDaySchedule(day);
+              const isClosed = daySched.status === 'closed';
 
-            return (
-              <div 
-                key={day}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '0.55rem',
-                  backgroundColor: isToday ? 'var(--primary-glow)' : 'var(--bg-card)',
-                  border: isToday ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                  fontSize: '0.78rem',
-                  boxShadow: isToday ? '0 2px 8px rgba(0,0,0,0.05)' : 'none',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ color: isToday ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isToday ? 800 : 700 }}>
-                    {day}
+              return (
+                <div 
+                  key={day}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: isToday ? 'var(--primary-glow)' : 'var(--bg-card)',
+                    border: isToday ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                    fontSize: '0.78rem',
+                    boxShadow: isToday ? '0 2px 8px rgba(0,0,0,0.05)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {isToday && <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />}
+                    <span style={{ color: isToday ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isToday ? 800 : 700 }}>
+                      {day}
+                    </span>
+                    {isToday && (
+                      <span style={{ fontSize: '0.62rem', backgroundColor: 'var(--primary)', color: '#ffffff', padding: '0.1rem 0.4rem', borderRadius: '10px', fontWeight: 800, marginLeft: '0.2rem' }}>
+                        Hari Ini
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    color: isClosed ? '#ef4444' : (isToday ? 'var(--primary)' : 'var(--text-primary)'), 
+                    fontWeight: isClosed ? 800 : (isToday ? 800 : 700),
+                    fontSize: isClosed ? '0.74rem' : '0.78rem',
+                    backgroundColor: isClosed ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                    padding: isClosed ? '0.12rem 0.5rem' : '0',
+                    borderRadius: isClosed ? '9999px' : '0',
+                    border: isClosed ? '1px solid rgba(239, 68, 68, 0.25)' : 'none'
+                  }}>
+                    {isClosed ? (
+                      <>
+                        <AlertCircle size={11} style={{ flexShrink: 0, color: '#ef4444' }} />
+                        <span>TUTUP</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={11} style={{ flexShrink: 0, opacity: isToday ? 0.9 : 0.45, color: isToday ? 'var(--primary)' : 'var(--text-secondary)' }} />
+                        <span>{`${daySched.open} - ${daySched.close} ${data.timezone}`}</span>
+                      </>
+                    )}
                   </span>
                 </div>
-                <span style={{ 
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  color: isClosed ? '#ef4444' : (isToday ? 'var(--primary)' : 'var(--text-primary)'), 
-                  fontWeight: isClosed ? 800 : (isToday ? 800 : 700),
-                  fontSize: isClosed ? '0.74rem' : '0.78rem',
-                  backgroundColor: isClosed ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
-                  padding: isClosed ? '0.12rem 0.5rem' : '0',
-                  borderRadius: isClosed ? '9999px' : '0',
-                  border: isClosed ? '1px solid rgba(239, 68, 68, 0.25)' : 'none'
-                }}>
-                  {isClosed ? (
-                    <>
-                      <AlertCircle size={11} style={{ flexShrink: 0, color: '#ef4444' }} />
-                      <span>TUTUP</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock size={11} style={{ flexShrink: 0, opacity: isToday ? 0.9 : 0.45, color: isToday ? 'var(--primary)' : 'var(--text-secondary)' }} />
-                      <span>{`${daySched.open} - ${daySched.close} ${data.timezone}`}</span>
-                    </>
-                  )}
-                </span>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
