@@ -9831,102 +9831,133 @@ function App() {
             return text.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{3030}\u{2B50}\u{2B55}\u{2934}-\u{2935}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{3297}\u{3299}\u{303D}\u{00A9}\u{00AE}\u{2122}]/gu, '').trim();
           };
 
+          const hasTitle = Boolean(settings.about_title && settings.about_title.trim());
+          const hasSlogan = Boolean(settings.about_slogan && settings.about_slogan.trim());
+          const hasDescription = Boolean(settings.about_description && settings.about_description.trim());
+          const hasDisclaimer = Boolean(settings.about_disclaimer && settings.about_disclaimer.trim());
+          const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
+
+          const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
+          const hasHours = Boolean(settings.about_hours && settings.about_hours.trim());
+          const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
+          const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
+          const hasSocial = Boolean(settings.social_links && settings.social_links.trim());
+          const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
+
           return (
             <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Profile Hero Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', flexShrink: 0, justifyContent: 'center', border: '1px solid var(--border-light)' }}>
                   <Info size={20} />
                 </div>
                 <div>
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{settings.about_title || 'Tentang Catavor'}</h2>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{settings.about_slogan || 'Premium Quality Gallery & Information'}</p>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    {hasTitle ? settings.about_title : (settings.store_title || 'Catavor')}
+                  </h2>
+                  {hasSlogan && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, marginTop: '0.1rem' }}>
+                      {settings.about_slogan}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.6', margin: 0 }}>
-                {settings.about_description || 'Platform katalog produk, galeri & informasi resmi terpercaya.'}
-              </p>
+              {/* Profile Description (100% Hidden if empty) */}
+              {hasDescription && (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {settings.about_description}
+                </p>
+              )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-                {Array.isArray(parsedCards) && parsedCards.map((card: any, idx: number) => (
-                  <div key={idx} className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
-                    <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
-                      {getPremiumIcon(card)}
+              {/* Value Cards & Disclaimer (100% Hidden if empty) */}
+              {(hasCards || hasDisclaimer) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
+                  {hasCards && parsedCards.map((card: any, idx: number) => (
+                    <div key={idx} className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+                      <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
+                        {getPremiumIcon(card)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.2rem', marginTop: '0.1rem' }}>{cleanEmoji(card.title)}</h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>{card.content}</p>
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.2rem', marginTop: '0.1rem' }}>{cleanEmoji(card.title)}</h4>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>{card.content}</p>
-                    </div>
-                  </div>
-                ))}
-                
-                {settings.about_disclaimer && (
-                  <div className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
-                    <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
-                      <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.2rem', marginTop: '0.1rem' }}>Komitmen & Disclaimer</h4>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>{settings.about_disclaimer}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1rem', textAlign: 'center', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
-                  Hubungi Kami
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {/* Lokasi */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
-                      <MapPin size={16} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location || 'Bandung, Jawa Barat, Indonesia'}</span>
-                    </div>
-                  </div>
-
-                  {/* Jam Operasional */}
-                  <OperationalHoursCard rawHours={settings.about_hours} />
-
-                  {/* WhatsApp Contacts */}
-                  <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />
-
-                  {/* Official Website (Dynamic - rendered ONLY if present) */}
-                  <OfficialWebsiteCard url={settings.official_website} />
-
-                  {/* Social Media Section (Dynamic - rendered ONLY if present) */}
-                  <SocialMediaSection rawSocialLinks={settings.social_links} />
+                  ))}
                   
-                  {/* Share Store Card */}
-                  <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }}>
-                    <button
-                      type="button"
-                      onClick={handleShareStore}
-                      className="btn-secondary btn-full"
-                      style={{
-                        padding: '0.75rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        width: '100%',
-                        cursor: 'pointer',
-                        borderRadius: '0.5rem',
-                        background: 'var(--btn-secondary-bg)',
-                        color: 'var(--btn-secondary-text)',
-                        border: '1px solid var(--btn-secondary-border)'
-                      }}
-                    >
-                      <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Halaman Ini
-                    </button>
+                  {hasDisclaimer && (
+                    <div className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+                      <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+                        <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.2rem', marginTop: '0.1rem' }}>Komitmen &amp; Disclaimer</h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>{settings.about_disclaimer}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Hubungi Kami Section (100% Hidden if all 5 contact channels are empty) */}
+              {hasAnyContactChannel && (
+                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1rem', textAlign: 'center', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
+                    Hubungi Kami
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {/* Lokasi (100% Hidden if empty - no fallback) */}
+                    {hasLocation && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
+                          <MapPin size={16} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Jam Operasional */}
+                    {hasHours && <OperationalHoursCard rawHours={settings.about_hours} />}
+
+                    {/* WhatsApp Contacts */}
+                    {hasWhatsapp && <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />}
+
+                    {/* Official Website */}
+                    {hasWebsite && <OfficialWebsiteCard url={settings.official_website} />}
+
+                    {/* Social Media Section */}
+                    {hasSocial && <SocialMediaSection rawSocialLinks={settings.social_links} />}
                   </div>
                 </div>
+              )}
+
+              {/* Share Store Action Button */}
+              <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={handleShareStore}
+                  className="btn-secondary btn-full"
+                  style={{
+                    padding: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    width: '100%',
+                    cursor: 'pointer',
+                    borderRadius: '0.5rem',
+                    background: 'var(--btn-secondary-bg)',
+                    color: 'var(--btn-secondary-text)',
+                    border: '1px solid var(--btn-secondary-border)'
+                  }}
+                >
+                  <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Halaman Ini
+                </button>
               </div>
             </div>
           );

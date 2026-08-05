@@ -6,6 +6,7 @@ import {
   X, 
   BookOpen, 
   ShieldAlert, 
+  Info,
   Trash2,
   Check,
   CheckCircle,
@@ -6589,8 +6590,45 @@ function App() {
                 </button>
               </div>
             </div>
-            <div className="nav-actions">
-              {view !== 'catalog' && (
+            <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {view === 'catalog' ? (
+                <>
+                  <button 
+                    type="button"
+                    className={`btn-secondary ${activePublicTab === 'catalog' ? 'active' : ''}`} 
+                    onClick={() => setActivePublicTab('catalog')}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      borderRadius: '20px',
+                      cursor: 'pointer',
+                      backgroundColor: activePublicTab === 'catalog' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                      color: activePublicTab === 'catalog' ? '#fff' : 'var(--text-secondary)',
+                      border: activePublicTab === 'catalog' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                    }}
+                  >
+                    🔍 Katalog Produk
+                  </button>
+                  <button 
+                    type="button"
+                    className={`btn-secondary ${activePublicTab === 'about' ? 'active' : ''}`} 
+                    onClick={() => setActivePublicTab('about')}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      borderRadius: '20px',
+                      cursor: 'pointer',
+                      backgroundColor: activePublicTab === 'about' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                      color: activePublicTab === 'about' ? '#fff' : 'var(--text-secondary)',
+                      border: activePublicTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                    }}
+                  >
+                    📖 Tentang Kami
+                  </button>
+                </>
+              ) : (
                 <button 
                   className="btn-primary" 
                   onClick={goToCatalog}
@@ -6609,6 +6647,145 @@ function App() {
           /* ========================================================
              CUSTOMER VIEW
              ======================================================== */
+          activePublicTab === 'about' ? (
+            /* PUBLIC ABOUT US PAGE (DESKTOP - 100% DYNAMIC VISIBILITY) */
+            (() => {
+              const parsedCards = (() => {
+                try {
+                  return settings.about_cards ? JSON.parse(settings.about_cards) : [];
+                } catch (e) {
+                  return [];
+                }
+              })();
+
+              const cleanEmoji = (text: string) => {
+                return text.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{3030}\u{2B50}\u{2B55}\u{2934}-\u{2935}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{3297}\u{3299}\u{303D}\u{00A9}\u{00AE}\u{2122}]/gu, '').trim();
+              };
+
+              const hasTitle = Boolean(settings.about_title && settings.about_title.trim());
+              const hasSlogan = Boolean(settings.about_slogan && settings.about_slogan.trim());
+              const hasDescription = Boolean(settings.about_description && settings.about_description.trim());
+              const hasDisclaimer = Boolean(settings.about_disclaimer && settings.about_disclaimer.trim());
+              const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
+
+              const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
+              const hasHours = Boolean(settings.about_hours && settings.about_hours.trim());
+              const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
+              const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
+              const hasSocial = Boolean(settings.social_links && settings.social_links.trim());
+              const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
+
+              return (
+                <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem', marginTop: '1.5rem', maxWidth: '880px', margin: '1.5rem auto', display: 'flex', flexDirection: 'column', gap: '1.75rem', border: '1px solid var(--border-light)' }}>
+                  {/* Hero Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
+                    <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', flexShrink: 0, justifyContent: 'center', border: '1px solid var(--border-light)' }}>
+                      <Info size={26} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        {hasTitle ? settings.about_title : (settings.store_title || 'Catavor')}
+                      </h2>
+                      {hasSlogan && (
+                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                          {settings.about_slogan}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description Paragraph (100% Hidden if empty) */}
+                  {hasDescription && (
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {settings.about_description}
+                    </p>
+                  )}
+
+                  {/* Value Cards & Disclaimer (100% Hidden if empty) */}
+                  {(hasCards || hasDisclaimer) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {hasCards && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                          {parsedCards.map((card: any, idx: number) => (
+                            <div key={idx} className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                              <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
+                                {renderAboutIcon(card.icon, 22)}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>{cleanEmoji(card.title)}</h4>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{card.content}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {hasDisclaimer && (
+                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                          <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+                            <ShieldCheck size={24} style={{ color: 'var(--primary)' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>Komitmen &amp; Disclaimer</h4>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{settings.about_disclaimer}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Hubungi Kami Section (100% Hidden if all 5 contact channels are empty) */}
+                  {hasAnyContactChannel && (
+                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.75rem', marginTop: '0.5rem' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1.25rem', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
+                        Hubungi Saluran Resmi Kami
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        {/* Lokasi (100% Hidden if empty - no fallback) */}
+                        {hasLocation && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', gridColumn: 'span 2' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
+                              <MapPin size={18} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
+                              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {hasHours && <OperationalHoursCard rawHours={settings.about_hours} />}
+                        {hasWhatsapp && <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />}
+                        {hasWebsite && <OfficialWebsiteCard url={settings.official_website} />}
+                        {hasSocial && <SocialMediaSection rawSocialLinks={settings.social_links} />}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Share Action */}
+                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleShareStore}
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.65rem 1.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        borderRadius: '0.5rem'
+                      }}
+                    >
+                      <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Halaman Ini
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
           <>
             {/* Catavor SaaS Floating Banner for Free Plan Stores */}
             {settings.plan === 'free' && (
@@ -7017,6 +7194,7 @@ function App() {
               </>
             )}
           </>
+          )
         ) : view === 'admin' ? (
           /* ========================================================
              ADMIN SYSTEM WITH STRICT MULTI-TENANT GUARD
