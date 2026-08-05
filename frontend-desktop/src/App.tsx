@@ -618,30 +618,86 @@ export const renderStoreLogo = (logoUrl: string | undefined, className = '', siz
   return null;
 };
 
-export const getGoogleMapsEmbedUrl = (mapsUrl?: string, locationText?: string): string => {
-  if (mapsUrl && mapsUrl.trim() !== '') {
-    const raw = mapsUrl.trim();
-    if (raw.includes('src="') || raw.includes("src='")) {
-      const match = raw.match(/src=["']([^"']+)["']/);
-      if (match && match[1]) return match[1];
-    }
-    if (raw.includes('maps/embed')) return raw;
-    if (raw.includes('google.com/maps') || raw.includes('maps.app.goo.gl')) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(raw)}&output=embed`;
+export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUrl: string; query: string } => {
+  if (!rawUrl || rawUrl.trim() === '') {
+    return { embedUrl: '', directUrl: '', query: '' };
+  }
+
+  let clean = rawUrl.trim();
+
+  if (clean.includes('src="') || clean.includes("src='")) {
+    const match = clean.match(/src=["']([^"']+)["']/);
+    if (match && match[1]) {
+      return { embedUrl: match[1], directUrl: match[1], query: '' };
     }
   }
+
+  if (clean.includes('maps/embed')) {
+    return { embedUrl: clean, directUrl: clean, query: '' };
+  }
+
+  const pbMatch = clean.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (pbMatch) {
+    const query = `${pbMatch[1]},${pbMatch[2]}`;
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
+      directUrl: clean,
+      query: query
+    };
+  }
+
+  const atMatch = clean.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) {
+    const query = `${atMatch[1]},${atMatch[2]}`;
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
+      directUrl: clean,
+      query: query
+    };
+  }
+
+  const placeMatch = clean.match(/\/place\/([^/]+)/);
+  if (placeMatch) {
+    const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&z=16&output=embed`,
+      directUrl: clean,
+      query: placeName
+    };
+  }
+
+  const rawCoordsMatch = clean.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
+  if (rawCoordsMatch) {
+    const query = `${rawCoordsMatch[1]},${rawCoordsMatch[2]}`;
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
+      directUrl: `https://www.google.com/maps/search/?api=1&query=${query}`,
+      query: query
+    };
+  }
+
+  return {
+    embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(clean)}&z=16&output=embed`,
+    directUrl: clean.startsWith('http') ? clean : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clean)}`,
+    query: clean
+  };
+};
+
+export const getGoogleMapsEmbedUrl = (mapsUrl?: string, locationText?: string): string => {
+  if (mapsUrl && mapsUrl.trim() !== '') {
+    const parsed = parseGoogleMapsUrl(mapsUrl);
+    if (parsed.embedUrl) return parsed.embedUrl;
+  }
   if (locationText && locationText.trim() !== '') {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(locationText.trim())}&output=embed`;
+    return `https://maps.google.com/maps?q=${encodeURIComponent(locationText.trim())}&z=16&output=embed`;
   }
   return '';
 };
 
 export const getGoogleMapsDirectUrl = (mapsUrl?: string, locationText?: string): string => {
   if (mapsUrl && mapsUrl.trim() !== '') {
-    const raw = mapsUrl.trim();
-    if (!raw.includes('src=')) return raw;
-    const match = raw.match(/src=["']([^"']+)["']/);
-    if (match && match[1]) return match[1];
+    const parsed = parseGoogleMapsUrl(mapsUrl);
+    if (parsed.directUrl) return parsed.directUrl;
   }
   if (locationText && locationText.trim() !== '') {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationText.trim())}`;
@@ -796,7 +852,67 @@ export function GoogleMapsLocationBuilder({
     mapsUrl && mapsUrl.trim() !== '' ? 'custom' : 'auto'
   );
 
-  const embedUrl = getGoogleMapsEmbedUrl(precisionMode === 'custom' ? mapsUrl : '', locationText);
+  const [resolving, setResolving] = useState(false);
+  const [resolvedEmbedUrl, setResolvedEmbedUrl] = useState<string>('');
+  const [resolvedStatus, setResolvedStatus] = useState<string>('');
+
+  useEffect(() => {
+    if (precisionMode !== 'custom' || !mapsUrl || mapsUrl.trim() === '') {
+      setResolvedEmbedUrl('');
+      setResolvedStatus('');
+      return;
+    }
+
+    const clean = mapsUrl.trim();
+    const instant = parseGoogleMapsUrl(clean);
+    if (instant.embedUrl && !clean.includes('maps.app.goo.gl') && !clean.includes('goo.gl')) {
+      setResolvedEmbedUrl(instant.embedUrl);
+      if (instant.query && instant.query.includes(',')) {
+        setResolvedStatus(`✅ Titik Presisi: ${instant.query}`);
+      } else {
+        setResolvedStatus(`✅ Lokasi Terdeteksi`);
+      }
+      return;
+    }
+
+    let isCancelled = false;
+    const resolveTimer = setTimeout(async () => {
+      setResolving(true);
+      setResolvedStatus('⏳ Mengurai Link Google Maps...');
+      try {
+        const res = await fetch(`${API_BASE}/resolve-maps-url?url=${encodeURIComponent(clean)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.embed_url && !isCancelled) {
+            setResolvedEmbedUrl(data.embed_url);
+            if (data.lat && data.lng) {
+              setResolvedStatus(`✅ Titik Presisi Terdeteksi (${data.lat}, ${data.lng})`);
+            } else if (data.place_name) {
+              setResolvedStatus(`✅ Lokasi: ${data.place_name}`);
+            } else {
+              setResolvedStatus(`✅ Terurai`);
+            }
+          }
+        }
+      } catch (e) {
+        if (!isCancelled) {
+          setResolvedEmbedUrl(instant.embedUrl);
+        }
+      } finally {
+        if (!isCancelled) setResolving(false);
+      }
+    }, 300);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(resolveTimer);
+    };
+  }, [mapsUrl, precisionMode]);
+
+  const embedUrl = precisionMode === 'custom' 
+    ? (resolvedEmbedUrl || getGoogleMapsEmbedUrl(mapsUrl, locationText))
+    : getGoogleMapsEmbedUrl('', locationText);
+
   const directUrl = getGoogleMapsDirectUrl(precisionMode === 'custom' ? mapsUrl : '', locationText);
 
   return (
@@ -955,6 +1071,20 @@ export function GoogleMapsLocationBuilder({
                 onChange={(e) => onMapsUrlChange(e.target.value)}
                 style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
               />
+              {resolvedStatus && (
+                <div style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: resolving ? 'var(--primary)' : '#10b981',
+                  marginTop: '0.35rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  {resolving && <Loader size={12} className="animate-spin" />}
+                  <span>{resolvedStatus}</span>
+                </div>
+              )}
               <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'block' }}>
                 📌 Panduan: Buka aplikasi/website Google Maps -&gt; Cari titik lokasi toko Anda -&gt; Klik <b>Bagikan</b> -&gt; Salin Tautan.
               </span>

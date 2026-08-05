@@ -320,4 +320,56 @@ class StoreController extends Controller
             default: return null;
         }
     }
+
+    public function resolveMapsUrl(Request $request)
+    {
+        $url = $request->query('url');
+        if (!$url || !is_string($url)) {
+            return response()->json(['success' => false, 'message' => 'URL is required'], 400);
+        }
+
+        $cleanUrl = trim($url);
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ])->timeout(5)->get($cleanUrl);
+
+            $finalUrl = $response->effectiveUri() ? (string)$response->effectiveUri() : $cleanUrl;
+
+            $lat = null;
+            $lng = null;
+            $placeName = null;
+
+            if (preg_match('/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/', $finalUrl, $m)) {
+                $lat = $m[1];
+                $lng = $m[2];
+            } elseif (preg_match('/@(-?\d+\.\d+),(-?\d+\.\d+)/', $finalUrl, $m)) {
+                $lat = $m[1];
+                $lng = $m[2];
+            }
+
+            if (preg_match('/\/place\/([^\/]+)/', $finalUrl, $m)) {
+                $placeName = urldecode(str_replace('+', ' ', $m[1]));
+            }
+
+            $query = ($lat && $lng) ? "{$lat},{$lng}" : ($placeName ?: $cleanUrl);
+            $embedUrl = "https://maps.google.com/maps?q=" . urlencode($query) . "&z=16&output=embed";
+
+            return response()->json([
+                'success' => true,
+                'final_url' => $finalUrl,
+                'lat' => $lat,
+                'lng' => $lng,
+                'place_name' => $placeName,
+                'query' => $query,
+                'embed_url' => $embedUrl
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
