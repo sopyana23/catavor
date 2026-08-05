@@ -471,7 +471,6 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
 
   if (validLinks.length === 1) {
     const link = validLinks[0];
-    const brandColor = getPlatformBrandColor(link.platform);
     return (
       <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.5rem 0 0.15rem 0' }}>
@@ -497,17 +496,38 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: `${brandColor}18`, color: brandColor, border: `1px solid ${brandColor}40` }}>
-              {renderSocialIcon(link.platform, 16, brandColor)}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              width: '32px', 
+              height: '32px', 
+              borderRadius: '50%', 
+              backgroundColor: 'var(--primary-glow)', 
+              color: 'var(--primary)', 
+              border: '1px solid var(--border-light)' 
+            }}>
+              {renderSocialIcon(link.platform, 16, 'var(--primary)')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>{link.platform}</span>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Ikuti Akun Resmi</span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 800, color: brandColor }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.3rem', 
+            fontSize: '0.72rem', 
+            fontWeight: 800, 
+            color: 'var(--primary)',
+            backgroundColor: 'var(--primary-glow)',
+            padding: '0.3rem 0.65rem',
+            borderRadius: '0.45rem',
+            border: '1px solid var(--border-light)'
+          }}>
             <span>Buka</span>
-            <ExternalLink size={13} />
+            <ExternalLink size={12} />
           </div>
         </a>
       </div>
@@ -527,7 +547,6 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
         gap: '0.55rem' 
       }}>
         {validLinks.map((link: any, idx: number) => {
-          const brandColor = getPlatformBrandColor(link.platform);
           return (
             <a
               key={idx}
@@ -551,7 +570,9 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
                 boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
               }}
             >
-              {renderSocialIcon(link.platform, 15, brandColor)}
+              <span style={{ display: 'flex', alignItems: 'center', color: 'var(--primary)' }}>
+                {renderSocialIcon(link.platform, 15, 'var(--primary)')}
+              </span>
               <span>{link.platform}</span>
             </a>
           );
@@ -8116,9 +8137,9 @@ function App() {
                             padding: '0.35rem 0.75rem',
                             fontSize: '0.75rem',
                             fontWeight: 700,
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            backgroundColor: 'var(--primary-glow)',
                             color: 'var(--primary)',
-                            border: '1px solid rgba(16, 185, 129, 0.2)',
+                            border: '1px solid var(--border-light)',
                             borderRadius: '0.25rem',
                             cursor: 'pointer'
                           }}
