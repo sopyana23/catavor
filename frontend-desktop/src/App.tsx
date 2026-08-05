@@ -2149,6 +2149,16 @@ function App() {
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
   const [copiedAccountToast, setCopiedAccountToast] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<any[]>([
+    {
+      id: 'about_onboarding',
+      title: '📋 Lengkapi Pengaturan Halaman Tentang Kami',
+      message: 'Lengkapi Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan Anda agar katalog terlihat profesional dan terpercaya.',
+      time: 'Baru saja',
+      read: false,
+      type: 'warning',
+      linkSubTab: 'settings',
+      linkSettingsSubTab: 'about'
+    },
     { id: 1, title: 'Status Verifikasi Plan Pro', message: 'Bukti pembayaran Anda sedang diproses oleh Tim Admin. Akses Plan Free aktif sementara (Est. 1x24 jam).', time: 'Baru saja', read: false, type: 'info' },
     { id: 2, title: 'Selamat Datang di Catavor!', message: 'Katalog interaktif Anda berhasil dibuat. Tambahkan produk pertama Anda.', time: '10 menit lalu', read: false, type: 'success' }
   ]);
@@ -2765,6 +2775,31 @@ function App() {
   const setSettingsSubTab = (sub: 'general' | 'contact' | 'about' | 'theme' | 'master') => {
     setSettingsSubTabState(sub);
     try { sessionStorage.setItem('catavor_last_settings_subtab', sub); } catch (e) {}
+  };
+
+  // First-time User Onboarding Notification for "Halaman Tentang Kami"
+  const [dismissedAboutOnboarding, setDismissedAboutOnboarding] = useState<boolean>(() => {
+    try {
+      const slug = getStoreSlug() || 'default';
+      return localStorage.getItem(`catavor_about_onboarding_dismissed_${slug}`) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const showAboutOnboarding = useMemo(() => {
+    if (dismissedAboutOnboarding) return false;
+    const loc = settingsForm.about_location || (settings as any)?.about_location || '';
+    const desc = settingsForm.about_description || (settings as any)?.about_description || '';
+    return !loc || !desc;
+  }, [dismissedAboutOnboarding, settingsForm, settings]);
+
+  const dismissAboutOnboarding = () => {
+    setDismissedAboutOnboarding(true);
+    try {
+      const slug = getStoreSlug() || 'default';
+      localStorage.setItem(`catavor_about_onboarding_dismissed_${slug}`, 'true');
+    } catch (e) {}
   };
 
   // Admin Profile Update State
@@ -7955,6 +7990,96 @@ function App() {
                 </div>
               )}
 
+              {/* Onboarding Banner: Lengkapi Pengaturan Halaman Tentang Kami */}
+              {showAboutOnboarding && (
+                <div style={{
+                  padding: '1.15rem 1.35rem',
+                  borderRadius: '1rem',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.18) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1.25rem',
+                  marginBottom: '1.5rem',
+                  boxShadow: '0 8px 24px rgba(16, 185, 129, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  position: 'relative'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flex: 1 }}>
+                    <div style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#10b981',
+                      flexShrink: 0,
+                      boxShadow: '0 0 16px rgba(16, 185, 129, 0.3)'
+                    }}>
+                      <Sparkles size={22} />
+                    </div>
+                    <div>
+                      <strong style={{ color: '#ffffff', display: 'block', fontSize: '0.95rem', fontWeight: 800, marginBottom: '0.2rem' }}>
+                        ✨ Selamat Datang di Catavor! Lengkapi Informasi Toko Anda
+                      </strong>
+                      <p style={{ margin: 0, color: '#d1d5db', fontSize: '0.8rem', lineHeight: 1.45 }}>
+                        Agar katalog digital Anda terlihat lebih profesional dan terpercaya bagi pengunjung, mari lengkapi informasi Halaman Tentang Kami (Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminTab('settings');
+                        setSettingsSubTab('about');
+                      }}
+                      style={{
+                        padding: '0.55rem 1.1rem',
+                        borderRadius: '0.65rem',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Sparkles size={15} /> Lengkapi Sekarang
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissAboutOnboarding()}
+                      style={{
+                        padding: '0.55rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        color: '#9ca3af',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Nanti Saja
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Modal Pusat Notifikasi Dashboard */}
               {showNotificationModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
@@ -9414,6 +9539,9 @@ function App() {
                             setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
                             if (item.linkSubTab) {
                               setAdminTab(item.linkSubTab);
+                              if (item.linkSettingsSubTab) {
+                                setSettingsSubTab(item.linkSettingsSubTab);
+                              }
                               const slug = getStoreSlug();
                               if (slug) window.history.pushState({}, '', `/${slug}/admin/${item.linkSubTab}`);
                             }

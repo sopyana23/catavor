@@ -2209,15 +2209,26 @@ function App() {
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
   const [copiedAccountToast, setCopiedAccountToast] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<Array<{
-    id: number;
+    id: number | string;
     title: string;
     message: string;
-    type: 'order' | 'comment' | 'system' | 'stock' | 'info' | 'success';
+    type: 'order' | 'comment' | 'system' | 'stock' | 'info' | 'success' | 'warning';
     timestamp?: string;
     time?: string;
     read: boolean;
     linkSubTab?: 'items' | 'settings';
+    linkMobileSettingsTab?: 'about' | 'general' | 'contact' | 'theme' | 'master';
   }>>([
+    {
+      id: 'about_onboarding',
+      title: '📋 Lengkapi Pengaturan Halaman Tentang Kami',
+      message: 'Lengkapi Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan Anda agar katalog terlihat profesional dan terpercaya.',
+      type: 'warning',
+      timestamp: 'Baru saja',
+      read: false,
+      linkSubTab: 'settings',
+      linkMobileSettingsTab: 'about'
+    },
     {
       id: 1,
       title: 'Sistem Toko Siap',
@@ -3039,6 +3050,31 @@ function App() {
   const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master') => {
     setMobileSettingsTabState(tab);
     try { sessionStorage.setItem('catavor_last_mobile_settings_tab', tab); } catch (e) {}
+  };
+
+  // First-time User Onboarding Notification for "Halaman Tentang Kami"
+  const [dismissedAboutOnboarding, setDismissedAboutOnboarding] = useState<boolean>(() => {
+    try {
+      const slug = getStoreSlug() || 'default';
+      return localStorage.getItem(`catavor_about_onboarding_dismissed_${slug}`) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const showAboutOnboarding = useMemo(() => {
+    if (dismissedAboutOnboarding) return false;
+    const loc = settingsForm.about_location || (settings as any)?.about_location || '';
+    const desc = settingsForm.about_description || (settings as any)?.about_description || '';
+    return !loc || !desc;
+  }, [dismissedAboutOnboarding, settingsForm, settings]);
+
+  const dismissAboutOnboarding = () => {
+    setDismissedAboutOnboarding(true);
+    try {
+      const slug = getStoreSlug() || 'default';
+      localStorage.setItem(`catavor_about_onboarding_dismissed_${slug}`, 'true');
+    } catch (e) {}
   };
 
   // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
@@ -10951,6 +10987,94 @@ function App() {
                     </div>
                   )}
 
+                  {/* Onboarding Banner: Lengkapi Pengaturan Halaman Tentang Kami */}
+                  {showAboutOnboarding && (
+                    <div style={{
+                      padding: '1rem 1.1rem',
+                      borderRadius: '0.9rem',
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(6, 182, 212, 0.2) 100%)',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem',
+                      marginBottom: '1rem',
+                      boxShadow: '0 6px 20px rgba(16, 185, 129, 0.15)',
+                      backdropFilter: 'blur(10px)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#10b981',
+                          flexShrink: 0,
+                          boxShadow: '0 0 12px rgba(16, 185, 129, 0.3)'
+                        }}>
+                          <Sparkles size={18} />
+                        </div>
+                        <div>
+                          <strong style={{ color: '#ffffff', display: 'block', fontSize: '0.88rem', fontWeight: 800, marginBottom: '0.2rem' }}>
+                            ✨ Selamat Datang di Catavor!
+                          </strong>
+                          <p style={{ margin: 0, color: '#d1d5db', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                            Lengkapi informasi Halaman Tentang Kami (Alamat, Jam Operasional, &amp; Profil Komitmen) agar toko terlihat profesional.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('settings');
+                            setMobileSettingsTab('about');
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '0.5rem 0.85rem',
+                            borderRadius: '0.6rem',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '0.76rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.35rem',
+                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                          }}
+                        >
+                          <Sparkles size={14} /> Lengkapi Sekarang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dismissAboutOnboarding()}
+                          style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '0.6rem',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: '#9ca3af',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Nanti Saja
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* MENU GRID SECTION */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     
@@ -12469,6 +12593,9 @@ function App() {
                             setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
                             if (item.linkSubTab) {
                               setAdminSubTab(item.linkSubTab);
+                              if (item.linkMobileSettingsTab) {
+                                setMobileSettingsTab(item.linkMobileSettingsTab);
+                              }
                               const slug = getStoreSlug();
                               if (slug) {
                                 window.history.pushState({}, '', `/${slug}/admin/${item.linkSubTab}`);
