@@ -1174,9 +1174,9 @@ export function ShareCatalogCard({
 
   const fullUrl = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/u/${storeSlug || 'catavor'}`;
+      return `${window.location.origin}/${storeSlug || 'catavor'}`;
     }
-    return `https://catavor.id/u/${storeSlug || 'catavor'}`;
+    return `https://catavor.id/${storeSlug || 'catavor'}`;
   }, [storeSlug]);
 
   const handleCopy = () => {
@@ -1249,9 +1249,9 @@ export function QRCodeModal({
 
   const fullUrl = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/u/${storeSlug || 'catavor'}`;
+      return `${window.location.origin}/${storeSlug || 'catavor'}`;
     }
-    return `https://catavor.id/u/${storeSlug || 'catavor'}`;
+    return `https://catavor.id/${storeSlug || 'catavor'}`;
   }, [storeSlug]);
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(fullUrl)}&color=0b0e0c&bgcolor=ffffff&margin=12`;
