@@ -11940,9 +11940,9 @@ function App() {
                                           <div className="form-group" style={{ marginBottom: 0 }}>
                                             <label className="form-label" style={{ fontSize: '0.7rem' }}>Deskripsi Kartu *</label>
                                             <textarea
-                                              rows={2}
+                                              rows={4}
                                               className="form-input"
-                                              placeholder="Isi..."
+                                              placeholder="Isi penjelasan komitmen..."
                                               required
                                               value={card.content}
                                               onChange={(e) => {
@@ -11950,7 +11950,7 @@ function App() {
                                                 newCards[index].content = e.target.value;
                                                 setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
                                               }}
-                                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
+                                              style={{ fontSize: '0.75rem', padding: '0.45rem 0.55rem', minHeight: '85px', resize: 'vertical' }}
                                             />
                                           </div>
                                         </div>

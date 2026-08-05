@@ -8823,9 +8823,9 @@ function App() {
                                       </div>
 
                                       <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Deskripsi Penjelasan *</label>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Deskripsi Kartu *</label>
                                         <textarea
-                                          rows={2}
+                                          rows={4}
                                           className="form-input"
                                           placeholder="Penjelasan singkat komitmen..."
                                           required
@@ -8835,7 +8835,7 @@ function App() {
                                             newCards[index].content = e.target.value;
                                             setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
                                           }}
-                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                                          style={{ fontSize: '0.8rem', padding: '0.5rem 0.65rem', minHeight: '90px', resize: 'vertical' }}
                                         />
                                       </div>
                                     </div>
