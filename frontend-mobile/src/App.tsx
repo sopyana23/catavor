@@ -1292,7 +1292,7 @@ export function WhatsAppContactsManager({
         }}
       >
         <Plus size={15} />
-        <span>+ Tambah Nomor WhatsApp CS Baru</span>
+        <span>Tambah Nomor WhatsApp CS Baru</span>
       </button>
     </div>
   );
