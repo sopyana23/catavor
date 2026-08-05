@@ -3017,8 +3017,18 @@ function App() {
             setAdminSubTab('menu');
             setView('tabs');
           }
-        } else if (sub === 'about') setActiveTab('about');
-        else if (sub === 'sightings') setActiveTab('sightings');
+        } else if (sub === 'about') {
+          setActiveTab('about');
+          const subSub = parts[2];
+          if (subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'qrcode') {
+            setAboutSubView('qrcode');
+          } else {
+            setAboutSubView('main');
+          }
+        } else if (sub === 'qrcode' || sub === 'qr') {
+          setActiveTab('about');
+          setAboutSubView('qrcode');
+        } else if (sub === 'sightings') setActiveTab('sightings');
         else if (sub === 'articles') setActiveTab('articles');
       } else {
         const qTab = urlParams.get('tab');
@@ -3126,6 +3136,17 @@ function App() {
             setAdminSubTab('menu');
             setSelectedTicket(null);
           }
+        } else if (parts.length >= 2 && parts[1] === 'about') {
+          setActiveTab('about');
+          const subSub = parts[2];
+          if (subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'qrcode') {
+            setAboutSubView('qrcode');
+          } else {
+            setAboutSubView('main');
+          }
+        } else if (parts.length >= 2 && (parts[1] === 'qrcode' || parts[1] === 'qr')) {
+          setActiveTab('about');
+          setAboutSubView('qrcode');
         }
       }
     };
@@ -9053,7 +9074,13 @@ function App() {
                   <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '0.6rem' }}>
                     <button
                       type="button"
-                      onClick={() => setAboutSubView('main')}
+                      onClick={() => {
+                        setAboutSubView('main');
+                        const slug = storeSlug || getStoreSlug();
+                        if (slug) {
+                          window.history.pushState({}, '', `/${slug}/about`);
+                        }
+                      }}
                       className="btn-back-circle"
                       title="Kembali"
                     >
@@ -10108,7 +10135,13 @@ function App() {
           if (aboutSubView === 'qrcode') {
             return (
               <QRCodeMobileSubPage 
-                onBack={() => setAboutSubView('main')}
+                onBack={() => {
+                  setAboutSubView('main');
+                  const slug = storeSlug || getStoreSlug();
+                  if (slug) {
+                    window.history.pushState({}, '', `/${slug}/about`);
+                  }
+                }}
                 storeSlug={storeSlug || ''}
                 storeTitle={settings.store_title}
                 storeLogoUrl={settings.store_logo_url}
@@ -10227,7 +10260,13 @@ function App() {
               <ShareCatalogCard 
                 storeSlug={storeSlug || ''} 
                 storeTitle={settings.store_title} 
-                onOpenQRCode={() => setAboutSubView('qrcode')}
+                onOpenQRCode={() => {
+                  setAboutSubView('qrcode');
+                  const slug = storeSlug || getStoreSlug();
+                  if (slug) {
+                    window.history.pushState({}, '', `/${slug}/about/qrcode`);
+                  }
+                }}
                 onToast={showToast} 
               />
 

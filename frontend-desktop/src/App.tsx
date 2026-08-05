@@ -2693,6 +2693,16 @@ function App() {
         } else if (sub === 'about') {
           setView('catalog');
           setActivePublicTab('about');
+          const subSub = parts[2];
+          if (subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'qrcode') {
+            setShowQRModal(true);
+          } else {
+            setShowQRModal(false);
+          }
+        } else if (sub === 'qrcode' || sub === 'qr') {
+          setView('catalog');
+          setActivePublicTab('about');
+          setShowQRModal(true);
         } else if (sub === 'sightings') {
           setView('catalog');
           setActivePublicTab('sightings');
@@ -7031,13 +7041,25 @@ function App() {
                   <ShareCatalogCard 
                     storeSlug={storeSlug || ''} 
                     storeTitle={settings.store_title} 
-                    onOpenQRModal={() => setShowQRModal(true)}
+                    onOpenQRModal={() => {
+                      setShowQRModal(true);
+                      const slug = storeSlug || getStoreSlug();
+                      if (slug) {
+                        window.history.pushState({}, '', `/${slug}/about/qrcode`);
+                      }
+                    }}
                     onToast={showToast} 
                   />
 
                   <QRCodeModal 
                     isOpen={showQRModal} 
-                    onClose={() => setShowQRModal(false)} 
+                    onClose={() => {
+                      setShowQRModal(false);
+                      const slug = storeSlug || getStoreSlug();
+                      if (slug) {
+                        window.history.pushState({}, '', `/${slug}/about`);
+                      }
+                    }} 
                     storeSlug={storeSlug || ''} 
                     storeTitle={settings.store_title}
                     storeLogoUrl={settings.store_logo_url}
