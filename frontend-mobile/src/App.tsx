@@ -3859,7 +3859,11 @@ function App() {
         targetPath += `/admin`;
       }
     } else if (activeTab === 'about') {
-      targetPath += `/about`;
+      if (aboutSubView === 'qrcode') {
+        targetPath += `/about/share`;
+      } else {
+        targetPath += `/about`;
+      }
     } else if (activeTab === 'sightings') {
       targetPath += `/sightings`;
     } else if (activeTab === 'articles') {
@@ -3891,7 +3895,7 @@ function App() {
         );
       }
     }
-  }, [activeTab, adminSubTab, mobileSettingsTab, crudMode, editId, view, editingArticle, articleTabState, selectedFauna, selectedArticle, selectedTicket, storeSlug, error]);
+  }, [activeTab, aboutSubView, adminSubTab, mobileSettingsTab, crudMode, editId, view, editingArticle, articleTabState, selectedFauna, selectedArticle, selectedTicket, storeSlug, error]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {

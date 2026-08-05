@@ -3312,7 +3312,11 @@ function App() {
       }
     } else {
       if (activePublicTab === 'about') {
-        targetPath += `/about`;
+        if (showQRModal) {
+          targetPath += `/about/share`;
+        } else {
+          targetPath += `/about`;
+        }
       } else if (activePublicTab === 'sightings') {
         targetPath += `/sightings`;
       } else if (activePublicTab === 'articles') {
@@ -3345,7 +3349,7 @@ function App() {
         );
       }
     }
-  }, [view, adminTab, settingsSubTab, showCrudModal, crudMode, editId, editingArticle, articleTabState, activePublicTab, selectedFauna, selectedArticle, selectedTicket, storeSlug, error]);
+  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, editingArticle, articleTabState, activePublicTab, selectedFauna, selectedArticle, selectedTicket, storeSlug, error]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
