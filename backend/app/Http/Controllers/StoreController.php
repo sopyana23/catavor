@@ -149,9 +149,7 @@ class StoreController extends Controller
             'about_title' => 'nullable|string|max:255',
             'about_slogan' => 'nullable|string|max:255',
             'about_description' => 'nullable|string',
-            'about_location' => 'nullable|string|max:500',
-            'about_maps_url' => 'nullable|string',
-            'enable_maps' => 'nullable|boolean',
+            'about_location' => 'nullable|string|max:255',
             'about_hours' => 'nullable|string',
             'show_hours' => 'nullable|boolean',
             'about_disclaimer' => 'nullable|string',
@@ -318,91 +316,6 @@ class StoreController extends Controller
             case 'conservation_status': return 'master_statuses';
             case 'shipping_coverage': return 'master_shipping_coverages';
             default: return null;
-        }
-    }
-
-    public function resolveMapsUrl(Request $request)
-    {
-        $url = $request->query('url');
-        if (!$url || !is_string($url)) {
-            return response()->json(['success' => false, 'message' => 'URL is required'], 400);
-        }
-
-        $cleanUrl = trim($url);
-
-        try {
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            ])->timeout(5)->get($cleanUrl);
-
-            $finalUrl = $response->effectiveUri() ? (string)$response->effectiveUri() : $cleanUrl;
-
-            $lat = null;
-            $lng = null;
-            $placeName = null;
-
-            // 1. Check /search/lat,lng or /search/lat,+lng
-            if (preg_match('/\/search\/(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/', $finalUrl, $m)) {
-                $lat = $m[1];
-                $lng = $m[2];
-            }
-            // 2. Check /place/Name
-            elseif (preg_match('/\/place\/([^\/]+)/', $finalUrl, $m)) {
-                $placeName = urldecode(str_replace('+', ' ', $m[1]));
-            }
-            // 3. Check /search/Name
-            elseif (preg_match('/\/search\/([^\/?]+)/', $finalUrl, $m)) {
-                $placeName = urldecode(str_replace('+', ' ', $m[1]));
-            }
-
-            // Check @lat,lng or !3d!4d if lat/lng not found yet
-            if (!$lat || !$lng) {
-                if (preg_match('/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/', $finalUrl, $m)) {
-                    $lat = $m[1];
-                    $lng = $m[2];
-                } elseif (preg_match('/@(-?\d+\.\d+),(-?\d+\.\d+)/', $finalUrl, $m)) {
-                    $lat = $m[1];
-                    $lng = $m[2];
-                } elseif (preg_match('/[?&](?:q|query)=(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/', $finalUrl, $m)) {
-                    $lat = $m[1];
-                    $lng = $m[2];
-                }
-            }
-
-            // If lat/lng exists but no placeName, try reverse geocoding via Nominatim
-            if ($lat && $lng && !$placeName) {
-                try {
-                    $geoRes = \Illuminate\Support\Facades\Http::withHeaders([
-                        'User-Agent' => 'CatavorApp/1.0'
-                    ])->timeout(3)->get("https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}");
-                    if ($geoRes->ok()) {
-                        $geoData = $geoRes->json();
-                        if (!empty($geoData['display_name'])) {
-                            $placeName = $geoData['display_name'];
-                        }
-                    }
-                } catch (\Exception $ex) {
-                    // ignore fallback failure
-                }
-            }
-
-            $query = $placeName ?: (($lat && $lng) ? "{$lat},{$lng}" : $cleanUrl);
-            $embedUrl = "https://maps.google.com/maps?q=" . urlencode($query) . "&t=&z=15&ie=UTF8&iwloc=&output=embed";
-
-            return response()->json([
-                'success' => true,
-                'final_url' => $finalUrl,
-                'lat' => $lat,
-                'lng' => $lng,
-                'place_name' => $placeName,
-                'query' => $query,
-                'embed_url' => $embedUrl
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
         }
     }
 }
