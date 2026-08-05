@@ -1159,6 +1159,145 @@ export function WhatsAppContactsManager({
   );
 }
 
+export function QRCodeShareCard({ 
+  storeSlug, 
+  storeTitle, 
+  onToast 
+}: { 
+  storeSlug: string; 
+  storeTitle?: string; 
+  onToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const fullUrl = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/u/${storeSlug || 'catavor'}`;
+    }
+    return `https://catavor.id/u/${storeSlug || 'catavor'}`;
+  }, [storeSlug]);
+
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(fullUrl)}&color=0b0e0c&bgcolor=ffffff&margin=12`;
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(qrImageUrl);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `qrcode-${(storeSlug || 'katalog').toLowerCase()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      if (onToast) onToast('Gambar QR Code berhasil diunduh (PNG HD)!', 'success');
+    } catch (err) {
+      window.open(qrImageUrl, '_blank');
+      if (onToast) onToast('Membuka QR Code di tab baru...', 'info');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    if (onToast) onToast('Link katalog berhasil disalin ke clipboard!', 'success');
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: storeTitle || 'Katalog Digital',
+          text: `Scan atau buka katalog ${storeTitle || 'Catavor'} secara digital:`,
+          url: fullUrl
+        });
+      } catch (e) {}
+    } else {
+      handleCopy();
+    }
+  };
+
+  return (
+    <div className="glass-panel" style={{ padding: '1.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '0.85rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '0.6rem', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-light)', flexShrink: 0 }}>
+          <QrCode size={22} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            Bagikan &amp; Scan QR Code Katalog
+          </h4>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+            Pindai menggunakan kamera smartphone untuk langsung masuk ke katalog
+          </span>
+        </div>
+      </div>
+
+      {/* QR Code Container Frame */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.25rem 1rem', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
+        <div style={{ backgroundColor: '#ffffff', padding: '0.75rem', borderRadius: '0.75rem', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <img 
+            src={qrImageUrl} 
+            alt={`QR Code Katalog ${storeTitle || ''}`}
+            style={{ width: '160px', height: '160px', borderRadius: '0.35rem', display: 'block' }}
+          />
+        </div>
+
+        {/* Display URL link below QR code */}
+        <a 
+          href={fullUrl} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700, marginTop: '0.85rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem', wordBreak: 'break-all' }}
+        >
+          <span>{fullUrl.replace(/^https?:\/\//, '')}</span>
+          <ExternalLink size={12} />
+        </a>
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.65rem' }}>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="btn-primary"
+          style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer' }}
+        >
+          <Download size={14} />
+          <span>{downloading ? 'Unduh...' : 'Unduh QR'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="btn-secondary"
+          style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer' }}
+        >
+          {copied ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} />}
+          <span>{copied ? 'Tersalin!' : 'Salin Link'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleShare}
+          className="btn-secondary"
+          style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer' }}
+        >
+          <Share2 size={14} />
+          <span>Bagikan</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function getOperationalStatus(data: OperationalHoursData) {
   const now = new Date();
   const dayMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -6736,12 +6875,18 @@ function App() {
                           </div>
                           <div style={{ flex: 1 }}>
                             <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>Komitmen &amp; Disclaimer</h4>
-                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{settings.about_disclaimer}</p>
                           </div>
                         </div>
                       )}
                     </div>
                   )}
+
+                  {/* QR Code Catalog Sharing Card */}
+                  <QRCodeShareCard 
+                    storeSlug={storeSlug || ''} 
+                    storeTitle={settings.store_title} 
+                    onToast={showToast} 
+                  />
 
                   {/* Hubungi Kami Section (100% Hidden if all 5 contact channels are empty) */}
                   {hasAnyContactChannel && (
