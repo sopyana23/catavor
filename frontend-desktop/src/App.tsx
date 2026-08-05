@@ -451,6 +451,42 @@ export function OfficialWebsiteCard({ url }: { url?: string | null }) {
   );
 }
 
+export const extractSocialHandle = (url: string, platform: string, customLabel?: string): string => {
+  if (customLabel && customLabel.trim() !== '') {
+    return customLabel.trim();
+  }
+  if (!url || typeof url !== 'string' || url.trim() === '') return platform;
+  
+  try {
+    let clean = url.trim();
+    clean = clean.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+    
+    if (clean.includes('wa.me/') || clean.includes('whatsapp.com/')) {
+      const num = clean.split('/').filter(Boolean).pop()?.split('?')[0];
+      if (num) return `+${num.replace(/\D/g, '')}`;
+    }
+    
+    const parts = clean.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      let handle = parts[parts.length - 1];
+      handle = handle.split('?')[0].split('#')[0];
+      
+      if (handle) {
+        if (handle.startsWith('@')) return handle;
+        if (handle.length < 35 && !handle.includes('.')) {
+          return `@${handle}`;
+        }
+      }
+    } else if (parts.length === 1) {
+      let handle = parts[0].split('?')[0].split('#')[0];
+      if (handle.startsWith('@')) return handle;
+    }
+  } catch (e) {
+    // fallback
+  }
+  return platform;
+};
+
 export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string | any[] | null }) {
   const validLinks = useMemo(() => {
     if (!rawSocialLinks) return [];
@@ -470,111 +506,88 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
 
   if (validLinks.length === 0) return null;
 
-  if (validLinks.length === 1) {
-    const link = validLinks[0];
-    return (
-      <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.5rem 0 0.15rem 0' }}>
-          <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kunjungi Media Sosial</span>
-          <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
-        </div>
-        <a
-          href={link.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.75rem 1rem',
-            borderRadius: '0.65rem',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            textDecoration: 'none',
-            transition: 'all 0.25s ease',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              width: '32px', 
-              height: '32px', 
-              borderRadius: '50%', 
-              backgroundColor: 'var(--primary-glow)', 
-              color: 'var(--primary)', 
-              border: '1px solid var(--border-light)' 
-            }}>
-              {renderSocialIcon(link.platform, 16, 'var(--primary)')}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>{link.platform}</span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Ikuti Akun Resmi</span>
-            </div>
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.3rem', 
-            fontSize: '0.72rem', 
-            fontWeight: 800, 
-            color: 'var(--primary)',
-            backgroundColor: 'var(--primary-glow)',
-            padding: '0.3rem 0.65rem',
-            borderRadius: '0.45rem',
-            border: '1px solid var(--border-light)'
-          }}>
-            <span>Buka</span>
-            <ExternalLink size={12} />
-          </div>
-        </a>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.5rem 0 0.15rem 0' }}>
+    <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.4rem 0 0.15rem 0' }}>
         <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kunjungi Media Sosial</span>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saluran Media Sosial Resmi</span>
         <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
       </div>
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: validLinks.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(130px, 1fr))', 
-        gap: '0.55rem' 
-      }}>
+
+      <div style={{ display: 'grid', gridTemplateColumns: validLinks.length > 1 ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
         {validLinks.map((link: any, idx: number) => {
+          const handle = extractSocialHandle(link.url, link.platform, link.label);
+          const hasHandle = handle && handle !== link.platform;
+
           return (
             <a
               key={idx}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
+              className="glass-panel"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                padding: '0.65rem 0.75rem',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                textDecoration: 'none',
-                borderRadius: '0.55rem',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.05rem',
+                borderRadius: '0.75rem',
                 backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-light)',
-                color: 'var(--text-primary)',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                textDecoration: 'none',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
               }}
             >
-              <span style={{ display: 'flex', alignItems: 'center', color: 'var(--primary)' }}>
-                {renderSocialIcon(link.platform, 15, 'var(--primary)')}
-              </span>
-              <span>{link.platform}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  width: '38px', 
+                  height: '38px', 
+                  borderRadius: '50%', 
+                  backgroundColor: 'var(--primary-glow)', 
+                  color: 'var(--primary)', 
+                  border: '1px solid var(--border-light)',
+                  flexShrink: 0
+                }}>
+                  {renderSocialIcon(link.platform, 20, 'var(--primary)')}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.25 }}>
+                    {link.platform}
+                  </span>
+                  <span style={{ 
+                    fontSize: '0.75rem', 
+                    color: hasHandle ? 'var(--primary)' : 'var(--text-secondary)', 
+                    fontWeight: hasHandle ? 700 : 500,
+                    whiteSpace: 'nowrap', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis',
+                    marginTop: '0.1rem' 
+                  }}>
+                    {hasHandle ? handle : 'Kunjungi Profil Resmi'}
+                  </span>
+                </div>
+              </div>
+              
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.35rem', 
+                fontSize: '0.75rem', 
+                fontWeight: 800, 
+                color: 'var(--primary)',
+                backgroundColor: 'var(--primary-glow)',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-light)',
+                flexShrink: 0
+              }}>
+                <span>Buka</span>
+                <ExternalLink size={13} />
+              </div>
             </a>
           );
         })}
