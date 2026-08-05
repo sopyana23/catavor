@@ -11462,7 +11462,7 @@ function App() {
                                       key={t.id}
                                       onClick={() => handleThemeSelect(t.id, t.name)}
                                       style={{
-                                        padding: '0.9rem',
+                                        padding: '0.85rem 0.9rem',
                                         borderRadius: '0.85rem',
                                         border: isActive ? `2px solid ${t.primary}` : '1px solid var(--border-light)',
                                         background: t.cardBg,
@@ -11470,13 +11470,33 @@ function App() {
                                         boxShadow: isActive ? `0 0 16px ${t.primary}35` : '0 4px 12px rgba(0,0,0,0.15)',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: '0.85rem',
+                                        gap: '0.65rem',
+                                        position: 'relative',
                                         transition: 'all 0.2s ease',
                                         WebkitTapHighlightColor: 'transparent',
                                         touchAction: 'manipulation'
                                       }}
                                     >
+                                      {isActive && (
+                                        <span style={{
+                                          position: 'absolute',
+                                          top: '0.5rem',
+                                          right: '0.55rem',
+                                          fontSize: '0.62rem',
+                                          fontWeight: 800,
+                                          color: t.primary,
+                                          padding: '0.15rem 0.45rem',
+                                          borderRadius: '20px',
+                                          backgroundColor: `${t.primary}20`,
+                                          border: `1px solid ${t.primary}50`,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.2rem',
+                                          boxShadow: `0 2px 6px ${t.primary}20`
+                                        }}>
+                                          <CheckCircle2 size={10} /> Aktif
+                                        </span>
+                                      )}
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: 0 }}>
                                         <div style={{
                                           width: '34px',
@@ -11497,19 +11517,13 @@ function App() {
                                           <span style={{ width: '13px', height: '13px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 5px ${t.primary}` }} />
                                           <span style={{ width: '13px', height: '13px', borderRadius: '50%', backgroundColor: t.accent }} />
                                         </div>
-                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div style={{ minWidth: 0, flex: 1, paddingRight: isActive ? '3.8rem' : 0 }}>
                                           <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
                                           <span style={{ fontSize: '0.68rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {t.desc}
                                           </span>
                                         </div>
                                       </div>
-
-                                      {isActive && (
-                                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: t.primary, padding: '0.2rem 0.55rem', borderRadius: '20px', backgroundColor: `${t.primary}20`, border: `1px solid ${t.primary}50`, flexShrink: 0 }}>
-                                          ✓ AKTIF &amp; TERSIMPAN
-                                        </span>
-                                      )}
                                     </div>
                                   );
                                 })}

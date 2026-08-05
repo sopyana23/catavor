@@ -8339,50 +8339,57 @@ function App() {
                                 cursor: 'pointer',
                                 boxShadow: isActive ? `0 0 20px ${t.primary}35` : '0 4px 12px rgba(0,0,0,0.15)',
                                 display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                gap: '1rem',
+                                alignItems: 'center',
+                                gap: '0.85rem',
+                                position: 'relative',
                                 transition: 'all 0.2s ease'
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                                <div style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  borderRadius: '10px',
-                                  backgroundColor: `${t.primary}20`,
-                                  border: `1px solid ${t.primary}40`,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
+                              {isActive && (
+                                <span style={{
+                                  position: 'absolute',
+                                  top: '0.6rem',
+                                  right: '0.65rem',
+                                  fontSize: '0.66rem',
+                                  fontWeight: 800,
                                   color: t.primary,
-                                  boxShadow: `0 4px 12px ${t.primary}25`,
-                                  flexShrink: 0
+                                  padding: '0.18rem 0.5rem',
+                                  borderRadius: '20px',
+                                  backgroundColor: `${t.primary}20`,
+                                  border: `1px solid ${t.primary}50`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  boxShadow: `0 2px 8px ${t.primary}20`
                                 }}>
-                                  <IconComp size={18} />
-                                </div>
-                                <div style={{ display: 'flex', gap: '4px', background: t.bg, padding: '6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
-                                  <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 6px ${t.primary}` }} />
-                                  <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: t.accent }} />
-                                </div>
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
-                                  <span style={{ fontSize: '0.72rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.15rem' }}>
-                                    {t.desc}
-                                  </span>
-                                </div>
-                              </div>
+                                  <CheckCircle2 size={11} /> Aktif
+                                </span>
+                              )}
 
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                                {isActive ? (
-                                  <span style={{ fontSize: '0.68rem', fontWeight: 900, color: t.primary, padding: '0.25rem 0.65rem', borderRadius: '20px', backgroundColor: `${t.primary}20`, border: `1px solid ${t.primary}50` }}>
-                                    ✓ AKTIF &amp; TERSIMPAN
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                    Klik untuk Terapkan
-                                  </span>
-                                )}
+                              <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '10px',
+                                backgroundColor: `${t.primary}20`,
+                                border: `1px solid ${t.primary}40`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: t.primary,
+                                boxShadow: `0 4px 12px ${t.primary}25`,
+                                flexShrink: 0
+                              }}>
+                                <IconComp size={18} />
+                              </div>
+                              <div style={{ display: 'flex', gap: '4px', background: t.bg, padding: '6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+                                <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 6px ${t.primary}` }} />
+                                <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: t.accent }} />
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1, paddingRight: isActive ? '4.5rem' : 0 }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
+                                <span style={{ fontSize: '0.72rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.15rem' }}>
+                                  {t.desc}
+                                </span>
                               </div>
                             </div>
                           );
