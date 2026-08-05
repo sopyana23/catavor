@@ -164,6 +164,7 @@ interface ShopSettings {
   about_cards?: string
   about_location?: string
   about_hours?: string
+  show_hours?: boolean
   about_disclaimer?: string
   social_links?: string
   store_title?: string
@@ -651,6 +652,7 @@ interface ShopSettings {
   about_cards?: string
   about_location?: string
   about_hours?: string
+  show_hours?: boolean
   about_disclaimer?: string
   social_links?: string
   official_website?: string
@@ -1794,10 +1796,14 @@ export function OperationalHoursCard({ rawHours }: { rawHours?: string }) {
 
 export function OperationalHoursBuilder({ 
   value, 
-  onChange 
+  onChange,
+  showHours = true,
+  onToggleShowHours
 }: { 
   value: string; 
   onChange: (val: string) => void; 
+  showHours?: boolean;
+  onToggleShowHours?: (show: boolean) => void;
 }) {
   const parsedData = useMemo(() => parseOperationalHours(value), [value]);
 
@@ -1836,8 +1842,85 @@ export function OperationalHoursBuilder({
       boxSizing: 'border-box',
       width: '100%'
     }}>
-      {/* Header + Timezone Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
+      {/* Toggle Switch Header (Best Practice UI) */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          gap: '0.75rem', 
+          padding: '0.65rem 0.85rem', 
+          borderRadius: '0.65rem', 
+          backgroundColor: showHours ? 'var(--primary-glow)' : 'var(--bg-card-hover)', 
+          border: '1px solid var(--border-light)',
+          transition: 'all 0.25s ease'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
+          <Clock size={18} style={{ color: showHours ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Jam Operasional Bisnis
+            </span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+              {showHours ? 'Jam operasional aktif & ditampilkan di katalog' : 'Jam operasional disembunyikan dari katalog'}
+            </span>
+          </div>
+        </div>
+
+        {onToggleShowHours && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            <span style={{ 
+              fontSize: '0.65rem', 
+              fontWeight: 800, 
+              color: showHours ? 'var(--primary)' : 'var(--text-muted)',
+              padding: '0.15rem 0.5rem',
+              borderRadius: '12px',
+              backgroundColor: showHours ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+              border: showHours ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-light)'
+            }}>
+              {showHours ? 'TAMPIL' : 'SEMBUNYI'}
+            </span>
+            
+            {/* iOS/Canva Style Toggle Switch Button */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showHours}
+              onClick={() => onToggleShowHours(!showHours)}
+              style={{
+                width: '44px',
+                height: '24px',
+                borderRadius: '14px',
+                backgroundColor: showHours ? 'var(--primary)' : 'rgba(255, 255, 255, 0.2)',
+                border: showHours ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                padding: '2px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: showHours ? 'flex-end' : 'flex-start',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showHours ? (
+        <>
+          {/* Header + Timezone Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
           <Calendar size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
           <span style={{ fontWeight: 800, fontSize: '0.82rem', color: 'var(--text-primary)', letterSpacing: '0.01em' }}>
@@ -1966,6 +2049,12 @@ export function OperationalHoursBuilder({
           );
         })}
       </div>
+        </>
+      ) : (
+        <div style={{ padding: '0.6rem 0.85rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.74rem', fontWeight: 500, backgroundColor: 'var(--bg-card-hover)', borderRadius: '0.5rem', border: '1px dashed var(--border-light)' }}>
+          🔒 Jam operasional nonaktif. Bagian jam operasional tidak akan ditampilkan pada katalog publik Anda.
+        </div>
+      )}
     </div>
   );
 }
@@ -3440,6 +3529,7 @@ function App() {
             about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
             about_location: store.about_location || '',
             about_hours: store.about_hours || '',
+            show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : true,
             about_disclaimer: store.about_disclaimer || '',
             social_links: store.social_links ? JSON.stringify(store.social_links) : '',
             official_website: store.official_website || '',
@@ -4626,6 +4716,7 @@ function App() {
           about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
           about_location: store.about_location || '',
           about_hours: store.about_hours || '',
+          show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : true,
           about_disclaimer: store.about_disclaimer || '',
           social_links: store.social_links ? JSON.stringify(store.social_links) : '',
           official_website: store.official_website || '',
@@ -10197,7 +10288,7 @@ function App() {
           })();
 
           const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
-          const hasHours = Boolean(settings.about_hours && settings.about_hours.trim());
+          const hasHours = Boolean((settings.show_hours ?? true) && settings.about_hours && settings.about_hours.trim());
           const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
           const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
           const hasSocial = Array.isArray(parsedSocial) && parsedSocial.length > 0;
@@ -11450,6 +11541,8 @@ function App() {
                                 <OperationalHoursBuilder 
                                   value={settingsForm.about_hours || ''}
                                   onChange={(val) => setSettingsForm({ ...settingsForm, about_hours: val })}
+                                  showHours={settingsForm.show_hours ?? true}
+                                  onToggleShowHours={(show) => setSettingsForm({ ...settingsForm, show_hours: show })}
                                 />
                               </div>
 

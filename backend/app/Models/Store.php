@@ -26,6 +26,7 @@ class Store extends Model
         'about_description',
         'about_location',
         'about_hours',
+        'show_hours',
         'about_disclaimer',
         'about_cards',
         'social_links',
@@ -39,6 +40,7 @@ class Store extends Model
     protected $casts = [
         'enable_wa_direct' => 'boolean',
         'enable_wa_rekber' => 'boolean',
+        'show_hours' => 'boolean',
         'about_cards' => 'array',
         'social_links' => 'array',
         'master_classes' => 'array',
