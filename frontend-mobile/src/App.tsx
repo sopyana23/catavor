@@ -1363,7 +1363,7 @@ export function QRCodeMobileSubPage({
     return `https://catavor.id/u/${storeSlug || 'catavor'}`;
   }, [storeSlug]);
 
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(fullUrl)}&color=0b0e0c&bgcolor=ffffff&margin=12`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(fullUrl)}&color=0b0e0c&bgcolor=ffffff&margin=12`;
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -1409,116 +1409,141 @@ export function QRCodeMobileSubPage({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: 'var(--bg-main)', animation: 'fadeIn 0.2s ease-out' }}>
-      {/* Dedicated Header Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem 1.25rem', backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border-light)', position: 'sticky', top: 0, zIndex: 100 }}>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.25rem 0' }}>
+      {/* Sub-Header Navigation Bar (Integrated cleanly into mobile tab) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
         <button
           type="button"
           onClick={onBack}
           style={{
-            background: 'var(--bg-card-hover)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.4rem 0.85rem',
+            borderRadius: '2rem',
+            backgroundColor: 'var(--bg-card-hover)',
             border: '1px solid var(--border-light)',
             color: 'var(--text-primary)',
-            borderRadius: '50%',
-            width: '36px',
-            height: '36px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent'
           }}
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={16} />
+          <span>Kembali</span>
         </button>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-            QR Code Katalog Toko
-          </h3>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-            Pindai atau Bagikan ke Pelanggan
-          </span>
-        </div>
+
+        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
+          Kode QR Katalog
+        </span>
       </div>
 
-      {/* Main Content Pass Container */}
-      <div style={{ flex: 1, padding: '1.5rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.25rem' }}>
-        <div className="glass-panel" style={{ width: '100%', maxWidth: '380px', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '1.25rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', boxShadow: '0 12px 35px rgba(0,0,0,0.2)' }}>
-          {/* Store Branding Header */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.35rem' }}>
-            {storeLogoUrl ? (
-              <img 
-                src={storeLogoUrl} 
-                alt={storeTitle} 
-                style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }}
-              />
-            ) : (
-              <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.3rem', border: '1px solid var(--border-light)' }}>
-                {(storeTitle || 'C').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.25rem 0 0 0' }}>
-              {storeTitle || 'Katalog Digital'}
-            </h3>
-            {storeSlogan && (
-              <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                {storeSlogan}
-              </span>
-            )}
-          </div>
-
-          {/* Large QR Code Frame */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.15rem', backgroundColor: '#ffffff', borderRadius: '0.9rem', boxShadow: '0 8px 25px rgba(0,0,0,0.12)' }}>
+      {/* Premium Pass Card */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          backgroundColor: 'var(--bg-card)', 
+          border: '1px solid rgba(52, 211, 153, 0.25)', 
+          borderRadius: '1.25rem', 
+          padding: '1.5rem 1.25rem', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          gap: '1.1rem', 
+          boxShadow: '0 15px 35px rgba(0, 0, 0, 0.3)',
+          background: 'linear-gradient(160deg, rgba(16, 26, 38, 0.95) 0%, rgba(8, 14, 22, 0.98) 100%)'
+        }}
+      >
+        {/* Store Logo & Title */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.3rem' }}>
+          {storeLogoUrl ? (
             <img 
-              src={qrImageUrl} 
-              alt={`QR Code Katalog ${storeTitle || ''}`}
-              style={{ width: '200px', height: '200px', borderRadius: '0.35rem', display: 'block' }}
+              src={storeLogoUrl} 
+              alt={storeTitle} 
+              style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }}
             />
-          </div>
+          ) : (
+            <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.2rem', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+              {(storeTitle || 'C').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.2rem 0 0 0' }}>
+            {storeTitle || 'Katalog Digital'}
+          </h3>
+          {storeSlogan && (
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.35, maxWidth: '280px' }}>
+              {storeSlogan}
+            </span>
+          )}
+        </div>
 
-          {/* Interactive URL Link */}
-          <a 
-            href={fullUrl} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', wordBreak: 'break-all', textAlign: 'center' }}
+        {/* QR Code Canvas Frame */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.85rem', backgroundColor: '#ffffff', borderRadius: '0.9rem', boxShadow: '0 10px 25px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.2)' }}>
+          <img 
+            src={qrImageUrl} 
+            alt={`QR Code Katalog ${storeTitle || ''}`}
+            style={{ width: '165px', height: '165px', borderRadius: '0.35rem', display: 'block' }}
+          />
+        </div>
+
+        {/* URL Pill Badge */}
+        <a 
+          href={fullUrl} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          style={{ 
+            fontSize: '0.76rem', 
+            color: 'var(--primary)', 
+            fontWeight: 700, 
+            textDecoration: 'none', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.35rem', 
+            padding: '0.35rem 0.85rem',
+            backgroundColor: 'rgba(52, 211, 153, 0.08)',
+            border: '1px solid rgba(52, 211, 153, 0.25)',
+            borderRadius: '2rem',
+            wordBreak: 'break-all',
+            maxWidth: '100%'
+          }}
+        >
+          <span>{fullUrl.replace(/^https?:\/\//, '')}</span>
+          <ExternalLink size={12} />
+        </a>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', width: '100%', marginTop: '0.2rem' }}>
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="btn-primary"
+            style={{ padding: '0.6rem 0.35rem', fontSize: '0.74rem', fontWeight: 800, borderRadius: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', cursor: 'pointer' }}
           >
-            <span>{fullUrl.replace(/^https?:\/\//, '')}</span>
-            <ExternalLink size={12} />
-          </a>
+            <Download size={14} />
+            <span>{downloading ? 'Unduh...' : 'Unduh QR'}</span>
+          </button>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem', width: '100%' }}>
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={downloading}
-              className="btn-primary"
-              style={{ padding: '0.6rem 0.4rem', fontSize: '0.75rem', fontWeight: 800, borderRadius: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', cursor: 'pointer' }}
-            >
-              <Download size={14} />
-              <span>{downloading ? 'Unduh...' : 'Unduh QR'}</span>
-            </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="btn-secondary"
+            style={{ padding: '0.6rem 0.35rem', fontSize: '0.74rem', fontWeight: 800, borderRadius: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', cursor: 'pointer' }}
+          >
+            {copied ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} />}
+            <span>{copied ? 'Tersalin!' : 'Salin Link'}</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="btn-secondary"
-              style={{ padding: '0.6rem 0.4rem', fontSize: '0.75rem', fontWeight: 800, borderRadius: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', cursor: 'pointer' }}
-            >
-              {copied ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} />}
-              <span>{copied ? 'Tersalin!' : 'Salin Link'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleShare}
-              className="btn-secondary"
-              style={{ padding: '0.6rem 0.4rem', fontSize: '0.75rem', fontWeight: 800, borderRadius: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', cursor: 'pointer' }}
-            >
-              <Share2 size={14} />
-              <span>Bagikan</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="btn-secondary"
+            style={{ padding: '0.6rem 0.35rem', fontSize: '0.74rem', fontWeight: 800, borderRadius: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', cursor: 'pointer' }}
+          >
+            <Share2 size={14} />
+            <span>Bagikan</span>
+          </button>
         </div>
       </div>
     </div>
