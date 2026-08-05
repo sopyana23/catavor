@@ -83,7 +83,19 @@ import {
   Calendar,
   ChevronDown,
   Briefcase,
-  Sliders
+  Sliders,
+  Building2,
+  Globe2,
+  SlidersHorizontal,
+  MessageSquareHeart,
+  UserCheck,
+  Scale,
+  FileCheck,
+  Wand2,
+  BellRing,
+  PackageCheck,
+  BadgeCheck,
+  LifeBuoy
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -11365,7 +11377,7 @@ function App() {
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
                         <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                          <Info size={20} style={{ color: 'var(--primary)' }} />
+                          <Sparkles size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Halaman Tentang Kami</h4>

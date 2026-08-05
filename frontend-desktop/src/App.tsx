@@ -78,7 +78,23 @@ import {
   Calendar,
   ChevronDown,
   Briefcase,
-  Sliders
+  Sliders,
+  Building2,
+  Globe2,
+  SlidersHorizontal,
+  PhoneCall,
+  MessageSquareHeart,
+  UserCheck,
+  Scale,
+  FileCheck,
+  Palette,
+  Wand2,
+  Database,
+  BellRing,
+  PackageCheck,
+  BadgeCheck,
+  LifeBuoy,
+  User
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -8015,8 +8031,10 @@ function App() {
                     const slug = getStoreSlug();
                     if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
-                  Inventaris & Postingan Hewan
+                  <PackageCheck size={16} />
+                  <span>Inventaris &amp; Postingan Hewan</span>
                 </button>
                 <button 
                   className={`admin-tab ${adminTab === 'notifications' ? 'active' : ''}`}
@@ -8025,8 +8043,11 @@ function App() {
                     const slug = getStoreSlug();
                     if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
-                  Notifikasi & Aktivitas {unreadCount > 0 && <span className="badge" style={{ backgroundColor: 'var(--primary)', color: '#000', borderRadius: '999px', fontSize: '0.65rem', padding: '0.1rem 0.45rem', marginLeft: '0.35rem', fontWeight: 800 }}>{unreadCount}</span>}
+                  <BellRing size={16} />
+                  <span>Notifikasi &amp; Aktivitas</span>
+                  {unreadCount > 0 && <span className="badge" style={{ backgroundColor: 'var(--primary)', color: '#000', borderRadius: '999px', fontSize: '0.65rem', padding: '0.1rem 0.45rem', marginLeft: '0.2rem', fontWeight: 800 }}>{unreadCount}</span>}
                 </button>
                 <button 
                   className={`admin-tab ${adminTab === 'settings' ? 'active' : ''}`}
@@ -8035,8 +8056,10 @@ function App() {
                     const slug = getStoreSlug();
                     if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
-                  Pengaturan Toko
+                  <SlidersHorizontal size={16} />
+                  <span>Pengaturan Toko</span>
                 </button>
                 <button 
                   className={`admin-tab ${adminTab === 'profile' ? 'active' : ''}`}
@@ -8045,15 +8068,19 @@ function App() {
                     const slug = getStoreSlug();
                     if (slug) window.history.pushState({}, '', `/${slug}/admin/profile`);
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
-                  Profil & Password Admin
+                  <UserCheck size={16} />
+                  <span>Profil &amp; Password Admin</span>
                 </button>
                 {false && settings.articles_enabled !== '0' && (
                   <button 
                     className={`admin-tab ${adminTab === 'articles' ? 'active' : ''}`}
                     onClick={() => { setAdminTab('articles'); setArticleTabState('hub'); }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                   >
-                    Artikel & Edukasi
+                    <BookOpen size={16} />
+                    <span>Artikel &amp; Edukasi</span>
                   </button>
                 )}
                 <button 
@@ -8065,8 +8092,10 @@ function App() {
                     const slug = getStoreSlug();
                     if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
-                  Legal & Kebijakan Platform
+                  <Scale size={16} />
+                  <span>Legal &amp; Kebijakan Platform</span>
                 </button>
                 <button 
                   className={`admin-tab ${adminTab === 'help' ? 'active' : ''}`}
@@ -8077,8 +8106,10 @@ function App() {
                       window.history.pushState({}, '', `/${slug}/admin/help`);
                     }
                   }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
-                  Pusat Bantuan & Support
+                  <LifeBuoy size={16} />
+                  <span>Pusat Bantuan &amp; Support</span>
                 </button>
               </div>
 
@@ -8169,6 +8200,9 @@ function App() {
                       className={`btn-secondary ${settingsSubTab === 'general' ? 'active' : ''}`}
                       onClick={() => setSettingsSubTab('general')}
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
@@ -8179,13 +8213,17 @@ function App() {
                         border: settingsSubTab === 'general' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🆔 Profil &amp; Identitas Utama
+                      <Store size={15} />
+                      <span>Profil &amp; Identitas Utama</span>
                     </button>
                     <button
                       type="button"
                       className={`btn-secondary ${settingsSubTab === 'contact' ? 'active' : ''}`}
                       onClick={() => setSettingsSubTab('contact')}
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
@@ -8196,13 +8234,17 @@ function App() {
                         border: settingsSubTab === 'contact' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      📞 Kontak &amp; Saluran Resmi
+                      <MessageSquare size={15} />
+                      <span>Kontak &amp; Saluran Resmi</span>
                     </button>
                     <button
                       type="button"
                       className={`btn-secondary ${settingsSubTab === 'about' ? 'active' : ''}`}
                       onClick={() => setSettingsSubTab('about')}
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
@@ -8213,13 +8255,17 @@ function App() {
                         border: settingsSubTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      📖 Halaman Tentang Kami
+                      <Sparkles size={15} />
+                      <span>Halaman Tentang Kami</span>
                     </button>
                     <button
                       type="button"
                       className={`btn-secondary ${settingsSubTab === 'theme' ? 'active' : ''}`}
                       onClick={() => setSettingsSubTab('theme')}
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
@@ -8230,13 +8276,17 @@ function App() {
                         border: settingsSubTab === 'theme' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🎨 Tema &amp; Tampilan Visual
+                      <Palette size={15} />
+                      <span>Tema &amp; Tampilan Visual</span>
                     </button>
                     <button
                       type="button"
                       className={`btn-secondary ${settingsSubTab === 'master' ? 'active' : ''}`}
                       onClick={() => setSettingsSubTab('master')}
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
@@ -8247,7 +8297,8 @@ function App() {
                         border: settingsSubTab === 'master' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🗂️ Master Data Katalog
+                      <Database size={15} />
+                      <span>Master Data Katalog</span>
                     </button>
                   </div>
 
