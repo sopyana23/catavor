@@ -1399,7 +1399,21 @@ export function QRCodeModal({
           href={fullUrl} 
           target="_blank" 
           rel="noopener noreferrer" 
-          style={{ fontSize: '0.82rem', color: 'var(--primary)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem', wordBreak: 'break-all', textAlign: 'center' }}
+          style={{ 
+            fontSize: '0.82rem', 
+            color: 'var(--primary)', 
+            fontWeight: 700, 
+            textDecoration: 'none', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.35rem', 
+            padding: '0.4rem 0.95rem',
+            backgroundColor: 'var(--primary-glow)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '2rem',
+            wordBreak: 'break-all', 
+            textAlign: 'center' 
+          }}
         >
           <span>{fullUrl.replace(/^https?:\/\//, '')}</span>
           <ExternalLink size={13} />

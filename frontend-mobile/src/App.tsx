@@ -1415,15 +1415,14 @@ export function QRCodeMobileSubPage({
         className="glass-panel" 
         style={{ 
           backgroundColor: 'var(--bg-card)', 
-          border: '1px solid rgba(52, 211, 153, 0.25)', 
+          border: '1px solid var(--border-light)', 
           borderRadius: '1.25rem', 
           padding: '1.5rem 1.25rem', 
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center', 
           gap: '1.1rem', 
-          boxShadow: '0 15px 35px rgba(0, 0, 0, 0.3)',
-          background: 'linear-gradient(160deg, rgba(16, 26, 38, 0.95) 0%, rgba(8, 14, 22, 0.98) 100%)'
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)'
         }}
       >
         {/* Store Logo & Title */}
@@ -1435,7 +1434,7 @@ export function QRCodeMobileSubPage({
               style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }}
             />
           ) : (
-            <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.2rem', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+            <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '46px', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.2rem', border: '1px solid var(--border-light)' }}>
               {(storeTitle || 'C').charAt(0).toUpperCase()}
             </div>
           )}
@@ -1450,7 +1449,7 @@ export function QRCodeMobileSubPage({
         </div>
 
         {/* QR Code Canvas Frame */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.85rem', backgroundColor: '#ffffff', borderRadius: '0.9rem', boxShadow: '0 10px 25px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.2)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.85rem', backgroundColor: '#ffffff', borderRadius: '0.9rem', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', border: '1px solid var(--border-light)' }}>
           <img 
             src={qrImageUrl} 
             alt={`QR Code Katalog ${storeTitle || ''}`}
@@ -1472,8 +1471,8 @@ export function QRCodeMobileSubPage({
             alignItems: 'center', 
             gap: '0.35rem', 
             padding: '0.35rem 0.85rem',
-            backgroundColor: 'rgba(52, 211, 153, 0.08)',
-            border: '1px solid rgba(52, 211, 153, 0.25)',
+            backgroundColor: 'var(--primary-glow)',
+            border: '1px solid var(--border-light)',
             borderRadius: '2rem',
             wordBreak: 'break-all',
             maxWidth: '100%'
