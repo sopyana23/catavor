@@ -1197,7 +1197,7 @@ export function ShareCatalogCard({
             Bagikan Katalog Digital
           </h4>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-            Bagikan toko Anda via link langsung atau tampilkan kode QR untuk dipindai pelanggan
+            Bagikan katalog Anda via link langsung atau tampilkan kode QR untuk dipindai pelanggan
           </span>
         </div>
       </div>

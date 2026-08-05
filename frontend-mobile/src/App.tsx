@@ -1308,7 +1308,7 @@ export function ShareCatalogCard({
             Bagikan Katalog Digital
           </h4>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
-            Bagikan via link langsung atau tampilkan QR Code toko Anda
+            Bagikan via link langsung atau tampilkan QR Code katalog Anda
           </span>
         </div>
       </div>
@@ -9055,12 +9055,12 @@ function App() {
                       type="button"
                       onClick={() => setAboutSubView('main')}
                       className="btn-back-circle"
-                      title="Kembali ke Tentang Kami"
+                      title="Kembali"
                     >
                       <ChevronLeft size={20} />
                     </button>
 
-                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, minWidth: 0 }}>
                       <span style={{ 
                         fontSize: '0.94rem', 
                         fontWeight: 800, 
@@ -9070,20 +9070,14 @@ function App() {
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        textAlign: 'left'
+                        textAlign: 'center'
                       }}>
-                        Kode QR Katalog Toko
+                        Kode QR Katalog
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      className="header-share-btn"
-                      onClick={handleShareStore}
-                      title="Bagikan Link Toko"
-                    >
-                      <Share2 size={16} style={{ color: 'var(--primary)' }} />
-                    </button>
+                    {/* Right spacer to balance left back button */}
+                    <div style={{ width: '36px', height: '36px', flexShrink: 0 }} />
                   </div>
                 );
               }
@@ -13417,7 +13411,7 @@ function App() {
 
 
       {/* Fixed Bottom Navigation Bar */}
-      {!error && !(activeTab === 'admin' && adminSubTab !== 'menu') && !(activeTab === 'articles' && selectedArticle) && !(settings.plan === 'free' && !isStoreOwner) && (
+      {!error && !(activeTab === 'admin' && adminSubTab !== 'menu') && !(activeTab === 'articles' && selectedArticle) && !(settings.plan === 'free' && !isStoreOwner) && !(activeTab === 'about' && aboutSubView === 'qrcode') && (
         <nav className="bottom-nav">
           <button 
             className={`nav-item ${activeTab === 'catalog' ? 'active' : ''}`}
