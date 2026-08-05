@@ -6669,11 +6669,19 @@ function App() {
               const hasDisclaimer = Boolean(settings.about_disclaimer && settings.about_disclaimer.trim());
               const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
 
+              const parsedSocial = (() => {
+                try {
+                  return settings.social_links ? (typeof settings.social_links === 'string' ? JSON.parse(settings.social_links) : settings.social_links) : [];
+                } catch (e) {
+                  return [];
+                }
+              })();
+
               const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
               const hasHours = Boolean(settings.about_hours && settings.about_hours.trim());
               const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
               const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
-              const hasSocial = Boolean(settings.social_links && settings.social_links.trim());
+              const hasSocial = Array.isArray(parsedSocial) && parsedSocial.length > 0;
               const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
 
               return (
@@ -6739,7 +6747,7 @@ function App() {
                   {hasAnyContactChannel && (
                     <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.75rem', marginTop: '0.5rem' }}>
                       <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1.25rem', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
-                        Hubungi Saluran Resmi Kami
+                        Hubungi Kami
                       </h3>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         {/* Lokasi (100% Hidden if empty - no fallback) */}

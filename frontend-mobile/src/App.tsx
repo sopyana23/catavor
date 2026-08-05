@@ -9853,11 +9853,19 @@ function App() {
           const hasDisclaimer = Boolean(settings.about_disclaimer && settings.about_disclaimer.trim());
           const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
 
+          const parsedSocial = (() => {
+            try {
+              return settings.social_links ? (typeof settings.social_links === 'string' ? JSON.parse(settings.social_links) : settings.social_links) : [];
+            } catch (e) {
+              return [];
+            }
+          })();
+
           const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
           const hasHours = Boolean(settings.about_hours && settings.about_hours.trim());
           const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
           const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
-          const hasSocial = Boolean(settings.social_links && settings.social_links.trim());
+          const hasSocial = Array.isArray(parsedSocial) && parsedSocial.length > 0;
           const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
 
           return (
