@@ -2694,12 +2694,12 @@ function App() {
           setView('catalog');
           setActivePublicTab('about');
           const subSub = parts[2];
-          if (subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'qrcode') {
+          if (subSub === 'share' || subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'share' || urlParams.get('sub') === 'qrcode') {
             setShowQRModal(true);
           } else {
             setShowQRModal(false);
           }
-        } else if (sub === 'qrcode' || sub === 'qr') {
+        } else if (sub === 'share' || sub === 'qrcode' || sub === 'qr') {
           setView('catalog');
           setActivePublicTab('about');
           setShowQRModal(true);
@@ -7045,7 +7045,7 @@ function App() {
                       setShowQRModal(true);
                       const slug = storeSlug || getStoreSlug();
                       if (slug) {
-                        window.history.pushState({}, '', `/${slug}/about/qrcode`);
+                        window.history.pushState({}, '', `/${slug}/about/share`);
                       }
                     }}
                     onToast={showToast} 

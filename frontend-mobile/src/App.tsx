@@ -3020,12 +3020,12 @@ function App() {
         } else if (sub === 'about') {
           setActiveTab('about');
           const subSub = parts[2];
-          if (subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'qrcode') {
+          if (subSub === 'share' || subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'share' || urlParams.get('sub') === 'qrcode') {
             setAboutSubView('qrcode');
           } else {
             setAboutSubView('main');
           }
-        } else if (sub === 'qrcode' || sub === 'qr') {
+        } else if (sub === 'share' || sub === 'qrcode' || sub === 'qr') {
           setActiveTab('about');
           setAboutSubView('qrcode');
         } else if (sub === 'sightings') setActiveTab('sightings');
@@ -3139,12 +3139,12 @@ function App() {
         } else if (parts.length >= 2 && parts[1] === 'about') {
           setActiveTab('about');
           const subSub = parts[2];
-          if (subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'qrcode') {
+          if (subSub === 'share' || subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'share' || urlParams.get('sub') === 'qrcode') {
             setAboutSubView('qrcode');
           } else {
             setAboutSubView('main');
           }
-        } else if (parts.length >= 2 && (parts[1] === 'qrcode' || parts[1] === 'qr')) {
+        } else if (parts.length >= 2 && (parts[1] === 'share' || parts[1] === 'qrcode' || parts[1] === 'qr')) {
           setActiveTab('about');
           setAboutSubView('qrcode');
         }
@@ -10264,7 +10264,7 @@ function App() {
                   setAboutSubView('qrcode');
                   const slug = storeSlug || getStoreSlug();
                   if (slug) {
-                    window.history.pushState({}, '', `/${slug}/about/qrcode`);
+                    window.history.pushState({}, '', `/${slug}/about/share`);
                   }
                 }}
                 onToast={showToast} 
