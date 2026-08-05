@@ -95,7 +95,11 @@ import {
   BellRing,
   PackageCheck,
   BadgeCheck,
-  LifeBuoy
+  LifeBuoy,
+  Trees,
+  Sunset,
+  Waves,
+  Flower2
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -11445,19 +11449,20 @@ function App() {
 
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                                 {[
-                                  { id: 'emerald', name: '🌲 Midnight Emerald', desc: 'Sleek Dark Glass & Emerald Precision', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a' },
-                                  { id: 'cyberpunk', name: '🍇 Cyberpunk Neon', desc: 'Futuristic Royal Violet & Cyan Glow', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a' },
-                                  { id: 'sunset', name: '🌅 Warm Sunset', desc: 'Luxury Dark Onyx, Amber Gold & Coral', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411' },
-                                  { id: 'ocean', name: '🌊 Oceanic Azure', desc: 'Fresh Corporate Deep Blue & Sky Cyan', bg: '#081021', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38' },
-                                  { id: 'pastel', name: '🌸 Pastel Bloom', desc: 'Soft Aesthetic Light Mode & Rose Pink', bg: '#f8fafc', primary: '#e11d48', accent: '#f59e0b', cardBg: '#ffffff', light: true }
+                                  { id: 'emerald', name: 'Midnight Emerald', desc: 'Sleek Dark Glass & Emerald Precision', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a', IconComponent: Trees },
+                                  { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Futuristic Royal Violet & Cyan Glow', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a', IconComponent: Zap },
+                                  { id: 'sunset', name: 'Warm Sunset', desc: 'Luxury Dark Onyx, Amber Gold & Coral', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411', IconComponent: Sunset },
+                                  { id: 'ocean', name: 'Oceanic Azure', desc: 'Fresh Corporate Deep Blue & Sky Cyan', bg: '#081021', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38', IconComponent: Waves },
+                                  { id: 'pastel', name: 'Pastel Bloom', desc: 'Soft Aesthetic Light Mode & Rose Pink', bg: '#f8fafc', primary: '#e11d48', accent: '#f59e0b', cardBg: '#ffffff', light: true, IconComponent: Flower2 }
                                 ].map(t => {
                                   const isActive = (settingsForm.store_theme || 'emerald') === t.id;
+                                  const IconComp = t.IconComponent;
                                   return (
                                     <div 
                                       key={t.id}
                                       onClick={() => handleThemeSelect(t.id, t.name)}
                                       style={{
-                                        padding: '1rem',
+                                        padding: '0.9rem',
                                         borderRadius: '0.85rem',
                                         border: isActive ? `2px solid ${t.primary}` : '1px solid var(--border-light)',
                                         background: t.cardBg,
@@ -11472,14 +11477,29 @@ function App() {
                                         touchAction: 'manipulation'
                                       }}
                                     >
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                                        <div style={{ display: 'flex', gap: '4px', background: t.bg, padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
-                                          <span style={{ width: '15px', height: '15px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 6px ${t.primary}` }} />
-                                          <span style={{ width: '15px', height: '15px', borderRadius: '50%', backgroundColor: t.accent }} />
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: 0 }}>
+                                        <div style={{
+                                          width: '34px',
+                                          height: '34px',
+                                          borderRadius: '8px',
+                                          backgroundColor: `${t.primary}20`,
+                                          border: `1px solid ${t.primary}40`,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: t.primary,
+                                          boxShadow: `0 4px 10px ${t.primary}25`,
+                                          flexShrink: 0
+                                        }}>
+                                          <IconComp size={16} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '3px', background: t.bg, padding: '4px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+                                          <span style={{ width: '13px', height: '13px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 5px ${t.primary}` }} />
+                                          <span style={{ width: '13px', height: '13px', borderRadius: '50%', backgroundColor: t.accent }} />
                                         </div>
                                         <div style={{ minWidth: 0, flex: 1 }}>
-                                          <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
-                                          <span style={{ fontSize: '0.7rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
+                                          <span style={{ fontSize: '0.68rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {t.desc}
                                           </span>
                                         </div>
