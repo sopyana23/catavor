@@ -1409,36 +1409,7 @@ export function QRCodeMobileSubPage({
   };
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.25rem 0' }}>
-      {/* Sub-Header Navigation Bar (Integrated cleanly into mobile tab) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.4rem 0.85rem',
-            borderRadius: '2rem',
-            backgroundColor: 'var(--bg-card-hover)',
-            border: '1px solid var(--border-light)',
-            color: 'var(--text-primary)',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            WebkitTapHighlightColor: 'transparent'
-          }}
-        >
-          <ArrowLeft size={16} />
-          <span>Kembali</span>
-        </button>
-
-        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
-          Kode QR Katalog
-        </span>
-      </div>
-
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.25rem 0 1.25rem 0' }}>
       {/* Premium Pass Card */}
       <div 
         className="glass-panel" 
@@ -9076,6 +9047,47 @@ function App() {
         <header className="mobile-header sticky-header">
           <div className="container">
             {(() => {
+              // About Page Sub-View: QR Code Sub-Page Header
+              if (activeTab === 'about' && aboutSubView === 'qrcode') {
+                return (
+                  <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '0.6rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setAboutSubView('main')}
+                      className="btn-back-circle"
+                      title="Kembali ke Tentang Kami"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                      <span style={{ 
+                        fontSize: '0.94rem', 
+                        fontWeight: 800, 
+                        color: 'var(--text-primary)', 
+                        letterSpacing: '-0.01em',
+                        fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif",
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        textAlign: 'left'
+                      }}>
+                        Kode QR Katalog Toko
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="header-share-btn"
+                      onClick={handleShareStore}
+                      title="Bagikan Link Toko"
+                    >
+                      <Share2 size={16} style={{ color: 'var(--primary)' }} />
+                    </button>
+                  </div>
+                );
+              }
+
               // Admin Panel Sub-Pages Header (Hides store title & share button, shows back button + menu title + action button)
               if (activeTab === 'admin' && adminSubTab !== 'menu') {
                 return (
