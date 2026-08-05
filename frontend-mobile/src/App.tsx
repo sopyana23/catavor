@@ -10229,10 +10229,10 @@ function App() {
                 </p>
               )}
 
-              {/* Value Cards & Disclaimer (100% Hidden if empty) */}
-              {(hasCards || hasDisclaimer) && (
+              {/* Value Cards (100% Hidden if empty) */}
+              {hasCards && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
-                  {hasCards && parsedCards.map((card: any, idx: number) => (
+                  {parsedCards.map((card: any, idx: number) => (
                     <div key={idx} className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
                       <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
                         {getPremiumIcon(card)}
@@ -10243,18 +10243,6 @@ function App() {
                       </div>
                     </div>
                   ))}
-                  
-                  {hasDisclaimer && (
-                    <div className="glass-panel" style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
-                      <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
-                        <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.2rem', marginTop: '0.1rem' }}>Komitmen &amp; Disclaimer</h4>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>{settings.about_disclaimer}</p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -11621,16 +11609,7 @@ function App() {
                                 />
                               </div>
 
-                              <div className="form-group">
-                                <label className="form-label">Teks Disclaimer Perlindungan / Legal</label>
-                                <textarea 
-                                  rows={3}
-                                  className="form-input" 
-                                  placeholder="Disclaimer legal, perlindungan konsumen, atau regulasi..."
-                                  value={settingsForm.about_disclaimer || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_disclaimer: e.target.value })}
-                                />
-                              </div>
+
 
                               {/* About Cards Builder */}
                               <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1rem' }}>

@@ -7023,35 +7023,22 @@ function App() {
                     </p>
                   )}
 
-                  {/* Value Cards & Disclaimer (100% Hidden if empty) */}
-                  {(hasCards || hasDisclaimer) && (
+                  {/* Value Cards (100% Hidden if empty) */}
+                  {hasCards && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                      {hasCards && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                          {parsedCards.map((card: any, idx: number) => (
-                            <div key={idx} className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                              <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
-                                {renderAboutIcon(card.icon, 22)}
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>{cleanEmoji(card.title)}</h4>
-                                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{card.content}</p>
-                              </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                        {parsedCards.map((card: any, idx: number) => (
+                          <div key={idx} className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                            <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
+                              {renderAboutIcon(card.icon, 22)}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {hasDisclaimer && (
-                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                          <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
-                            <ShieldCheck size={24} style={{ color: 'var(--primary)' }} />
+                            <div style={{ flex: 1 }}>
+                              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>{cleanEmoji(card.title)}</h4>
+                              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{card.content}</p>
+                            </div>
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>Komitmen &amp; Disclaimer</h4>
-                          </div>
-                        </div>
-                      )}
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -8504,16 +8491,7 @@ function App() {
                             />
                           </div>
 
-                          <div className="form-group">
-                            <label className="form-label">Teks Disclaimer Perlindungan / Legal</label>
-                            <textarea 
-                              rows={3}
-                              className="form-input" 
-                              placeholder="Disclaimer legal, perlindungan konsumen, atau regulasi..."
-                              value={settingsForm.about_disclaimer || ''}
-                              onChange={(e) => setSettingsForm({ ...settingsForm, about_disclaimer: e.target.value })}
-                            />
-                          </div>
+
 
                           {/* Dynamic About Cards Builder */}
                           <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
