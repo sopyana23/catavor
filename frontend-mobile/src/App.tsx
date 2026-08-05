@@ -11641,10 +11641,16 @@ function App() {
 
                               {/* Dynamic Social Links Builder */}
                               <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.85rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Tautan Media Sosial Resmi:</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                                  <div>
+                                    <label className="form-label" style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800 }}>Tautan Media Sosial Resmi</label>
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                      Hubungkan akun Instagram, TikTok, Facebook, YouTube, dll.
+                                    </span>
+                                  </div>
                                   <button
                                     type="button"
+                                    className="btn-primary"
                                     onClick={() => {
                                       const currentLinks = (() => {
                                         try {
@@ -11660,17 +11666,15 @@ function App() {
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: '0.25rem',
-                                      padding: '0.3rem 0.65rem',
-                                      fontSize: '0.7rem',
-                                      fontWeight: 700,
-                                      backgroundColor: 'var(--primary-glow)',
-                                      color: 'var(--primary)',
-                                      border: '1px solid var(--border-light)',
-                                      borderRadius: '0.25rem',
-                                      cursor: 'pointer'
+                                      padding: '0.35rem 0.65rem',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 800,
+                                      borderRadius: '0.35rem',
+                                      cursor: 'pointer',
+                                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
                                     }}
                                   >
-                                    <Plus size={10} /> Tambah
+                                    <Plus size={12} /> Tambah
                                   </button>
                                 </div>
 
@@ -11685,9 +11689,59 @@ function App() {
 
                                   if (currentLinks.length === 0) {
                                     return (
-                                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                                        Belum ada tautan media sosial.
-                                      </p>
+                                      <div style={{
+                                        padding: '1rem',
+                                        borderRadius: '0.65rem',
+                                        backgroundColor: 'var(--primary-glow)',
+                                        border: '2px dashed var(--primary)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        textAlign: 'center',
+                                        gap: '0.75rem',
+                                        marginBottom: '1rem',
+                                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.1)'
+                                      }}>
+                                        <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
+                                          <Share2 size={20} />
+                                        </div>
+                                        <div>
+                                          <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: 'var(--text-primary)' }}>
+                                            Belum Ada Tautan Media Sosial Resmi
+                                          </h4>
+                                          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                                            Hubungkan akun Instagram, TikTok, Facebook, YouTube, atau WhatsApp toko Anda agar pengunjung mudah terhubung.
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="btn-primary"
+                                          onClick={() => {
+                                            const currentLinks = (() => {
+                                              try {
+                                                return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
+                                              } catch (e) {
+                                                return [];
+                                              }
+                                            })();
+                                            const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
+                                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                          }}
+                                          style={{
+                                            width: '100%',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.4rem',
+                                            padding: '0.6rem 1rem',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 800,
+                                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                          }}
+                                        >
+                                          <Plus size={15} /> Tambah Sosmed Sekarang
+                                        </button>
+                                      </div>
                                     );
                                   }
 
