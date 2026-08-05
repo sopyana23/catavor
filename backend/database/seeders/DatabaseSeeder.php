@@ -42,7 +42,7 @@ class DatabaseSeeder extends Seeder
             'about_slogan' => 'Komitmen Layanan Profesional & Kualitas Terbaik',
             'about_description' => 'Selamat datang di Catavor. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '',
-            'about_hours' => '08:00 - 21:00 WIB (Senin - Minggu)',
+            'about_hours' => '',
             'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
                 ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
