@@ -2290,7 +2290,7 @@ function App() {
       }
     } catch {}
     return {
-      whatsapp_number: '628123456789',
+      whatsapp_number: '',
       store_slogan: 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis. & Pengiriman Seluruh Indonesia',
       promo_banner: '',
       articles_enabled: '1',
@@ -3158,7 +3158,7 @@ function App() {
             plan: store.plan || 'free',
             enable_wa_direct: store.enable_wa_direct !== undefined ? store.enable_wa_direct : true,
             enable_wa_rekber: store.enable_wa_rekber !== undefined ? store.enable_wa_rekber : true,
-            whatsapp_number: store.whatsapp_number || '628123456789',
+            whatsapp_number: store.whatsapp_number || '',
             store_slogan: store.store_slogan || 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
             promo_banner: store.promo_banner || '',
             articles_enabled: '0', // force articles module hidden
@@ -7279,35 +7279,50 @@ function App() {
                           </div>
                         )}
 
-                        {/* Rekber Option */}
-                        <a 
-                          href={`https://wa.me/${settings.whatsapp_number}?text=Halo%20${encodeURIComponent(settings.store_title || 'Catavor')}%2C%20saya%20ingin%20membeli%20hewan%20${encodeURIComponent(selectedFauna.name)}%20yang%20dijual%20dengan%20harga%20${encodeURIComponent(formatRupiah(selectedFauna.price))}%20menggunakan%20layanan%20Rekber%20Syariah%20(rekbersyariah.com).%20Mohon%20info%20prosedurnya.`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                        >
-                          <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
-                          <div style={{ flex: 1, textAlign: 'left' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block' }}>Chat WA & Rekber Syariah</span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Gunakan Rekening Bersama Syariah (Sangat Aman)</span>
-                          </div>
-                          <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-                        </a>
+                        {/* WhatsApp Purchase Options (Only if whatsapp_number is filled by user) */}
+                        {settings.whatsapp_number && settings.whatsapp_number.trim() ? (
+                          <>
+                            {/* Rekber Option */}
+                            {settings.enable_wa_rekber && (
+                              <a 
+                                href={`https://wa.me/${settings.whatsapp_number}?text=Halo%20${encodeURIComponent(settings.store_title || 'Catavor')}%2C%20saya%20ingin%20membeli%20hewan%20${encodeURIComponent(selectedFauna.name)}%20yang%20dijual%20dengan%20harga%20${encodeURIComponent(formatRupiah(selectedFauna.price))}%20menggunakan%20layanan%20Rekber%20Syariah%20(rekbersyariah.com).%20Mohon%20info%20prosedurnya.`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                              >
+                                <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
+                                <div style={{ flex: 1, textAlign: 'left' }}>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block' }}>Chat WA &amp; Rekber Syariah</span>
+                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Gunakan Rekening Bersama Syariah (Sangat Aman)</span>
+                                </div>
+                                <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                              </a>
+                            )}
 
-                        {/* WA Direct Option */}
-                        <a 
-                          href={`https://wa.me/${settings.whatsapp_number}?text=Halo%20${encodeURIComponent(settings.store_title || 'Catavor')}%2C%20saya%20tertarik%20untuk%20membeli%20langsung%20hewan%20${encodeURIComponent(selectedFauna.name)}%20yang%20dijual%20dengan%20harga%20${encodeURIComponent(formatRupiah(selectedFauna.price))}%20tanpa%20melalui%20rekber.`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                        >
-                          <MessageCircle size={18} style={{ color: 'var(--text-muted)' }} />
-                          <div style={{ flex: 1, textAlign: 'left' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block' }}>Chat WA (Transaksi Langsung)</span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Hubungi kami langsung via chat WhatsApp</span>
+                            {/* WA Direct Option */}
+                            {settings.enable_wa_direct && (
+                              <a 
+                                href={`https://wa.me/${settings.whatsapp_number}?text=Halo%20${encodeURIComponent(settings.store_title || 'Catavor')}%2C%20saya%20tertarik%20untuk%20membeli%20langsung%20hewan%20${encodeURIComponent(selectedFauna.name)}%20yang%20dijual%20dengan%20harga%20${encodeURIComponent(formatRupiah(selectedFauna.price))}%20tanpa%20melalui%20rekber.`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                              >
+                                <MessageCircle size={18} style={{ color: 'var(--text-muted)' }} />
+                                <div style={{ flex: 1, textAlign: 'left' }}>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block' }}>Chat WA (Transaksi Langsung)</span>
+                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Hubungi kami langsung via chat WhatsApp</span>
+                                </div>
+                                <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                              </a>
+                            )}
+                          </>
+                        ) : (
+                          <div style={{ padding: '0.85rem 1rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              Pemilik katalog belum mencantumkan nomor WhatsApp resmi.
+                            </p>
                           </div>
-                          <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-                        </a>
+                        )}
                       </div>
 
                       <button 

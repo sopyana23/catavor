@@ -2031,7 +2031,7 @@ function App() {
       }
     } catch {}
     return {
-      whatsapp_number: '628123456789',
+      whatsapp_number: '',
       store_slogan: 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis. & Pengiriman Seluruh Indonesia',
       promo_banner: '',
       articles_enabled: '1',
@@ -2746,7 +2746,7 @@ function App() {
             plan: store.plan || 'free',
             enable_wa_direct: store.enable_wa_direct !== undefined ? store.enable_wa_direct : true,
             enable_wa_rekber: store.enable_wa_rekber !== undefined ? store.enable_wa_rekber : true,
-            whatsapp_number: store.whatsapp_number || '628123456789',
+            whatsapp_number: store.whatsapp_number || '',
             store_slogan: store.store_slogan || 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
             promo_banner: store.promo_banner || '',
             articles_enabled: '0', // force articles module hidden
