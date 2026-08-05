@@ -265,14 +265,14 @@ const INITIAL_TICKETS: SupportTicket[] = [
 ];
 
 export const ABOUT_ICONS_OPTIONS = [
-  { key: 'shield', label: '🛡️ Garansi / Keamanan' },
-  { key: 'lock', label: '🔒 Transaksi / Terpercaya' },
-  { key: 'message', label: '💬 Konsultasi / Chat' },
-  { key: 'heart', label: '❤️ Kesehatan / Kasih Sayang' },
-  { key: 'truck', label: '🚚 Pengiriman / Delivery' },
-  { key: 'sparkles', label: '✨ Kualitas / Premium' },
-  { key: 'star', label: '⭐ Rekomendasi / Terbaik' },
-  { key: 'compass', label: '🧭 Eksplorasi / Visi' }
+  { key: 'shield', label: 'Garansi / Keamanan' },
+  { key: 'lock', label: 'Transaksi / Terpercaya' },
+  { key: 'message', label: 'Konsultasi / Chat' },
+  { key: 'heart', label: 'Kesehatan / Kasih Sayang' },
+  { key: 'truck', label: 'Pengiriman / Delivery' },
+  { key: 'sparkles', label: 'Kualitas / Premium' },
+  { key: 'star', label: 'Rekomendasi / Terbaik' },
+  { key: 'compass', label: 'Eksplorasi / Visi' }
 ];
 
 // Helper for adaptive desktop header scale based on title length
@@ -302,13 +302,13 @@ export const renderAboutIcon = (key: string, size = 20, color = 'var(--primary)'
 };
 
 export const SOCIAL_MEDIA_OPTIONS = [
-  { key: 'Instagram', label: '📸 Instagram' },
-  { key: 'Facebook', label: '👥 Facebook' },
-  { key: 'TikTok', label: '🎵 TikTok' },
-  { key: 'Youtube', label: '🎥 YouTube' },
-  { key: 'Twitter', label: '🐦 Twitter / X' },
-  { key: 'LinkedIn', label: '💼 LinkedIn' },
-  { key: 'Telegram', label: '✈️ Telegram' }
+  { key: 'Instagram', label: 'Instagram' },
+  { key: 'Facebook', label: 'Facebook' },
+  { key: 'TikTok', label: 'TikTok' },
+  { key: 'Youtube', label: 'YouTube' },
+  { key: 'Twitter', label: 'Twitter / X' },
+  { key: 'LinkedIn', label: 'LinkedIn' },
+  { key: 'Telegram', label: 'Telegram' }
 ];
 
 export const getPlatformBrandColor = (platform: string) => {
