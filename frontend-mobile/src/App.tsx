@@ -11162,7 +11162,7 @@ function App() {
                         </div>
                         <div style={{ flex: 1 }}>
                           <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Profil &amp; Identitas Utama</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Nama katalog, slogan, logo resmi, banner promo</p>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Nama katalog, slogan, logo resmi</p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </div>
@@ -11404,16 +11404,7 @@ function App() {
                                 />
                               </div>
 
-                              <div className="form-group">
-                                <label className="form-label">Banner Promo / Pengumuman</label>
-                                <textarea 
-                                  rows={3}
-                                  className="form-input" 
-                                  placeholder="Tulis detail promo atau pengumuman di sini..."
-                                  value={settingsForm.promo_banner || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, promo_banner: e.target.value })}
-                                />
-                              </div>
+
                             </div>
                           )}
 

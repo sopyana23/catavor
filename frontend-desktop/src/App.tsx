@@ -7173,44 +7173,7 @@ function App() {
               </p>
             </section>
 
-            {/* Dynamic Promo Banner */}
-            {settings.promo_banner && settings.promo_banner.trim() !== '' && (
-              <div 
-                className="glass-panel" 
-                style={{ 
-                  padding: '1.25rem 2rem', 
-                  borderRadius: '1rem', 
-                  border: '1px dashed var(--primary)', 
-                  backgroundColor: 'rgba(16, 185, 129, 0.04)', 
-                  marginBottom: '2rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem'
-                }}
-              >
-                <div style={{ 
-                  backgroundColor: 'var(--primary)', 
-                  color: '#0b0e0c', 
-                  borderRadius: '50%', 
-                  width: '36px', 
-                  height: '36px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  fontSize: '1.1rem',
-                  fontWeight: 'bold'
-                }}>
-                  %
-                </div>
-                <div>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Promo Spesial Hari Ini!</h4>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0, whiteSpace: 'pre-wrap' }}>
-                    {settings.promo_banner}
-                  </p>
-                </div>
-              </div>
-            )}
+
 
             {/* Loading & Error States */}
             {loading && (
@@ -8278,16 +8241,6 @@ function App() {
                             />
                           </div>
 
-                          <div className="form-group">
-                            <label className="form-label">Banner Promo / Pengumuman (Kosongkan jika tidak ada)</label>
-                            <textarea 
-                              rows={3}
-                              className="form-input" 
-                              placeholder="Tulis detail promo atau pengumuman penting di sini..."
-                              value={settingsForm.promo_banner}
-                              onChange={(e) => setSettingsForm({ ...settingsForm, promo_banner: e.target.value })}
-                            />
-                          </div>
                         </div>
                       )}
 
