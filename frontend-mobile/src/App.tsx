@@ -163,6 +163,8 @@ interface ShopSettings {
   about_description?: string
   about_cards?: string
   about_location?: string
+  about_maps_url?: string
+  enable_maps?: boolean
   about_hours?: string
   show_hours?: boolean
   about_disclaimer?: string
@@ -651,6 +653,401 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
   );
 }
 
+export const getGoogleMapsEmbedUrl = (mapsUrl?: string, locationText?: string): string => {
+  if (mapsUrl && mapsUrl.trim() !== '') {
+    const raw = mapsUrl.trim();
+    if (raw.includes('src="') || raw.includes("src='")) {
+      const match = raw.match(/src=["']([^"']+)["']/);
+      if (match && match[1]) return match[1];
+    }
+    if (raw.includes('maps/embed')) return raw;
+    if (raw.includes('google.com/maps') || raw.includes('maps.app.goo.gl')) {
+      return `https://maps.google.com/maps?q=${encodeURIComponent(raw)}&output=embed`;
+    }
+  }
+  if (locationText && locationText.trim() !== '') {
+    return `https://maps.google.com/maps?q=${encodeURIComponent(locationText.trim())}&output=embed`;
+  }
+  return '';
+};
+
+export const getGoogleMapsDirectUrl = (mapsUrl?: string, locationText?: string): string => {
+  if (mapsUrl && mapsUrl.trim() !== '') {
+    const raw = mapsUrl.trim();
+    if (!raw.includes('src=')) return raw;
+    const match = raw.match(/src=["']([^"']+)["']/);
+    if (match && match[1]) return match[1];
+  }
+  if (locationText && locationText.trim() !== '') {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationText.trim())}`;
+  }
+  return 'https://maps.google.com';
+};
+
+export function LocationAutocompleteInput({
+  value,
+  onChange,
+  placeholder = "Contoh: Jl. Riau No. 123, Bandung, Jawa Barat"
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}) {
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchSuggestions = useMemo(() => {
+    let timeoutId: any = null;
+    return (query: string) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (!query || query.trim().length < 3) {
+        setSuggestions([]);
+        setShowDropdown(false);
+        return;
+      }
+      timeoutId = setTimeout(async () => {
+        setLoading(true);
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=id`);
+          if (res.ok) {
+            const data = await res.json();
+            setSuggestions(Array.isArray(data) ? data : []);
+            setShowDropdown(Array.isArray(data) && data.length > 0);
+          }
+        } catch (e) {
+          // ignore
+        } finally {
+          setLoading(false);
+        }
+      }, 400);
+    };
+  }, []);
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input
+          type="text"
+          className="form-input"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            fetchSuggestions(e.target.value);
+          }}
+          onFocus={() => {
+            if (suggestions.length > 0) setShowDropdown(true);
+          }}
+          style={{ width: '100%', paddingRight: loading ? '2rem' : '0.65rem' }}
+        />
+        {loading && (
+          <div style={{ position: 'absolute', right: '0.6rem', color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>
+            <Loader size={14} className="animate-spin" />
+          </div>
+        )}
+      </div>
+
+      {showDropdown && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          right: 0,
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
+          borderRadius: '0.55rem',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+          zIndex: 99,
+          maxHeight: '220px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ padding: '0.35rem 0.6rem', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border-light)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            📍 Rekomendasi Lokasi Terdeteksi (Klik untuk Pilih)
+          </div>
+          {suggestions.map((item, index) => {
+            const displayName = item.display_name;
+            return (
+              <div
+                key={index}
+                onClick={() => {
+                  onChange(displayName);
+                  setShowDropdown(false);
+                }}
+                style={{
+                  padding: '0.55rem 0.65rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  borderBottom: index < suggestions.length - 1 ? '1px solid var(--border-light)' : 'none',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.45rem',
+                  transition: 'background-color 0.15s ease'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-glow)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '0.15rem' }} />
+                <span style={{ lineHeight: 1.3 }}>{displayName}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function GoogleMapsLocationBuilder({
+  locationText,
+  mapsUrl,
+  enableMaps,
+  onLocationChange,
+  onMapsUrlChange,
+  onEnableMapsChange
+}: {
+  locationText: string;
+  mapsUrl: string;
+  enableMaps: boolean;
+  onLocationChange: (val: string) => void;
+  onMapsUrlChange: (val: string) => void;
+  onEnableMapsChange: (val: boolean) => void;
+}) {
+  const [precisionMode, setPrecisionMode] = useState<'auto' | 'custom'>(
+    mapsUrl && mapsUrl.trim() !== '' ? 'custom' : 'auto'
+  );
+
+  const embedUrl = getGoogleMapsEmbedUrl(precisionMode === 'custom' ? mapsUrl : '', locationText);
+  const directUrl = getGoogleMapsDirectUrl(precisionMode === 'custom' ? mapsUrl : '', locationText);
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.85rem',
+      padding: '0.95rem',
+      borderRadius: '0.75rem',
+      border: '1px solid var(--border-light)',
+      backgroundColor: 'var(--bg-card)',
+      width: '100%',
+      boxSizing: 'border-box'
+    }}>
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <MapPin size={15} style={{ color: 'var(--primary)' }} /> Alamat Lengkap Fisik / Toko *
+        </label>
+        <LocationAutocompleteInput
+          value={locationText}
+          onChange={onLocationChange}
+          placeholder="Contoh: Jl. Riau No. 123, Bandung, Jawa Barat"
+        />
+        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+          💡 Ketik alamat untuk mendapat bantuan rekomendasi titik lokasi akurat.
+        </span>
+      </div>
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.75rem',
+        padding: '0.65rem 0.85rem',
+        borderRadius: '0.65rem',
+        backgroundColor: enableMaps ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+        border: '1px solid var(--border-light)',
+        transition: 'all 0.25s ease',
+        marginTop: '0.25rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
+          <MapPin size={18} style={{ color: enableMaps ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Peta Lokasi Google Maps
+            </span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+              {enableMaps ? 'Peta Google Maps aktif & ditampilkan pada katalog publik' : 'Peta disembunyikan (Hanya teks alamat)'}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <span style={{
+            fontSize: '0.65rem',
+            fontWeight: 800,
+            color: enableMaps ? 'var(--primary)' : 'var(--text-muted)',
+            padding: '0.15rem 0.5rem',
+            borderRadius: '12px',
+            backgroundColor: enableMaps ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+            border: enableMaps ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-light)'
+          }}>
+            {enableMaps ? 'TAMPIL' : 'SEMBUNYI'}
+          </span>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enableMaps}
+            onClick={() => onEnableMapsChange(!enableMaps)}
+            style={{
+              width: '44px',
+              height: '24px',
+              borderRadius: '14px',
+              backgroundColor: enableMaps ? 'var(--primary)' : 'rgba(255, 255, 255, 0.2)',
+              border: enableMaps ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+              padding: '2px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: enableMaps ? 'flex-end' : 'flex-start',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
+          >
+            <div style={{
+              width: '18px',
+              height: '18px',
+              borderRadius: '50%',
+              backgroundColor: '#ffffff',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+            }} />
+          </button>
+        </div>
+      </div>
+
+      {enableMaps ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              🎯 Pilihan Akurasi Titik Peta:
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrecisionMode('auto');
+                  onMapsUrlChange('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.4rem 0.65rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  borderRadius: '0.45rem',
+                  border: precisionMode === 'auto' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  backgroundColor: precisionMode === 'auto' ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+                  color: precisionMode === 'auto' ? 'var(--primary)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  textAlign: 'center'
+                }}
+              >
+                ⚡ Otomatis dari Alamat Teks
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrecisionMode('custom')}
+                style={{
+                  flex: 1,
+                  padding: '0.4rem 0.65rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  borderRadius: '0.45rem',
+                  border: precisionMode === 'custom' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  backgroundColor: precisionMode === 'custom' ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+                  color: precisionMode === 'custom' ? 'var(--primary)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  textAlign: 'center'
+                }}
+              >
+                📍 Link Google Maps Kustom (Presisi)
+              </button>
+            </div>
+          </div>
+
+          {precisionMode === 'custom' && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.7rem' }}>
+                Tautan / Link Google Maps Toko *
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Contoh: https://maps.app.goo.gl/xyz... atau https://google.com/maps/place/..."
+                value={mapsUrl}
+                onChange={(e) => onMapsUrlChange(e.target.value)}
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
+              />
+              <span style={{ fontSize: '0.67rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'block' }}>
+                📌 Panduan: Buka aplikasi/website Google Maps -&gt; Cari titik lokasi toko Anda -&gt; Klik <b>Bagikan</b> -&gt; Salin Tautan.
+              </span>
+            </div>
+          )}
+
+          {embedUrl ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              borderRadius: '0.65rem',
+              border: '1px solid var(--border-light)',
+              overflow: 'hidden',
+              backgroundColor: 'var(--bg-card-hover)',
+              padding: '0.65rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Eye size={13} style={{ color: 'var(--primary)' }} /> Live Preview Tampilan Peta
+                </span>
+                <a
+                  href={directUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                >
+                  Buka Peta Utuh <ExternalLink size={11} />
+                </a>
+              </div>
+
+              <div style={{ width: '100%', height: '180px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                <iframe
+                  title="Google Maps Preview"
+                  src={embedUrl}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '0.6rem 0.85rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.72rem', fontStyle: 'italic', backgroundColor: 'var(--bg-card-hover)', borderRadius: '0.5rem', border: '1px dashed var(--border-light)' }}>
+              Masukkan alamat teks atau link Google Maps di atas untuk melihat preview peta lokasi.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ padding: '0.6rem 0.85rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.74rem', fontWeight: 500, backgroundColor: 'var(--bg-card-hover)', borderRadius: '0.5rem', border: '1px dashed var(--border-light)' }}>
+          🔒 Peta lokasi disembunyikan. Hanya teks alamat yang terlihat pada katalog publik.
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ShopSettings {
   plan?: string
   enable_wa_direct?: boolean
@@ -664,6 +1061,8 @@ interface ShopSettings {
   about_description?: string
   about_cards?: string
   about_location?: string
+  about_maps_url?: string
+  enable_maps?: boolean
   about_hours?: string
   show_hours?: boolean
   about_disclaimer?: string
@@ -3567,6 +3966,8 @@ function App() {
             about_description: store.about_description || '',
             about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
             about_location: store.about_location || '',
+            about_maps_url: store.about_maps_url || '',
+            enable_maps: store.enable_maps !== undefined ? Boolean(store.enable_maps) : false,
             about_hours: store.about_hours || '',
             show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : false,
             about_disclaimer: store.about_disclaimer || '',
@@ -4754,6 +5155,8 @@ function App() {
           about_description: store.about_description || '',
           about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
           about_location: store.about_location || '',
+          about_maps_url: store.about_maps_url || '',
+          enable_maps: store.enable_maps !== undefined ? Boolean(store.enable_maps) : false,
           about_hours: store.about_hours || '',
           show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : false,
           about_disclaimer: store.about_disclaimer || '',
@@ -10387,14 +10790,78 @@ function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {/* Lokasi (100% Hidden if empty - no fallback) */}
                     {hasLocation && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
-                          <MapPin size={16} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
+                            <MapPin size={16} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location}</span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location}</span>
-                        </div>
+
+                        {settings.enable_maps && (
+                          <div style={{
+                            borderRadius: '0.75rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            overflow: 'hidden',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            flexDirection: 'column'
+                          }}>
+                            <div style={{ width: '100%', height: '200px', position: 'relative' }}>
+                              <iframe
+                                title="Google Maps Location"
+                                src={getGoogleMapsEmbedUrl(settings.about_maps_url, settings.about_location)}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 0 }}
+                                loading="lazy"
+                                allowFullScreen
+                              />
+                            </div>
+
+                            <div style={{
+                              padding: '0.65rem 0.85rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              backgroundColor: 'var(--bg-card-hover)',
+                              borderTop: '1px solid var(--border-light)'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <MapPin size={14} style={{ color: 'var(--primary)' }} />
+                                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Petunjuk Arah Peta
+                                </span>
+                              </div>
+
+                              <a
+                                href={getGoogleMapsDirectUrl(settings.about_maps_url, settings.about_location)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  color: 'var(--primary)',
+                                  backgroundColor: 'var(--primary-glow)',
+                                  padding: '0.3rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  border: '1px solid var(--border-light)',
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                <span>Buka di Google Maps</span>
+                                <ExternalLink size={12} />
+                              </a>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -11566,13 +12033,13 @@ function App() {
                               </div>
 
                               <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.85rem' }}>
-                                <label className="form-label">Lokasi / Alamat Resmi</label>
-                                <input 
-                                  type="text" 
-                                  className="form-input" 
-                                  placeholder="Contoh: Bandung, Jawa Barat, Indonesia"
-                                  value={settingsForm.about_location || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_location: e.target.value })}
+                                <GoogleMapsLocationBuilder
+                                  locationText={settingsForm.about_location || ''}
+                                  mapsUrl={settingsForm.about_maps_url || ''}
+                                  enableMaps={settingsForm.enable_maps ?? false}
+                                  onLocationChange={(val) => setSettingsForm({ ...settingsForm, about_location: val })}
+                                  onMapsUrlChange={(val) => setSettingsForm({ ...settingsForm, about_maps_url: val })}
+                                  onEnableMapsChange={(enable) => setSettingsForm({ ...settingsForm, enable_maps: enable })}
                                 />
                               </div>
 
