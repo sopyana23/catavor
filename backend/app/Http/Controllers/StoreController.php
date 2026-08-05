@@ -341,16 +341,49 @@ class StoreController extends Controller
             $lng = null;
             $placeName = null;
 
-            if (preg_match('/\/place\/([^\/]+)/', $finalUrl, $m)) {
+            // 1. Check /search/lat,lng or /search/lat,+lng
+            if (preg_match('/\/search\/(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/', $finalUrl, $m)) {
+                $lat = $m[1];
+                $lng = $m[2];
+            }
+            // 2. Check /place/Name
+            elseif (preg_match('/\/place\/([^\/]+)/', $finalUrl, $m)) {
+                $placeName = urldecode(str_replace('+', ' ', $m[1]));
+            }
+            // 3. Check /search/Name
+            elseif (preg_match('/\/search\/([^\/?]+)/', $finalUrl, $m)) {
                 $placeName = urldecode(str_replace('+', ' ', $m[1]));
             }
 
-            if (preg_match('/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/', $finalUrl, $m)) {
-                $lat = $m[1];
-                $lng = $m[2];
-            } elseif (preg_match('/@(-?\d+\.\d+),(-?\d+\.\d+)/', $finalUrl, $m)) {
-                $lat = $m[1];
-                $lng = $m[2];
+            // Check @lat,lng or !3d!4d if lat/lng not found yet
+            if (!$lat || !$lng) {
+                if (preg_match('/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/', $finalUrl, $m)) {
+                    $lat = $m[1];
+                    $lng = $m[2];
+                } elseif (preg_match('/@(-?\d+\.\d+),(-?\d+\.\d+)/', $finalUrl, $m)) {
+                    $lat = $m[1];
+                    $lng = $m[2];
+                } elseif (preg_match('/[?&](?:q|query)=(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/', $finalUrl, $m)) {
+                    $lat = $m[1];
+                    $lng = $m[2];
+                }
+            }
+
+            // If lat/lng exists but no placeName, try reverse geocoding via Nominatim
+            if ($lat && $lng && !$placeName) {
+                try {
+                    $geoRes = \Illuminate\Support\Facades\Http::withHeaders([
+                        'User-Agent' => 'CatavorApp/1.0'
+                    ])->timeout(3)->get("https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}");
+                    if ($geoRes->ok()) {
+                        $geoData = $geoRes->json();
+                        if (!empty($geoData['display_name'])) {
+                            $placeName = $geoData['display_name'];
+                        }
+                    }
+                } catch (\Exception $ex) {
+                    // ignore fallback failure
+                }
             }
 
             $query = $placeName ?: (($lat && $lng) ? "{$lat},{$lng}" : $cleanUrl);

@@ -618,9 +618,14 @@ export const renderStoreLogo = (logoUrl: string | undefined, className = '', siz
   return null;
 };
 
-export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUrl: string; query: string } => {
+export const parseGoogleMapsUrl = (rawUrl: string, locationText?: string): { embedUrl: string; directUrl: string; query: string } => {
   if (!rawUrl || rawUrl.trim() === '') {
-    return { embedUrl: '', directUrl: '', query: '' };
+    const loc = (locationText && locationText.trim()) ? locationText.trim() : '';
+    return {
+      embedUrl: loc ? `https://maps.google.com/maps?q=${encodeURIComponent(loc)}&t=&z=15&ie=UTF8&iwloc=&output=embed` : '',
+      directUrl: loc ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}` : '',
+      query: loc
+    };
   }
 
   let clean = rawUrl.trim();
@@ -636,6 +641,18 @@ export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUr
     return { embedUrl: clean, directUrl: clean, query: '' };
   }
 
+  const searchCoordsMatch = clean.match(/\/search\/(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/);
+  if (searchCoordsMatch) {
+    const lat = searchCoordsMatch[1];
+    const lng = searchCoordsMatch[2];
+    const query = `${lat},${lng}`;
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+      directUrl: clean,
+      query: query
+    };
+  }
+
   const placeMatch = clean.match(/\/place\/([^/]+)/);
   if (placeMatch) {
     const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
@@ -648,61 +665,52 @@ export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUr
 
   const pbMatch = clean.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
   if (pbMatch) {
-    const query = `${pbMatch[1]},${pbMatch[2]}`;
+    const q = (locationText && locationText.trim()) ? locationText.trim() : `${pbMatch[1]},${pbMatch[2]}`;
     return {
-      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+      embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(q)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
       directUrl: clean,
-      query: query
+      query: q
     };
   }
 
   const atMatch = clean.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (atMatch) {
-    const query = `${atMatch[1]},${atMatch[2]}`;
+    const q = (locationText && locationText.trim()) ? locationText.trim() : `${atMatch[1]},${atMatch[2]}`;
     return {
-      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+      embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(q)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
       directUrl: clean,
-      query: query
+      query: q
     };
   }
 
   const rawCoordsMatch = clean.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
   if (rawCoordsMatch) {
-    const query = `${rawCoordsMatch[1]},${rawCoordsMatch[2]}`;
+    const q = (locationText && locationText.trim()) ? locationText.trim() : `${rawCoordsMatch[1]},${rawCoordsMatch[2]}`;
     return {
-      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
-      directUrl: `https://www.google.com/maps/search/?api=1&query=${query}`,
-      query: query
+      embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(q)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+      directUrl: `https://www.google.com/maps/search/?api=1&query=${rawCoordsMatch[1]},${rawCoordsMatch[2]}`,
+      query: q
     };
   }
 
+  const loc = (locationText && locationText.trim()) ? locationText.trim() : '';
+  const embedQ = loc || clean;
+
   return {
-    embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(clean)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+    embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(embedQ)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
     directUrl: clean.startsWith('http') ? clean : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clean)}`,
-    query: clean
+    query: embedQ
   };
 };
 
 export const getGoogleMapsEmbedUrl = (mapsUrl?: string, locationText?: string): string => {
-  if (mapsUrl && mapsUrl.trim() !== '') {
-    const parsed = parseGoogleMapsUrl(mapsUrl);
-    if (parsed.embedUrl) return parsed.embedUrl;
-  }
-  if (locationText && locationText.trim() !== '') {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(locationText.trim())}&z=16&output=embed`;
-  }
-  return '';
+  const parsed = parseGoogleMapsUrl(mapsUrl || '', locationText);
+  return parsed.embedUrl;
 };
 
 export const getGoogleMapsDirectUrl = (mapsUrl?: string, locationText?: string): string => {
-  if (mapsUrl && mapsUrl.trim() !== '') {
-    const parsed = parseGoogleMapsUrl(mapsUrl);
-    if (parsed.directUrl) return parsed.directUrl;
-  }
-  if (locationText && locationText.trim() !== '') {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationText.trim())}`;
-  }
-  return 'https://maps.google.com';
+  const parsed = parseGoogleMapsUrl(mapsUrl || '', locationText);
+  return parsed.directUrl;
 };
 
 export function LocationAutocompleteInput({

@@ -671,6 +671,18 @@ export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUr
     return { embedUrl: clean, directUrl: clean, query: '' };
   }
 
+  const searchCoordsMatch = clean.match(/\/search\/(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/);
+  if (searchCoordsMatch) {
+    const lat = searchCoordsMatch[1];
+    const lng = searchCoordsMatch[2];
+    const query = `${lat},${lng}`;
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+      directUrl: clean,
+      query: query
+    };
+  }
+
   const placeMatch = clean.match(/\/place\/([^/]+)/);
   if (placeMatch) {
     const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
