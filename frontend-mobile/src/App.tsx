@@ -3017,7 +3017,12 @@ function App() {
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [mobileSettingsTab, setMobileSettingsTab] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master'>('menu')
+  const [mobileSettingsTab, setMobileSettingsTabState] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master'>('menu')
+
+  const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master') => {
+    setMobileSettingsTabState(tab);
+    try { sessionStorage.setItem('catavor_last_mobile_settings_tab', tab); } catch (e) {}
+  };
 
   // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
   useEffect(() => {
@@ -3108,10 +3113,18 @@ function App() {
             setAdminSubTab('settings');
             setView('tabs');
             const sec = subSub || urlParams.get('section');
-            if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
-              setMobileSettingsTab(sec as any);
+            let mappedSec = sec ? sec.toLowerCase().trim() : '';
+            if (mappedSec === 'social') mappedSec = 'contact';
+            if (mappedSec === 'features') mappedSec = 'general';
+            if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
+              setMobileSettingsTab(mappedSec as any);
             } else {
-              setMobileSettingsTab('menu');
+              const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
+              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
+                setMobileSettingsTab(saved as any);
+              } else {
+                setMobileSettingsTab('menu');
+              }
             }
           } else if (pageSub === 'profile') {
             setAdminSubTab('profile');
@@ -3167,8 +3180,18 @@ function App() {
           else if (pageSub === 'settings') {
             setAdminSubTab('settings');
             const sec = urlParams.get('section');
-            if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
-              setMobileSettingsTab(sec as any);
+            let mappedSec = sec ? sec.toLowerCase().trim() : '';
+            if (mappedSec === 'social') mappedSec = 'contact';
+            if (mappedSec === 'features') mappedSec = 'general';
+            if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
+              setMobileSettingsTab(mappedSec as any);
+            } else {
+              const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
+              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
+                setMobileSettingsTab(saved as any);
+              } else {
+                setMobileSettingsTab('menu');
+              }
             }
           } else if (pageSub === 'profile') setAdminSubTab('profile');
           else if (pageSub === 'policies') setAdminSubTab('policies');
@@ -3247,10 +3270,18 @@ function App() {
             setAdminSubTab('settings');
             const subSub = parts[3];
             const sec = subSub || urlParams.get('section');
-            if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
-              setMobileSettingsTab(sec as any);
+            let mappedSec = sec ? sec.toLowerCase().trim() : '';
+            if (mappedSec === 'social') mappedSec = 'contact';
+            if (mappedSec === 'features') mappedSec = 'general';
+            if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
+              setMobileSettingsTab(mappedSec as any);
             } else {
-              setMobileSettingsTab('menu');
+              const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
+              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
+                setMobileSettingsTab(saved as any);
+              } else {
+                setMobileSettingsTab('menu');
+              }
             }
             setSelectedTicket(null);
           } else if (pageSub === 'policies') {
@@ -3395,10 +3426,18 @@ function App() {
               setAdminSubTab('settings');
               setView('tabs');
               const sec = subSub || urlParams.get('section');
-              if (sec && ['general', 'features', 'about', 'social', 'master', 'theme'].includes(sec)) {
-                setMobileSettingsTab(sec as any);
+              let mappedSec = sec ? sec.toLowerCase().trim() : '';
+              if (mappedSec === 'social') mappedSec = 'contact';
+              if (mappedSec === 'features') mappedSec = 'general';
+              if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
+                setMobileSettingsTab(mappedSec as any);
               } else {
-                setMobileSettingsTab('menu');
+                const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
+                if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
+                  setMobileSettingsTab(saved as any);
+                } else {
+                  setMobileSettingsTab('menu');
+                }
               }
             } else if (pageSub === 'profile') {
               setAdminSubTab('profile');

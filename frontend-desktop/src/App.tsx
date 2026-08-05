@@ -2739,7 +2739,12 @@ function App() {
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [settingsSubTab, setSettingsSubTab] = useState<'general' | 'contact' | 'about' | 'theme' | 'master'>('general')
+  const [settingsSubTab, setSettingsSubTabState] = useState<'general' | 'contact' | 'about' | 'theme' | 'master'>('general')
+
+  const setSettingsSubTab = (sub: 'general' | 'contact' | 'about' | 'theme' | 'master') => {
+    setSettingsSubTabState(sub);
+    try { sessionStorage.setItem('catavor_last_settings_subtab', sub); } catch (e) {}
+  };
 
   // Admin Profile Update State
   const [profileForm, setProfileForm] = useState({
@@ -2808,9 +2813,19 @@ function App() {
             }
           } else if (pageSub === 'settings') {
             setAdminTab('settings');
-            const sec = subSub || urlParams.get('section') || 'general';
-            if (['general', 'features', 'about', 'social', 'master'].includes(sec)) {
-              setSettingsSubTab(sec as any);
+            const sec = subSub || urlParams.get('section');
+            let mappedSec = sec ? sec.toLowerCase().trim() : '';
+            if (mappedSec === 'social') mappedSec = 'contact';
+            if (mappedSec === 'features') mappedSec = 'general';
+            if (['general', 'contact', 'about', 'theme', 'master'].includes(mappedSec)) {
+              setSettingsSubTab(mappedSec as any);
+            } else {
+              const saved = sessionStorage.getItem('catavor_last_settings_subtab');
+              if (saved && ['general', 'contact', 'about', 'theme', 'master'].includes(saved)) {
+                setSettingsSubTab(saved as any);
+              } else {
+                setSettingsSubTab('general');
+              }
             }
           } else if (pageSub === 'profile') setAdminTab('profile');
           else if (pageSub === 'policies') setAdminTab('policies');
@@ -2861,8 +2876,18 @@ function App() {
           else if (pageSub === 'settings') {
             setAdminTab('settings');
             const sec = urlParams.get('section');
-            if (sec && ['general', 'features', 'about', 'social', 'master'].includes(sec)) {
-              setSettingsSubTab(sec as any);
+            let mappedSec = sec ? sec.toLowerCase().trim() : '';
+            if (mappedSec === 'social') mappedSec = 'contact';
+            if (mappedSec === 'features') mappedSec = 'general';
+            if (['general', 'contact', 'about', 'theme', 'master'].includes(mappedSec)) {
+              setSettingsSubTab(mappedSec as any);
+            } else {
+              const saved = sessionStorage.getItem('catavor_last_settings_subtab');
+              if (saved && ['general', 'contact', 'about', 'theme', 'master'].includes(saved)) {
+                setSettingsSubTab(saved as any);
+              } else {
+                setSettingsSubTab('general');
+              }
             }
           } else if (pageSub === 'profile') setAdminTab('profile');
           else if (pageSub === 'policies') setAdminTab('policies');
@@ -3023,9 +3048,19 @@ function App() {
             } else if (pageSub === 'settings') {
               setAdminTab('settings');
               setView('admin');
-              const sec = subSub || urlParams.get('section') || 'general';
-              if (['general', 'features', 'about', 'social', 'master'].includes(sec)) {
-                setSettingsSubTab(sec as any);
+              const sec = subSub || urlParams.get('section');
+              let mappedSec = sec ? sec.toLowerCase().trim() : '';
+              if (mappedSec === 'social') mappedSec = 'contact';
+              if (mappedSec === 'features') mappedSec = 'general';
+              if (['general', 'contact', 'about', 'theme', 'master'].includes(mappedSec)) {
+                setSettingsSubTab(mappedSec as any);
+              } else {
+                const saved = sessionStorage.getItem('catavor_last_settings_subtab');
+                if (saved && ['general', 'contact', 'about', 'theme', 'master'].includes(saved)) {
+                  setSettingsSubTab(saved as any);
+                } else {
+                  setSettingsSubTab('general');
+                }
               }
             } else if (pageSub === 'profile') {
               setAdminTab('profile');
