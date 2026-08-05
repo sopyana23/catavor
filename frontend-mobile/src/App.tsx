@@ -2051,8 +2051,34 @@ export function OperationalHoursBuilder({
       </div>
         </>
       ) : (
-        <div style={{ padding: '0.6rem 0.85rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.74rem', fontWeight: 500, backgroundColor: 'var(--bg-card-hover)', borderRadius: '0.5rem', border: '1px dashed var(--border-light)' }}>
-          🔒 Jam operasional nonaktif. Bagian jam operasional tidak akan ditampilkan pada katalog publik Anda.
+        <div style={{ 
+          padding: '0.85rem 1rem', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          gap: '0.65rem', 
+          backgroundColor: 'var(--bg-card-hover)', 
+          borderRadius: '0.65rem', 
+          border: '1px dashed var(--border-light)',
+          color: 'var(--text-secondary)'
+        }}>
+          <div style={{
+            width: '26px',
+            height: '26px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            color: '#f87171'
+          }}>
+            <Lock size={13} />
+          </div>
+          <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+            Jam operasional nonaktif. Bagian jam operasional tidak akan ditampilkan pada katalog publik Anda.
+          </span>
         </div>
       )}
     </div>
