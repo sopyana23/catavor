@@ -16,6 +16,7 @@ class Store extends Model
         'store_slogan',
         'store_logo_url',
         'store_theme',
+        'registration_timezone',
         'whatsapp_number',
         'enable_wa_direct',
         'enable_wa_rekber',

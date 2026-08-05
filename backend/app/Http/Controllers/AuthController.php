@@ -60,6 +60,9 @@ class AuthController extends Controller
             $activePlan = 'free';
         }
 
+        $clientTimezone = $request->input('timezone', 'Asia/Jakarta');
+        $timeSuffix = $this->mapTimezoneToSuffix($clientTimezone);
+
         // Create Store with default configuration parameters
         $store = Store::create([
             'user_id' => $user->id,
@@ -68,25 +71,24 @@ class AuthController extends Controller
             'payment_status' => $paymentStatus,
             'payment_proof_url' => $paymentProofUrl,
             'store_title' => $request->store_name,
-            'store_slogan' => 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
-            'whatsapp_number' => '628123456789',
+            'store_slogan' => 'Solusi Katalog Digital & Portofolio Bisnis Terpercaya',
+            'registration_timezone' => $clientTimezone,
+            'whatsapp_number' => '', // Sensitive field empty by default
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang ' . $request->store_name,
-            'about_slogan' => 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
-            'about_description' => 'Kami berkomitmen menyediakan produk dan barang berkualitas tinggi. Setiap barang melewati pemeriksaan kualitas sebelum dikirim.',
-            'about_location' => 'Bandung, Jawa Barat, Indonesia',
-            'about_hours' => '08:00 - 21:00 WIB (Setiap Hari)',
-            'about_disclaimer' => 'Komitmen jaminan bisnis: Kami mengutamakan kepuasan pelanggan dan keamanan transaksi.',
+            'about_slogan' => 'Komitmen Layanan Profesional & Kualitas Terbaik',
+            'about_description' => 'Selamat datang di ' . $request->store_name . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
+            'about_location' => '', // Sensitive field empty by default
+            'about_hours' => '08:00 - 21:00 ' . $timeSuffix . ' (Senin - Minggu)',
+            'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
-                ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk melewati pemeriksaan kualitas ketat sebelum dipasarkan.', 'icon' => 'shield'],
-                ['title' => 'Transaksi Aman', 'content' => 'Mendukung sistem pembayaran aman secara langsung maupun marketplace terpercaya.', 'icon' => 'lock'],
-                ['title' => 'Layanan Pelanggan', 'content' => 'Tim kami siap membantu konsultasi produk dan pemesanan dengan cepat.', 'icon' => 'message']
+                ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
+                ['title' => 'Layanan Responsif', 'content' => 'Tim kami siap membantu kebutuhan konsultasi dan pertanyaan Anda secara cepat dan ramah.', 'icon' => 'message'],
+                ['title' => 'Keamanan Transaksi', 'content' => 'Menjamin keamanan komunikasi dan kemudahan pesanan melalui saluran resmi terverifikasi.', 'icon' => 'lock']
             ],
-            'social_links' => [
-                ['platform' => 'Instagram', 'url' => 'https://instagram.com/' . $request->store_slug],
-                ['platform' => 'Facebook', 'url' => 'https://facebook.com/' . $request->store_slug]
-            ],
+            'social_links' => [], // Sensitive field empty by default
+            'official_website' => '', // Sensitive field empty by default
             'master_classes' => ['Elektronik', 'Pakaian & Aksesoris', 'Satwa Hias', 'Pakan & Perlengkapan', 'Produk General'],
             'master_habitats' => ['Baru (New)', 'Bekas (Used)', 'General'],
             'master_statuses' => ['Tersedia (Ready Stock)', 'Habis Terjual (Out of Stock)', 'Pre-Order'],
@@ -240,31 +242,33 @@ class AuthController extends Controller
             $plan = 'free';
         }
 
+        $clientTimezone = $request->input('timezone', 'Asia/Jakarta');
+        $timeSuffix = $this->mapTimezoneToSuffix($clientTimezone);
+
         // Create new Store
         $newStore = Store::create([
             'user_id' => $newUser->id,
             'slug' => Str::slug($storeSlug),
             'plan' => $plan,
             'store_title' => $storeName,
-            'store_slogan' => 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
-            'whatsapp_number' => '628123456789',
+            'store_slogan' => 'Solusi Katalog Digital & Portofolio Bisnis Terpercaya',
+            'registration_timezone' => $clientTimezone,
+            'whatsapp_number' => '', // Sensitive field empty by default
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang ' . $storeName,
-            'about_slogan' => 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
-            'about_description' => 'Kami berkomitmen menyediakan produk dan barang berkualitas tinggi. Setiap barang melewati pemeriksaan kualitas sebelum dikirim.',
-            'about_location' => 'Bandung, Jawa Barat, Indonesia',
-            'about_hours' => '08:00 - 21:00 WIB (Setiap Hari)',
-            'about_disclaimer' => 'Komitmen jaminan bisnis: Kami mengutamakan kepuasan pelanggan dan keamanan transaksi.',
+            'about_slogan' => 'Komitmen Layanan Profesional & Kualitas Terbaik',
+            'about_description' => 'Selamat datang di ' . $storeName . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
+            'about_location' => '', // Sensitive field empty by default
+            'about_hours' => '08:00 - 21:00 ' . $timeSuffix . ' (Senin - Minggu)',
+            'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
-                ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk melewati pemeriksaan kualitas ketat sebelum dipasarkan.', 'icon' => 'shield'],
-                ['title' => 'Transaksi Aman', 'content' => 'Mendukung sistem pembayaran aman secara langsung maupun marketplace terpercaya.', 'icon' => 'lock'],
-                ['title' => 'Layanan Pelanggan', 'content' => 'Tim kami siap membantu konsultasi produk dan pemesanan dengan cepat.', 'icon' => 'message']
+                ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
+                ['title' => 'Layanan Responsif', 'content' => 'Tim kami siap membantu kebutuhan konsultasi dan pertanyaan Anda secara cepat dan ramah.', 'icon' => 'message'],
+                ['title' => 'Keamanan Transaksi', 'content' => 'Menjamin keamanan komunikasi dan kemudahan pesanan melalui saluran resmi terverifikasi.', 'icon' => 'lock']
             ],
-            'social_links' => [
-                ['platform' => 'Instagram', 'url' => 'https://instagram.com/' . Str::slug($storeSlug)],
-                ['platform' => 'Facebook', 'url' => 'https://facebook.com/' . Str::slug($storeSlug)]
-            ],
+            'social_links' => [], // Sensitive field empty by default
+            'official_website' => '', // Sensitive field empty by default
             'master_classes' => ['Elektronik', 'Pakaian & Aksesoris', 'Satwa Hias', 'Pakan & Perlengkapan', 'Produk General'],
             'master_habitats' => ['Baru (New)', 'Bekas (Used)', 'General'],
             'master_statuses' => ['Tersedia (Ready Stock)', 'Habis Terjual (Out of Stock)', 'Pre-Order'],
@@ -379,5 +383,27 @@ class AuthController extends Controller
                 'store_title' => $store ? $store->store_title : null
             ]
         ]);
+    }
+
+    /**
+     * Map client timezone to Indonesian Time Standard Suffix (WIB, WITA, WIT).
+     */
+    private function mapTimezoneToSuffix(?string $timezone): string
+    {
+        if (!$timezone) {
+            return 'WIB';
+        }
+
+        $tzUpper = strtoupper($timezone);
+
+        if (str_contains($tzUpper, 'MAKASSAR') || str_contains($tzUpper, 'UJUNG_PANDANG') || str_contains($tzUpper, 'DENPASAR') || str_contains($tzUpper, 'MATARAM') || str_contains($tzUpper, 'KUPANG') || str_contains($tzUpper, 'WITA')) {
+            return 'WITA';
+        }
+
+        if (str_contains($tzUpper, 'JAYAPURA') || str_contains($tzUpper, 'AMBON') || str_contains($tzUpper, 'WIT')) {
+            return 'WIT';
+        }
+
+        return 'WIB';
     }
 }

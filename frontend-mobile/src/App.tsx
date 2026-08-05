@@ -3927,7 +3927,7 @@ function App() {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ ...registerForm, plan: 'free', payment_status: 'none' })
+        body: JSON.stringify({ ...registerForm, plan: 'free', payment_status: 'none', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta' })
       });
 
       const data = await res.json();
@@ -3986,7 +3986,8 @@ function App() {
         ...registerForm,
         plan: 'pro',
         payment_status: isFreeCoupon ? 'approved' : 'pending_approval',
-        payment_proof_url: isFreeCoupon ? null : paymentProofPreview
+        payment_proof_url: isFreeCoupon ? null : paymentProofPreview,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta'
       };
 
       const res = await fetch(`${API_BASE}/register`, {
