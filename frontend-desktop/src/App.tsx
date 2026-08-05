@@ -8471,8 +8471,7 @@ function App() {
                           </div>
 
                           <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
-                            <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <Globe size={15} style={{ color: 'var(--primary)' }} />
+                            <label className="form-label" style={{ fontWeight: 800 }}>
                               Website Resmi / Portal Official
                             </label>
                             <input 
