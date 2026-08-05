@@ -2638,7 +2638,7 @@ function App() {
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [mobileSettingsTab, setMobileSettingsTab] = useState<'menu' | 'general' | 'features' | 'about' | 'social' | 'master' | 'theme'>('menu')
+  const [mobileSettingsTab, setMobileSettingsTab] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master'>('menu')
 
   // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
   useEffect(() => {
@@ -8825,11 +8825,11 @@ function App() {
                       }}>
                         {adminSubTab === 'items' && 'Kelola Inventaris'}
                         {adminSubTab === 'settings' && (
-                          mobileSettingsTab === 'general' ? 'Informasi Toko' :
-                          mobileSettingsTab === 'about' ? 'Tentang Kami' :
-                          mobileSettingsTab === 'social' ? 'Media Sosial' :
-                          mobileSettingsTab === 'master' ? 'Master Data' :
-                          mobileSettingsTab === 'theme' ? 'Tema & Tampilan' : 'Pengaturan Toko'
+                          mobileSettingsTab === 'general' ? 'Profil & Identitas Utama' :
+                          mobileSettingsTab === 'contact' ? 'Kontak & Saluran Resmi' :
+                          mobileSettingsTab === 'about' ? 'Halaman Tentang Kami' :
+                          mobileSettingsTab === 'theme' ? 'Tema & Tampilan Visual' :
+                          mobileSettingsTab === 'master' ? 'Master Data Katalog' : 'Pengaturan'
                         )}
                         {adminSubTab === 'profile' && 'Profil Admin'}
                         {adminSubTab === 'policies' && 'Legal & Kebijakan'}
@@ -10766,7 +10766,7 @@ function App() {
                   )}
 
                   {mobileSettingsTab === 'menu' ? (
-                    /* Mobile Settings Category List */
+                    /* Mobile Settings Category List (5 Pillars Structure) */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       <div 
                         className="glass-panel"
@@ -10781,19 +10781,18 @@ function App() {
                           <Store size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Informasi Toko</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Nama, slogan, logo, nomor WA, promo</p>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Profil &amp; Identitas Utama</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Nama katalog, slogan, logo resmi, banner promo</p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </div>
 
-                      {false && (
                       <div 
                         className="glass-panel"
                         onClick={() => {
                           const slug = getStoreSlug();
-                          setMobileSettingsTab('features');
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/features`);
+                          setMobileSettingsTab('contact');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/contact`);
                         }}
                         style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
                       >
@@ -10801,12 +10800,11 @@ function App() {
                           <MessageCircle size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Fitur & Diskusi</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Toggle edukasi & setelan diskusi default</p>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Kontak &amp; Saluran Resmi</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>WhatsApp CS, website resmi, sosmed, alamat, jam buka</p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </div>
-                      )}
 
                       <div 
                         className="glass-panel"
@@ -10821,27 +10819,8 @@ function App() {
                           <Info size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Tentang Kami</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Jam kerja, alamat, disclaimer, kartu nilai</p>
-                        </div>
-                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                      </div>
-
-                      <div 
-                        className="glass-panel"
-                        onClick={() => {
-                          const slug = getStoreSlug();
-                          setMobileSettingsTab('social');
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/social`);
-                        }}
-                        style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center', border: '1px solid var(--border-light)' }}
-                      >
-                        <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', background: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                          <Share2 size={20} style={{ color: 'var(--primary)' }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Media Sosial</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Tautan Instagram, Facebook, TikTok, dll</p>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Halaman Tentang Kami</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Judul, deskripsi profil, disclaimer, kartu komitmen</p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </div>
@@ -10859,8 +10838,8 @@ function App() {
                           <Palette size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Tema &amp; Tampilan Toko</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Pilih palet warna &amp; gaya visual estetik toko (Canva-Style)</p>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Tema &amp; Tampilan Visual</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Pilih palet warna &amp; gaya estetik (Canva-Style)</p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </div>
@@ -10878,8 +10857,8 @@ function App() {
                           <Database size={20} style={{ color: 'var(--primary)' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Pilihan Master Data</h4>
-                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Kelas hewan, habitat, status, coverage kirim</p>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0' }}>Master Data Katalog</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>Pilihan kelas, habitat, status, coverage kirim</p>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </div>
@@ -10889,10 +10868,11 @@ function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {mobileSettingsTab !== 'master' ? (
                         <form onSubmit={handleSettingsSave} className="glass-panel animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border-light)' }}>
+                          {/* SUB-TAB 4: TEMA */}
                           {mobileSettingsTab === 'theme' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                               <div style={{ paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-light)' }}>
-                                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Pilih Preset Tema Estetik Toko</h3>
+                                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Pilih Preset Tema Estetik Katalog</h3>
                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0 }}>
                                   Ubah warna background, kartu produk, tombol WhatsApp &amp; aksen katalog secara instan.
                                 </p>
@@ -10951,14 +10931,16 @@ function App() {
                               </div>
                             </div>
                           )}
+
+                          {/* SUB-TAB 1: PROFIL & IDENTITAS UTAMA */}
                           {mobileSettingsTab === 'general' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                               <div className="form-group">
-                                <label className="form-label">Nama/Judul Toko *</label>
+                                <label className="form-label">Nama / Judul Katalog *</label>
                                 <input 
                                   type="text" 
                                   className="form-input" 
-                                  placeholder="Contoh: Catavor Store"
+                                  placeholder="Contoh: Catavor Digital"
                                   required
                                   value={settingsForm.store_title || ''}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, store_title: e.target.value })}
@@ -10966,7 +10948,7 @@ function App() {
                               </div>
 
                               <div className="form-group">
-                                <label className="form-label">Logo Toko</label>
+                                <label className="form-label">Logo Resmi Katalog</label>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                                   {settingsForm.store_logo_url && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem', backgroundColor: 'var(--bg-card-hover)', border: '1px dashed var(--border-hover)', borderRadius: '0.5rem' }}>
@@ -11031,18 +11013,11 @@ function App() {
                               </div>
 
                               <div className="form-group">
-                                <WhatsAppContactsManager 
-                                  value={settingsForm.whatsapp_number} 
-                                  onChange={(newVal) => setSettingsForm({ ...settingsForm, whatsapp_number: newVal })} 
-                                />
-                              </div>
-
-                              <div className="form-group">
-                                <label className="form-label">Slogan Toko *</label>
+                                <label className="form-label">Slogan / Tagline Utama *</label>
                                 <input 
                                   type="text" 
                                   className="form-input" 
-                                  placeholder="Slogan toko..."
+                                  placeholder="Slogan atau tagline bisnis Anda..."
                                   required
                                   value={settingsForm.store_slogan}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, store_slogan: e.target.value })}
@@ -11050,11 +11025,11 @@ function App() {
                               </div>
 
                               <div className="form-group">
-                                <label className="form-label">Banner Promo</label>
+                                <label className="form-label">Banner Promo / Pengumuman</label>
                                 <textarea 
                                   rows={3}
                                   className="form-input" 
-                                  placeholder="Tulis detail promo di sini..."
+                                  placeholder="Tulis detail promo atau pengumuman di sini..."
                                   value={settingsForm.promo_banner || ''}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, promo_banner: e.target.value })}
                                 />
@@ -11062,134 +11037,34 @@ function App() {
                             </div>
                           )}
 
-                          {false && mobileSettingsTab === 'features' && (
+                          {/* SUB-TAB 2: KONTAK & SALURAN RESMI */}
+                          {mobileSettingsTab === 'contact' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                              <div className="form-group" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border-light)', marginBottom: '0.5rem' }}>
-                                <div>
-                                  <label className="form-label" style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.85rem' }}>Fitur Artikel (Edukasi)</label>
-                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>Tampilkan menu edukasi & tips satwa</span>
-                                </div>
-                                <label style={{ position: 'relative', display: 'inline-block', width: '46px', height: '24px', cursor: 'pointer' }}>
-                                  <input 
-                                    type="checkbox" 
-                                    checked={settingsForm.articles_enabled !== '0'} 
-                                    onChange={(e) => setSettingsForm({ ...settingsForm, articles_enabled: e.target.checked ? '1' : '0' })}
-                                    style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
-                                  />
-                                  <span style={{
-                                    position: 'absolute',
-                                    top: 0, left: 0, right: 0, bottom: 0,
-                                    backgroundColor: settingsForm.articles_enabled !== '0' ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-                                    transition: '0.3s',
-                                    borderRadius: '24px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: '2px'
-                                  }}>
-                                    <span style={{
-                                      width: '20px',
-                                      height: '20px',
-                                      borderRadius: '50%',
-                                      backgroundColor: '#fff',
-                                      transition: '0.3s',
-                                      transform: settingsForm.articles_enabled !== '0' ? 'translateX(22px)' : 'translateX(0px)',
-                                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                                    }} />
-                                  </span>
+                              <div className="form-group">
+                                <WhatsAppContactsManager 
+                                  value={settingsForm.whatsapp_number} 
+                                  onChange={(newVal) => setSettingsForm({ ...settingsForm, whatsapp_number: newVal })} 
+                                />
+                              </div>
+
+                              <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.85rem' }}>
+                                <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <Globe size={15} style={{ color: 'var(--primary)' }} />
+                                  Website Resmi / Portal Official
                                 </label>
-                              </div>
-
-                              {settingsForm.articles_enabled !== '0' && (
-                                <div style={{ padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-light)', borderRadius: '8px' }}>
-                                  <h5 style={{ fontSize: '0.8rem', fontWeight: 800, margin: '0 0 0.85rem 0', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Setelan Diskusi Default</h5>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                                      <input 
-                                        type="checkbox"
-                                        checked={settingsForm.default_is_comments_enabled !== '0'}
-                                        onChange={(e) => setSettingsForm({ ...settingsForm, default_is_comments_enabled: e.target.checked ? '1' : '0' })}
-                                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                                      />
-                                      <span>Aktifkan Komentar secara Default</span>
-                                    </label>
-                                    
-                                    {settingsForm.default_is_comments_enabled !== '0' && (
-                                      <div style={{ paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderLeft: '2px solid var(--border-light)' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                          <input 
-                                            type="checkbox"
-                                            checked={settingsForm.default_require_comment_approval === '1'}
-                                            onChange={(e) => setSettingsForm({ ...settingsForm, default_require_comment_approval: e.target.checked ? '1' : '0' })}
-                                            style={{ width: '15px', height: '15px', accentColor: 'var(--primary)' }}
-                                          />
-                                          <span>Tahan Komentar untuk Moderasi</span>
-                                        </label>
-
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                          <input 
-                                            type="checkbox"
-                                            checked={settingsForm.default_require_comment_email === '1'}
-                                            onChange={(e) => setSettingsForm({ ...settingsForm, default_require_comment_email: e.target.checked ? '1' : '0' })}
-                                            style={{ width: '15px', height: '15px', accentColor: 'var(--primary)' }}
-                                          />
-                                          <span>Wajibkan Email Komentator</span>
-                                        </label>
-
-                                        {settingsForm.default_require_comment_email === '1' && (
-                                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                            <input 
-                                              type="checkbox"
-                                              checked={settingsForm.default_verify_comment_email_domain === '1'}
-                                              onChange={(e) => setSettingsForm({ ...settingsForm, default_verify_comment_email_domain: e.target.checked ? '1' : '0' })}
-                                              style={{ width: '15px', height: '15px', accentColor: 'var(--primary)' }}
-                                            />
-                                            <span>Verifikasi Domain Email (DNS MX)</span>
-                                          </label>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {mobileSettingsTab === 'about' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                              <div className="form-group">
-                                <label className="form-label">Judul Tentang Kami</label>
                                 <input 
-                                  type="text" 
+                                  type="url" 
                                   className="form-input" 
-                                  placeholder="Contoh: Tentang Catavor"
-                                  value={settingsForm.about_title || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_title: e.target.value })}
+                                  placeholder="Contoh: https://website-resmi.com"
+                                  value={settingsForm.official_website || ''}
+                                  onChange={(e) => setSettingsForm({ ...settingsForm, official_website: e.target.value })}
                                 />
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.2rem' }}>
+                                  * Kosongkan jika tidak ada. Jika diisi, komponen Website Resmi akan tampil di Hubungi Kami.
+                                </span>
                               </div>
 
-                              <div className="form-group">
-                                <label className="form-label">Slogan Halaman</label>
-                                <input 
-                                  type="text" 
-                                  className="form-input" 
-                                  placeholder="Contoh: Premium Quality Gallery & Information"
-                                  value={settingsForm.about_slogan || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_slogan: e.target.value })}
-                                />
-                              </div>
-
-                              <div className="form-group">
-                                <label className="form-label">Deskripsi Halaman</label>
-                                <textarea 
-                                  rows={4}
-                                  className="form-input" 
-                                  placeholder="Detail profil galeri..."
-                                  value={settingsForm.about_description || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_description: e.target.value })}
-                                />
-                              </div>
-
-                              <div className="form-group">
+                              <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.85rem' }}>
                                 <label className="form-label">Lokasi / Alamat Resmi</label>
                                 <input 
                                   type="text" 
@@ -11200,19 +11075,166 @@ function App() {
                                 />
                               </div>
 
-                              <div className="form-group">
+                              <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.85rem' }}>
                                 <OperationalHoursBuilder 
                                   value={settingsForm.about_hours || ''}
                                   onChange={(val) => setSettingsForm({ ...settingsForm, about_hours: val })}
                                 />
                               </div>
 
+                              {/* Dynamic Social Links Builder */}
+                              <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.85rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Tautan Media Sosial Resmi:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const currentLinks = (() => {
+                                        try {
+                                          return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
+                                        } catch (e) {
+                                          return [];
+                                        }
+                                      })();
+                                      const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
+                                      setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                      padding: '0.3rem 0.65rem',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      backgroundColor: 'var(--primary-glow)',
+                                      color: 'var(--primary)',
+                                      border: '1px solid var(--border-light)',
+                                      borderRadius: '0.25rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Plus size={10} /> Tambah
+                                  </button>
+                                </div>
+
+                                {(() => {
+                                  const currentLinks = (() => {
+                                    try {
+                                      return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
+                                    } catch (e) {
+                                      return [];
+                                    }
+                                  })();
+
+                                  if (currentLinks.length === 0) {
+                                    return (
+                                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                        Belum ada tautan media sosial.
+                                      </p>
+                                    );
+                                  }
+
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                      {currentLinks.map((link: any, index: number) => (
+                                        <div key={index} style={{ padding: '0.75rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newLinks = currentLinks.filter((_: any, idx: number) => idx !== index);
+                                              setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                            }}
+                                            style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                                            title="Hapus Sosmed"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                          
+                                          <div className="form-group" style={{ marginBottom: '0.5rem', width: '90%' }}>
+                                            <label className="form-label" style={{ fontSize: '0.7rem' }}>Platform *</label>
+                                            <select
+                                              className="form-input"
+                                              value={link.platform || 'Instagram'}
+                                              onChange={(e) => {
+                                                const newLinks = [...currentLinks];
+                                                newLinks[index].platform = e.target.value;
+                                                setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                              }}
+                                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
+                                            >
+                                              {SOCIAL_MEDIA_OPTIONS.map((opt) => (
+                                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+
+                                          <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: '0.7rem' }}>Link URL *</label>
+                                            <input
+                                              type="url"
+                                              className="form-input"
+                                              placeholder="Contoh: https://instagram.com/akun"
+                                              required
+                                              value={link.url}
+                                              onChange={(e) => {
+                                                const newLinks = [...currentLinks];
+                                                newLinks[index].url = e.target.value;
+                                                setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                              }}
+                                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
+                                            />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* SUB-TAB 3: HALAMAN TENTANG KAMI */}
+                          {mobileSettingsTab === 'about' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                               <div className="form-group">
-                                <label className="form-label">Teks Disclaimer Perlindungan Satwa</label>
+                                <label className="form-label">Judul Halaman Tentang Kami</label>
+                                <input 
+                                  type="text" 
+                                  className="form-input" 
+                                  placeholder="Contoh: Tentang Catavor"
+                                  value={settingsForm.about_title || ''}
+                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_title: e.target.value })}
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label className="form-label">Slogan Halaman Tentang Kami</label>
+                                <input 
+                                  type="text" 
+                                  className="form-input" 
+                                  placeholder="Contoh: Platform Katalog Digital &amp; Biolink Bisnis Modern"
+                                  value={settingsForm.about_slogan || ''}
+                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_slogan: e.target.value })}
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label className="form-label">Deskripsi Profil Lengkap</label>
+                                <textarea 
+                                  rows={4}
+                                  className="form-input" 
+                                  placeholder="Detail profil usaha, visi misi, atau informasi penting..."
+                                  value={settingsForm.about_description || ''}
+                                  onChange={(e) => setSettingsForm({ ...settingsForm, about_description: e.target.value })}
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label className="form-label">Teks Disclaimer Perlindungan / Legal</label>
                                 <textarea 
                                   rows={3}
                                   className="form-input" 
-                                  placeholder="Disclaimer pelarangan jual-beli satwa liar dilindungi..."
+                                  placeholder="Disclaimer legal, perlindungan konsumen, atau regulasi..."
                                   value={settingsForm.about_disclaimer || ''}
                                   onChange={(e) => setSettingsForm({ ...settingsForm, about_disclaimer: e.target.value })}
                                 />
@@ -11242,9 +11264,9 @@ function App() {
                                       padding: '0.3rem 0.65rem',
                                       fontSize: '0.7rem',
                                       fontWeight: 700,
-                                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                      backgroundColor: 'var(--primary-glow)',
                                       color: 'var(--primary)',
-                                      border: '1px solid rgba(16, 185, 129, 0.2)',
+                                      border: '1px solid var(--border-light)',
                                       borderRadius: '0.25rem',
                                       cursor: 'pointer'
                                     }}
@@ -11305,7 +11327,7 @@ function App() {
                                           </div>
 
                                           <div className="form-group" style={{ marginBottom: '0.5rem', width: '90%' }}>
-                                            <label className="form-label" style={{ fontSize: '0.7rem' }}>Judul Kartu *</label>
+                                            <label className="form-label" style={{ fontSize: '0.7rem' }}>Judul Komitmen *</label>
                                             <input
                                               type="text"
                                               className="form-input"
@@ -11345,139 +11367,12 @@ function App() {
                             </div>
                           )}
 
-                          {mobileSettingsTab === 'social' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                              <div className="form-group">
-                                <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                  <Globe size={15} style={{ color: 'var(--primary)' }} />
-                                  Website Resmi / Portal Official
-                                </label>
-                                <input 
-                                  type="url" 
-                                  className="form-input" 
-                                  placeholder="Contoh: https://website-resmi.com"
-                                  value={settingsForm.official_website || ''}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, official_website: e.target.value })}
-                                />
-                                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.2rem' }}>
-                                  * Kosongkan jika tidak ada. Jika diisi, komponen Website Resmi akan tampil di Hubungi Kami.
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-light)' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Tautan Media Sosial Resmi:</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const currentLinks = (() => {
-                                      try {
-                                        return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
-                                      } catch (e) {
-                                        return [];
-                                      }
-                                    })();
-                                    const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
-                                    setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                  }}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem',
-                                    padding: '0.3rem 0.65rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    backgroundColor: 'var(--primary-glow)',
-                                    color: 'var(--primary)',
-                                    border: '1px solid var(--border-light)',
-                                    borderRadius: '0.25rem',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  <Plus size={10} /> Tambah
-                                </button>
-                              </div>
-
-                              {(() => {
-                                const currentLinks = (() => {
-                                  try {
-                                    return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
-                                  } catch (e) {
-                                    return [];
-                                  }
-                                })();
-
-                                if (currentLinks.length === 0) {
-                                  return (
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                                      Belum ada tautan media sosial.
-                                    </p>
-                                  );
-                                }
-
-                                return (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    {currentLinks.map((link: any, index: number) => (
-                                      <div key={index} style={{ padding: '0.75rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const newLinks = currentLinks.filter((_: any, idx: number) => idx !== index);
-                                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                          }}
-                                          style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
-                                          title="Hapus Sosmed"
-                                        >
-                                          <Trash2 size={12} />
-                                        </button>
-                                        
-                                        <div className="form-group" style={{ marginBottom: '0.5rem', width: '90%' }}>
-                                          <label className="form-label" style={{ fontSize: '0.7rem' }}>Platform *</label>
-                                          <select
-                                            className="form-input"
-                                            value={link.platform || 'Instagram'}
-                                            onChange={(e) => {
-                                              const newLinks = [...currentLinks];
-                                              newLinks[index].platform = e.target.value;
-                                              setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                            }}
-                                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
-                                          >
-                                            {SOCIAL_MEDIA_OPTIONS.map((opt) => (
-                                              <option key={opt.key} value={opt.key}>{opt.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                          <label className="form-label" style={{ fontSize: '0.7rem' }}>Link URL *</label>
-                                          <input
-                                            type="url"
-                                            className="form-input"
-                                            placeholder="Contoh: https://instagram.com/..."
-                                            required
-                                            value={link.url}
-                                            onChange={(e) => {
-                                              const newLinks = [...currentLinks];
-                                              newLinks[index].url = e.target.value;
-                                              setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                            }}
-                                            style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
-                                          />
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
-
                           {mobileSettingsTab !== 'theme' && (
                             <button 
                               type="submit" 
-                              className="btn-full btn-primary" 
+                              className="btn-primary btn-full" 
                               disabled={settingsLoading}
-                              style={{ fontSize: '0.85rem', marginTop: '1.25rem' }}
+                              style={{ marginTop: '0.5rem', padding: '0.75rem', fontWeight: 800 }}
                             >
                               {settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan'}
                             </button>

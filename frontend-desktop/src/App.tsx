@@ -2312,7 +2312,7 @@ function App() {
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [settingsSubTab, setSettingsSubTab] = useState<'general' | 'theme' | 'features' | 'about' | 'social' | 'master'>('general')
+  const [settingsSubTab, setSettingsSubTab] = useState<'general' | 'contact' | 'about' | 'theme' | 'master'>('general')
 
   // Admin Profile Update State
   const [profileForm, setProfileForm] = useState({
@@ -7531,7 +7531,7 @@ function App() {
 
               {adminTab === 'settings' && (
                 <>
-                  {/* Desktop Settings Sub-Tab Pills */}
+                  {/* Desktop Settings Sub-Tab Pills (5 Pillars Structure) */}
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                     <button
                       type="button"
@@ -7548,41 +7548,24 @@ function App() {
                         border: settingsSubTab === 'general' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🏬 Informasi Toko (General)
+                      🆔 Profil &amp; Identitas Utama
                     </button>
                     <button
                       type="button"
-                      className={`btn-secondary ${settingsSubTab === 'theme' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('theme')}
+                      className={`btn-secondary ${settingsSubTab === 'contact' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('contact')}
                       style={{
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
                         borderRadius: '20px',
                         cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'theme' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'theme' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'theme' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                        backgroundColor: settingsSubTab === 'contact' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'contact' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'contact' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🎨 Tema &amp; Tampilan
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn-secondary ${settingsSubTab === 'features' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('features')}
-                      style={{
-                        padding: '0.55rem 1.1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'features' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'features' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'features' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      ⚡ Fitur &amp; Modul
+                      📞 Kontak &amp; Saluran Resmi
                     </button>
                     <button
                       type="button"
@@ -7599,24 +7582,24 @@ function App() {
                         border: settingsSubTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      📖 Profil &amp; Informasi (Tentang Kami)
+                      📖 Halaman Tentang Kami
                     </button>
                     <button
                       type="button"
-                      className={`btn-secondary ${settingsSubTab === 'social' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('social')}
+                      className={`btn-secondary ${settingsSubTab === 'theme' ? 'active' : ''}`}
+                      onClick={() => setSettingsSubTab('theme')}
                       style={{
                         padding: '0.55rem 1.1rem',
                         fontSize: '0.82rem',
                         fontWeight: 700,
                         borderRadius: '20px',
                         cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'social' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'social' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'social' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                        backgroundColor: settingsSubTab === 'theme' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: settingsSubTab === 'theme' ? '#fff' : 'var(--text-secondary)',
+                        border: settingsSubTab === 'theme' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🌐 Media Sosial &amp; Kontak
+                      🎨 Tema &amp; Tampilan Visual
                     </button>
                     <button
                       type="button"
@@ -7633,16 +7616,17 @@ function App() {
                         border: settingsSubTab === 'master' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
                       }}
                     >
-                      🗂️ Data Master &amp; Kategori
+                      🗂️ Master Data Katalog
                     </button>
                   </div>
 
+                  {/* 1. TEMA & TAMPILAN SUB-TAB */}
                   {settingsSubTab === 'theme' && (
                     <div style={{ maxWidth: '650px', marginTop: '1rem' }} className="animate-fade-in">
                       <div style={{ paddingBottom: '0.75rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Pilih Preset Tema Estetik Toko</h3>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Pilih Preset Tema Estetik Katalog</h3>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                          Klik salah satu opsi tema di bawah ini. Tema akan langsung diterapkan dan disimpan secara permanen secara otomatis.
+                          Klik salah satu opsi tema di bawah ini. Tema akan langsung diterapkan dan disimpan secara permanen.
                         </p>
                       </div>
 
@@ -7704,721 +7688,644 @@ function App() {
                     </div>
                   )}
 
-                  <form onSubmit={handleSettingsSave} style={{ maxWidth: '600px', marginTop: '1rem' }}>
-                  {settingsSuccess && (
-                    <div className="alert-message alert-success">
-                      {settingsSuccess}
-                    </div>
-                  )}
-                  <div className="form-group">
-                    <label className="form-label">Nama / Judul Toko *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: Catavor Store"
-                      required
-                      value={settingsForm.store_title || ''}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, store_title: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Logo Toko (Unggah Gambar atau Tempel URL)</label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {/* Live Preview */}
-                      {settingsForm.store_logo_url && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-light)', borderRadius: '6px' }}>
-                          <img 
-                            src={settingsForm.store_logo_url} 
-                            alt="Logo Preview" 
-                            style={{ height: '40px', width: 'auto', objectFit: 'contain' }} 
-                          />
-                          <button 
-                            type="button" 
-                            className="btn-danger btn-small"
-                            onClick={() => setSettingsForm({ ...settingsForm, store_logo_url: '' })}
-                            style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
-                          >
-                            Hapus Logo
-                          </button>
+                  {/* FORM SUB-TABS (General, Contact, About) */}
+                  {settingsSubTab !== 'theme' && settingsSubTab !== 'master' && (
+                    <form onSubmit={handleSettingsSave} style={{ maxWidth: '600px', marginTop: '1rem' }} className="animate-fade-in">
+                      {settingsSuccess && (
+                        <div className="alert-message alert-success">
+                          {settingsSuccess}
                         </div>
                       )}
-                      
-                      <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        {/* File Upload Input */}
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleLogoUpload}
-                          disabled={logoUploading}
-                          style={{ display: 'none' }}
-                          id="store-logo-file-input-desktop"
-                        />
-                        <label 
-                          htmlFor="store-logo-file-input-desktop" 
-                          className="btn-secondary"
-                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
-                        >
-                          {logoUploading ? 'Mengunggah...' : 'Pilih File Logo dari Perangkat'}
-                        </label>
-                      </div>
 
-                      {/* Text Input URL */}
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Atau tempel URL gambar logo langsung..."
-                        value={settingsForm.store_logo_url || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, store_logo_url: e.target.value })}
-                      />
-                    </div>
-                  </div>
+                      {/* SUB-TAB 1: PROFIL & IDENTITAS UTAMA */}
+                      {settingsSubTab === 'general' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div className="form-group">
+                            <label className="form-label">Nama / Judul Katalog *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Contoh: Catavor Digital"
+                              required
+                              value={settingsForm.store_title || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, store_title: e.target.value })}
+                            />
+                          </div>
 
-                  <div className="form-group">
-                    <WhatsAppContactsManager 
-                      value={settingsForm.whatsapp_number} 
-                      onChange={(newVal) => setSettingsForm({ ...settingsForm, whatsapp_number: newVal })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Slogan / Tagline Toko *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Slogan toko hias..."
-                      required
-                      value={settingsForm.store_slogan}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, store_slogan: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Banner Promo (Kosongkan jika tidak ada promo)</label>
-                    <textarea 
-                      rows={3}
-                      className="form-input" 
-                      placeholder="Tulis detail promo di sini (contoh: 🎉 PROMO MERDEKA: Diskon 15% untuk semua jenis Mamalia!)..."
-                      value={settingsForm.promo_banner}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, promo_banner: e.target.value })}
-                    />
-                  </div>
-
-                  {false && (
-                    <>
-                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0', borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)', marginBottom: '1.5rem' }}>
-                    <div>
-                      <label className="form-label" style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Fitur Artikel (Edukasi)</label>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.25rem' }}>Aktifkan menu penulisan blog dan tips edukasi satwa</span>
-                    </div>
-                    <label style={{ position: 'relative', display: 'inline-block', width: '46px', height: '24px', cursor: 'pointer' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={settingsForm.articles_enabled !== '0'} 
-                        onChange={(e) => setSettingsForm({ ...settingsForm, articles_enabled: e.target.checked ? '1' : '0' })}
-                        style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
-                      />
-                      <span style={{
-                        position: 'absolute',
-                        top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: settingsForm.articles_enabled !== '0' ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-                        transition: '0.3s',
-                        borderRadius: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '2px'
-                      }}>
-                        <span style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '50%',
-                          backgroundColor: '#fff',
-                          transition: '0.3s',
-                          transform: settingsForm.articles_enabled !== '0' ? 'translateX(22px)' : 'translateX(0px)',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                        }} />
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Default Discussion Settings */}
-                  {settingsForm.articles_enabled !== '0' && (
-                    <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-light)', borderRadius: '8px' }}>
-                      <h5 style={{ fontSize: '0.85rem', fontWeight: 800, margin: '0 0 1rem 0', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Setelan Diskusi Default Artikel</h5>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                          <input 
-                            type="checkbox"
-                            checked={settingsForm.default_is_comments_enabled !== '0'}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, default_is_comments_enabled: e.target.checked ? '1' : '0' })}
-                            style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                          />
-                          <span>Aktifkan Komentar Pembaca secara Default</span>
-                        </label>
-                        
-                        {settingsForm.default_is_comments_enabled !== '0' && (
-                          <div style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', borderLeft: '2px solid var(--border-light)' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              <input 
-                                type="checkbox"
-                                checked={settingsForm.default_require_comment_approval === '1'}
-                                onChange={(e) => setSettingsForm({ ...settingsForm, default_require_comment_approval: e.target.checked ? '1' : '0' })}
-                                style={{ width: '15px', height: '15px', accentColor: 'var(--primary)' }}
-                              />
-                              <span>Tahan Komentar untuk Moderasi</span>
-                            </label>
-
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              <input 
-                                type="checkbox"
-                                checked={settingsForm.default_require_comment_email === '1'}
-                                onChange={(e) => setSettingsForm({ ...settingsForm, default_require_comment_email: e.target.checked ? '1' : '0' })}
-                                style={{ width: '15px', height: '15px', accentColor: 'var(--primary)' }}
-                              />
-                              <span>Wajibkan Email Komentator</span>
-                            </label>
-
-                            {settingsForm.default_require_comment_email === '1' && (
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <div className="form-group">
+                            <label className="form-label">Logo Resmi (Unggah Gambar atau Tempel URL)</label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                              {/* Live Preview */}
+                              {settingsForm.store_logo_url && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-light)', borderRadius: '6px' }}>
+                                  <img 
+                                    src={settingsForm.store_logo_url} 
+                                    alt="Logo Preview" 
+                                    style={{ height: '40px', width: 'auto', objectFit: 'contain' }} 
+                                  />
+                                  <button 
+                                    type="button" 
+                                    className="btn-danger btn-small"
+                                    onClick={() => setSettingsForm({ ...settingsForm, store_logo_url: '' })}
+                                    style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                                  >
+                                    Hapus Logo
+                                  </button>
+                                </div>
+                              )}
+                              
+                              <div style={{ display: 'flex', gap: '0.75rem' }}>
                                 <input 
-                                  type="checkbox"
-                                  checked={settingsForm.default_verify_comment_email_domain === '1'}
-                                  onChange={(e) => setSettingsForm({ ...settingsForm, default_verify_comment_email_domain: e.target.checked ? '1' : '0' })}
-                                  style={{ width: '15px', height: '15px', accentColor: 'var(--primary)' }}
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={handleLogoUpload}
+                                  disabled={logoUploading}
+                                  style={{ display: 'none' }}
+                                  id="store-logo-file-input-desktop"
                                 />
-                                <span>Verifikasi Domain Email (DNS MX)</span>
-                              </label>
-                            )}
+                                <label 
+                                  htmlFor="store-logo-file-input-desktop" 
+                                  className="btn-secondary"
+                                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
+                                >
+                                  {logoUploading ? 'Mengunggah...' : 'Pilih File Logo dari Perangkat'}
+                                </label>
+                              </div>
+
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Atau tempel URL gambar logo langsung..."
+                                value={settingsForm.store_logo_url || ''}
+                                onChange={(e) => setSettingsForm({ ...settingsForm, store_logo_url: e.target.value })}
+                              />
+                            </div>
                           </div>
-                        )}
+
+                          <div className="form-group">
+                            <label className="form-label">Slogan / Tagline Utama *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Slogan atau tagline bisnis Anda..."
+                              required
+                              value={settingsForm.store_slogan}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, store_slogan: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">Banner Promo / Pengumuman (Kosongkan jika tidak ada)</label>
+                            <textarea 
+                              rows={3}
+                              className="form-input" 
+                              placeholder="Tulis detail promo atau pengumuman penting di sini..."
+                              value={settingsForm.promo_banner}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, promo_banner: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SUB-TAB 2: KONTAK & SALURAN RESMI */}
+                      {settingsSubTab === 'contact' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                          <div className="form-group">
+                            <WhatsAppContactsManager 
+                              value={settingsForm.whatsapp_number} 
+                              onChange={(newVal) => setSettingsForm({ ...settingsForm, whatsapp_number: newVal })} 
+                            />
+                          </div>
+
+                          <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                            <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <Globe size={15} style={{ color: 'var(--primary)' }} />
+                              Website Resmi / Portal Official
+                            </label>
+                            <input 
+                              type="url" 
+                              className="form-input" 
+                              placeholder="Contoh: https://website-resmi.com"
+                              value={settingsForm.official_website || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, official_website: e.target.value })}
+                            />
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.25rem' }}>
+                              * Kosongkan jika tidak ada. Jika diisi, tombol Website Resmi akan otomatis tampil di bagian Hubungi Kami.
+                            </span>
+                          </div>
+
+                          <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                            <label className="form-label">Lokasi / Alamat Resmi</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Contoh: Bandung, Jawa Barat, Indonesia"
+                              value={settingsForm.about_location || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, about_location: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                            <OperationalHoursBuilder 
+                              value={settingsForm.about_hours || ''}
+                              onChange={(val) => setSettingsForm({ ...settingsForm, about_hours: val })}
+                            />
+                          </div>
+
+                          {/* Dynamic Social Links Builder */}
+                          <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                              <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Tautan Media Sosial Resmi</label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentLinks = (() => {
+                                    try {
+                                      return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
+                                    } catch (e) {
+                                      return [];
+                                    }
+                                  })();
+                                  const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
+                                  setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  padding: '0.35rem 0.75rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  backgroundColor: 'var(--primary-glow)',
+                                  color: 'var(--primary)',
+                                  border: '1px solid var(--border-light)',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Plus size={12} /> Tambah Sosmed
+                              </button>
+                            </div>
+
+                            {(() => {
+                              const currentLinks = (() => {
+                                try {
+                                  return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
+                                } catch (e) {
+                                  return [];
+                                }
+                              })();
+
+                              if (currentLinks.length === 0) {
+                                return (
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.5rem 0 1rem 0', fontStyle: 'italic' }}>
+                                    Belum ada tautan media sosial. Klik Tambah Sosmed.
+                                  </p>
+                                );
+                              }
+
+                              return (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                  {currentLinks.map((link: any, index: number) => (
+                                    <div key={index} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newLinks = currentLinks.filter((_: any, idx: number) => idx !== index);
+                                          setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                        }}
+                                        style={{
+                                          position: 'absolute',
+                                          top: '0.75rem',
+                                          right: '0.75rem',
+                                          background: 'none',
+                                          border: 'none',
+                                          color: '#ef4444',
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Hapus Sosmed"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                      
+                                      <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Platform *</label>
+                                        <select
+                                          className="form-input"
+                                          value={link.platform || 'Instagram'}
+                                          onChange={(e) => {
+                                            const newLinks = [...currentLinks];
+                                            newLinks[index].platform = e.target.value;
+                                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                          }}
+                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
+                                        >
+                                          {SOCIAL_MEDIA_OPTIONS.map((opt) => (
+                                            <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+
+                                      <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Link URL *</label>
+                                        <input
+                                          type="url"
+                                          className="form-input"
+                                          placeholder="Contoh: https://instagram.com/akun"
+                                          required
+                                          value={link.url}
+                                          onChange={(e) => {
+                                            const newLinks = [...currentLinks];
+                                            newLinks[index].url = e.target.value;
+                                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                          }}
+                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SUB-TAB 3: HALAMAN TENTANG KAMI */}
+                      {settingsSubTab === 'about' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div className="form-group">
+                            <label className="form-label">Judul Halaman Tentang Kami</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Contoh: Tentang Catavor"
+                              value={settingsForm.about_title || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, about_title: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">Slogan Halaman Tentang Kami</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Contoh: Platform Katalog Digital & Biolink Bisnis Modern"
+                              value={settingsForm.about_slogan || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, about_slogan: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">Deskripsi Profil Lengkap</label>
+                            <textarea 
+                              rows={4}
+                              className="form-input" 
+                              placeholder="Detail profil usaha, visi misi, atau informasi penting..."
+                              value={settingsForm.about_description || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, about_description: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label className="form-label">Teks Disclaimer Perlindungan / Legal</label>
+                            <textarea 
+                              rows={3}
+                              className="form-input" 
+                              placeholder="Disclaimer legal, perlindungan konsumen, atau regulasi..."
+                              value={settingsForm.about_disclaimer || ''}
+                              onChange={(e) => setSettingsForm({ ...settingsForm, about_disclaimer: e.target.value })}
+                            />
+                          </div>
+
+                          {/* Dynamic About Cards Builder */}
+                          <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                              <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Kartu Komitmen / Nilai Unggulan</label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentCards = (() => {
+                                    try {
+                                      return settingsForm.about_cards ? JSON.parse(settingsForm.about_cards) : [];
+                                    } catch (e) {
+                                      return [];
+                                    }
+                                  })();
+                                  const newCards = [...currentCards, { title: '', content: '', icon: 'shield' }];
+                                  setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  padding: '0.35rem 0.75rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  backgroundColor: 'var(--primary-glow)',
+                                  color: 'var(--primary)',
+                                  border: '1px solid var(--border-light)',
+                                  borderRadius: '0.25rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Plus size={12} /> Tambah Kartu
+                              </button>
+                            </div>
+
+                            {(() => {
+                              const currentCards = (() => {
+                                try {
+                                  return settingsForm.about_cards ? JSON.parse(settingsForm.about_cards) : [];
+                                } catch (e) {
+                                  return [];
+                                }
+                              })();
+
+                              if (currentCards.length === 0) {
+                                return (
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.5rem 0 1rem 0', fontStyle: 'italic' }}>
+                                    Belum ada kartu nilai/komitmen. Klik Tambah Kartu.
+                                  </p>
+                                );
+                              }
+
+                              return (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                                  {currentCards.map((card: any, index: number) => (
+                                    <div key={index} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newCards = currentCards.filter((_: any, idx: number) => idx !== index);
+                                          setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
+                                        }}
+                                        style={{
+                                          position: 'absolute',
+                                          top: '0.75rem',
+                                          right: '0.75rem',
+                                          background: 'none',
+                                          border: 'none',
+                                          color: '#ef4444',
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Hapus Kartu"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                      
+                                      <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Pilih Ikon Kartu *</label>
+                                        <select
+                                          className="form-input"
+                                          value={card.icon || 'shield'}
+                                          onChange={(e) => {
+                                            const newCards = [...currentCards];
+                                            newCards[index].icon = e.target.value;
+                                            setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
+                                          }}
+                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
+                                        >
+                                          {ABOUT_ICONS_OPTIONS.map((opt) => (
+                                            <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+
+                                      <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Judul Komitmen *</label>
+                                        <input
+                                          type="text"
+                                          className="form-input"
+                                          placeholder="Contoh: Garansi Keamanan"
+                                          required
+                                          value={card.title}
+                                          onChange={(e) => {
+                                            const newCards = [...currentCards];
+                                            newCards[index].title = e.target.value;
+                                            setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
+                                          }}
+                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                                        />
+                                      </div>
+
+                                      <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Deskripsi Penjelasan *</label>
+                                        <textarea
+                                          rows={2}
+                                          className="form-input"
+                                          placeholder="Penjelasan singkat komitmen..."
+                                          required
+                                          value={card.content}
+                                          onChange={(e) => {
+                                            const newCards = [...currentCards];
+                                            newCards[index].content = e.target.value;
+                                            setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
+                                          }}
+                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
+                        <button 
+                          type="submit" 
+                          className="btn-primary" 
+                          disabled={settingsLoading}
+                          style={{ padding: '0.75rem 1.5rem', fontWeight: 800 }}
+                        >
+                          {settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Master Data Management Section */}
+                  {settingsSubTab === 'master' && (
+                    <div style={{ marginTop: '1rem', paddingTop: '1rem' }} className="animate-fade-in">
+                      <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', fontWeight: 700 }}>
+                        Kelola Master Data Katalog
+                      </h3>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                        Kelola daftar pilihan dropdown bawaan. Klik tombol hapus (tanda silang) untuk menghapus atau mengganti pilihan secara massal.
+                      </p>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        {/* Kelas Category */}
+                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Kelas Hewan</h4>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                            {getUniqueClasses().map((c) => (
+                              <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
+                                {c}
+                                <span
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteMasterOption('class', c);
+                                  }}
+                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
+                                  title={`Hapus opsi ${c}`}
+                                >
+                                  <X size={12} />
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <input 
+                              type="text" 
+                              placeholder="Tambah kelas baru..." 
+                              className="form-input" 
+                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              value={newClassInput}
+                              onChange={(e) => setNewClassInput(e.target.value)}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn-primary" 
+                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Habitat Category */}
+                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Habitat</h4>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                            {getUniqueHabitats().map((h) => (
+                              <span key={h} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
+                                {h}
+                                <span
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteMasterOption('habitat', h);
+                                  }}
+                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
+                                  title={`Hapus opsi ${h}`}
+                                >
+                                  <X size={12} />
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <input 
+                              type="text" 
+                              placeholder="Tambah habitat baru..." 
+                              className="form-input" 
+                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              value={newHabitatInput}
+                              onChange={(e) => setNewHabitatInput(e.target.value)}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn-primary" 
+                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Status Konservasi Category */}
+                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Status Konservasi</h4>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                            {getUniqueConservationStatuses().map((s) => (
+                              <span key={s} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
+                                {s}
+                                <span
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteMasterOption('conservation_status', s);
+                                  }}
+                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
+                                  title={`Hapus opsi ${s}`}
+                                >
+                                  <X size={12} />
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <input 
+                              type="text" 
+                              placeholder="Tambah status baru..." 
+                              className="form-input" 
+                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              value={newStatusInput}
+                              onChange={(e) => setNewStatusInput(e.target.value)}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn-primary" 
+                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Jangkauan Pengiriman Category */}
+                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Jangkauan Pengiriman</h4>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                            {getUniqueShippingCoverages().map((sc) => (
+                              <span key={sc} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
+                                {sc}
+                                <span
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteMasterOption('shipping_coverage', sc);
+                                  }}
+                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
+                                  title={`Hapus opsi ${sc}`}
+                                >
+                                  <X size={12} />
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <input 
+                              type="text" 
+                              placeholder="Tambah jangkauan baru..." 
+                              className="form-input" 
+                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              value={newShippingInput}
+                              onChange={(e) => setNewShippingInput(e.target.value)}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn-primary" 
+                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  )}
-                </>
               )}
-
-                  {/* Halaman Tentang Kami (Dynamic) */}
-                  <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 1rem 0', color: 'var(--text-primary)', letterSpacing: '0.03em', textTransform: 'uppercase', opacity: 0.8 }}>
-                      Halaman Tentang Kami
-                    </h4>
-                    
-                    <div className="form-group">
-                      <label className="form-label">Judul Halaman Tentang Kami</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: Tentang Catavor"
-                        value={settingsForm.about_title || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, about_title: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Slogan Halaman</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: Premium Quality Gallery & Information"
-                        value={settingsForm.about_slogan || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, about_slogan: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Deskripsi Galeri</label>
-                      <textarea 
-                        rows={3}
-                        className="form-input" 
-                        placeholder="Detail profil galeri..."
-                        value={settingsForm.about_description || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, about_description: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Lokasi Galeri</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: Bandung, Jawa Barat, Indonesia"
-                        value={settingsForm.about_location || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, about_location: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <OperationalHoursBuilder 
-                        value={settingsForm.about_hours || ''}
-                        onChange={(val) => setSettingsForm({ ...settingsForm, about_hours: val })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Teks Disclaimer Perlindungan Satwa</label>
-                      <textarea 
-                        rows={3}
-                        className="form-input" 
-                        placeholder="Disclaimer pelarangan jual-beli satwa liar dilindungi..."
-                        value={settingsForm.about_disclaimer || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, about_disclaimer: e.target.value })}
-                      />
-                    </div>
-
-                    {/* Dynamic About Cards Builder */}
-                    <div style={{ marginTop: '1.5rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Kartu Komitmen / Nilai Unggulan</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const currentCards = (() => {
-                              try {
-                                return settingsForm.about_cards ? JSON.parse(settingsForm.about_cards) : [];
-                              } catch (e) {
-                                return [];
-                              }
-                            })();
-                            const newCards = [...currentCards, { title: '', content: '', icon: 'shield' }];
-                            setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.35rem 0.75rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            color: 'var(--primary)',
-                            border: '1px solid rgba(16, 185, 129, 0.2)',
-                            borderRadius: '0.25rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Plus size={12} /> Tambah Kartu
-                        </button>
-                      </div>
-
-                      {(() => {
-                        const currentCards = (() => {
-                          try {
-                            return settingsForm.about_cards ? JSON.parse(settingsForm.about_cards) : [];
-                          } catch (e) {
-                            return [];
-                          }
-                        })();
-
-                        if (currentCards.length === 0) {
-                          return (
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.5rem 0 1rem 0', fontStyle: 'italic' }}>
-                              Belum ada kartu nilai/komitmen. Klik Tambah Kartu.
-                            </p>
-                          );
-                        }
-
-                        return (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                            {currentCards.map((card: any, index: number) => (
-                              <div key={index} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newCards = currentCards.filter((_: any, idx: number) => idx !== index);
-                                    setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
-                                  }}
-                                  style={{
-                                    position: 'absolute',
-                                    top: '0.75rem',
-                                    right: '0.75rem',
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#ef4444',
-                                    cursor: 'pointer'
-                                  }}
-                                  title="Hapus Kartu"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                                
-                                <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
-                                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Pilih Ikon Kartu *</label>
-                                  <select
-                                    className="form-input"
-                                    value={card.icon || 'shield'}
-                                    onChange={(e) => {
-                                      const newCards = [...currentCards];
-                                      newCards[index].icon = e.target.value;
-                                      setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
-                                    }}
-                                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
-                                  >
-                                    {ABOUT_ICONS_OPTIONS.map((opt) => (
-                                      <option key={opt.key} value={opt.key}>{opt.label}</option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
-                                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Judul Kartu *</label>
-                                  <input
-                                    type="text"
-                                    className="form-input"
-                                    placeholder="Contoh: Garansi Kesehatan"
-                                    required
-                                    value={card.title}
-                                    onChange={(e) => {
-                                      const newCards = [...currentCards];
-                                      newCards[index].title = e.target.value;
-                                      setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
-                                    }}
-                                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                                  />
-                                </div>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Deskripsi Kartu *</label>
-                                  <textarea
-                                    rows={2}
-                                    className="form-input"
-                                    placeholder="Keterangan singkat..."
-                                    required
-                                    value={card.content}
-                                    onChange={(e) => {
-                                      const newCards = [...currentCards];
-                                      newCards[index].content = e.target.value;
-                                      setSettingsForm({ ...settingsForm, about_cards: JSON.stringify(newCards) });
-                                    }}
-                                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Official Website Input */}
-                    <div className="form-group" style={{ marginTop: '1.5rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.5rem' }}>
-                      <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Globe size={15} style={{ color: 'var(--primary)' }} />
-                        Website Resmi / Portal Official
-                      </label>
-                      <input 
-                        type="url" 
-                        className="form-input" 
-                        placeholder="Contoh: https://website-resmi.com"
-                        value={settingsForm.official_website || ''}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, official_website: e.target.value })}
-                      />
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.25rem' }}>
-                        * Kosongkan jika tidak ada. Jika diisi, komponen Website Resmi akan otomatis tampil di bagian Hubungi Kami.
-                      </span>
-                    </div>
-
-                    {/* Dynamic Social Links Builder */}
-                    <div style={{ marginTop: '1.5rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                        <label className="form-label" style={{ margin: 0, fontSize: '0.9rem' }}>Tautan Media Sosial Resmi</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const currentLinks = (() => {
-                              try {
-                                return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
-                              } catch (e) {
-                                return [];
-                              }
-                            })();
-                            const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
-                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.35rem 0.75rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            backgroundColor: 'var(--primary-glow)',
-                            color: 'var(--primary)',
-                            border: '1px solid var(--border-light)',
-                            borderRadius: '0.25rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Plus size={12} /> Tambah Sosmed
-                        </button>
-                      </div>
-
-                      {(() => {
-                        const currentLinks = (() => {
-                          try {
-                            return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
-                          } catch (e) {
-                            return [];
-                          }
-                        })();
-
-                        if (currentLinks.length === 0) {
-                          return (
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.5rem 0 1rem 0', fontStyle: 'italic' }}>
-                              Belum ada tautan media sosial. Klik Tambah Sosmed.
-                            </p>
-                          );
-                        }
-
-                        return (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                            {currentLinks.map((link: any, index: number) => (
-                              <div key={index} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newLinks = currentLinks.filter((_: any, idx: number) => idx !== index);
-                                    setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                  }}
-                                  style={{
-                                    position: 'absolute',
-                                    top: '0.75rem',
-                                    right: '0.75rem',
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#ef4444',
-                                    cursor: 'pointer'
-                                  }}
-                                  title="Hapus Sosmed"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                                
-                                <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
-                                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Platform *</label>
-                                  <select
-                                    className="form-input"
-                                    value={link.platform || 'Instagram'}
-                                    onChange={(e) => {
-                                      const newLinks = [...currentLinks];
-                                      newLinks[index].platform = e.target.value;
-                                      setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                    }}
-                                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
-                                  >
-                                    {SOCIAL_MEDIA_OPTIONS.map((opt) => (
-                                      <option key={opt.key} value={opt.key}>{opt.label}</option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Link URL *</label>
-                                  <input
-                                    type="url"
-                                    className="form-input"
-                                    placeholder="Contoh: https://instagram.com/akun"
-                                    required
-                                    value={link.url}
-                                    onChange={(e) => {
-                                      const newLinks = [...currentLinks];
-                                      newLinks[index].url = e.target.value;
-                                      setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                    }}
-                                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {settingsSubTab !== 'theme' && (
-                    <button 
-                      type="submit" 
-                      className="btn-primary" 
-                      disabled={settingsLoading}
-                    >
-                      {settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan'}
-                    </button>
-                  )}
-                </form>
-
-                {/* Master Data Management Section */}
-                <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-light)' }}>
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', fontWeight: 700 }}>
-                    Kelola Pilihan Master Data (Dropdown)
-                  </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                    Kelola daftar pilihan dropdown bawaan. Klik tombol hapus (tanda silang) pada pilihan untuk menghapus atau menggantinya secara massal di database.
-                  </p>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                    {/* Kelas Category */}
-                    <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Kelas Hewan</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                        {getUniqueClasses().map((c) => (
-                          <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                            {c}
-                            <span
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeleteMasterOption('class', c);
-                              }}
-                              style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                              title={`Hapus opsi ${c}`}
-                            >
-                              <X size={12} />
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <input 
-                          type="text" 
-                          placeholder="Tambah kelas baru..." 
-                          className="form-input" 
-                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
-                          value={newClassInput}
-                          onChange={(e) => setNewClassInput(e.target.value)}
-                        />
-                        <button 
-                          type="button" 
-                          className="btn-primary" 
-                          style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Habitat Category */}
-                    <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Habitat</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                        {getUniqueHabitats().map((h) => (
-                          <span key={h} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                            {h}
-                            <span
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeleteMasterOption('habitat', h);
-                              }}
-                              style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                              title={`Hapus opsi ${h}`}
-                            >
-                              <X size={12} />
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <input 
-                          type="text" 
-                          placeholder="Tambah habitat baru..." 
-                          className="form-input" 
-                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
-                          value={newHabitatInput}
-                          onChange={(e) => setNewHabitatInput(e.target.value)}
-                        />
-                        <button 
-                          type="button" 
-                          className="btn-primary" 
-                          style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          onClick={() => handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Status Konservasi Category */}
-                    <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Status Konservasi</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                        {getUniqueConservationStatuses().map((s) => (
-                          <span key={s} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                            {s}
-                            <span
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeleteMasterOption('conservation_status', s);
-                              }}
-                              style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                              title={`Hapus opsi ${s}`}
-                            >
-                              <X size={12} />
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <input 
-                          type="text" 
-                          placeholder="Tambah status baru..." 
-                          className="form-input" 
-                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
-                          value={newStatusInput}
-                          onChange={(e) => setNewStatusInput(e.target.value)}
-                        />
-                        <button 
-                          type="button" 
-                          className="btn-primary" 
-                          style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          onClick={() => handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Jangkauan Pengiriman Category */}
-                    <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Jangkauan Pengiriman</h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                        {getUniqueShippingCoverages().map((sc) => (
-                          <span key={sc} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                            {sc}
-                            <span
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeleteMasterOption('shipping_coverage', sc);
-                              }}
-                              style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                              title={`Hapus opsi ${sc}`}
-                            >
-                              <X size={12} />
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <input 
-                          type="text" 
-                          placeholder="Tambah jangkauan baru..." 
-                          className="form-input" 
-                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
-                          value={newShippingInput}
-                          onChange={(e) => setNewShippingInput(e.target.value)}
-                        />
-                        <button 
-                          type="button" 
-                          className="btn-primary" 
-                          style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          onClick={() => handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+            </>
+          )}
 
               {adminTab === 'profile' && (
                 /* TAB 3: ADMIN PROFILE & PASSWORD SETTINGS */
