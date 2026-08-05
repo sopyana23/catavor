@@ -8319,11 +8319,11 @@ function App() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         {[
-                          { id: 'emerald', name: 'Midnight Emerald', desc: 'Sleek Dark Glass & Emerald Precision', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a', IconComponent: Trees },
-                          { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Futuristic Royal Violet & Cyan Glow', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a', IconComponent: Zap },
-                          { id: 'sunset', name: 'Warm Sunset', desc: 'Luxury Dark Onyx, Amber Gold & Coral', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411', IconComponent: Sunset },
-                          { id: 'ocean', name: 'Oceanic Azure', desc: 'Fresh Corporate Deep Blue & Sky Cyan', bg: '#081021', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38', IconComponent: Waves },
-                          { id: 'pastel', name: 'Pastel Bloom', desc: 'Soft Aesthetic Light Mode & Rose Pink', bg: '#f8fafc', primary: '#e11d48', accent: '#f59e0b', cardBg: '#ffffff', light: true, IconComponent: Flower2 }
+                          { id: 'emerald', name: 'Midnight Emerald', desc: 'Nuansa gelap modern dengan kaca transparan & aksen hijau emerald.', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a', IconComponent: Trees },
+                          { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Gaya futuristik dengan warna ungu royal & efek neon cyan.', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a', IconComponent: Zap },
+                          { id: 'sunset', name: 'Warm Sunset', desc: 'Tampilan mewah onyx gelap dengan aksen emas amber & coral.', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411', IconComponent: Sunset },
+                          { id: 'ocean', name: 'Oceanic Azure', desc: 'Desain profesional biru gelap korporat & cyan segar.', bg: '#081021', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38', IconComponent: Waves },
+                          { id: 'pastel', name: 'Pastel Bloom', desc: 'Tema terang estetik yang lembut dengan sentuhan pink rose.', bg: '#f8fafc', primary: '#e11d48', accent: '#f59e0b', cardBg: '#ffffff', light: true, IconComponent: Flower2 }
                         ].map(t => {
                           const isActive = (settingsForm.store_theme || 'emerald') === t.id;
                           const IconComp = t.IconComponent;
@@ -8332,65 +8332,72 @@ function App() {
                               key={t.id}
                               onClick={() => handleThemeSelect(t.id, t.name)}
                               style={{
-                                padding: '1.1rem',
+                                padding: '1rem 1.15rem',
                                 borderRadius: '0.85rem',
                                 border: isActive ? `2px solid ${t.primary}` : '1px solid var(--border-light)',
                                 background: t.cardBg,
                                 cursor: 'pointer',
                                 boxShadow: isActive ? `0 0 20px ${t.primary}35` : '0 4px 12px rgba(0,0,0,0.15)',
                                 display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.85rem',
-                                position: 'relative',
+                                flexDirection: 'column',
+                                gap: '0.65rem',
                                 transition: 'all 0.2s ease'
                               }}
                             >
-                              {isActive && (
-                                <span style={{
-                                  position: 'absolute',
-                                  top: '0.6rem',
-                                  right: '0.65rem',
-                                  fontSize: '0.66rem',
-                                  fontWeight: 800,
-                                  color: t.primary,
-                                  padding: '0.18rem 0.5rem',
-                                  borderRadius: '20px',
-                                  backgroundColor: `${t.primary}20`,
-                                  border: `1px solid ${t.primary}50`,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  boxShadow: `0 2px 8px ${t.primary}20`
-                                }}>
-                                  <CheckCircle2 size={11} /> Aktif
-                                </span>
-                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                                  <div style={{
+                                    width: '34px',
+                                    height: '34px',
+                                    borderRadius: '9px',
+                                    backgroundColor: `${t.primary}20`,
+                                    border: `1px solid ${t.primary}40`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: t.primary,
+                                    boxShadow: `0 4px 10px ${t.primary}25`,
+                                    flexShrink: 0
+                                  }}>
+                                    <IconComp size={16} />
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '4px', background: t.bg, padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+                                    <span style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 5px ${t.primary}` }} />
+                                    <span style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: t.accent }} />
+                                  </div>
+                                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {t.name}
+                                  </h4>
+                                </div>
 
-                              <div style={{
-                                width: '38px',
-                                height: '38px',
-                                borderRadius: '10px',
-                                backgroundColor: `${t.primary}20`,
-                                border: `1px solid ${t.primary}40`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: t.primary,
-                                boxShadow: `0 4px 12px ${t.primary}25`,
-                                flexShrink: 0
+                                {isActive && (
+                                  <span style={{
+                                    fontSize: '0.64rem',
+                                    fontWeight: 800,
+                                    color: t.primary,
+                                    padding: '0.18rem 0.55rem',
+                                    borderRadius: '20px',
+                                    backgroundColor: `${t.primary}20`,
+                                    border: `1px solid ${t.primary}50`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    boxShadow: `0 2px 6px ${t.primary}20`,
+                                    flexShrink: 0
+                                  }}>
+                                    <CheckCircle2 size={11} /> Aktif
+                                  </span>
+                                )}
+                              </div>
+
+                              <p style={{
+                                fontSize: '0.73rem',
+                                color: t.light ? '#475569' : '#9ca3af',
+                                margin: 0,
+                                lineHeight: 1.45
                               }}>
-                                <IconComp size={18} />
-                              </div>
-                              <div style={{ display: 'flex', gap: '4px', background: t.bg, padding: '6px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
-                                <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: t.primary, boxShadow: `0 0 6px ${t.primary}` }} />
-                                <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: t.accent }} />
-                              </div>
-                              <div style={{ minWidth: 0, flex: 1, paddingRight: isActive ? '4.5rem' : 0 }}>
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: t.light ? '#0f172a' : '#ffffff', margin: 0 }}>{t.name}</h4>
-                                <span style={{ fontSize: '0.72rem', color: t.light ? '#475569' : '#9ca3af', display: 'block', marginTop: '0.15rem' }}>
-                                  {t.desc}
-                                </span>
-                              </div>
+                                {t.desc}
+                              </p>
                             </div>
                           );
                         })}
