@@ -9102,7 +9102,7 @@ function App() {
                         textOverflow: 'ellipsis',
                         textAlign: 'center'
                       }}>
-                        Kode QR Katalog
+                        Bagikan Katalog
                       </span>
                     </div>
 
