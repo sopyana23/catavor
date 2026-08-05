@@ -1260,8 +1260,9 @@ export function WhatsAppContactsManager({
             </div>
 
             {c.number.trim() && (
-              <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'var(--primary-glow)', padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)', width: 'fit-content' }}>
-                <span>📱 Tampilan Publik:</span>
+              <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)', width: 'fit-content' }}>
+                <Smartphone size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <span>Tampilan Publik:</span>
                 <strong>{formatPhoneNumber(c.number)}</strong>
               </div>
             )}
@@ -10923,22 +10924,25 @@ function App() {
                         </div>
                       </div>
 
-                      <button 
+                      <button
                         type="button"
-                        className="btn-primary btn-full" 
-                        style={{ 
-                          fontSize: '0.76rem', 
-                          padding: '0.55rem', 
-                          background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)', 
-                          border: 'none', 
-                          color: '#fff', 
+                        className="btn-warning"
+                        style={{
+                          width: '100%',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.45rem',
+                          padding: '0.65rem 1rem',
+                          fontSize: '0.82rem',
                           fontWeight: 800,
                           borderRadius: '0.5rem',
                           boxShadow: '0 4px 12px rgba(245, 158, 11, 0.35)'
                         }}
                         onClick={handleUpgradeToPro}
                       >
-                        🚀 Upgrade ke Plan Pro (Rp 30rb/bln)
+                        <Zap size={15} style={{ flexShrink: 0 }} />
+                        <span>Upgrade ke Plan Pro (Rp 30rb/bln)</span>
                       </button>
                     </div>
                   )}

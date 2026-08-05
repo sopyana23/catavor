@@ -1152,7 +1152,8 @@ export function WhatsAppContactsManager({
 
             {c.number.trim() && (
               <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--primary-glow)', padding: '0.35rem 0.75rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)', width: 'fit-content' }}>
-                <span>📱 Tampilan Publik:</span>
+                <Smartphone size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <span>Tampilan Publik:</span>
                 <strong>{formatPhoneNumber(c.number)}</strong>
               </div>
             )}
