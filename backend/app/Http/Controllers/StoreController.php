@@ -341,6 +341,10 @@ class StoreController extends Controller
             $lng = null;
             $placeName = null;
 
+            if (preg_match('/\/place\/([^\/]+)/', $finalUrl, $m)) {
+                $placeName = urldecode(str_replace('+', ' ', $m[1]));
+            }
+
             if (preg_match('/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/', $finalUrl, $m)) {
                 $lat = $m[1];
                 $lng = $m[2];
@@ -349,12 +353,8 @@ class StoreController extends Controller
                 $lng = $m[2];
             }
 
-            if (preg_match('/\/place\/([^\/]+)/', $finalUrl, $m)) {
-                $placeName = urldecode(str_replace('+', ' ', $m[1]));
-            }
-
-            $query = ($lat && $lng) ? "{$lat},{$lng}" : ($placeName ?: $cleanUrl);
-            $embedUrl = "https://maps.google.com/maps?q=" . urlencode($query) . "&z=16&output=embed";
+            $query = $placeName ?: (($lat && $lng) ? "{$lat},{$lng}" : $cleanUrl);
+            $embedUrl = "https://maps.google.com/maps?q=" . urlencode($query) . "&t=&z=15&ie=UTF8&iwloc=&output=embed";
 
             return response()->json([
                 'success' => true,

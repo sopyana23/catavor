@@ -671,11 +671,21 @@ export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUr
     return { embedUrl: clean, directUrl: clean, query: '' };
   }
 
+  const placeMatch = clean.match(/\/place\/([^/]+)/);
+  if (placeMatch) {
+    const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+    return {
+      embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
+      directUrl: clean,
+      query: placeName
+    };
+  }
+
   const pbMatch = clean.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
   if (pbMatch) {
     const query = `${pbMatch[1]},${pbMatch[2]}`;
     return {
-      embedUrl: `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
+      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
       directUrl: clean,
       query: query
     };
@@ -685,19 +695,9 @@ export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUr
   if (atMatch) {
     const query = `${atMatch[1]},${atMatch[2]}`;
     return {
-      embedUrl: `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
+      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
       directUrl: clean,
       query: query
-    };
-  }
-
-  const placeMatch = clean.match(/\/place\/([^/]+)/);
-  if (placeMatch) {
-    const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
-    return {
-      embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&z=16&output=embed`,
-      directUrl: clean,
-      query: placeName
     };
   }
 
@@ -705,14 +705,14 @@ export const parseGoogleMapsUrl = (rawUrl: string): { embedUrl: string; directUr
   if (rawCoordsMatch) {
     const query = `${rawCoordsMatch[1]},${rawCoordsMatch[2]}`;
     return {
-      embedUrl: `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
+      embedUrl: `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
       directUrl: `https://www.google.com/maps/search/?api=1&query=${query}`,
       query: query
     };
   }
 
   return {
-    embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(clean)}&z=16&output=embed`,
+    embedUrl: `https://maps.google.com/maps?q=${encodeURIComponent(clean)}&t=&z=15&ie=UTF8&iwloc=&output=embed`,
     directUrl: clean.startsWith('http') ? clean : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clean)}`,
     query: clean
   };
