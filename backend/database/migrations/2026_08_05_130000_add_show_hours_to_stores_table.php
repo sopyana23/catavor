@@ -8,19 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('stores', function (Blueprint $table) {
-            if (!Schema::hasColumn('stores', 'show_hours')) {
-                $table->boolean('show_hours')->default(true)->after('about_hours');
-            }
-        });
+        if (!Schema::hasColumn('stores', 'show_hours')) {
+            Schema::table('stores', function (Blueprint $table) {
+                $table->boolean('show_hours')->default(false)->after('about_hours');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('stores', function (Blueprint $table) {
-            if (Schema::hasColumn('stores', 'show_hours')) {
+        if (Schema::hasColumn('stores', 'show_hours')) {
+            Schema::table('stores', function (Blueprint $table) {
                 $table->dropColumn('show_hours');
-            }
-        });
+            });
+        }
     }
 };

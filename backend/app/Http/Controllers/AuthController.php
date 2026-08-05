@@ -81,6 +81,7 @@ class AuthController extends Controller
             'about_description' => 'Selamat datang di ' . $request->store_name . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '', // Sensitive field empty by default
             'about_hours' => '', // Empty by default until set by user
+            'show_hours' => false,
             'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
                 ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
@@ -261,6 +262,7 @@ class AuthController extends Controller
             'about_description' => 'Selamat datang di ' . $storeName . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '', // Sensitive field empty by default
             'about_hours' => '', // Empty by default until set by user
+            'show_hours' => false,
             'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
                 ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],

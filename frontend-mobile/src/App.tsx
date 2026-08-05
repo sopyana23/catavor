@@ -3529,7 +3529,7 @@ function App() {
             about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
             about_location: store.about_location || '',
             about_hours: store.about_hours || '',
-            show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : true,
+            show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : false,
             about_disclaimer: store.about_disclaimer || '',
             social_links: store.social_links ? JSON.stringify(store.social_links) : '',
             official_website: store.official_website || '',
@@ -4716,7 +4716,7 @@ function App() {
           about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
           about_location: store.about_location || '',
           about_hours: store.about_hours || '',
-          show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : true,
+          show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : false,
           about_disclaimer: store.about_disclaimer || '',
           social_links: store.social_links ? JSON.stringify(store.social_links) : '',
           official_website: store.official_website || '',
@@ -10288,7 +10288,7 @@ function App() {
           })();
 
           const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
-          const hasHours = Boolean((settings.show_hours ?? true) && settings.about_hours && settings.about_hours.trim());
+          const hasHours = Boolean(settings.show_hours === true);
           const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
           const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
           const hasSocial = Array.isArray(parsedSocial) && parsedSocial.length > 0;
@@ -11541,7 +11541,7 @@ function App() {
                                 <OperationalHoursBuilder 
                                   value={settingsForm.about_hours || ''}
                                   onChange={(val) => setSettingsForm({ ...settingsForm, about_hours: val })}
-                                  showHours={settingsForm.show_hours ?? true}
+                                  showHours={settingsForm.show_hours ?? false}
                                   onToggleShowHours={(show) => setSettingsForm({ ...settingsForm, show_hours: show })}
                                 />
                               </div>
