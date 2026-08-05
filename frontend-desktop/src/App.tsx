@@ -8508,43 +8508,6 @@ function App() {
 
                           {/* Dynamic Social Links Builder */}
                           <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                              <div>
-                                <label className="form-label" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>Tautan Media Sosial Resmi</label>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                                  Hubungkan akun Instagram, TikTok, Facebook, YouTube, atau saluran resmi lainnya
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                className="btn-primary"
-                                onClick={() => {
-                                  const currentLinks = (() => {
-                                    try {
-                                      return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
-                                    } catch (e) {
-                                      return [];
-                                    }
-                                  })();
-                                  const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
-                                  setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                }}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  padding: '0.45rem 0.9rem',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 800,
-                                  borderRadius: '0.4rem',
-                                  cursor: 'pointer',
-                                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
-                                }}
-                              >
-                                <Plus size={14} /> Tambah Sosmed
-                              </button>
-                            </div>
-
                             {(() => {
                               const currentLinks = (() => {
                                 try {
@@ -8554,126 +8517,156 @@ function App() {
                                 }
                               })();
 
-                              if (currentLinks.length === 0) {
-                                return (
-                                  <div style={{
-                                    padding: '1.25rem 1.5rem',
-                                    borderRadius: '0.75rem',
-                                    backgroundColor: 'var(--primary-glow)',
-                                    border: '2px dashed var(--primary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    gap: '1.25rem',
-                                    marginBottom: '1.25rem',
-                                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)'
-                                  }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                      <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
-                                        <Share2 size={22} />
-                                      </div>
-                                      <div>
-                                        <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: 'var(--text-primary)' }}>
-                                          Belum Ada Tautan Media Sosial Resmi
-                                        </h4>
-                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                                          Klik tombol di bawah untuk menambah akun Instagram, TikTok, Facebook, YouTube, atau saluran resmi toko Anda.
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="btn-primary"
-                                      onClick={() => {
-                                        const currentLinks = (() => {
-                                          try {
-                                            return settingsForm.social_links ? JSON.parse(settingsForm.social_links) : [];
-                                          } catch (e) {
-                                            return [];
-                                          }
-                                        })();
-                                        const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
-                                        setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.4rem',
-                                        padding: '0.6rem 1.1rem',
-                                        fontSize: '0.82rem',
-                                        fontWeight: 800,
-                                        whiteSpace: 'nowrap',
-                                        flexShrink: 0,
-                                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                                      }}
-                                    >
-                                      <Plus size={16} /> Tambah Sosmed Sekarang
-                                    </button>
-                                  </div>
-                                );
-                              }
-
                               return (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                                  {currentLinks.map((link: any, index: number) => (
-                                    <div key={index} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                <>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                    <div>
+                                      <label className="form-label" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>Tautan Media Sosial Resmi</label>
+                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                                        Hubungkan akun Instagram, TikTok, Facebook, YouTube, atau saluran resmi lainnya
+                                      </span>
+                                    </div>
+                                    {currentLinks.length > 0 && (
                                       <button
                                         type="button"
+                                        className="btn-primary"
                                         onClick={() => {
-                                          const newLinks = currentLinks.filter((_: any, idx: number) => idx !== index);
+                                          const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
                                           setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
                                         }}
                                         style={{
-                                          position: 'absolute',
-                                          top: '0.75rem',
-                                          right: '0.75rem',
-                                          background: 'none',
-                                          border: 'none',
-                                          color: '#ef4444',
-                                          cursor: 'pointer'
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          padding: '0.45rem 0.9rem',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 800,
+                                          borderRadius: '0.4rem',
+                                          cursor: 'pointer',
+                                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
                                         }}
-                                        title="Hapus Sosmed"
                                       >
-                                        <Trash2 size={14} />
+                                        <Plus size={14} /> Tambah Sosmed
                                       </button>
-                                      
-                                      <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
-                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Platform *</label>
-                                        <select
-                                          className="form-input"
-                                          value={link.platform || 'Instagram'}
-                                          onChange={(e) => {
-                                            const newLinks = [...currentLinks];
-                                            newLinks[index].platform = e.target.value;
-                                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                          }}
-                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}
-                                        >
-                                          {SOCIAL_MEDIA_OPTIONS.map((opt) => (
-                                            <option key={opt.key} value={opt.key}>{opt.label}</option>
-                                          ))}
-                                        </select>
-                                      </div>
+                                    )}
+                                  </div>
 
-                                      <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Link URL *</label>
-                                        <input
-                                          type="url"
-                                          className="form-input"
-                                          placeholder="Contoh: https://instagram.com/akun"
-                                          required
-                                          value={link.url}
-                                          onChange={(e) => {
-                                            const newLinks = [...currentLinks];
-                                            newLinks[index].url = e.target.value;
-                                            setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
-                                          }}
-                                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                                        />
+                                  {currentLinks.length === 0 ? (
+                                    <div style={{
+                                      padding: '1.25rem 1.5rem',
+                                      borderRadius: '0.75rem',
+                                      backgroundColor: 'var(--primary-glow)',
+                                      border: '2px dashed var(--primary)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '1.25rem',
+                                      marginBottom: '1.25rem',
+                                      boxShadow: '0 4px 16px rgba(16, 185, 129, 0.08)'
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
+                                          <Share2 size={22} />
+                                        </div>
+                                        <div>
+                                          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: 'var(--text-primary)' }}>
+                                            Belum Ada Tautan Media Sosial Resmi
+                                          </h4>
+                                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                                            Klik tombol di samping untuk menambah akun Instagram, TikTok, Facebook, YouTube, atau saluran resmi toko Anda.
+                                          </p>
+                                        </div>
                                       </div>
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={() => {
+                                          const newLinks = [...currentLinks, { platform: 'Instagram', url: '' }];
+                                          setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.4rem',
+                                          padding: '0.6rem 1.1rem',
+                                          fontSize: '0.82rem',
+                                          fontWeight: 800,
+                                          whiteSpace: 'nowrap',
+                                          flexShrink: 0,
+                                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                                        }}
+                                      >
+                                        <Plus size={16} /> Tambah Sosmed Sekarang
+                                      </button>
                                     </div>
-                                  ))}
-                                </div>
+                                  ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                      {currentLinks.map((link: any, index: number) => (
+                                        <div key={index} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', position: 'relative', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newLinks = currentLinks.filter((_: any, idx: number) => idx !== index);
+                                              setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                            }}
+                                            style={{
+                                              position: 'absolute',
+                                              top: '0.75rem',
+                                              right: '0.75rem',
+                                              background: 'none',
+                                              border: 'none',
+                                              color: '#ef4444',
+                                              cursor: 'pointer'
+                                            }}
+                                            title="Hapus Tautan"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+
+                                          <div className="form-group" style={{ marginBottom: '0.75rem', width: '85%' }}>
+                                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Platform *</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                                                {renderSocialIcon(link.platform || 'Instagram', 18)}
+                                              </div>
+                                              <select
+                                                className="form-input"
+                                                value={link.platform || 'Instagram'}
+                                                onChange={(e) => {
+                                                  const newLinks = [...currentLinks];
+                                                  newLinks[index].platform = e.target.value;
+                                                  setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                                }}
+                                                style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', height: 'auto', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', flex: 1 }}
+                                              >
+                                                {SOCIAL_MEDIA_OPTIONS.map((opt) => (
+                                                  <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </div>
+
+                                          <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: '0.75rem' }}>URL / Tautan Profil *</label>
+                                            <input
+                                              type="url"
+                                              className="form-input"
+                                              placeholder="Contoh: https://instagram.com/akun"
+                                              required
+                                              value={link.url}
+                                              onChange={(e) => {
+                                                const newLinks = [...currentLinks];
+                                                newLinks[index].url = e.target.value;
+                                                setSettingsForm({ ...settingsForm, social_links: JSON.stringify(newLinks) });
+                                              }}
+                                              style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                                            />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
                               );
                             })()}
                           </div>
