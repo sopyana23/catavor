@@ -313,14 +313,6 @@ export const ABOUT_ICONS_OPTIONS = [
   { key: 'compass', label: '🧭 Eksplorasi / Visi' }
 ];
 
-export const SOCIAL_MEDIA_OPTIONS = [
-  { key: 'Instagram', label: '📸 Instagram' },
-  { key: 'Facebook', label: '👥 Facebook' },
-  { key: 'TikTok', label: '🎵 TikTok' },
-  { key: 'Youtube', label: '🎥 YouTube' },
-  { key: 'Twitter', label: '🐦 Twitter / X' }
-];
-
 // Helper for adaptive mobile header scale based on title length
 const getMobileHeaderScale = (titleStr: string) => {
   const len = titleStr.trim().length
@@ -347,6 +339,31 @@ export const renderAboutIcon = (key: string, size = 20, color = 'var(--primary)'
   }
 };
 
+export const SOCIAL_MEDIA_OPTIONS = [
+  { key: 'Instagram', label: '📸 Instagram' },
+  { key: 'Facebook', label: '👥 Facebook' },
+  { key: 'TikTok', label: '🎵 TikTok' },
+  { key: 'Youtube', label: '🎥 YouTube' },
+  { key: 'Twitter', label: '🐦 Twitter / X' },
+  { key: 'LinkedIn', label: '💼 LinkedIn' },
+  { key: 'Telegram', label: '✈️ Telegram' }
+];
+
+export const getPlatformBrandColor = (platform: string) => {
+  switch (platform) {
+    case 'Instagram': return '#e1306c';
+    case 'Facebook': return '#1877f2';
+    case 'TikTok': return '#00f2fe';
+    case 'Youtube':
+    case 'YouTube': return '#ff0000';
+    case 'Twitter':
+    case 'X': return '#38bdf8';
+    case 'LinkedIn': return '#0a66c2';
+    case 'Telegram': return '#24a1de';
+    default: return 'var(--primary)';
+  }
+};
+
 export const renderSocialIcon = (platform: string, size = 18, color = 'currentColor') => {
   switch (platform) {
     case 'Instagram':
@@ -370,6 +387,7 @@ export const renderSocialIcon = (platform: string, size = 18, color = 'currentCo
         </svg>
       );
     case 'Youtube':
+    case 'YouTube':
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96A29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" />
@@ -377,9 +395,25 @@ export const renderSocialIcon = (platform: string, size = 18, color = 'currentCo
         </svg>
       );
     case 'Twitter':
+    case 'X':
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+        </svg>
+      );
+    case 'LinkedIn':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+          <rect x="2" y="9" width="4" height="12" />
+          <circle cx="4" cy="4" r="2" />
+        </svg>
+      );
+    case 'Telegram':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13" />
+          <polygon points="22 2 15 22 11 13 2 9 22 2" />
         </svg>
       );
     default:
@@ -392,6 +426,195 @@ export const renderSocialIcon = (platform: string, size = 18, color = 'currentCo
       );
   }
 };
+
+export function OfficialWebsiteCard({ url }: { url?: string | null }) {
+  if (!url || !url.trim()) return null;
+
+  const formattedUrl = url.trim().startsWith('http://') || url.trim().startsWith('https://') 
+    ? url.trim() 
+    : `https://${url.trim()}`;
+
+  const displayDomain = url.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+
+  return (
+    <div style={{
+      borderRadius: '0.85rem',
+      border: '1px solid var(--border-light)',
+      backgroundColor: 'var(--bg-card)',
+      overflow: 'hidden',
+      transition: 'all 0.25s ease',
+      boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
+      padding: '0.85rem 1rem',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '0.75rem'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          width: '32px', 
+          height: '32px', 
+          borderRadius: '50%', 
+          backgroundColor: 'var(--primary-glow)', 
+          color: 'var(--primary)', 
+          flexShrink: 0, 
+          border: '1px solid var(--border-light)' 
+        }}>
+          <Globe size={16} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.08rem', minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            Website Resmi
+          </span>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {displayDomain}
+          </span>
+        </div>
+      </div>
+
+      <a
+        href={formattedUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.3rem',
+          padding: '0.35rem 0.75rem',
+          borderRadius: '0.5rem',
+          fontSize: '0.72rem',
+          fontWeight: 800,
+          backgroundColor: 'var(--primary-glow)',
+          color: 'var(--primary)',
+          border: '1px solid var(--border-light)',
+          textDecoration: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          flexShrink: 0,
+          boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+        }}
+      >
+        <span>Kunjungi</span>
+        <ExternalLink size={12} />
+      </a>
+    </div>
+  );
+}
+
+export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string | any[] | null }) {
+  const validLinks = useMemo(() => {
+    if (!rawSocialLinks) return [];
+    let parsed: any[] = [];
+    if (typeof rawSocialLinks === 'string') {
+      try {
+        parsed = JSON.parse(rawSocialLinks);
+      } catch (e) {
+        parsed = [];
+      }
+    } else if (Array.isArray(rawSocialLinks)) {
+      parsed = rawSocialLinks;
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item: any) => item && item.platform && item.url && item.url.trim() !== '');
+  }, [rawSocialLinks]);
+
+  if (validLinks.length === 0) return null;
+
+  if (validLinks.length === 1) {
+    const link = validLinks[0];
+    const brandColor = getPlatformBrandColor(link.platform);
+    return (
+      <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.5rem 0 0.15rem 0' }}>
+          <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kunjungi Media Sosial</span>
+          <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
+        </div>
+        <a
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1rem',
+            borderRadius: '0.65rem',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            textDecoration: 'none',
+            transition: 'all 0.25s ease',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: `${brandColor}18`, color: brandColor, border: `1px solid ${brandColor}40` }}>
+              {renderSocialIcon(link.platform, 16, brandColor)}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>{link.platform}</span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Ikuti Akun Resmi</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 800, color: brandColor }}>
+            <span>Buka</span>
+            <ExternalLink size={13} />
+          </div>
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.5rem 0 0.15rem 0' }}>
+        <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kunjungi Media Sosial</span>
+        <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
+      </div>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: validLinks.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(130px, 1fr))', 
+        gap: '0.55rem' 
+      }}>
+        {validLinks.map((link: any, idx: number) => {
+          const brandColor = getPlatformBrandColor(link.platform);
+          return (
+            <a
+              key={idx}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                padding: '0.65rem 0.75rem',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                textDecoration: 'none',
+                borderRadius: '0.55rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-primary)',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+              }}
+            >
+              {renderSocialIcon(link.platform, 15, brandColor)}
+              <span>{link.platform}</span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface ShopSettings {
   plan?: string
@@ -409,6 +632,7 @@ interface ShopSettings {
   about_hours?: string
   about_disclaimer?: string
   social_links?: string
+  official_website?: string
   store_title?: string
   store_logo_url?: string
   default_is_comments_enabled?: string
@@ -2925,6 +3149,7 @@ function App() {
             about_hours: store.about_hours || '',
             about_disclaimer: store.about_disclaimer || '',
             social_links: store.social_links ? JSON.stringify(store.social_links) : '',
+            official_website: store.official_website || '',
             store_title: store.store_title || 'Catavor',
             store_logo_url: store.store_logo_url || '',
             store_theme: store.store_theme || 'emerald',
@@ -4106,6 +4331,7 @@ function App() {
           about_hours: store.about_hours || '',
           about_disclaimer: store.about_disclaimer || '',
           social_links: store.social_links ? JSON.stringify(store.social_links) : '',
+          official_website: store.official_website || '',
           store_title: store.store_title || 'Catavor',
           store_logo_url: store.store_logo_url || '',
           store_theme: store.store_theme || settingsForm.store_theme || 'emerald'
@@ -9648,56 +9874,11 @@ function App() {
                   {/* WhatsApp Contacts */}
                   <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />
 
-                  {/* Social Media Links */}
-                  {(() => {
-                    const parsedLinks = (() => {
-                      try {
-                        return settings.social_links ? JSON.parse(settings.social_links) : [];
-                      } catch (e) {
-                        return [];
-                      }
-                    })();
+                  {/* Official Website (Dynamic - rendered ONLY if present) */}
+                  <OfficialWebsiteCard url={settings.official_website} />
 
-                    if (!Array.isArray(parsedLinks) || parsedLinks.length === 0) return null;
-
-                    return (
-                      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', margin: '0.5rem 0 0.25rem 0' }}>
-                          <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kunjungi Media Sosial</span>
-                          <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: parsedLinks.length === 1 ? '1fr' : '1fr 1fr', gap: '0.5rem' }}>
-                          {parsedLinks.map((link: any, idx: number) => (
-                            <a
-                              key={idx}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                padding: '0.6rem 0.75rem',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                textDecoration: 'none',
-                                borderRadius: '0.35rem',
-                                backgroundColor: 'rgba(255,255,255,0.02)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                transition: 'var(--transition-smooth)'
-                              }}
-                            >
-                              {renderSocialIcon(link.platform, 14, 'var(--primary)')}
-                              <span>{link.platform}</span>
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {/* Social Media Section (Dynamic - rendered ONLY if present) */}
+                  <SocialMediaSection rawSocialLinks={settings.social_links} />
                   
                   {/* Share Store Card */}
                   <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }}>
@@ -11145,8 +11326,25 @@ function App() {
 
                           {mobileSettingsTab === 'social' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Tautan media sosial di footer web.</span>
+                              <div className="form-group">
+                                <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <Globe size={15} style={{ color: 'var(--primary)' }} />
+                                  Website Resmi / Portal Official
+                                </label>
+                                <input 
+                                  type="url" 
+                                  className="form-input" 
+                                  placeholder="Contoh: https://website-resmi.com"
+                                  value={settingsForm.official_website || ''}
+                                  onChange={(e) => setSettingsForm({ ...settingsForm, official_website: e.target.value })}
+                                />
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.2rem' }}>
+                                  * Kosongkan jika tidak ada. Jika diisi, komponen Website Resmi akan tampil di Hubungi Kami.
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-light)' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Tautan Media Sosial Resmi:</span>
                                 <button
                                   type="button"
                                   onClick={() => {

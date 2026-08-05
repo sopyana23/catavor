@@ -36,6 +36,7 @@ class SettingController extends Controller
                 ['platform' => 'Instagram', 'url' => 'https://instagram.com/catavor'],
                 ['platform' => 'Facebook', 'url' => 'https://facebook.com/catavor']
             ]),
+            'official_website' => '',
             'payment_bank_name' => 'Bank Central Asia (BCA)',
             'payment_bank_account' => '8830-1928-3920',
             'payment_bank_holder' => 'PT Catavor Media Digital',

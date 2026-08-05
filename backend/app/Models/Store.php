@@ -28,6 +28,7 @@ class Store extends Model
         'about_disclaimer',
         'about_cards',
         'social_links',
+        'official_website',
         'master_classes',
         'master_habitats',
         'master_statuses',

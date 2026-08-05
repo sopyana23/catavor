@@ -156,6 +156,7 @@ class StoreController extends Controller
             
             // Social Links & Master options
             'social_links' => 'nullable|array',
+            'official_website' => 'nullable|string|max:500',
             'master_classes' => 'nullable|array',
             'master_habitats' => 'nullable|array',
             'master_statuses' => 'nullable|array',
