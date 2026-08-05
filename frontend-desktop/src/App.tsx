@@ -3142,15 +3142,15 @@ function App() {
       setArticlesLoading(false)
     }
   }
-  // Share store link
+  // Share store link (direct to Share / QR modal)
   const handleShareStore = () => {
-    const storeUrl = `${window.location.origin}/${storeSlug}`;
-    navigator.clipboard.writeText(storeUrl).then(() => {
-      showToast('Tautan toko berhasil disalin ke papan klip!');
-    }).catch(err => {
-      console.error('Failed to copy store link: ', err);
-      showToast('Gagal menyalin tautan.', 'error');
-    });
+    setView('catalog');
+    setActivePublicTab('about');
+    setShowQRModal(true);
+    const slug = storeSlug || getStoreSlug();
+    if (slug) {
+      window.history.pushState({}, '', `/${slug}/about/share`);
+    }
   };
 
   // Share specific fauna item link
@@ -7041,19 +7041,7 @@ function App() {
                     </div>
                   )}
 
-                  {/* Bagikan Katalog & Modal QR Code */}
-                  <ShareCatalogCard 
-                    storeSlug={storeSlug || ''} 
-                    storeTitle={settings.store_title} 
-                    onOpenQRModal={() => {
-                      setShowQRModal(true);
-                      const slug = storeSlug || getStoreSlug();
-                      if (slug) {
-                        window.history.pushState({}, '', `/${slug}/about/share`);
-                      }
-                    }}
-                    onToast={showToast} 
-                  />
+
 
                   <QRCodeModal 
                     isOpen={showQRModal} 
