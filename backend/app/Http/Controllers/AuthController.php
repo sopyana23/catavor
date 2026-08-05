@@ -77,7 +77,7 @@ class AuthController extends Controller
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang ' . $request->store_name,
-            'about_slogan' => 'Komitmen Layanan Profesional & Kualitas Terbaik',
+            'about_slogan' => 'Katalog Resmi Produk & Informasi Bisnis',
             'about_description' => 'Selamat datang di ' . $request->store_name . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '', // Sensitive field empty by default
             'about_hours' => '', // Empty by default until set by user
@@ -257,7 +257,7 @@ class AuthController extends Controller
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang ' . $storeName,
-            'about_slogan' => 'Komitmen Layanan Profesional & Kualitas Terbaik',
+            'about_slogan' => 'Katalog Resmi Produk & Informasi Bisnis',
             'about_description' => 'Selamat datang di ' . $storeName . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '', // Sensitive field empty by default
             'about_hours' => '', // Empty by default until set by user

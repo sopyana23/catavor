@@ -39,7 +39,7 @@ class DatabaseSeeder extends Seeder
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang Catavor',
-            'about_slogan' => 'Komitmen Layanan Profesional & Kualitas Terbaik',
+            'about_slogan' => 'Katalog Resmi Produk & Informasi Bisnis',
             'about_description' => 'Selamat datang di Catavor. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '',
             'about_hours' => '',
