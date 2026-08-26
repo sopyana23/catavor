@@ -327,32 +327,45 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'food':
       return {
         type: 'food',
-        typeName: 'Menu Kuliner (F&B)',
-        badgeName: 'Makanan & Minuman',
+        typeName: 'Produk Kuliner (F&B)',
+        badgeName: 'Kuliner & F&B',
         icon: Utensils,
         color: '#dc2626',
         gradientBg: 'radial-gradient(circle at top left, rgba(220, 38, 38, 0.15) 0%, transparent 70%)',
-        modalTitle: (mode) => mode === 'create' ? 'Tambah Menu Kuliner' : 'Edit Menu Kuliner',
-        modalSubtitle: 'Lengkapi takaran porsi, ketahanan makanan, suhu simpan, dan sertifikasi kuliner.',
-        nameLabel: 'Nama Menu Makanan / Minuman *',
-        namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Artisan Cold Brew Coffee / Frozen Dimsum 20pcs...',
-        categoryLabel: 'Kategori Menu Kuliner *',
-        defaultCategory: 'Makanan Utama',
-        categoryOptions: ['Makanan Utama', 'Minuman Olahan & Kopi', 'Camilan & Snack', 'Frozen Food & Olahan', 'Bakery & Pastry', 'Katering & Paket Nasi Boks', 'Bumbu & Frozen Ready-to-Cook'],
-        priceLabel: 'Harga Porsi (IDR) *',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Produk Kuliner' : 'Edit Produk Kuliner',
+        modalSubtitle: 'Lengkapi takaran porsi/kemasan, masa simpan, suhu penyimpanan, dan metode pengiriman.',
+        nameLabel: 'Nama Produk Kuliner / Menu *',
+        namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Cold Brew Coffee / Frozen Dimsum 20pcs / Bumbu Rendang...',
+        categoryLabel: 'Kategori Produk Kuliner *',
+        defaultCategory: 'Makanan Siap Santap',
+        categoryOptions: [
+          'Makanan Siap Santap',
+          'Minuman & Olahan Kopi',
+          'Makanan Beku & Olahan (Frozen)',
+          'Camilan, Snack & Kue Kering',
+          'Bakery, Roti & Pastry',
+          'Bumbu & Bahan Masak',
+          'Katering & Paket Pesanan',
+          'Lainnya'
+        ],
+        priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 35.000',
-        photoLabel: 'Foto Menu / Penyajian Makanan (1-5 Foto) *',
-        photoHelper: 'Unggah foto hidangan yang menggugah selera, kemasan makanan, atau komposisi menu.',
-        videoLabel: 'Video Penyajian / Food Review (YouTube URL - Opsional)',
+        photoLabel: 'Foto Produk / Penyajian (1-5 Foto) *',
+        photoHelper: 'Unggah 1 hingga 5 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
+        videoLabel: 'Video Produk / Penyajian (YouTube URL - Opsional)',
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
-        deliveryLabel: 'Jangkauan Pengiriman Menu *',
-        deliveryOptions: ['Khusus Kurir Instan / Sameday (Gojek/Grab)', 'Bisa Kirim Luar Kota (Paxel Frozen / 1 Hari Sampai)', 'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)', 'Pre-Order Katering Khusus'],
-        deliveryTermsLabel: 'Ketentuan Pemesanan & Penyajian',
-        deliveryTermsPlaceholder: 'Contoh: Menu dimasak fresh saat pesanan masuk (Made by order). Waktu penyiapan 15-25 menit sebelum kurir pickup...',
-        warrantyLabel: 'Petunjuk Penyajian & Penyimpanan',
-        warrantyPlaceholder: 'Contoh: Untuk frozen food, simpan pada freezer -18°C. Kukus selama 10 menit atau panaskan microwave 2 menit sebelum dinikmati...',
-        descLabel: 'Deskripsi Rasa & Komposisi Menu *',
-        descPlaceholder: 'Jelaskan cita rasa makanan/minuman, bahan-bahan premium yang digunakan, informasi alergen (kacang, seafood), dan saran penyajian...'
+        deliveryLabel: 'Jangkauan & Metode Pengiriman *',
+        deliveryOptions: [
+          'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+          'Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)',
+          'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+          'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)',
+          'Pre-Order Khusus (Katering / Acara)'
+        ],
+        deliveryTermsLabel: 'Ketentuan Pemesanan & Pengiriman',
+        deliveryTermsPlaceholder: 'Contoh: Dibuat fresh saat pesanan masuk (Made by order), batas jam checkout kurir, atau syarat kemasan luar kota...',
+        descLabel: 'Deskripsi, Bahan & Komposisi Kuliner *',
+        descPlaceholder: 'Jelaskan bahan-bahan utama, cita rasa, informasi alergen (kacang/seafood/gluten), cara penyajian/penghangatan (jika ada)...'
       };
   }
 }
@@ -13140,30 +13153,30 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                   )}
 
-                  {/* 5. MENU KULINER (F&B) */}
+                  {/* 5. PRODUK KULINER (F&B) */}
                   {crudForm.product_type === 'food' && (
                     <div style={{ background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                        🍔 Atribut Spesifik Menu Kuliner (F&amp;B)
+                        🍔 Atribut Spesifik Produk Kuliner (F&amp;B)
                       </span>
                       <div className="form-row">
                         <div className="form-group">
-                          <label className="form-label">Porsi / Takaran Bersih *</label>
+                          <label className="form-label">Porsi / Isi Bersih / Kemasan *</label>
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Contoh: 1 Porsi (300 gr) / Botol 500 ml / Box isi 10 pcs"
+                            placeholder="Contoh: 1 Porsi / Box 500 gr / Botol 250 ml / Pack 10 pcs"
                             required
                             value={crudForm.attributes.portion_size || '1 Porsi'}
                             onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
                           />
                         </div>
                         <div className="form-group">
-                          <label className="form-label">Ketahanan / Masa Simpan *</label>
+                          <label className="form-label">Masa Simpan / Kadaluwarsa *</label>
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Contoh: Fresh Daily / 3 Hari Chiller / 3 Bulan Freezer"
+                            placeholder="Contoh: Fresh Daily / 3 Hari Kulkas / 3 Bulan Freezer / 6 Bulan Kemasan"
                             required
                             value={crudForm.attributes.expired_info}
                             onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
@@ -13172,7 +13185,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                       <div className="form-row">
                         <div className="form-group">
-                          <label className="form-label">Suhu Penyimpanan *</label>
+                          <label className="form-label">Suhu &amp; Saran Penyimpanan *</label>
                           <select 
                             className="form-select"
                             value={crudForm.attributes.storage_temp}
@@ -13181,7 +13194,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <option value="Suhu Ruang">Suhu Ruang (Kering &amp; Sejuk)</option>
                             <option value="Dingin (Chiller)">Dingin (Kulkas / Chiller 4°C)</option>
                             <option value="Beku (Freezer)">Beku (Freezer -18°C)</option>
-                            <option value="Hangat / Langsung Santap">Langsung Disantap (Hangat)</option>
+                            <option value="Hangat / Langsung Santap">Hangat / Langsung Disantap</option>
+                            <option value="Fleksibel">Fleksibel / Sesuai Kemasan</option>
                           </select>
                         </div>
                         <div className="form-group">
