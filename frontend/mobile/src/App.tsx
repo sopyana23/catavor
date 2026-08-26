@@ -5687,7 +5687,17 @@ function App() {
         portion_size: '1 Porsi',
         expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
         storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
-        certification: '100% Halal'
+        certification: '100% Halal',
+        spicy_level: '',
+        prep_time: '',
+        serving_method: 'Dine-in, Takeaway & Kurir Instan',
+        cooking_guide: '',
+        sugar_ice_options: '',
+        bake_status: 'Freshly Baked Daily',
+        serving_capacity: '',
+        min_order: '',
+        delivery_service: 'Mobil Antar Toko / Kurir Khusus',
+        taste_options: ''
       }
     })
     setCustomClass('')
@@ -5757,7 +5767,17 @@ function App() {
         portion_size: item.attributes?.portion_size || '1 Porsi',
         expired_info: item.attributes?.expired_info || '7 Hari',
         storage_temp: item.attributes?.storage_temp || 'Suhu Ruang',
-        certification: item.attributes?.certification || '100% Halal'
+        certification: item.attributes?.certification || '100% Halal',
+        spicy_level: item.attributes?.spicy_level || '',
+        prep_time: item.attributes?.prep_time || '',
+        serving_method: item.attributes?.serving_method || 'Dine-in, Takeaway & Kurir Instan',
+        cooking_guide: item.attributes?.cooking_guide || '',
+        sugar_ice_options: item.attributes?.sugar_ice_options || '',
+        bake_status: item.attributes?.bake_status || 'Freshly Baked Daily',
+        serving_capacity: item.attributes?.serving_capacity || '',
+        min_order: item.attributes?.min_order || '',
+        delivery_service: item.attributes?.delivery_service || 'Mobil Antar Toko / Kurir Khusus',
+        taste_options: item.attributes?.taste_options || ''
       }
     })
     setCustomClass('')
@@ -8021,33 +8041,111 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
             {/* Product Specifications */}
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Spesifikasi</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Bobot</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.weight || 'N/A'}</span>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+                {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : 'Spesifikasi'))}
+              </h3>
+              
+              {selectedFauna.product_type === 'food' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {selectedFauna.attributes?.portion_size && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Porsi / Isi Bersih</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.portion_size}</span>
+                    </div>
+                  )}
+                  {(selectedFauna.attributes?.spicy_level || selectedFauna.attributes?.taste_options) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Varian / Rasa</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.spicy_level || selectedFauna.attributes?.taste_options}</span>
+                    </div>
+                  )}
+                  {(selectedFauna.attributes?.prep_time || selectedFauna.attributes?.bake_status) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Waktu Masak / PO</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.prep_time || selectedFauna.attributes?.bake_status}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.cooking_guide && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Cara Masak</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.cooking_guide}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.sugar_ice_options && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Pilihan Manis &amp; Es</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.sugar_ice_options}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.expired_info && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Masa Simpan</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.expired_info}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.storage_temp && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Suhu Simpan</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.storage_temp}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.serving_capacity && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Kapasitas Masak</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.serving_capacity}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.min_order && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Minimal Order</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.min_order}</span>
+                    </div>
+                  )}
+                  {(selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Metode Layanan</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.certification && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Sertifikasi</span>
+                      <span style={{ fontWeight: 600, color: '#10b981' }}>{selectedFauna.attributes.certification}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Pengiriman</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim' : 'Ambil Sendiri')}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Habitat</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.habitat}</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Bobot</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.weight || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Habitat</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.habitat}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Jangkauan Pengiriman</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Status Konservasi</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Asal Wilayah</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.native_region || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Masa Hidup</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.lifespan || 'N/A'}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Jangkauan Pengiriman</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Status Konservasi</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Asal Wilayah</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.native_region || 'N/A'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Masa Hidup</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.lifespan || 'N/A'}</span>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Description */}
@@ -8916,10 +9014,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       {typeConfig.categoryOptions.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
-                      <option value="__NEW__">+ Tambah Kategori Baru...</option>
+                      {crudForm.product_type !== 'food' && (
+                        <option value="__NEW__">+ Tambah Kategori Baru...</option>
+                      )}
                     </select>
                   </div>
-                  {showCustomClassInput && (
+                  {crudForm.product_type !== 'food' && showCustomClassInput && (
                     <input
                       type="text"
                       className="form-input"
@@ -9158,65 +9258,565 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 )}
 
-                {/* 5. PRODUK KULINER (F&B) */}
+                {/* 5. PRODUK KULINER (F&B) - DYNAMIC CONTEXT-AWARE SUB-FORMS */}
                 {crudForm.product_type === 'food' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Porsi / Isi Bersih *</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
-                          placeholder={CULINARY_SMART_PRESETS[showCustomClassInput ? customClass : crudForm.class]?.portionPlaceholder || "1 Porsi / 500gr / 250ml"}
-                          required
-                          value={crudForm.attributes.portion_size || '1 Porsi'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
-                        />
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan *</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
-                          placeholder="Fresh / 3 Hr Kulkas / 3 Bln"
-                          required
-                          value={crudForm.attributes.expired_info}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
-                        />
-                      </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '0.75rem', borderRadius: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem', borderBottom: '1px solid rgba(220, 38, 38, 0.15)', paddingBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        🍔 {crudForm.class}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                        Form Adaptif
+                      </span>
                     </div>
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Simpan *</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.storage_temp}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
-                        >
-                          <option value="Suhu Ruang">Suhu Ruang</option>
-                          <option value="Dingin (Chiller)">Dingin (Chiller)</option>
-                          <option value="Beku (Freezer)">Beku (Freezer)</option>
-                          <option value="Hangat / Langsung Santap">Hangat / Siap Santap</option>
-                          <option value="Fleksibel">Fleksibel</option>
-                        </select>
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi *</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.certification}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
-                        >
-                          <option value="100% Halal">100% Halal</option>
-                          <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
-                          <option value="BPOM / P-IRT">BPOM / P-IRT</option>
-                          <option value="Homemade / Segar">Homemade / Segar</option>
-                          <option value="Non-Halal">Non-Halal</option>
-                        </select>
-                      </div>
-                    </div>
+
+                    {/* SUB-FORM 1: Makanan Siap Santap */}
+                    {crudForm.class === 'Makanan Siap Santap' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Porsi / Takaran *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="1 Porsi / Paket Nasi"
+                              required
+                              value={crudForm.attributes.portion_size || '1 Porsi'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Level Pedas / Rasa</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Level 0-5 / Original"
+                              value={crudForm.attributes.spicy_level || ''}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, spicy_level: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Waktu Masak *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="10 - 20 Menit"
+                              required
+                              value={crudForm.attributes.prep_time || '15 Menit'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Metode Sajian *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.serving_method || 'Dine-in, Takeaway & Kurir Instan'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, serving_method: e.target.value } })}
+                            >
+                              <option value="Dine-in, Takeaway & Kurir Instan">Dine-in &amp; Instan</option>
+                              <option value="Khusus Kurir Instan / Sameday">Kurir Instan Only</option>
+                              <option value="Dine-in (Makan di Tempat Only)">Dine-in Only</option>
+                              <option value="Takeaway (Bungkus Bawa Pulang)">Takeaway Only</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi &amp; Kehalalan *</label>
+                          <select 
+                            className="form-select"
+                            style={{ height: '42px' }}
+                            value={crudForm.attributes.certification || '100% Halal'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                          >
+                            <option value="100% Halal">100% Halal</option>
+                            <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                            <option value="Homemade / Segar">Homemade / Segar</option>
+                            <option value="Non-Halal">Non-Halal</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 2: Makanan Beku & Olahan (Frozen) */}
+                    {crudForm.class === 'Makanan Beku & Olahan (Frozen)' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Isi Bersih *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="500gr / 15 pcs"
+                              required
+                              value={crudForm.attributes.portion_size || 'Pack 500 gr'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Simpan Freezer *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="3 Bln Freezer (-18°C)"
+                              required
+                              value={crudForm.attributes.expired_info || '3 Bulan di Freezer'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Cara Masak / Olah *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Kukus 10 mnt / Goreng api sedang 3 mnt"
+                            required
+                            value={crudForm.attributes.cooking_guide || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, cooking_guide: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Simpan *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.storage_temp || 'Beku (Freezer -18°C)'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                            >
+                              <option value="Beku (Freezer -18°C)">Beku (Freezer -18°C)</option>
+                              <option value="Dingin (Chiller 4°C)">Dingin (Chiller 4°C)</option>
+                              <option value="Freezer atau Chiller">Freezer / Chiller</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Izin Edar / Halal *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.certification || '100% Halal'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                            >
+                              <option value="100% Halal">100% Halal</option>
+                              <option value="BPOM / P-IRT & Halal">BPOM / P-IRT</option>
+                              <option value="Sertifikat Halal Resmi">Halal Resmi</option>
+                              <option value="Homemade / Non-Pengawet">Homemade Segar</option>
+                            </select>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 3: Minuman & Olahan Kopi */}
+                    {crudForm.class === 'Minuman & Olahan Kopi' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Volume / Ukuran *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Botol 250ml / Cup 16oz"
+                              required
+                              value={crudForm.attributes.portion_size || 'Cup 16oz'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Level Manis &amp; Es</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Normal / Less Sugar / No Ice"
+                              value={crudForm.attributes.sugar_ice_options || ''}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sugar_ice_options: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Minuman *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.storage_temp || 'Dingin (Chiller)'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                            >
+                              <option value="Dingin (Chiller)">Dingin (Chiller / Kulkas)</option>
+                              <option value="Dingin dengan Es Batu">Dingin dengan Es</option>
+                              <option value="Hangat / Panas">Hangat / Panas</option>
+                              <option value="Bisa Hangat atau Dingin">Bisa Dingin / Hangat</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Fresh / 3-5 Hari Kulkas"
+                              required
+                              value={crudForm.attributes.expired_info || 'Fresh Daily'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi *</label>
+                          <select 
+                            className="form-select"
+                            style={{ height: '42px' }}
+                            value={crudForm.attributes.certification || '100% Halal'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                          >
+                            <option value="100% Halal">100% Halal</option>
+                            <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                            <option value="P-IRT / BPOM">Izin P-IRT / BPOM</option>
+                            <option value="Homemade / Fresh">Homemade Segar</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 4: Camilan, Snack & Kue Kering */}
+                    {crudForm.class === 'Camilan, Snack & Kue Kering' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Berat Bersih *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Toples 250gr / Pouch 150gr"
+                              required
+                              value={crudForm.attributes.portion_size || 'Pouch 200 gr'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Varian Rasa / Pedas</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Original, Balado, Keju"
+                              value={crudForm.attributes.spicy_level || ''}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, spicy_level: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan (Exp) *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="3-6 Bulan"
+                              required
+                              value={crudForm.attributes.expired_info || '6 Bulan'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Simpan *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.storage_temp || 'Suhu Ruang'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                            >
+                              <option value="Suhu Ruang">Suhu Ruang</option>
+                              <option value="Kedap Udara">Kedap Udara</option>
+                              <option value="Kulkas / Dingin">Kulkas / Chiller</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Izin Edar &amp; Halal *</label>
+                          <select 
+                            className="form-select"
+                            style={{ height: '42px' }}
+                            value={crudForm.attributes.certification || '100% Halal'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                          >
+                            <option value="100% Halal">100% Halal</option>
+                            <option value="Dinkes P-IRT">Dinkes P-IRT</option>
+                            <option value="BPOM & Halal">BPOM &amp; Halal</option>
+                            <option value="Homemade / Tanpa Pengawet">Homemade Non-Pengawet</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 5: Bakery, Roti & Pastry */}
+                    {crudForm.class === 'Bakery, Roti & Pastry' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Ukuran / Isi *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="1 Loyang / Box isi 6"
+                              required
+                              value={crudForm.attributes.portion_size || 'Box isi 6 pcs'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Rasa / Topping</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Coklat, Keju, Matcha"
+                              value={crudForm.attributes.taste_options || ''}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, taste_options: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="3-4 Hari Suhu Ruang"
+                              required
+                              value={crudForm.attributes.expired_info || '3-4 Hari Suhu Ruang'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Status Bake *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.bake_status || 'Freshly Baked Daily'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, bake_status: e.target.value } })}
+                            >
+                              <option value="Freshly Baked Daily">Baked Daily (Harian)</option>
+                              <option value="Pre-Order H-1">Pre-Order H-1</option>
+                              <option value="Pre-Order H-2">Pre-Order H-2</option>
+                              <option value="Ready Stock">Ready Stock Toko</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi *</label>
+                          <select 
+                            className="form-select"
+                            style={{ height: '42px' }}
+                            value={crudForm.attributes.certification || '100% Halal'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                          >
+                            <option value="100% Halal">100% Halal</option>
+                            <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                            <option value="Dinkes P-IRT">Dinkes P-IRT</option>
+                            <option value="Tanpa Bahan Pengawet">Non-Pengawet</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 6: Bumbu & Bahan Masak */}
+                    {crudForm.class === 'Bumbu & Bahan Masak' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Isi Bersih *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Botol 200ml / Pouch 250gr"
+                              required
+                              value={crudForm.attributes.portion_size || 'Pouch 250 gr'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kapasitas Masak</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Untuk 1 kg daging / 5 porsi"
+                              value={crudForm.attributes.serving_capacity || ''}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, serving_capacity: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="12 Bulan"
+                              required
+                              value={crudForm.attributes.expired_info || '12 Bulan'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Simpan *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.storage_temp || 'Suhu Ruang (Kulkas setelah buka)'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                            >
+                              <option value="Suhu Ruang (Kulkas setelah buka)">Suhu Ruang (Kulkas stlh buka)</option>
+                              <option value="Suhu Ruang">Suhu Ruang</option>
+                              <option value="Wajib Kulkas / Chiller">Wajib Kulkas</option>
+                              <option value="Freezer (Beku)">Freezer (Beku)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Izin Edar &amp; Halal *</label>
+                          <select 
+                            className="form-select"
+                            style={{ height: '42px' }}
+                            value={crudForm.attributes.certification || '100% Halal'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                          >
+                            <option value="100% Halal">100% Halal</option>
+                            <option value="Dinkes P-IRT">Dinkes P-IRT</option>
+                            <option value="BPOM & Halal">BPOM &amp; Halal</option>
+                            <option value="Tradisional / Alami">Resep Alami</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 7: Katering & Paket Pesanan */}
+                    {crudForm.class === 'Katering & Paket Pesanan' && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Min. Order *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Min. 20 Box / Tampah 15 Porsi"
+                              required
+                              value={crudForm.attributes.min_order || 'Minimal 20 Box'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, min_order: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Batas PO *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Booking Min. H-2"
+                              required
+                              value={crudForm.attributes.prep_time || 'Pre-Order H-2'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Komposisi Menu Paket *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Nasi Gurih + Ayam Bakar + Sambal Ati + Urap"
+                            required
+                            value={crudForm.attributes.inclusions || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, inclusions: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Layanan Antar *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.delivery_service || 'Mobil Antar Toko / Kurir Khusus'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_service: e.target.value } })}
+                            >
+                              <option value="Mobil Antar Toko / Kurir Khusus">Mobil Toko / Kurir Khusus</option>
+                              <option value="Bisa Diambil Sendiri (Self Pickup)">Self Pickup</option>
+                              <option value="Kurir Instan Car (GrabExpress/Gocar)">Gocar / GrabCar</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.certification || '100% Halal'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                            >
+                              <option value="100% Halal">100% Halal</option>
+                              <option value="Sertifikat Halal Resmi">Halal Resmi</option>
+                              <option value="Laik Higiene Sanitasi">Laik Higiene</option>
+                            </select>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* SUB-FORM 8: Lainnya */}
+                    {(crudForm.class === 'Lainnya' || !['Makanan Siap Santap', 'Makanan Beku & Olahan (Frozen)', 'Minuman & Olahan Kopi', 'Camilan, Snack & Kue Kering', 'Bakery, Roti & Pastry', 'Bumbu & Bahan Masak', 'Katering & Paket Pesanan'].includes(crudForm.class)) && (
+                      <>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Porsi / Isi *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="1 Unit / Pack / Box"
+                              required
+                              value={crudForm.attributes.portion_size || '1 Unit'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                            />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan *</label>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Sesuai Kemasan"
+                              required
+                              value={crudForm.attributes.expired_info || 'Sesuai Kemasan'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Simpan *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.storage_temp || 'Suhu Ruang'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                            >
+                              <option value="Suhu Ruang">Suhu Ruang</option>
+                              <option value="Dingin (Chiller)">Dingin (Chiller)</option>
+                              <option value="Beku (Freezer)">Beku (Freezer)</option>
+                              <option value="Fleksibel">Fleksibel</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi *</label>
+                            <select 
+                              className="form-select"
+                              style={{ height: '42px' }}
+                              value={crudForm.attributes.certification || '100% Halal'}
+                              onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                            >
+                              <option value="100% Halal">100% Halal</option>
+                              <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                              <option value="BPOM / P-IRT">BPOM / P-IRT</option>
+                              <option value="Homemade / Segar">Homemade Segar</option>
+                            </select>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

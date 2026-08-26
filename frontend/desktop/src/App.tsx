@@ -3411,7 +3411,16 @@ function App() {
       expired_info: 'Fresh Daily',
       storage_temp: 'Suhu Ruang',
       certification: '100% Halal',
-      taste_options: ''
+      taste_options: '',
+      spicy_level: '',
+      prep_time: '',
+      serving_method: 'Dine-in, Takeaway & Kurir Instan',
+      cooking_guide: '',
+      sugar_ice_options: '',
+      bake_status: 'Freshly Baked Daily',
+      serving_capacity: '',
+      min_order: '',
+      delivery_service: 'Mobil Antar Toko / Kurir Khusus'
     }
   })
 
@@ -5166,7 +5175,16 @@ function App() {
         expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
         storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
         certification: '100% Halal',
-        taste_options: ''
+        taste_options: '',
+        spicy_level: '',
+        prep_time: '',
+        serving_method: 'Dine-in, Takeaway & Kurir Instan',
+        cooking_guide: '',
+        sugar_ice_options: '',
+        bake_status: 'Freshly Baked Daily',
+        serving_capacity: '',
+        min_order: '',
+        delivery_service: 'Mobil Antar Toko / Kurir Khusus'
       }
     })
     setCustomClass('')
@@ -5237,7 +5255,16 @@ function App() {
         expired_info: item.attributes?.expired_info ?? 'Fresh Daily',
         storage_temp: item.attributes?.storage_temp ?? 'Suhu Ruang',
         certification: item.attributes?.certification ?? '100% Halal',
-        taste_options: item.attributes?.taste_options ?? ''
+        taste_options: item.attributes?.taste_options ?? '',
+        spicy_level: item.attributes?.spicy_level ?? '',
+        prep_time: item.attributes?.prep_time ?? '',
+        serving_method: item.attributes?.serving_method ?? 'Dine-in, Takeaway & Kurir Instan',
+        cooking_guide: item.attributes?.cooking_guide ?? '',
+        sugar_ice_options: item.attributes?.sugar_ice_options ?? '',
+        bake_status: item.attributes?.bake_status ?? 'Freshly Baked Daily',
+        serving_capacity: item.attributes?.serving_capacity ?? '',
+        min_order: item.attributes?.min_order ?? '',
+        delivery_service: item.attributes?.delivery_service ?? 'Mobil Antar Toko / Kurir Khusus'
       }
     })
     setCustomClass('')
@@ -8134,33 +8161,111 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                 {/* Specs List */}
                 <div style={{ borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>Spesifikasi</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Bobot</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.weight || 'N/A'}</span>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : 'Spesifikasi Produk'))}
+                  </h3>
+                  
+                  {selectedFauna.product_type === 'food' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
+                      {selectedFauna.attributes?.portion_size && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Porsi / Isi Bersih</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.portion_size}</span>
+                        </div>
+                      )}
+                      {(selectedFauna.attributes?.spicy_level || selectedFauna.attributes?.taste_options) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Varian / Rasa</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.spicy_level || selectedFauna.attributes?.taste_options}</span>
+                        </div>
+                      )}
+                      {(selectedFauna.attributes?.prep_time || selectedFauna.attributes?.bake_status) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Waktu Masak / PO</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.prep_time || selectedFauna.attributes?.bake_status}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.cooking_guide && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Cara Memasak</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.cooking_guide}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.sugar_ice_options && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Pilihan Manis &amp; Es</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.sugar_ice_options}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.expired_info && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Masa Simpan</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.expired_info}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.storage_temp && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Suhu Simpan</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.storage_temp}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.serving_capacity && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Kapasitas Masak</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.serving_capacity}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.min_order && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Order</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.min_order}</span>
+                        </div>
+                      )}
+                      {(selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Metode Layanan</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service}</span>
+                        </div>
+                      )}
+                      {selectedFauna.attributes?.certification && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Sertifikasi</span>
+                          <span style={{ fontWeight: 600, color: '#10b981' }}>{selectedFauna.attributes.certification}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Pengiriman</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim' : 'Ambil Sendiri')}</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Habitat</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.habitat}</span>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Bobot</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.weight || 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Habitat</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.habitat}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Jangkauan Pengiriman</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Status Konservasi</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Asal Wilayah</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.native_region || 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Masa Hidup</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.lifespan || 'N/A'}</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Jangkauan Pengiriman</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Status Konservasi</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Asal Wilayah</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.native_region || 'N/A'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Masa Hidup</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.lifespan || 'N/A'}</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Description */}
@@ -12960,13 +13065,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         {typeConfig.categoryOptions.map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
-                        {getUniqueClasses().filter(c => !typeConfig.categoryOptions.includes(c)).map((c) => (
+                        {crudForm.product_type !== 'food' && getUniqueClasses().filter(c => !typeConfig.categoryOptions.includes(c)).map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
-                        <option value="__NEW__">+ Tambah Kategori Baru...</option>
+                        {crudForm.product_type !== 'food' && (
+                          <option value="__NEW__">+ Tambah Kategori Baru...</option>
+                        )}
                       </select>
                     </div>
-                    {showCustomClassInput && (
+                    {crudForm.product_type !== 'food' && showCustomClassInput && (
                       <input 
                         type="text" 
                         className="form-input" 
@@ -13245,66 +13352,551 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                   )}
 
-                  {/* 5. PRODUK KULINER (F&B) */}
+                  {/* 5. PRODUK KULINER (F&B) - DYNAMIC CONTEXT-AWARE SUB-FORMS */}
                   {crudForm.product_type === 'food' && (
                     <div style={{ background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                        🍔 Atribut Spesifik Produk Kuliner (F&amp;B)
-                      </span>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">Porsi / Isi Bersih / Kemasan *</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder={CULINARY_SMART_PRESETS[showCustomClassInput ? customClass : crudForm.class]?.portionPlaceholder || "Contoh: 1 Porsi / Box 500 gr / Botol 250 ml / Pack 10 pcs"}
-                            required
-                            value={crudForm.attributes.portion_size || '1 Porsi'}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Masa Simpan / Kadaluwarsa *</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: Fresh Daily / 3 Hari Kulkas / 3 Bulan Freezer / 6 Bulan Kemasan"
-                            required
-                            value={crudForm.attributes.expired_info}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
-                          />
-                        </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', borderBottom: '1px solid rgba(220, 38, 38, 0.15)', paddingBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          🍔 Spesifikasi Khusus: {crudForm.class}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          Field formulir otomatis menyesuaikan kategori ini
+                        </span>
                       </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">Suhu &amp; Saran Penyimpanan *</label>
-                          <select 
-                            className="form-select"
-                            value={crudForm.attributes.storage_temp}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
-                          >
-                            <option value="Suhu Ruang">Suhu Ruang (Kering &amp; Sejuk)</option>
-                            <option value="Dingin (Chiller)">Dingin (Kulkas / Chiller 4°C)</option>
-                            <option value="Beku (Freezer)">Beku (Freezer -18°C)</option>
-                            <option value="Hangat / Langsung Santap">Hangat / Langsung Disantap</option>
-                            <option value="Fleksibel">Fleksibel / Sesuai Kemasan</option>
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Sertifikasi &amp; Legalitas *</label>
-                          <select 
-                            className="form-select"
-                            value={crudForm.attributes.certification}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
-                          >
-                            <option value="100% Halal">100% Halal</option>
-                            <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi (Kemenag/MUI)</option>
-                            <option value="BPOM / P-IRT">Izin BPOM / P-IRT</option>
-                            <option value="Homemade / Segar">Homemade / Olahan Segar</option>
-                            <option value="Non-Halal">Non-Halal</option>
-                          </select>
-                        </div>
-                      </div>
+
+                      {/* SUB-FORM 1: Makanan Siap Santap */}
+                      {crudForm.class === 'Makanan Siap Santap' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Porsi / Takaran Saji *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 1 Porsi / Paket Komplit Nasi + Lauk"
+                                required
+                                value={crudForm.attributes.portion_size || '1 Porsi'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Pilihan Rasa / Level Pedas</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Level 0-5 / Original / Manis Gurih / Pedas Nampol"
+                                value={crudForm.attributes.spicy_level || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, spicy_level: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Estimasi Waktu Penyiapan / Masak *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 10 - 20 Menit"
+                                required
+                                value={crudForm.attributes.prep_time || '15 Menit'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Metode Penyajian *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.serving_method || 'Dine-in, Takeaway & Kurir Instan'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, serving_method: e.target.value } })}
+                              >
+                                <option value="Dine-in, Takeaway & Kurir Instan">Dine-in, Takeaway &amp; Kurir Instan</option>
+                                <option value="Khusus Kurir Instan / Sameday">Khusus Kurir Instan / Sameday</option>
+                                <option value="Dine-in (Makan di Tempat Only)">Dine-in (Makan di Tempat Only)</option>
+                                <option value="Takeaway (Bungkus Bawa Pulang)">Takeaway (Bungkus Bawa Pulang)</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Sertifikasi &amp; Legalitas *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi (Kemenag/MUI)</option>
+                                <option value="Homemade / Segar">Homemade / Olahan Segar</option>
+                                <option value="Non-Halal">Non-Halal</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 2: Makanan Beku & Olahan (Frozen) */}
+                      {crudForm.class === 'Makanan Beku & Olahan (Frozen)' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Isi Bersih / Kemasan *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Pack 500 gr (Isi 15 pcs) / Box 1 kg"
+                                required
+                                value={crudForm.attributes.portion_size || 'Pack 500 gr'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Masa Simpan di Freezer *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 3 Bulan di Freezer (-18°C) / 3 Hari di Chiller"
+                                required
+                                value={crudForm.attributes.expired_info || '3 Bulan di Freezer'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Petunjuk &amp; Cara Memasak *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Kukus 10 menit / Goreng api sedang 3 menit / Rebus 5 menit"
+                                required
+                                value={crudForm.attributes.cooking_guide || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, cooking_guide: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Suhu Penyimpanan *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.storage_temp || 'Beku (Freezer -18°C)'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                              >
+                                <option value="Beku (Freezer -18°C)">Beku (Freezer -18°C)</option>
+                                <option value="Dingin (Kulkas / Chiller 4°C)">Dingin (Kulkas / Chiller 4°C)</option>
+                                <option value="Freezer atau Chiller">Freezer atau Chiller</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Izin Edar &amp; Halal *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="BPOM / P-IRT & Halal">Izin BPOM / P-IRT &amp; Halal</option>
+                                <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                                <option value="Homemade / Tanpa Pengawet">Homemade / Non-Pengawet</option>
+                                <option value="Non-Halal">Non-Halal</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 3: Minuman & Olahan Kopi */}
+                      {crudForm.class === 'Minuman & Olahan Kopi' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Volume / Kemasan *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Botol 250 ml / Literan 1000 ml / Cup 16oz (Medium)"
+                                required
+                                value={crudForm.attributes.portion_size || 'Cup 16oz'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Pilihan Level Manis &amp; Es</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Normal / Less Sugar (50%) / No Sugar / Extra Ice"
+                                value={crudForm.attributes.sugar_ice_options || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sugar_ice_options: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Kondisi Suhu Minuman *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.storage_temp || 'Dingin (Chiller)'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                              >
+                                <option value="Dingin (Chiller)">Dingin (Chiller / Kulkas)</option>
+                                <option value="Dingin dengan Es Batu">Dingin dengan Es Batu</option>
+                                <option value="Hangat / Panas">Hangat / Panas</option>
+                                <option value="Bisa Hangat atau Dingin">Bisa Hangat atau Dingin</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Masa Simpan Minuman *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Fresh Daily (Langsung Diminum) / 3-5 Hari di Kulkas"
+                                required
+                                value={crudForm.attributes.expired_info || 'Fresh Daily'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Sertifikasi *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                                <option value="P-IRT / BPOM">Izin P-IRT / BPOM</option>
+                                <option value="Homemade / Fresh">Homemade / Fresh Segar</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 4: Camilan, Snack & Kue Kering */}
+                      {crudForm.class === 'Camilan, Snack & Kue Kering' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Berat Bersih / Kemasan *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Toples 250 gr / Pouch Zipper 150 gr / Ball 1 kg"
+                                required
+                                value={crudForm.attributes.portion_size || 'Pouch 200 gr'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Pilihan Varian Rasa / Level Pedas</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Original Gurih, Balado Pedas, Keju Manis, BBQ"
+                                value={crudForm.attributes.spicy_level || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, spicy_level: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Masa Simpan (Exp Date) *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 3-6 Bulan (Tutup rapat di suhu ruang)"
+                                required
+                                value={crudForm.attributes.expired_info || '6 Bulan'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Suhu Penyimpanan *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.storage_temp || 'Suhu Ruang'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                              >
+                                <option value="Suhu Ruang">Suhu Ruang (Kering &amp; Sejuk)</option>
+                                <option value="Kedap Udara">Wadah Kedap Udara</option>
+                                <option value="Kulkas / Dingin">Kulkas / Chiller</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Izin Edar &amp; Legalitas *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Dinkes P-IRT">Dinkes P-IRT Resmi</option>
+                                <option value="BPOM & Halal">Izin BPOM &amp; Halal</option>
+                                <option value="Homemade / Tanpa Pengawet">Homemade / Non-Pengawet</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 5: Bakery, Roti & Pastry */}
+                      {crudForm.class === 'Bakery, Roti & Pastry' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Ukuran / Jumlah Isi *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 1 Loyang (Diameter 20cm) / Box isi 6 pcs / Loaf 400 gr"
+                                required
+                                value={crudForm.attributes.portion_size || 'Box isi 6 pcs'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Pilihan Rasa / Topping</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Coklat Belgian, Keju Parmesan, Matcha, Lotus Biscoff"
+                                value={crudForm.attributes.taste_options || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, taste_options: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Masa Simpan Roti / Kue *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 3-4 Hari Suhu Ruang / 7 Hari di Kulkas"
+                                required
+                                value={crudForm.attributes.expired_info || '3-4 Hari Suhu Ruang'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Status Pembuatan *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.bake_status || 'Freshly Baked Daily'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, bake_status: e.target.value } })}
+                              >
+                                <option value="Freshly Baked Daily">Freshly Baked Daily (Dibuat Harian)</option>
+                                <option value="Pre-Order H-1">Pre-Order H-1</option>
+                                <option value="Pre-Order H-2">Pre-Order H-2</option>
+                                <option value="Ready Stock">Ready Stock di Toko</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Sertifikasi *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                                <option value="Dinkes P-IRT">Dinkes P-IRT</option>
+                                <option value="Tanpa Bahan Pengawet">100% Tanpa Pengawet</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 6: Bumbu & Bahan Masak */}
+                      {crudForm.class === 'Bumbu & Bahan Masak' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Isi Bersih Kemasan *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Botol Kaca 200 ml / Pouch 250 gr / Pack 1 kg"
+                                required
+                                value={crudForm.attributes.portion_size || 'Pouch 250 gr'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Kapasitas Olah / Takaran Masak</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Cukup untuk 1 kg daging / 4-6 porsi masakan"
+                                value={crudForm.attributes.serving_capacity || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, serving_capacity: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Masa Simpan (Exp Date) *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 12 Bulan (Setelah dibuka simpan di kulkas)"
+                                required
+                                value={crudForm.attributes.expired_info || '12 Bulan'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Anjuran Suhu Simpan *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.storage_temp || 'Suhu Ruang (Kulkas setelah buka)'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                              >
+                                <option value="Suhu Ruang (Kulkas setelah buka)">Suhu Ruang (Kulkas stlh buka)</option>
+                                <option value="Suhu Ruang">Suhu Ruang (Kering &amp; Sejuk)</option>
+                                <option value="Wajib Kulkas / Chiller">Wajib Kulkas / Chiller</option>
+                                <option value="Freezer (Beku)">Freezer (Beku)</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Izin Edar &amp; Legalitas *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Dinkes P-IRT">Dinkes P-IRT</option>
+                                <option value="BPOM & Halal">Izin BPOM &amp; Halal</option>
+                                <option value="Tradisional / Alami">Resep Tradisional / Alami</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 7: Katering & Paket Pesanan */}
+                      {crudForm.class === 'Katering & Paket Pesanan' && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Minimal Pemesanan / Kapasitas *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Minimal 20 Box / Tampah 15 Porsi / Paket 5 Hari"
+                                required
+                                value={crudForm.attributes.min_order || 'Minimal 20 Box'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, min_order: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Batas Waktu Pre-Order (PO) *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Pemesanan Minimal H-2 Sebelum Acara"
+                                required
+                                value={crudForm.attributes.prep_time || 'Pre-Order H-2'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, prep_time: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Komposisi Menu Paket *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Nasi Gurih + Ayam Bakar Madu + Sambal Goreng Ati + Urap + Kerupuk"
+                                required
+                                value={crudForm.attributes.inclusions || ''}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, inclusions: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Layanan Pengantaran *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.delivery_service || 'Mobil Antar Toko / Kurir Khusus'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_service: e.target.value } })}
+                              >
+                                <option value="Mobil Antar Toko / Kurir Khusus">Mobil Antar Toko / Kurir Khusus</option>
+                                <option value="Bisa Diambil Sendiri (Self Pickup)">Bisa Diambil Sendiri (Self Pickup)</option>
+                                <option value="Kurir Instan Car (GrabExpress/Gocar)">Kurir Instan Car (Grab/Gojek)</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Sertifikasi *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                                <option value="Laik Higiene Sanitasi">Sertifikat Laik Higiene Sanitasi</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* SUB-FORM 8: Lainnya */}
+                      {(crudForm.class === 'Lainnya' || !['Makanan Siap Santap', 'Makanan Beku & Olahan (Frozen)', 'Minuman & Olahan Kopi', 'Camilan, Snack & Kue Kering', 'Bakery, Roti & Pastry', 'Bumbu & Bahan Masak', 'Katering & Paket Pesanan'].includes(crudForm.class)) && (
+                        <>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Porsi / Isi Bersih Kemasan *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: 1 Unit / Pack / Box"
+                                required
+                                value={crudForm.attributes.portion_size || '1 Unit'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Masa Simpan / Kadaluwarsa *</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                placeholder="Contoh: Sesuai Kemasan / Fresh Daily"
+                                required
+                                value={crudForm.attributes.expired_info || 'Sesuai Kemasan'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label className="form-label">Suhu &amp; Saran Penyimpanan *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.storage_temp || 'Suhu Ruang'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                              >
+                                <option value="Suhu Ruang">Suhu Ruang (Kering &amp; Sejuk)</option>
+                                <option value="Dingin (Chiller)">Dingin (Kulkas / Chiller 4°C)</option>
+                                <option value="Beku (Freezer)">Beku (Freezer -18°C)</option>
+                                <option value="Fleksibel">Fleksibel / Sesuai Kemasan</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Sertifikasi &amp; Legalitas *</label>
+                              <select 
+                                className="form-select"
+                                value={crudForm.attributes.certification || '100% Halal'}
+                                onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                              >
+                                <option value="100% Halal">100% Halal</option>
+                                <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi</option>
+                                <option value="BPOM / P-IRT">Izin BPOM / P-IRT</option>
+                                <option value="Homemade / Segar">Homemade / Segar</option>
+                                <option value="Non-Halal">Non-Halal</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
