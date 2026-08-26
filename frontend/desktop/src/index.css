@@ -294,6 +294,29 @@ button, input, textarea, select {
   letter-spacing: 0.02em;
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.form-row, .form-row-aligned, .form-grid-row {
+  display: grid;
+  gap: 1rem;
+  align-items: end;
+}
+
+.form-row > .form-group > .form-label,
+.form-row-aligned > .form-group > .form-label,
+.form-grid-row > .form-group > .form-label,
+.form-label-aligned {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.1rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.25;
+}
+
 .form-input, .form-textarea, .form-select, input.form-input, textarea.form-textarea, select.form-select, .search-input {
   width: 100%;
   background-color: var(--bg-card-hover) !important;
