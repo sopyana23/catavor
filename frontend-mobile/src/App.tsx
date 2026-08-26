@@ -99,7 +99,10 @@ import {
   Trees,
   Sunset,
   Waves,
-  Flower2
+  Flower2,
+  ChevronUp,
+  CheckCheck,
+  LayoutGrid
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -269,6 +272,529 @@ const INITIAL_TICKETS: SupportTicket[] = [
   }
 ];
 
+export const LANDING_INDUSTRIES = [
+  {
+    id: 'culinary',
+    name: 'Kuliner & F&B',
+    badge: 'Menu Digital & Kafe',
+    tagline: 'Restoran, Kafe, Katering, Bakery & Cloud Kitchen',
+    description: 'Buku menu digital interaktif dengan visual hidangan menggugah selera, pilihan varian, serta direct order WhatsApp.',
+    icon: Utensils,
+    color: '#f97316',
+    accentBg: '#fff7ed',
+    products: [
+      {
+        id: 'c1',
+        title: 'Artisan Cold Brew Coffee (250ml)',
+        category: 'Signature Drink',
+        price: 'Rp 28.000',
+        badge: 'Best Seller',
+        rating: '4.9',
+        reviews: 142,
+        description: 'Biji kopi arabika Gayo diseduh dingin 16 jam, aroma nutty cokelat dengan manis alami aren organik.',
+        image: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Kopi Senja Roastery',
+        location: 'Bandung'
+      },
+      {
+        id: 'c2',
+        title: 'French Butter Croissant Supreme',
+        category: 'Bakery & Pastry',
+        price: 'Rp 24.000',
+        badge: 'Fresh Daily',
+        rating: '4.8',
+        reviews: 95,
+        description: 'Pastry mentega Prancis renyah berlapis di luar dan lembut wangi di dalam, dipanggang fresh setiap pagi.',
+        image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Maison & Boulangerie',
+        location: 'Jakarta Selatan'
+      },
+      {
+        id: 'c3',
+        title: 'Wagyu Beef Saikoro Rice Bowl',
+        category: 'Main Course',
+        price: 'Rp 48.000',
+        badge: 'Chef Choice',
+        rating: '5.0',
+        reviews: 210,
+        description: 'Nasi jepang pulen dengan saikoro wagyu melt-in-mouth, onsen egg lembut, dan siraman saus tare homemade.',
+        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Tokyo Rice & Grill',
+        location: 'Surabaya'
+      }
+    ]
+  },
+  {
+    id: 'fashion',
+    name: 'Fashion & Apparel',
+    badge: 'Lookbook & Butik',
+    tagline: 'Butik, Distro, Hijab, Sepatu, Tas & Aksesoris',
+    description: 'Etalase lookbook modern dengan informasi varian size/warna, panduan ukuran, dan tautan belanja WhatsApp atau marketplace.',
+    icon: Shirt,
+    color: '#2563eb',
+    accentBg: '#eff6ff',
+    products: [
+      {
+        id: 'f1',
+        title: 'Heavyweight Boxy Tee (24s Cotton)',
+        category: 'Streetwear',
+        price: 'Rp 115.000',
+        badge: 'Trending',
+        rating: '4.9',
+        reviews: 320,
+        description: 'Bahan 100% combed cotton 24s gramasi solid, potongan boxy fit modern tidak mudah melar setelah dicuci.',
+        image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Atelier Monochrome',
+        location: 'Jakarta Pusat'
+      },
+      {
+        id: 'f2',
+        title: 'Vegan Leather Structured Tote Bag',
+        category: 'Bags & Leather',
+        price: 'Rp 275.000',
+        badge: 'Premium Finish',
+        rating: '4.9',
+        reviews: 88,
+        description: 'Tas jinjing kulit sintetis tebal anti-gores dengan kompartemen laptop 14 inch dan resleting YKK premium.',
+        image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Terra Leather Craft',
+        location: 'Yogyakarta'
+      },
+      {
+        id: 'f3',
+        title: 'Daily Canvas Low-Top Sneakers',
+        category: 'Footwear',
+        price: 'Rp 210.000',
+        badge: 'Ready Stock',
+        rating: '4.8',
+        reviews: 154,
+        description: 'Sepatu kanvas klasik dengan sol karet vulcanized fleksibel dan insole memory foam anti-pegal.',
+        image: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Karsa Footwear Studio',
+        location: 'Tangerang'
+      }
+    ]
+  },
+  {
+    id: 'plants',
+    name: 'Tanaman & Living',
+    badge: 'Florist & Botanical',
+    tagline: 'Tanaman Hias, Pot Keramik, Florist & Dekorasi',
+    description: 'Tampilkan keindahan tanaman hias indoor, buket bunga, pot terakota, dan panduan perawatan dengan visual estetik.',
+    icon: Flower2,
+    color: '#059669',
+    accentBg: '#ecfdf5',
+    products: [
+      {
+        id: 'p1',
+        title: 'Monstera Deliciosa Variegata Albo',
+        category: 'Rare Aroids',
+        price: 'Rp 195.000',
+        badge: 'Rare Item',
+        rating: '5.0',
+        reviews: 45,
+        description: 'Corak marmer putih bersih 3-4 daun aktif dengan perakaran matang dan media tanam porous siap pajang.',
+        image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Flora Botanica House',
+        location: 'Bogor'
+      },
+      {
+        id: 'p2',
+        title: 'Handcrafted Terrazzo Ceramic Planter',
+        category: 'Pots & Living',
+        price: 'Rp 85.000',
+        badge: 'Handmade',
+        rating: '4.9',
+        reviews: 112,
+        description: 'Pot gerabah motif terrazzo minimalis dengan tatakan piringan terpisah dan lubang aerasi drainase optimal.',
+        image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Studio Pot Nusantara',
+        location: 'Bali'
+      },
+      {
+        id: 'p3',
+        title: 'Rustic Everlasting Dried Flower Bouquet',
+        category: 'Florist & Gift',
+        price: 'Rp 140.000',
+        badge: 'Tahan 3 Tahun',
+        rating: '4.8',
+        reviews: 86,
+        description: 'Rangkaian bunga kering alami bernuansa earth-tone hangat, cocok untuk kado kelulusan maupun pemanis interior.',
+        image: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Aura Flower Atelier',
+        location: 'Semarang'
+      }
+    ]
+  },
+  {
+    id: 'pets',
+    name: 'Satwa & Hewan Hias',
+    badge: 'Fauna & Aquatics',
+    tagline: 'Reptil, Aquascape, Burung, Pakan & Pet Shop',
+    description: 'Galeri spesifikasi satwa hias lengkap dengan kelas taksonomi, video satwa, garansi kesehatan, dan panduan perawatan.',
+    icon: PawPrint,
+    color: '#0891b2',
+    accentBg: '#ecfeff',
+    products: [
+      {
+        id: 'a1',
+        title: 'Crested Gecko Lily White Sub-Adult',
+        category: 'Exotic Reptiles',
+        price: 'Rp 850.000',
+        badge: 'Garansi Hidup',
+        rating: '5.0',
+        reviews: 62,
+        description: 'Karakter jinak total, kontras putih tinggi, makan rakus diet buah & serangga, aman kirim ke seluruh kota bergaransi.',
+        image: 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=600&auto=format&fit=crop&q=80',
+        merchant: 'DFauna Exotic Pet',
+        location: 'Jakarta Barat'
+      },
+      {
+        id: 'a2',
+        title: 'Aquascape Nature Display System (30cm)',
+        category: 'Aquatic Living',
+        price: 'Rp 480.000',
+        badge: 'Full Set System',
+        rating: '4.9',
+        reviews: 38,
+        description: 'Tank kaca optik 30cm dengan ekosistem tanaman moss hidup, hardscape lava rock, dan filter mini siap rawat.',
+        image: 'https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?w=600&auto=format&fit=crop&q=80',
+        merchant: 'AquaScaper Studio',
+        location: 'Malang'
+      },
+      {
+        id: 'a3',
+        title: 'Sugar Glider Classic Joey (2 Bulan)',
+        category: 'Small Mammals',
+        price: 'Rp 320.000',
+        badge: 'Jinak Bonding',
+        rating: '4.9',
+        reviews: 50,
+        description: 'Joey sehat aktif usia 2 bulan lepas kantung, bonding tangan manusia, sudah makan mandiri buah & bubur halus.',
+        image: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Pouch Pet Nusantara',
+        location: 'Solo'
+      }
+    ]
+  },
+  {
+    id: 'services',
+    name: 'Jasa & Layanan',
+    badge: 'Portofolio & Booking',
+    tagline: 'Barbershop, Salon & Spa, Studio Foto, Kreatif & Konsultasi',
+    description: 'Daftar tarif layanan profesional, portofolio karya, jadwal jam operasional, dan kemudahan booking langsung via WhatsApp.',
+    icon: Scissors,
+    color: '#7c3aed',
+    accentBg: '#f5f3ff',
+    products: [
+      {
+        id: 's1',
+        title: 'Executive Haircut & Hot Towel Treatment',
+        category: 'Grooming & Barbershop',
+        price: 'Rp 65.000',
+        badge: 'Paling Populer',
+        rating: '4.9',
+        reviews: 450,
+        description: 'Potong rambut presisi, pijat relaksasi kepala, kompres handuk hangat aromaterapi, dan styling pomade premium.',
+        image: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Gentleman Heritage Barber',
+        location: 'Bekasi'
+      },
+      {
+        id: 's2',
+        title: 'Sesi Foto Studio Wisuda / Keluarga (1 Jam)',
+        category: 'Creative Studio',
+        price: 'Rp 299.000',
+        badge: 'Unlimited Pose',
+        rating: '5.0',
+        reviews: 184,
+        description: 'Sesi pemotretan studio ber-AC, bebas ganti kostum, 10 foto edited resolusi cetak, dan seluruh file master dikirim via Cloud.',
+        image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Lensa Visual Creative',
+        location: 'Depok'
+      },
+      {
+        id: 's3',
+        title: 'Jasa Desain 3D Interior & Gambar Kerja RAB',
+        category: 'Design & Living',
+        price: 'Rp 450.000',
+        badge: 'Revisi 3x',
+        rating: '4.8',
+        reviews: 76,
+        description: 'Visualisasi render 3D fotorealistik denah ruang, layout furnitur 2D skala milimeter, dan estimasi rincian anggaran material.',
+        image: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Ruang Idaman Studio',
+        location: 'Jakarta Barat'
+      }
+    ]
+  },
+  {
+    id: 'tech',
+    name: 'Gadget & Hobi',
+    badge: 'Spesifikasi & Garansi',
+    tagline: 'Elektronik, Audio, Aksesoris Komputer & Alat Harian',
+    description: 'Etalase produk dengan spesifikasi teknis mendalam, informasi garansi resmi, dan kemudahan tanya ketersediaan stok ke admin.',
+    icon: Smartphone,
+    color: '#db2777',
+    accentBg: '#fdf2f8',
+    products: [
+      {
+        id: 't1',
+        title: 'Mechanical Keyboard 75% Tri-Mode RGB Hot-Swap',
+        category: 'PC Gaming & Setup',
+        price: 'Rp 499.000',
+        badge: 'Garansi 1 Tahun',
+        rating: '4.9',
+        reviews: 135,
+        description: 'Keyboard mekanikal dengan switch linear pre-lubed, keycaps PBT dye-sub, baterai 4000mAh, dan konektivitas Bluetooth/2.4G.',
+        image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80',
+        merchant: 'KeyForge Gear',
+        location: 'Tangerang Selatan'
+      },
+      {
+        id: 't2',
+        title: 'ANC Wireless Over-Ear Headphones (50H Battery)',
+        category: 'Audio & Acoustics',
+        price: 'Rp 385.000',
+        badge: 'Hi-Res Audio',
+        rating: '4.8',
+        reviews: 92,
+        description: 'Peredam bising aktif ganda, ear cushion memory foam lembut nyaman dipakai berjam-jam, serta mikrofon jernih untuk panggilan.',
+        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80',
+        merchant: 'SonicPulse Audio',
+        location: 'Jakarta Utara'
+      },
+      {
+        id: 't3',
+        title: 'Nordic LED Desk Lamp with 15W Qi Wireless Charger',
+        category: 'Smart Desk Living',
+        price: 'Rp 165.000',
+        badge: 'Smart Touch',
+        rating: '4.9',
+        reviews: 118,
+        description: 'Lampu baca aluminium anodized dengan 5 pilihan temperatur cahaya, sensor sentuh, dan fast wireless charging pad di dudukannya.',
+        image: 'https://images.unsplash.com/photo-1534073828943-f801091bb18c?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Lumina Tech Home',
+        location: 'Bandung'
+      }
+    ]
+  }
+];
+
+export const LANDING_FAQS = [
+  {
+    q: 'Apakah saya perlu menyewa hosting atau membeli domain terpisah?',
+    a: 'Tidak perlu sama sekali! Catavor adalah platform SaaS lengkap. Begitu Anda mendaftar, link katalog Anda langsung aktif seketika (contoh: catavor.com/nama-usaha) di atas infrastruktur cloud kami yang cepat dan aman tanpa biaya server tambahan.'
+  },
+  {
+    q: 'Bagaimana alur pelanggan memesan produk di katalog saya?',
+    a: 'Pelanggan cukup membuka link katalog Anda di ponsel atau komputer, memilih produk yang disukai, lalu menekan tombol "Pesan via WhatsApp". Sistem kami secara otomatis membuat draf pesan WhatsApp yang terstruktur rapi (berisi nama produk, harga, varian, dan catatan) sehingga penjual bisa langsung memproses pesanan dengan cepat.'
+  },
+  {
+    q: 'Apakah ada potongan komisi atau biaya transaksi per penjualan?',
+    a: '0% Komisi! Catavor tidak memotong sepeser pun dari nominal penjualan Anda. Seluruh pembayaran dari pembeli dan data pelanggan 100% menjadi milik Anda seutuhnya.'
+  },
+  {
+    q: 'Apakah saya bisa mengubah foto, harga, atau menambah produk kapan saja?',
+    a: 'Tentu! Anda memiliki akses penuh ke Dashboard Admin yang sangat mudah digunakan. Anda dapat menambah item baru, mengedit harga promo, mengganti foto produk, hingga mengatur jam operasional toko langsung dari ponsel maupun laptop dalam hitungan detik.'
+  },
+  {
+    q: 'Bagaimana jika usaha saya memiliki banyak varian atau jenis layanan berbeda?',
+    a: 'Catavor dirancang multi-kategori dan sangat fleksibel. Anda dapat mengelompokkan produk ke dalam berbagai kategori, menambahkan opsi varian (seperti rasa, ukuran, warna), mencantumkan estimasi pengerjaan jasa, hingga menyertakan link marketplace cadangan.'
+  },
+  {
+    q: 'Apakah saya bisa mencetak QR Code untuk dipajang di kasir atau meja toko fisik?',
+    a: 'Bisa! Di dalam Dashboard Admin, Anda dapat mengunduh file QR Code beresolusi tinggi secara gratis dalam 1 klik. Anda dapat mencetaknya pada standing acrylic meja kasir, kartu nama bisnis, banner, ataupun stiker packaging pengiriman.'
+  }
+];
+
+export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food';
+
+export interface ItemTypeConfig {
+  type: ItemCategoryType;
+  typeName: string;
+  badgeName: string;
+  icon: any;
+  color: string;
+  gradientBg: string;
+  modalTitle: (mode: 'create' | 'edit') => string;
+  modalSubtitle: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  categoryLabel: string;
+  defaultCategory: string;
+  categoryOptions: string[];
+  priceLabel: string;
+  pricePlaceholder: string;
+  photoLabel: string;
+  photoHelper: string;
+  videoLabel: string;
+  videoPlaceholder: string;
+  deliveryLabel: string;
+  deliveryOptions: string[];
+  deliveryTermsLabel: string;
+  deliveryTermsPlaceholder: string;
+  warrantyLabel: string;
+  warrantyPlaceholder: string;
+  descLabel: string;
+  descPlaceholder: string;
+}
+
+export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
+  switch (type) {
+    case 'physical':
+      return {
+        type: 'physical',
+        typeName: 'Barang Fisik',
+        badgeName: 'Barang Fisik',
+        icon: Package,
+        color: '#2563eb',
+        gradientBg: 'radial-gradient(circle at top left, rgba(37, 99, 235, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Barang Fisik' : 'Edit Barang Fisik',
+        modalSubtitle: 'Lengkapi spesifikasi barang fisik, stok inventaris, dan opsi pengiriman.',
+        nameLabel: 'Nama Barang *',
+        namePlaceholder: 'Contoh: Kaos Oversize Cotton Combed 24s / Keyboard Mechanical...',
+        categoryLabel: 'Kategori / Jenis Barang *',
+        defaultCategory: 'Pakaian & Fashion',
+        categoryOptions: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
+        priceLabel: 'Harga Jual Satuan (IDR) *',
+        pricePlaceholder: 'Contoh: 150.000',
+        photoLabel: 'Foto Barang (1-5 Foto) *',
+        photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
+        videoLabel: 'Video Review / Unboxing (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Jangkauan Pengiriman Ekspedisi *',
+        deliveryOptions: ['Bisa Kirim se-Indonesia', 'Khusus Pulau Jawa / Satu Wilayah', 'Ambil Sendiri di Toko (No Shipping)', 'Kurir Instan / Sameday Only'],
+        deliveryTermsLabel: 'Ketentuan Ekspedisi & Packing',
+        deliveryTermsPlaceholder: 'Contoh: Pengiriman via JNE / J&T / SiCepat setiap hari kerja. Packing aman bubble wrap tebal + kardus gratis...',
+        warrantyLabel: 'Kebijakan Garansi / Retur Barang',
+        warrantyPlaceholder: 'Contoh: Garansi tukar baru 7 hari jika barang cacat produksi dengan melampirkan video unboxing...',
+        descLabel: 'Deskripsi Lengkap Barang *',
+        descPlaceholder: 'Jelaskan detail spesifikasi bahan/material, dimensi ukuran, kelengkapan isi kemasan, dan fitur unggulan barang ini...'
+      };
+    case 'digital':
+      return {
+        type: 'digital',
+        typeName: 'Item Digital',
+        badgeName: 'Item Digital',
+        icon: FileCode,
+        color: '#8b5cf6',
+        gradientBg: 'radial-gradient(circle at top left, rgba(139, 92, 246, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Item Digital' : 'Edit Item Digital',
+        modalSubtitle: 'Lengkapi tautan unduhan, format file, dan lisensi penggunaan item digital.',
+        nameLabel: 'Nama File / Item Digital *',
+        namePlaceholder: 'Contoh: E-Book Panduan Bisnis Kuliner / Template Notion 2026 / Source Code...',
+        categoryLabel: 'Format & Kategori Digital *',
+        defaultCategory: 'E-Book & PDF',
+        categoryOptions: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software'],
+        priceLabel: 'Harga Akses / Lisensi (IDR) *',
+        pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
+        photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
+        photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
+        videoLabel: 'Video Preview / Demo Item Digital (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Metode Pengiriman File Digital *',
+        deliveryOptions: ['Akses Instan Otomatis (Link Cloud)', 'Kirim via Email Pembeli', 'Kirim via WhatsApp Admin', 'Akses Member Area'],
+        deliveryTermsLabel: 'Panduan Akses & Unduhan File',
+        deliveryTermsPlaceholder: 'Contoh: Setelah pembayaran diverifikasi, link akses Google Drive / Dropbox akan otomatis dikirimkan dan aktif selamanya...',
+        warrantyLabel: 'Ketentuan Lisensi & Hak Cipta',
+        warrantyPlaceholder: 'Contoh: Pembelian mencakup lisensi personal. Dilarang keras membagikan ulang, menjual kembali, atau mendistribusikan tanpa izin...',
+        descLabel: 'Deskripsi & Isi Materi Digital *',
+        descPlaceholder: 'Jelaskan daftar isi bab/file yang didapat, software yang dibutuhkan untuk membuka file, dan manfaat materi digital ini...'
+      };
+    case 'fauna':
+      return {
+        type: 'fauna',
+        typeName: 'Satwa & Living Fauna',
+        badgeName: 'Satwa & Fauna',
+        icon: PawPrint,
+        color: '#059669',
+        gradientBg: 'radial-gradient(circle at top left, rgba(5, 150, 105, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Satwa / Living Fauna' : 'Edit Satwa / Living Fauna',
+        modalSubtitle: 'Lengkapi taksonomi ilmiah, kondisi satwa, masa hidup, dan garansi pengiriman hidup.',
+        nameLabel: 'Nama Hewan / Tanaman Hias *',
+        namePlaceholder: 'Contoh: Arwana Super Red Joey / Gecko Sunglow / Sugar Glider...',
+        categoryLabel: 'Kelas / Kategori Fauna *',
+        defaultCategory: 'Ikan Hias',
+        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
+        priceLabel: 'Harga Satuan Hewan (IDR) *',
+        pricePlaceholder: 'Contoh: 350.000',
+        photoLabel: 'Foto Satwa & Kondisi Nyata (1-5 Foto) *',
+        photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
+        videoLabel: 'Video Satwa / Feeding Video (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Jangkauan Pengiriman Satwa Hidup *',
+        deliveryOptions: ['Bisa Kirim se-Indonesia (Legal & Berizin)', 'Khusus Pulau Jawa / Jalur Kereta', 'Ambil Sendiri di Toko (Pickup Only)', 'Kurir Instan Hewan (Gojek/Grab)'],
+        deliveryTermsLabel: 'Ketentuan Pengiriman (Live Arrival)',
+        deliveryTermsPlaceholder: 'Contoh: Pengiriman via Kereta Api Express (KIB/KI8/Herona) atau Bus. Packing menggunakan boks styrofoam beroksigen khusus...',
+        warrantyLabel: 'Ketentuan Garansi D.O.A (Dead On Arrival)',
+        warrantyPlaceholder: 'Contoh: Garansi hidup sampai tujuan (D.O.A 100%) berlaku dengan menyertakan video unboxing full tanpa jeda/cut maksimal 2 jam setelah paket diterima...',
+        descLabel: 'Deskripsi & Kondisi Satwa *',
+        descPlaceholder: 'Jelaskan riwayat kesehatan, pola makan, keaktifan, minus (jika ada), umur/size, dan petunjuk perawatan harian...'
+      };
+    case 'service':
+      return {
+        type: 'service',
+        typeName: 'Jasa & Layanan',
+        badgeName: 'Jasa & Layanan',
+        icon: Wrench,
+        color: '#d97706',
+        gradientBg: 'radial-gradient(circle at top left, rgba(217, 119, 6, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Jasa & Layanan' : 'Edit Jasa & Layanan',
+        modalSubtitle: 'Lengkapi estimasi durasi, metode layanan, wilayah operasional, dan jaminan pengerjaan.',
+        nameLabel: 'Nama Jasa / Layanan *',
+        namePlaceholder: 'Contoh: Executive Pet Grooming / Servis Laptop & PC / Sesi Foto Studio...',
+        categoryLabel: 'Kategori Bidang Jasa *',
+        defaultCategory: 'Perawatan & Grooming',
+        categoryOptions: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance'],
+        priceLabel: 'Biaya / Tarif Layanan (IDR) *',
+        pricePlaceholder: 'Contoh: 120.000 / Mulai dari Rp 100.000',
+        photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-5 Foto) *',
+        photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
+        videoLabel: 'Video Dokumentasi / Hasil Kerja (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Sistem Pemesanan & Reservasi *',
+        deliveryOptions: ['Booking Jadwal via WhatsApp', 'Datang Langsung ke Toko (Walk-in)', 'Reservasi DP 50% di Awal', 'Konsultasi Online Terlebih Dahulu'],
+        deliveryTermsLabel: 'Ketentuan & Jadwal Pelaksanaan',
+        deliveryTermsPlaceholder: 'Contoh: Harap booking minimal H-1 sebelum jadwal pengerjaan. Layanan beroperasi Selasa - Minggu pukul 09.00 - 18.00 WIB...',
+        warrantyLabel: 'Kebijakan Garansi Servis / Revisi Hasil',
+        warrantyPlaceholder: 'Contoh: Garansi servis 30 hari untuk kerusakan yang sama. Free revisi desain hingga 3 kali...',
+        descLabel: 'Deskripsi Cakupan Layanan *',
+        descPlaceholder: 'Jelaskan tahapan pengerjaan, keahlian teknisi/ahli, apa saja yang termasuk dalam paket, dan keuntungan yang didapat klien...'
+      };
+    case 'food':
+      return {
+        type: 'food',
+        typeName: 'Menu Kuliner (F&B)',
+        badgeName: 'Makanan & Minuman',
+        icon: Utensils,
+        color: '#dc2626',
+        gradientBg: 'radial-gradient(circle at top left, rgba(220, 38, 38, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Menu Kuliner' : 'Edit Menu Kuliner',
+        modalSubtitle: 'Lengkapi takaran porsi, ketahanan makanan, suhu simpan, dan sertifikasi kuliner.',
+        nameLabel: 'Nama Menu Makanan / Minuman *',
+        namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Artisan Cold Brew Coffee / Frozen Dimsum 20pcs...',
+        categoryLabel: 'Kategori Menu Kuliner *',
+        defaultCategory: 'Makanan Utama',
+        categoryOptions: ['Makanan Utama', 'Minuman Olahan & Kopi', 'Camilan & Snack', 'Frozen Food & Olahan', 'Bakery & Pastry', 'Katering & Paket Nasi Boks', 'Bumbu & Frozen Ready-to-Cook'],
+        priceLabel: 'Harga Porsi / Menu (IDR) *',
+        pricePlaceholder: 'Contoh: 35.000',
+        photoLabel: 'Foto Menu / Penyajian Makanan (1-5 Foto) *',
+        photoHelper: 'Unggah foto hidangan yang menggugah selera, kemasan makanan, atau komposisi menu.',
+        videoLabel: 'Video Penyajian / Food Review (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Jangkauan Pengiriman Menu *',
+        deliveryOptions: ['Khusus Kurir Instan / Sameday (Gojek/Grab)', 'Bisa Kirim Luar Kota (Paxel Frozen / 1 Hari Sampai)', 'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)', 'Pre-Order Katering Khusus'],
+        deliveryTermsLabel: 'Ketentuan Pemesanan & Penyajian',
+        deliveryTermsPlaceholder: 'Contoh: Menu dimasak fresh saat pesanan masuk (Made by order). Waktu penyiapan 15-25 menit sebelum kurir pickup...',
+        warrantyLabel: 'Petunjuk Penyajian & Penyimpanan',
+        warrantyPlaceholder: 'Contoh: Untuk frozen food, simpan pada freezer -18°C. Kukus selama 10 menit atau panaskan microwave 2 menit sebelum dinikmati...',
+        descLabel: 'Deskripsi Rasa & Komposisi Menu *',
+        descPlaceholder: 'Jelaskan cita rasa makanan/minuman, bahan-bahan premium yang digunakan, informasi alergen (kacang, seafood), dan saran penyajian...'
+      };
+  }
+}
+
 interface Fauna {
   id: number
   name: string
@@ -282,20 +808,25 @@ interface Fauna {
   is_shipping_available: boolean
   description: string
   image_url: string
-  product_type?: 'physical' | 'digital' | 'fauna' | 'service' | 'food'
+  product_type?: ItemCategoryType
   attributes?: {
     stock?: number
     condition?: string
     weight?: number
+    brand?: string
+    variant?: string
     download_url?: string
     file_format?: string
     file_size?: string
+    license_type?: string
     scientific_name?: string
     fauna_class?: string
     fauna_status?: string
     duration?: string
     service_location?: string
     service_area?: string
+    inclusions?: string
+    portion_size?: string
     expired_info?: string
     storage_temp?: string
     certification?: string
@@ -2260,6 +2791,13 @@ function App() {
     }
   ]);
   const [heroEmailInput, setHeroEmailInput] = useState('');
+  // Landing Page Interactive States Mobile
+  const [landingCategory, setLandingCategory] = useState<'culinary' | 'fashion' | 'plants' | 'pets' | 'services' | 'tech'>('culinary');
+  const [pricingBillingCycle, setPricingBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
+  const [searchStoreQuery, setSearchStoreQuery] = useState<string>('');
+  const [previewProductModal, setPreviewProductModal] = useState<any | null>(null);
+  const [simulatedOrderToast, setSimulatedOrderToast] = useState<string | null>(null);
   const [featuredStores, setFeaturedStores] = useState<any[]>([]);
   // Policy & Privacy System States
   const [policies, setPolicies] = useState<{ [key: string]: { type: string, version: string, title: string, content: string, published_at?: string } }>({
@@ -2322,8 +2860,8 @@ function App() {
             return (
               <div key={idx} style={{ marginTop: idx > 0 ? '0.85rem' : '0.2rem', marginBottom: '0.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                  <span style={{ width: '4px', height: '16px', borderRadius: '4px', background: 'var(--primary)', flexShrink: 0, boxShadow: '0 0 8px var(--primary-glow)' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
+                  <span style={{ width: '4px', height: '16px', borderRadius: '4px', background: '#2563eb', flexShrink: 0 }} />
+                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     {headerText}
                   </h4>
                 </div>
@@ -2335,8 +2873,8 @@ function App() {
           if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
             const itemText = trimmed.replace(/^[-•]\s*/, '');
             return (
-              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', paddingLeft: '0.6rem', color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: '1.6' }}>
-                <span style={{ color: 'var(--primary)', fontSize: '0.9rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
+              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', paddingLeft: '0.6rem', color: '#475569', fontSize: '0.82rem', lineHeight: '1.6' }}>
+                <span style={{ color: '#2563eb', fontSize: '0.9rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
                 <span>{itemText}</span>
               </div>
             );
@@ -2344,7 +2882,7 @@ function App() {
 
           // Regular paragraph text
           return (
-            <p key={idx} style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: '1.65' }}>
+            <p key={idx} style={{ margin: 0, color: '#475569', fontSize: '0.82rem', lineHeight: '1.65' }}>
               {trimmed}
             </p>
           );
@@ -2353,19 +2891,16 @@ function App() {
     );
   };
 
-  // Universal Mobile Footer with Touch-Optimized & Premium Styling
+  // Universal Mobile Footer with Clean Modern Commerce Styling
   const renderMobileFooter = () => (
     <footer style={{ 
-      borderTop: '1px solid rgba(255, 255, 255, 0.08)', 
+      borderTop: '1px solid #e2e8f0', 
       padding: '2.25rem 1rem 2.5rem 1rem', 
-      background: 'linear-gradient(180deg, rgba(8, 12, 20, 0.85) 0%, rgba(5, 8, 14, 0.98) 100%)', 
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
+      background: '#ffffff', 
       marginTop: '3rem', 
       textAlign: 'center',
       position: 'relative',
-      zIndex: 20,
-      boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.4)'
+      zIndex: 20
     }}>
       <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', maxWidth: '480px', margin: '0 auto' }}>
         
@@ -2374,9 +2909,9 @@ function App() {
           <span style={{ 
             fontSize: '1.15rem', 
             fontWeight: 900, 
-            color: '#ffffff', 
+            color: '#0f172a', 
             letterSpacing: '-0.02em',
-            fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
+            fontFamily: "'Plus Jakarta Sans', sans-serif"
           }}>
             Catavor
           </span>
@@ -2385,17 +2920,17 @@ function App() {
             fontWeight: 800,
             padding: '0.15rem 0.55rem',
             borderRadius: '999px',
-            background: 'rgba(16, 185, 129, 0.12)',
-            color: '#34d399',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
+            background: '#eff6ff',
+            color: '#1d4ed8',
+            border: '1px solid #bfdbfe',
             letterSpacing: '0.04em',
             textTransform: 'uppercase'
           }}>
-            Katalog & Biolink
+            Katalog &amp; Biolink
           </span>
         </div>
 
-        {/* Clean Interactive Policy Links (Inline & Separated with Dots) */}
+        {/* Clean Interactive Policy Links */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -2403,7 +2938,7 @@ function App() {
           flexWrap: 'wrap', 
           gap: '0.4rem 0.75rem', 
           fontSize: '0.74rem', 
-          color: '#94a3b8',
+          color: '#64748b',
           margin: '0.2rem 0'
         }}>
           <button 
@@ -2412,27 +2947,24 @@ function App() {
             style={{ 
               background: 'transparent', 
               border: 'none', 
-              color: '#cbd5e1', 
+              color: '#475569', 
               cursor: 'pointer', 
               fontWeight: 600, 
               padding: '0.25rem 0.4rem',
               borderRadius: '0.35rem',
               fontSize: '0.74rem',
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-              transition: 'all 0.2s ease',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem'
             }}
           >
-            <span>Syarat & Ketentuan</span>
-            <span style={{ fontSize: '0.62rem', opacity: 0.75, color: '#34d399', background: 'rgba(16,185,129,0.12)', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <span>Syarat &amp; Ketentuan</span>
+            <span style={{ fontSize: '0.62rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
               {policies.terms?.version || 'v1.0.0'}
             </span>
           </button>
 
-          <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.6rem' }}>•</span>
+          <span style={{ color: '#cbd5e1', fontSize: '0.6rem' }}>•</span>
 
           <button 
             type="button" 
@@ -2440,27 +2972,24 @@ function App() {
             style={{ 
               background: 'transparent', 
               border: 'none', 
-              color: '#cbd5e1', 
+              color: '#475569', 
               cursor: 'pointer', 
               fontWeight: 600, 
               padding: '0.25rem 0.4rem',
               borderRadius: '0.35rem',
               fontSize: '0.74rem',
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-              transition: 'all 0.2s ease',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem'
             }}
           >
             <span>Kebijakan Privasi</span>
-            <span style={{ fontSize: '0.62rem', opacity: 0.75, color: '#34d399', background: 'rgba(16,185,129,0.12)', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <span style={{ fontSize: '0.62rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
               {policies.privacy?.version || 'v1.0.0'}
             </span>
           </button>
 
-          <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.6rem' }}>•</span>
+          <span style={{ color: '#cbd5e1', fontSize: '0.6rem' }}>•</span>
 
           <button 
             type="button" 
@@ -2468,22 +2997,19 @@ function App() {
             style={{ 
               background: 'transparent', 
               border: 'none', 
-              color: '#cbd5e1', 
+              color: '#475569', 
               cursor: 'pointer', 
               fontWeight: 600, 
               padding: '0.25rem 0.4rem',
               borderRadius: '0.35rem',
               fontSize: '0.74rem',
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation',
-              transition: 'all 0.2s ease',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem'
             }}
           >
             <span>Ketentuan Penggunaan</span>
-            <span style={{ fontSize: '0.62rem', opacity: 0.75, color: '#34d399', background: 'rgba(16,185,129,0.12)', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <span style={{ fontSize: '0.62rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.05rem 0.35rem', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
               {policies.acceptable_use?.version || 'v1.0.0'}
             </span>
           </button>
@@ -2492,18 +3018,18 @@ function App() {
         {/* Security & Compliance Badges */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#64748b', fontSize: '0.68rem', fontWeight: 600 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <ShieldCheck size={13} style={{ color: '#10b981' }} />
+            <ShieldCheck size={13} style={{ color: '#16a34a' }} />
             Privasi &amp; Data Terlindungi
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+          <span style={{ color: '#cbd5e1' }}>|</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <Lock size={12} style={{ color: '#38bdf8' }} />
+            <Lock size={12} style={{ color: '#2563eb' }} />
             256-Bit Enkripsi SSL
           </span>
         </div>
 
         {/* Copyright notice */}
-        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.2rem', fontWeight: 500 }}>
+        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.2rem', fontWeight: 500 }}>
           © 2026 <strong>PT Catavor Global Teknologi</strong>. Hak Cipta Dilindungi.
         </div>
 
@@ -2520,9 +3046,9 @@ function App() {
     };
 
     return (
-      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '2.5rem 1.25rem 4rem 1.25rem', animation: 'fadeIn 0.3s ease-in-out' }}>
+      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '2rem 1.25rem 4rem 1.25rem', animation: 'fadeIn 0.3s ease-in-out' }}>
         {/* Main Formatted Content Card */}
-        <div className="glass-panel" style={{ padding: '1.75rem 1.35rem', borderRadius: '1.15rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'linear-gradient(180deg, rgba(17, 24, 39, 0.95) 0%, rgba(9, 14, 26, 0.98) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)' }}>
+        <div className="portal-card" style={{ padding: '1.75rem 1.35rem' }}>
           {renderFormattedPolicyContent(policy.content)}
         </div>
       </div>
@@ -2938,6 +3464,20 @@ function App() {
     selectedReplacement: string
   } | null>(null)
 
+  const [renameMasterModalData, setRenameMasterModalData] = useState<{
+    field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage'
+    fieldLabel: string
+    oldValue: string
+    newValue: string
+  } | null>(null)
+
+  const [presetModalData, setPresetModalData] = useState<{
+    key: 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'general'
+    title: string
+    desc: string
+    sampleCategories: string[]
+  } | null>(null)
+
   const [faunaToDelete, setFaunaToDelete] = useState<Fauna | null>(null)
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
@@ -2981,19 +3521,24 @@ function App() {
       stock: 1,
       condition: 'Baru',
       weight: 100,
+      brand: '',
+      variant: '',
       download_url: '',
       file_format: 'PDF',
       file_size: '10 MB',
+      license_type: 'Personal Use',
       scientific_name: '',
       fauna_class: 'Reptil',
       fauna_status: 'Ready Stock',
       duration: '1 Sesi / 1 Jam',
       service_location: 'Datang ke Toko',
       service_area: 'Jabodetabek',
+      inclusions: '',
+      portion_size: '1 Porsi',
       expired_info: '7 Hari',
       storage_temp: 'Suhu Ruang',
       certification: 'Halal'
-    }
+    } as Record<string, any>
   })
 
   // Dynamic Master dropdown custom inputs
@@ -4986,26 +5531,29 @@ function App() {
   }
 
   // Open Add Form
+  // Open Add Form
   const openCreateSheet = () => {
     if (settings.plan === 'free' && faunas.length >= 10) {
-      showToast('Batas postingan Plan Gratis (Maksimal 10 produk) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
+      showToast('Batas listing Plan Gratis (Maksimal 10 item) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
       return
     }
     setShowProductTypeSelector(true)
     setView('product-type-selector')
   }
 
-  const handleSelectProductType = (type: 'physical' | 'digital' | 'fauna' | 'service' | 'food') => {
+  const handleSelectProductType = (type: ItemCategoryType) => {
     setShowProductTypeSelector(false)
-    setView('fauna-editor')
+    const typeConfig = getItemTypeFormConfig(type);
 
-    // If changing type from within an active form, preserve common fields like name, price, description, image_url
+    // If changing type from within an active form, preserve common fields
     if (crudForm.name || crudForm.price > 0 || crudMode === 'edit') {
       setCrudForm(prev => ({
         ...prev,
         product_type: type,
-        class: type === 'fauna' ? (prev.class === 'Umum' ? 'Reptil' : prev.class) : 'Umum'
+        class: prev.class === 'Umum' || prev.class === 'Reptil' ? typeConfig.defaultCategory : prev.class,
+        shipping_coverage: prev.shipping_coverage === 'Bisa Kirim se-Indonesia' ? typeConfig.deliveryOptions[0] : prev.shipping_coverage
       }))
+      setView('fauna-editor')
       return
     }
 
@@ -5014,7 +5562,7 @@ function App() {
     setCrudForm({
       name: '',
       scientific_name: '',
-      class: type === 'fauna' ? 'Reptil' : 'Umum',
+      class: typeConfig.defaultCategory,
       habitat: 'General',
       diet: '',
       conservation_status: 'Tersedia',
@@ -5028,25 +5576,30 @@ function App() {
       weight: '',
       shipping_terms: '',
       warranty_info: '',
-      shipping_coverage: 'Bisa Kirim se-Indonesia',
+      shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
       purchase_links: [],
       product_type: type,
       attributes: {
         stock: 1,
         condition: 'Baru',
         weight: 100,
+        brand: '',
+        variant: '',
         download_url: '',
         file_format: 'PDF',
         file_size: '10 MB',
+        license_type: 'Lisensi Personal',
         scientific_name: '',
-        fauna_class: 'Reptil',
-        fauna_status: 'Ready Stock',
+        fauna_class: 'Ikan Hias',
+        fauna_status: 'Tersedia',
         duration: '1 Sesi / 1 Jam',
         service_location: 'Datang ke Toko',
         service_area: 'Jabodetabek',
+        inclusions: '',
+        portion_size: '1 Porsi',
         expired_info: '7 Hari',
         storage_temp: 'Suhu Ruang',
-        certification: 'Halal'
+        certification: '100% Halal'
       }
     })
     setCustomClass('')
@@ -5067,13 +5620,16 @@ function App() {
   const openEditSheet = (item: Fauna) => {
     setCrudMode('edit')
     setEditId(item.id)
+    const itemType = (item.product_type || 'physical') as ItemCategoryType;
+    const typeConfig = getItemTypeFormConfig(itemType);
+
     setCrudForm({
       name: item.name,
-      scientific_name: item.scientific_name,
-      class: item.class,
-      habitat: item.habitat,
-      diet: item.diet,
-      conservation_status: item.conservation_status,
+      scientific_name: item.scientific_name || '',
+      class: item.class || typeConfig.defaultCategory,
+      habitat: item.habitat || 'General',
+      diet: item.diet || '',
+      conservation_status: item.conservation_status || 'Tersedia',
       price: item.price,
       video_url: item.video_url || '',
       is_shipping_available: item.is_shipping_available,
@@ -5084,7 +5640,7 @@ function App() {
       weight: item.detailed_info?.weight || '',
       shipping_terms: item.detailed_info?.shipping_terms || '',
       warranty_info: item.detailed_info?.warranty_info || '',
-      shipping_coverage: item.detailed_info?.shipping_coverage || (item.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri di Toko (No Shipping)'),
+      shipping_coverage: item.detailed_info?.shipping_coverage || (item.is_shipping_available ? typeConfig.deliveryOptions[0] : 'Ambil Sendiri di Toko (No Shipping)'),
       purchase_links: item.detailed_info?.purchase_links || [
         ...(item.detailed_info?.shopee_url ? [{ platform: 'Shopee', url: item.detailed_info.shopee_url }] : []),
         ...(item.detailed_info?.tokopedia_url ? [{ platform: 'Tokopedia', url: item.detailed_info.tokopedia_url }] : []),
@@ -5092,23 +5648,28 @@ function App() {
         ...(item.detailed_info?.bukalapak_url ? [{ platform: 'Bukalapak', url: item.detailed_info.bukalapak_url }] : []),
         ...(item.detailed_info?.custom_shop_url ? [{ platform: item.detailed_info.custom_shop_name || 'Marketplace', url: item.detailed_info.custom_shop_url }] : [])
       ],
-      product_type: item.product_type || 'physical',
+      product_type: itemType,
       attributes: {
         stock: item.attributes?.stock ?? 1,
         condition: (item.attributes?.condition as any) || 'Baru',
         weight: item.attributes?.weight ?? 100,
+        brand: item.attributes?.brand || '',
+        variant: item.attributes?.variant || '',
         download_url: item.attributes?.download_url || '',
         file_format: item.attributes?.file_format || 'PDF',
         file_size: item.attributes?.file_size || '10 MB',
+        license_type: item.attributes?.license_type || 'Lisensi Personal',
         scientific_name: item.attributes?.scientific_name || item.scientific_name || '',
-        fauna_class: item.attributes?.fauna_class || item.class || 'Reptil',
-        fauna_status: item.attributes?.fauna_status || item.conservation_status || 'Ready Stock',
+        fauna_class: item.attributes?.fauna_class || item.class || 'Ikan Hias',
+        fauna_status: item.attributes?.fauna_status || item.conservation_status || 'Tersedia',
         duration: item.attributes?.duration || '1 Sesi / 1 Jam',
         service_location: item.attributes?.service_location || 'Datang ke Toko',
         service_area: item.attributes?.service_area || 'Jabodetabek',
+        inclusions: item.attributes?.inclusions || '',
+        portion_size: item.attributes?.portion_size || '1 Porsi',
         expired_info: item.attributes?.expired_info || '7 Hari',
         storage_temp: item.attributes?.storage_temp || 'Suhu Ruang',
-        certification: item.attributes?.certification || 'Halal'
+        certification: item.attributes?.certification || '100% Halal'
       }
     })
     setCustomClass('')
@@ -5128,7 +5689,7 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Save Fauna
+  // Save Item
   const handleFaunaSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setCrudLoading(true)
@@ -5136,12 +5697,12 @@ function App() {
 
     const filteredImages = crudImages.map(img => img.trim()).filter(Boolean)
     if (filteredImages.length === 0) {
-      setCrudError('Minimal harus menginput 1 foto hewan.')
+      setCrudError('Minimal harus mengunggah 1 foto item.')
       setCrudLoading(false)
       return
     }
     if (filteredImages.length > 5) {
-      setCrudError('Maksimal hanya dapat menginput 5 foto hewan.')
+      setCrudError('Maksimal hanya dapat mengunggah 5 foto item.')
       setCrudLoading(false)
       return
     }
@@ -5152,22 +5713,12 @@ function App() {
     const selectedShippingCoverage = showCustomShippingCoverageInput ? customShippingCoverage.trim() : crudForm.shipping_coverage
 
     if (!selectedClass) {
-      setCrudError('Kelas hewan wajib diisi.')
-      setCrudLoading(false)
-      return
-    }
-    if (!selectedHabitat) {
-      setCrudError('Habitat hewan wajib diisi.')
-      setCrudLoading(false)
-      return
-    }
-    if (!selectedConservationStatus) {
-      setCrudError('Status konservasi wajib diisi.')
+      setCrudError('Kategori item wajib diisi.')
       setCrudLoading(false)
       return
     }
     if (!selectedShippingCoverage) {
-      setCrudError('Jangkauan pengiriman wajib diisi.')
+      setCrudError('Jangkauan pengiriman / metode layanan wajib diisi.')
       setCrudLoading(false)
       return
     }
@@ -5550,6 +6101,66 @@ function App() {
     }
   }
 
+  const handleRenameMasterOption = async (
+    field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage',
+    oldValue: string,
+    newValue: string
+  ) => {
+    const trimmed = newValue.trim()
+    if (!trimmed) {
+      showToast('Nama opsi tidak boleh kosong.', 'error')
+      return
+    }
+    if (trimmed === oldValue) {
+      setRenameMasterModalData(null)
+      return
+    }
+
+    try {
+      setCrudLoading(true)
+      const res = await fetch(`${API_BASE}/stores/rename-master-option`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ field, old_value: oldValue, new_value: trimmed })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        showToast('Nama kategori/opsi berhasil diubah dan disinkronkan!')
+        setRenameMasterModalData(null)
+        loadData()
+      } else {
+        showToast(data.message || 'Gagal mengubah nama opsi.', 'error')
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi saat mengubah nama opsi.', 'error')
+    } finally {
+      setCrudLoading(false)
+    }
+  }
+
+  const handleApplyPreset = async (presetKey: string) => {
+    try {
+      setCrudLoading(true)
+      const res = await fetch(`${API_BASE}/stores/apply-master-preset`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ preset: presetKey })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        showToast('Template preset industri berhasil diterapkan ke katalog toko!')
+        setPresetModalData(null)
+        loadData()
+      } else {
+        showToast(data.message || 'Gagal menerapkan preset industri.', 'error')
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi saat menerapkan preset industri.', 'error')
+    } finally {
+      setCrudLoading(false)
+    }
+  }
+
   // Delete Item
   const handleFaunaDelete = async (id: number): Promise<boolean> => {
     try {
@@ -5604,7 +6215,21 @@ function App() {
   }
 
   // Dynamic Theme Style Resolver for Multi-Tenant Loading Gate Screen
-  const getThemeGateStyles = (themeName?: string) => {
+  const getThemeGateStyles = (themeName?: string, isPortalMode: boolean = false) => {
+    if (isPortalMode || themeName === 'portal') {
+      return {
+        bg: '#f8fafc',
+        bgGradient: 'radial-gradient(circle at 50% 35%, #eff6ff 0%, #f8fafc 70%)',
+        cardBg: '#ffffff',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid #e2e8f0',
+        logoBoxShadow: '0 10px 30px rgba(37, 99, 235, 0.08)',
+        titleColor: '#0f172a',
+        subtitleColor: '#475569',
+        trackBg: 'rgba(37, 99, 235, 0.15)',
+        accent: '#2563eb'
+      };
+    }
     const theme = (themeName || 'emerald').toLowerCase();
     switch (theme) {
       case 'cyberpunk':
@@ -5692,6 +6317,7 @@ function App() {
   // Render App Readiness Loader Gate Screen
   if (isAppInitializing) {
     const currentSlug = getStoreSlug();
+    const isPortalLanding = !currentSlug;
     let themeFromCache = 'emerald';
     if (currentSlug) {
       try {
@@ -5704,12 +6330,17 @@ function App() {
         }
       } catch {}
     }
-    const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'emerald';
-    const themeStyles = getThemeGateStyles(activeTheme);
-    const displayLogo = initialGateLogoRef.current || APP_LOGO_BASE64;
+    const activeTheme = isPortalLanding 
+      ? 'portal' 
+      : ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'emerald');
+    const themeStyles = getThemeGateStyles(activeTheme, isPortalLanding);
+    const displayLogo = isPortalLanding ? (logoHeaderImg || APP_LOGO_BASE64) : (initialGateLogoRef.current || APP_LOGO_BASE64);
     const displayTitle = (currentSlug && settings.store_title && settings.store_title !== 'Catavor')
       ? settings.store_title
       : (currentSlug ? currentSlug.charAt(0).toUpperCase() + currentSlug.slice(1) : 'Catavor');
+    const displaySubtitle = isPortalLanding
+      ? 'Platform Katalog Digital & Biolink Usaha'
+      : 'Mempersiapkan Halaman...';
 
     return (
       <div style={{
@@ -5734,33 +6365,50 @@ function App() {
         `}</style>
 
         {/* Clean Logo Box */}
-        <div style={{
-          width: '80px',
-          height: '80px',
-          borderRadius: '1.25rem',
-          backgroundColor: themeStyles.logoBoxBg,
-          border: themeStyles.logoBoxBorder,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0.65rem',
-          boxShadow: themeStyles.logoBoxShadow,
-          marginBottom: '1.25rem'
-        }}>
-          <img 
-            src={displayLogo} 
-            alt={displayTitle} 
-            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }} 
-          />
-        </div>
+        {isPortalLanding ? (
+          <div style={{
+            width: '68px',
+            height: '68px',
+            borderRadius: '1.15rem',
+            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#ffffff',
+            boxShadow: '0 10px 25px rgba(37, 99, 235, 0.28)',
+            marginBottom: '1.15rem'
+          }}>
+            <Store size={32} />
+          </div>
+        ) : (
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '1.25rem',
+            backgroundColor: themeStyles.logoBoxBg,
+            border: themeStyles.logoBoxBorder,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0.65rem',
+            boxShadow: themeStyles.logoBoxShadow,
+            marginBottom: '1.25rem'
+          }}>
+            <img 
+              src={displayLogo} 
+              alt={displayTitle} 
+              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }} 
+            />
+          </div>
+        )}
 
-        {/* Store Title */}
+        {/* Store / Platform Title */}
         <h3 style={{
-          margin: '0 0 0.35rem 0',
-          fontSize: '1.15rem',
+          margin: '0 0 0.3rem 0',
+          fontSize: '1.2rem',
           fontWeight: 800,
           color: themeStyles.titleColor,
-          letterSpacing: '-0.01em'
+          letterSpacing: '-0.02em'
         }}>
           {displayTitle}
         </h3>
@@ -5771,9 +6419,10 @@ function App() {
           fontSize: '0.78rem',
           color: themeStyles.subtitleColor,
           fontWeight: 500,
-          letterSpacing: '0.01em'
+          letterSpacing: '0.01em',
+          textAlign: 'center'
         }}>
-          Mempersiapkan Halaman...
+          {displaySubtitle}
         </p>
 
         {/* Minimalist Progress Line */}
@@ -5794,97 +6443,163 @@ function App() {
             animation: 'loaderSlide 1.1s infinite ease-in-out'
           }} />
         </div>
+
+        {isPortalLanding && (
+          <div style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.35rem', 
+            marginTop: '1.15rem', 
+            padding: '0.2rem 0.65rem', 
+            borderRadius: '999px', 
+            background: '#eff6ff', 
+            border: '1px solid #bfdbfe', 
+            color: '#1d4ed8', 
+            fontSize: '0.7rem', 
+            fontWeight: 700 
+          }}>
+            <Sparkles size={12} />
+            <span>Memuat Platform...</span>
+          </div>
+        )}
       </div>
     );
   }
 
   // Render Landing Portal Page (Mobile Responsive Layout)
   if (!storeSlug && !error) {
+    const activeIndustryData = LANDING_INDUSTRIES.find(ind => ind.id === landingCategory) || LANDING_INDUSTRIES[0];
+    const filteredStores = featuredStores.filter(st => {
+      if (!searchStoreQuery.trim()) return true;
+      const q = searchStoreQuery.toLowerCase();
+      return (st.store_title && st.store_title.toLowerCase().includes(q)) || 
+             (st.slug && st.slug.toLowerCase().includes(q)) ||
+             (st.store_slogan && st.store_slogan.toLowerCase().includes(q));
+    });
+
     return (
-      <div className="portal-container ambient-glow-bg" style={{ minHeight: '100vh', color: 'var(--text-primary)', fontFamily: "var(--font-body)" }}>
-        {/* Header (Shown on Home and Policy Pages) */}
+      <div className="portal-container" style={{ minHeight: '100vh', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", position: 'relative' }}>
+        {/* Mobile Toast Notification */}
+        {simulatedOrderToast && (
+          <div style={{ position: 'fixed', bottom: '1rem', left: '1rem', right: '1rem', zIndex: 99999, background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', padding: '0.85rem 1rem', borderRadius: '0.85rem', boxShadow: '0 15px 35px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '0.65rem', border: '1px solid rgba(255,255,255,0.25)', animation: 'slideUpBottomSheet 0.3s ease' }}>
+            <MessageCircle size={20} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, fontSize: '0.76rem', lineHeight: 1.35 }}>
+              <div style={{ fontWeight: 800, fontSize: '0.8rem', marginBottom: '0.1rem' }}>Simulasi Pesanan WhatsApp</div>
+              {simulatedOrderToast}
+            </div>
+            <button type="button" onClick={() => setSimulatedOrderToast(null)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', opacity: 0.85 }}>
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Mobile Product Detail & Order Simulation Modal */}
+        {previewProductModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setPreviewProductModal(null)}>
+            <div className="animate-fade-in" style={{ width: '100%', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: '1.25rem', border: '1px solid #e2e8f0', background: '#ffffff', boxShadow: '0 -15px 40px rgba(15, 23, 42, 0.2)' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ padding: '0.25rem 0.65rem', borderRadius: '999px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '0.68rem', fontWeight: 800 }}>
+                  {previewProductModal.badge || 'Katalog Produk'}
+                </div>
+                <button type="button" onClick={() => setPreviewProductModal(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.85rem', marginBottom: '1.25rem' }}>
+                <img src={previewProductModal.image} alt={previewProductModal.title} style={{ width: '90px', height: '90px', objectFit: 'cover', borderRadius: '0.65rem', border: '1px solid #e2e8f0' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: '#0f172a' }}>{previewProductModal.title}</h3>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#2563eb', marginBottom: '0.25rem' }}>{previewProductModal.price}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Oleh {previewProductModal.merchant} ({previewProductModal.location})</div>
+                </div>
+              </div>
+
+              {/* Chat Format Preview Box Mobile */}
+              <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <MessageCircle size={13} /> Format Pesan WhatsApp Otomatis:
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#166534', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.65rem', borderRadius: '0.45rem', border: '1px solid #dcfce7', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+{`Halo ${previewProductModal.merchant}, saya ingin memesan:
+• ${previewProductModal.title} (${previewProductModal.price})
+Mohon info ketersediaan stok & pengiriman ya!`}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <button type="button" className="btn-portal-whatsapp" style={{ padding: '0.75rem', justifyContent: 'center', fontSize: '0.82rem', width: '100%' }} onClick={() => {
+                  setPreviewProductModal(null);
+                  setSimulatedOrderToast(`Format order "${previewProductModal.title}" siap dikirim ke WhatsApp!`);
+                  setTimeout(() => setSimulatedOrderToast(null), 4500);
+                }}>
+                  <MessageCircle size={16} />
+                  <span>Simulasi Kirim ke WhatsApp</span>
+                </button>
+                <button type="button" className="btn-portal-secondary" style={{ padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem', width: '100%' }} onClick={() => {
+                  setPreviewProductModal(null);
+                  setRegisterStep(1);
+                  setRegisterPlan('free');
+                  setPortalTab('register');
+                }}>
+                  Buat Katalog Saya — Gratis
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Header (Shown on Home and Policy Pages) */}
         {(portalTab === 'home' || ['terms', 'privacy', 'acceptable_use'].includes(portalTab)) && (
-          <header className="mobile-header sticky-header">
+          <header className="portal-mobile-header">
             <div className="container">
               {['terms', 'privacy', 'acceptable_use'].includes(portalTab) ? (
-                /* Specialized Policy Page Header: Back Button + Policy Page Title Only */
                 <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setPortalTab(previousPortalTab || 'home')}
-                    className="btn-back-circle"
-                    title="Kembali"
-                  >
+                  <button type="button" onClick={() => setPortalTab(previousPortalTab || 'home')} className="btn-back-circle" title="Kembali" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}>
                     <ChevronLeft size={20} />
                   </button>
-                  <span style={{ color: 'var(--border-light)' }}>|</span>
-                  <span style={{ 
-                    fontSize: '0.92rem', 
-                    fontWeight: 800, 
-                    color: 'var(--text-primary)', 
-                    letterSpacing: '-0.01em',
-                    fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif",
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {portalTab === 'terms' ? 'Syarat & Ketentuan' : portalTab === 'privacy' ? 'Kebijakan Privasi' : portalTab === 'acceptable_use' ? 'Ketentuan Penggunaan' : 'Kebijakan Layanan'}
+                  <span style={{ color: '#cbd5e1' }}>|</span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {portalTab === 'terms' ? 'Syarat & Ketentuan' : portalTab === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                   </span>
                 </div>
               ) : (
-                /* Standard Landing Page Header */
                 <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setPortalTab('home')}>
-                    <span style={{ 
-                      fontSize: '1.25rem', 
-                      fontWeight: 800, 
-                      color: '#ffffff', 
-                      letterSpacing: '-0.01em',
-                      fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
-                    }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }} onClick={() => setPortalTab('home')}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                      <Store size={16} />
+                    </div>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                       Catavor
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                     {token ? (
-                      <button className="btn-primary btn-small" onClick={() => {
+                      <button className="btn-portal-primary" onClick={() => {
                         const user = JSON.parse(localStorage.getItem('catavor_user') || '{}');
                         if (user.store_slug) {
                           setStoreSlug(user.store_slug);
                           setActiveTab('admin');
                         }
-                      }} style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}>
+                      }} style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem' }}>
                         <span>Dashboard</span>
-                        <ArrowRight size={14} />
+                        <ArrowRight size={13} />
                       </button>
                     ) : (
                       <>
                         <button 
                           type="button"
                           onClick={() => setPortalTab('login')} 
-                          style={{ 
-                            background: 'none', 
-                            border: 'none', 
-                            color: 'var(--text-secondary)', 
-                            fontSize: '0.8rem', 
-                            fontWeight: 600, 
-                            padding: '0.35rem 0.6rem', 
-                            cursor: 'pointer',
-                            transition: 'color 0.2s ease'
-                          }}
+                          style={{ background: 'none', border: 'none', color: '#475569', fontSize: '0.75rem', fontWeight: 700, padding: '0.3rem 0.5rem', cursor: 'pointer' }}
                         >
                           Masuk
                         </button>
                         <button 
                           type="button"
-                          className="btn-primary btn-small" 
-                          onClick={() => { setRegisterStep(1); setPortalTab('register'); }} 
-                          style={{ 
-                            padding: '0.4rem 0.85rem', 
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            borderRadius: '0.5rem'
-                          }}
+                          className="btn-portal-primary" 
+                          onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }} 
+                          style={{ padding: '0.38rem 0.8rem', fontSize: '0.74rem', fontWeight: 800, borderRadius: '0.5rem' }}
                         >
                           Buat Katalog
                         </button>
@@ -5899,210 +6614,426 @@ function App() {
 
         {portalTab === 'home' && (
           <>
-            <main style={{ padding: '2.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-            {/* Multi-Genre Niche Badges Showcase Mobile */}
-            <div style={{ display: 'flex', overflowX: 'auto', gap: '0.45rem', paddingBottom: '0.25rem', scrollbarWidth: 'none' }}>
-              <span className="genre-tag-pill"><Utensils size={13} style={{ color: '#f97316' }} /> Kuliner</span>
-              <span className="genre-tag-pill"><ShoppingBag size={13} style={{ color: '#38bdf8' }} /> Barang</span>
-              <span className="genre-tag-pill"><PawPrint size={13} style={{ color: '#10b981' }} /> Hewan</span>
-              <span className="genre-tag-pill"><Scissors size={13} style={{ color: '#f59e0b' }} /> Jasa</span>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.85rem', borderRadius: '9999px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', marginBottom: '1.25rem', backdropFilter: 'blur(8px)' }}>
-                <Sparkles size={13} style={{ color: '#10b981' }} />
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#34d399', letterSpacing: '0.03em', textTransform: 'uppercase' }}>KATALOG &amp; BIOLINK BISNIS MULTI-GENRE</span>
+            <main style={{ padding: '2rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+              {/* HERO SECTION MOBILE */}
+              <div style={{ textAlign: 'center' }}>
+                <div className="hero-pill-badge-clean" style={{ marginBottom: '1rem' }}>
+                  <Sparkles size={12} />
+                  <span>Katalog Digital &amp; Biolink Multi-Usaha</span>
+                </div>
+
+                <h1 style={{ fontSize: '2.15rem', fontWeight: 900, lineHeight: 1.18, letterSpacing: '-0.03em', marginBottom: '0.85rem', color: '#0f172a' }}>
+                  Katalog Interaktif untuk <span style={{ color: '#2563eb' }}>Segala Jenis Usaha</span>
+                </h1>
+
+                <p style={{ fontSize: '0.86rem', color: '#475569', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                  Gantikan buku menu fisik atau PDF kaku dengan link katalog web responsif yang terhubung langsung ke WhatsApp tanpa potongan komisi.
+                </p>
+
+                {/* Mobile Value Pills */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.4rem', marginBottom: '1.75rem' }}>
+                  <span className="hero-value-pill-clean"><Zap size={12} style={{ color: '#2563eb' }} /> 60 Detik Siap</span>
+                  <span className="hero-value-pill-clean"><MessageCircle size={12} style={{ color: '#16a34a' }} /> WhatsApp Direct</span>
+                  <span className="hero-value-pill-clean"><ShieldCheck size={12} style={{ color: '#2563eb' }} /> 0% Komisi</span>
+                  <span className="hero-value-pill-clean"><QrCode size={12} style={{ color: '#2563eb' }} /> QR Code Instan</span>
+                </div>
+
+                {/* Primary CTA Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '2rem' }}>
+                  <button className="btn-portal-primary" style={{ padding: '0.85rem', fontSize: '0.88rem', fontWeight: 800, justifyContent: 'center' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                    <span>Mulai Buat Katalog — Gratis</span>
+                    <ArrowRight size={16} />
+                  </button>
+                  <button className="btn-portal-secondary" style={{ padding: '0.8rem', fontSize: '0.84rem', justifyContent: 'center' }} onClick={() => {
+                    const el = document.getElementById('pricing-mobile');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}>
+                    <span>Lihat Paket &amp; Harga</span>
+                  </button>
+                </div>
+
+                {/* Mobile Store Preview Mockup */}
+                <div className="portal-card" style={{ padding: '1rem', textAlign: 'left', borderRadius: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9', marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontWeight: 900, fontSize: '0.9rem' }}>
+                        M
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          Maison &amp; Coffee <CheckCircle2 size={13} style={{ color: '#2563eb' }} />
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: '#64748b' }}>catavor.com/maison-coffee</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#15803d', background: '#dcfce7', padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
+                      🟢 Buka
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.65rem', padding: '0.65rem', borderRadius: '0.65rem', background: '#f8fafc', border: '1px solid #e2e8f0', alignItems: 'center' }}>
+                    <img src="https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=150&auto=format&fit=crop&q=80" alt="Cold brew" style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Artisan Cold Brew</div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563eb' }}>Rp 28.000</div>
+                    </div>
+                    <button type="button" className="btn-portal-whatsapp" onClick={() => {
+                      setSimulatedOrderToast('Pesanan "Artisan Cold Brew" siap diteruskan ke WhatsApp!');
+                      setTimeout(() => setSimulatedOrderToast(null), 4000);
+                    }} style={{ padding: '0.35rem 0.65rem', fontSize: '0.68rem', fontWeight: 700 }}>
+                      Pesan
+                    </button>
+                  </div>
+                </div>
               </div>
-              <h1 style={{ fontSize: '2.1rem', fontWeight: 900, lineHeight: 1.15, letterSpacing: '-0.03em', marginBottom: '1rem' }} className="gradient-text-hero">
-                Satu Link Katalog Interaktif untuk <span className="gradient-text-emerald">Segala Jenis Usaha Anda</span>
-              </h1>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.75rem', lineHeight: 1.55 }}>
-                Tampilkan katalog barang, menu makanan, satwa hias, layanan jasa, lokasi usaha, dan tombol WhatsApp langsung dalam satu biolink kustom modern.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <button className="btn-primary btn-full" style={{ padding: '0.85rem', fontSize: '0.9rem' }} onClick={() => { setRegisterStep(1); setPortalTab('register'); }}>
-                  <span>Mulai Buat Katalog - Gratis</span>
+
+              {/* MULTI-INDUSTRY LIVE CATALOG EXPLORER MOBILE */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kategori Usaha</span>
+                  <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
+                    Katalog untuk Segala Industri
+                  </h2>
+                </div>
+
+                {/* Horizontal Scrollable Tabs */}
+                <div style={{ display: 'flex', overflowX: 'auto', gap: '0.5rem', paddingBottom: '0.75rem', scrollbarWidth: 'none' }}>
+                  {LANDING_INDUSTRIES.map((ind) => {
+                    const IconCmp = ind.icon;
+                    const isActive = landingCategory === ind.id;
+                    return (
+                      <button 
+                        key={ind.id}
+                        type="button" 
+                        className={`industry-tab-btn-clean-mobile ${isActive ? 'active' : ''}`}
+                        onClick={() => setLandingCategory(ind.id as any)}
+                      >
+                        <IconCmp size={15} style={{ color: ind.color }} />
+                        <span>{ind.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active Category Description Mobile */}
+                <div style={{ padding: '1rem', borderRadius: '0.85rem', background: activeIndustryData.accentBg, border: `1px solid ${activeIndustryData.color}33`, marginBottom: '1.25rem' }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.2rem' }}>{activeIndustryData.tagline}</div>
+                  <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.45 }}>{activeIndustryData.description}</div>
+                </div>
+
+                {/* Product Cards Mobile */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                  {activeIndustryData.products.map((item) => (
+                    <div key={item.id} className="catalog-demo-card-clean-mobile">
+                      <div className="catalog-demo-img-box-clean-mobile">
+                        <img src={item.image} alt={item.title} />
+                        <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '999px', background: 'rgba(15, 23, 42, 0.8)', color: '#ffffff' }}>
+                            {item.category}
+                          </span>
+                          {item.badge && (
+                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '999px', background: '#2563eb', color: '#ffffff' }}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: '#64748b' }}>
+                          <span>{item.merchant} ({item.location})</span>
+                          <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 700 }}>
+                            <Star size={11} fill="#f59e0b" /> {item.rating}
+                          </span>
+                        </div>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>{item.title}</h3>
+                        <p style={{ fontSize: '0.76rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>{item.description}</p>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', marginTop: '0.25rem' }}>
+                          <span style={{ fontSize: '1.05rem', fontWeight: 900, color: '#2563eb' }}>{item.price}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => setPreviewProductModal(item)}
+                            className="btn-portal-whatsapp" 
+                            style={{ padding: '0.4rem 0.85rem', fontSize: '0.74rem' }}
+                          >
+                            <MessageCircle size={13} />
+                            <span>Pesan via WA</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* VALUE PILLARS MOBILE */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Keunggulan</span>
+                  <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
+                    Kenapa Pilih Catavor?
+                  </h2>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <Image size={20} style={{ color: '#2563eb' }} />
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>WebP High-Res</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Foto produk tajam dengan kompresi otomatis kilat.</p>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <MessageCircle size={20} style={{ color: '#16a34a' }} />
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>WhatsApp Order</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Format pesan terstruktur rapi siap diproses.</p>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <Palette size={20} style={{ color: '#d97706' }} />
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>5 Pilihan Tema</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Sesuaikan palet visual dengan identitas brand.</p>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <QrCode size={20} style={{ color: '#7c3aed' }} />
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>QR Code Kasir</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Unduh file QR Code siap cetak di kasir/meja.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* HOW IT WORKS MOBILE */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Cara Kerja</span>
+                  <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
+                    3 Langkah Mudah
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
+                    <div>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Klaim Tautan Katalog</h4>
+                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Daftar akun &amp; klaim link unik catavor.com/namatoko.</p>
+                    </div>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
+                    <div>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Upload Foto &amp; Atur Harga</h4>
+                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Unggah produk, varian harga, &amp; jam buka toko.</p>
+                    </div>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
+                    <div>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Bagikan di Bio &amp; Kasir</h4>
+                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Pasang link di bio medsos &amp; terima order via WA.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* PRICING SECTION MOBILE */}
+              <div id="pricing-mobile">
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Pilihan Paket</span>
+                  <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
+                    Paket Bisnis Sesuai Kebutuhan
+                  </h2>
+
+                  {/* Monthly vs Annual Toggle */}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem', borderRadius: '999px', background: '#f1f5f9', border: '1px solid #e2e8f0', marginTop: '1rem' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setPricingBillingCycle('monthly')}
+                      style={{ padding: '0.35rem 0.95rem', borderRadius: '999px', border: 'none', background: pricingBillingCycle === 'monthly' ? '#2563eb' : 'transparent', color: pricingBillingCycle === 'monthly' ? '#ffffff' : '#475569', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Bulanan
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setPricingBillingCycle('yearly')}
+                      style={{ padding: '0.35rem 0.95rem', borderRadius: '999px', border: 'none', background: pricingBillingCycle === 'yearly' ? '#2563eb' : 'transparent', color: pricingBillingCycle === 'yearly' ? '#ffffff' : '#475569', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Tahunan (-20%)
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Free Card Mobile */}
+                  <div className="portal-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Plan Free (Starter)</div>
+                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0' }}>
+                        Rp 0 <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ selamanya</span>
+                      </div>
+                    </div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem', color: '#334155' }}>
+                      <li>✅ Maksimal 10 postingan produk</li>
+                      <li>✅ Subdomain kustom (catavor.com/tokomu)</li>
+                      <li>✅ WhatsApp Direct Order 1-klik</li>
+                      <li>✅ Download QR Code toko siap cetak</li>
+                    </ul>
+                    <button className="btn-portal-secondary" style={{ padding: '0.75rem', fontSize: '0.82rem', justifyContent: 'center' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                      Daftar Plan Gratis
+                    </button>
+                  </div>
+
+                  {/* Pro Card Mobile */}
+                  <div className="portal-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: '2px solid #2563eb' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Plan Pro (Unlimited)</span>
+                        <span style={{ fontSize: '0.62rem', padding: '0.15rem 0.5rem', borderRadius: '999px', background: '#2563eb', color: '#ffffff', fontWeight: 800 }}>POPULER</span>
+                      </div>
+                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0' }}>
+                        {pricingBillingCycle === 'monthly' ? 'Rp 30.000' : 'Rp 24.000'} <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
+                      </div>
+                    </div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.78rem', color: '#0f172a' }}>
+                      <li>✨ <strong>Unlimited</strong> produk &amp; layanan</li>
+                      <li>✨ Halaman <strong>"Tentang Kami" kustom</strong></li>
+                      <li>✨ <strong>100% Bebas Watermark</strong> Catavor</li>
+                      <li>✨ Multi-marketplace link (Shopee, Tokopedia)</li>
+                      <li>✨ Akses seluruh 5 tema warna</li>
+                    </ul>
+                    <button className="btn-portal-primary" style={{ padding: '0.75rem', fontSize: '0.82rem', fontWeight: 800, justifyContent: 'center' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro'); setPortalTab('register'); }}>
+                      Daftar Plan Pro Sekarang
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {/* FEATURED STORES DIRECTORY MOBILE */}
+              {featuredStores && featuredStores.length > 0 && (
+                <div>
+                  <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Katalog Bisnis Aktif</span>
+                    <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
+                      Jelajahi Toko &amp; Katalog Nyata
+                    </h2>
+                    
+                    {/* Mobile Search Input for Stores */}
+                    <div style={{ marginTop: '0.85rem', position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Cari nama toko / bidang usaha..." 
+                        value={searchStoreQuery}
+                        onChange={(e) => setSearchStoreQuery(e.target.value)}
+                        className="form-input"
+                        style={{ paddingLeft: '2.4rem', fontSize: '0.82rem' }}
+                      />
+                      <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    {filteredStores.slice(0, 6).map((st: any) => (
+                      <div 
+                        key={st.id || st.slug} 
+                        className="portal-card" 
+                        style={{ padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer' }}
+                        onClick={() => {
+                          if (st.slug) {
+                            setStoreSlug(st.slug);
+                            setActiveTab('catalog');
+                          }
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem' }}>
+                            {st.store_logo_url ? (
+                              <img src={st.store_logo_url} alt={st.store_title} style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                            ) : (
+                              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.9rem', border: '1px solid #bfdbfe' }}>
+                                {(st.store_title || 'T')[0]}
+                              </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {st.store_title || 'Toko Bisnis'}
+                              </h4>
+                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>catavor.com/{st.slug}</div>
+                            </div>
+                          </div>
+                          <p style={{ fontSize: '0.75rem', color: '#475569', margin: '0 0 0.65rem 0', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {st.store_slogan || st.store_description || 'Katalog digital resmi terpercaya di platform Catavor.'}
+                          </p>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid #f1f5f9', fontSize: '0.74rem', color: '#2563eb', fontWeight: 700 }}>
+                          <span>Buka Katalog Toko</span>
+                          <ArrowRight size={13} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* FAQ ACCORDION MOBILE */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Pusat Bantuan</span>
+                  <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
+                    Pertanyaan Umum
+                  </h2>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {LANDING_FAQS.map((faq, idx) => {
+                    const isOpen = expandedFaq === idx;
+                    return (
+                      <div key={idx} className={`faq-accordion-clean-mobile ${isOpen ? 'active' : ''}`}>
+                        <div 
+                          onClick={() => setExpandedFaq(isOpen ? null : idx)}
+                          style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        >
+                          <h4 style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a', margin: 0, flex: 1, paddingRight: '0.5rem' }}>
+                            {faq.q}
+                          </h4>
+                          <ChevronDown size={16} style={{ color: isOpen ? '#2563eb' : '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+                        </div>
+                        {isOpen && (
+                          <div style={{ padding: '0 1rem 1rem 1rem', fontSize: '0.76rem', color: '#475569', lineHeight: 1.55, borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+                            {faq.a}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* MOBILE BOTTOM CTA */}
+              <div style={{ padding: '2rem 1.25rem', borderRadius: '1.15rem', background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', color: '#ffffff', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#ffffff', margin: '0 0 0.5rem 0' }}>
+                  Mulai Digitalisasi Katalog Usaha Anda
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: '#dbeafe', margin: '0 0 1.25rem 0', lineHeight: 1.45 }}>
+                  Buat katalog digital profesional Anda dalam 60 detik. Gratis selamanya.
+                </p>
+                <button className="btn-portal-secondary" style={{ padding: '0.8rem', fontSize: '0.85rem', fontWeight: 800, justifyContent: 'center', width: '100%', color: '#1d4ed8' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                  <span>Buat Katalog Sekarang</span>
                   <ArrowRight size={16} />
                 </button>
-                <button className="btn-secondary btn-full" style={{ padding: '0.85rem', fontSize: '0.88rem' }} onClick={() => {
-                  const el = document.getElementById('pricing-mobile');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}>
-                  <span>Lihat Paket &amp; Harga</span>
-                </button>
               </div>
-            </div>
+            </main>
+            
+            {renderMobileFooter()}
+          </>
+        )}
 
-            {/* Multi-Genre Feature Showcase Row Mobile */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-              <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.25)', color: '#f97316' }}>
-                  <Utensils size={18} />
-                </div>
-                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>Kuliner</h3>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-                  Buku menu digital interaktif &amp; pesan via WA.
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', color: '#38bdf8' }}>
-                  <ShoppingBag size={18} />
-                </div>
-                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>Barang</h3>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-                  Fashion, gadget, barang &amp; alat-alat harian.
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981' }}>
-                  <PawPrint size={18} />
-                </div>
-                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>Hewan</h3>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-                  Galeri satwa &amp; hewan hias interaktif.
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.25)', color: '#f59e0b' }}>
-                  <Scissors size={18} />
-                </div>
-                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>Jasa</h3>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-                  Portofolio layanan &amp; tarif terhubung WA.
-                </p>
-              </div>
-            </div>
-
-            {/* How It Works Mobile */}
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>Cara Kerja</span>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: '0.25rem', color: '#ffffff' }}>3 Langkah Mudah</h2>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', fontWeight: 900, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Daftarkan Katalog Anda</h4>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>Buat akun & dapatkan link unik (catavor.com/katalog-anda).</p>
-                  </div>
-                </div>
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', fontWeight: 900, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Upload Produk &amp; Layanan</h4>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>Masukkan foto, tarif harga, deskripsi, dan kontak usaha.</p>
-                  </div>
-                </div>
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', fontWeight: 900, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</div>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Sebarkan Link Katalog</h4>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>Pasang link katalog di bio Instagram, TikTok, & WA.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Pricing Section Mobile */}
-            <div id="pricing-mobile" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>Pilihan Paket Bisnis</span>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: '0.25rem', color: '#ffffff' }}>Pilih Paket Katalog Anda</h2>
-              </div>
-
-              {/* Free Card */}
-              <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--border-light)' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Plan Gratis</span>
-                  <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#ffffff', margin: '0.35rem 0' }}>Rp 0 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/ selamanya</span></div>
-                </div>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                  <li>✅ Maksimal 10 postingan produk</li>
-                  <li>✅ Katalog interaktif &amp; WhatsApp</li>
-                  <li>✅ Watermark "Free by Catavor"</li>
-                </ul>
-                <button className="btn-secondary btn-full" style={{ padding: '0.75rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
-                  Daftar Plan Gratis
-                </button>
-              </div>
-
-              {/* Pro Card */}
-              <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: '2px solid var(--primary)', backgroundColor: 'rgba(16,185,129,0.04)' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>Plan Pro / Premium</span>
-                  <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#ffffff', margin: '0.35rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                    <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)', textDecoration: 'line-through', fontWeight: 600 }}>Rp 50rb</span>
-                    <span style={{ color: '#f59e0b' }}>Rp 30rb</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/ bulan</span>
-                  </div>
-                </div>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                  <li>✨ Postingan produk Unlimited</li>
-                  <li>✨ Halaman "Tentang Kami" kustom</li>
-                  <li>✨ Bebas watermark Catavor</li>
-                  <li>✨ Kontrol tombol beli</li>
-                </ul>
-                <button className="btn-primary btn-full" style={{ padding: '0.75rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro'); setPortalTab('register'); }}>
-                  Daftar Plan Pro
-                </button>
-              </div>
-            </div>
-
-            {/* Concept Section Mobile */}
-            <div id="concept-mobile" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>Bagaimana Ini Bekerja?</span>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: '0.25rem', color: '#ffffff' }}>Konsep Catavor</h2>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.95rem', flexShrink: 0 }}>1</div>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Daftarkan Katalog Anda</h4>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                      Daftar dan klaim link unik Anda seperti <strong>catavor.com/katalog-anda</strong>.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.95rem', flexShrink: 0 }}>2</div>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Kelola Katalog & Profil</h4>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                      Masukkan barang, jasa, hidangan atau satwa hias beserta harga, lokasi, dan kontak usaha.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.95rem', flexShrink: 0 }}>3</div>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Bagikan & Hubungkan WA</h4>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                      Pasang link di bio Anda. Pengunjung langsung melihat produk dan chat WhatsApp dalam sekali ketuk.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </main>
-          
-          {renderMobileFooter()}
-        </>
-      )}
-
+        {/* LOGIN TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
         {portalTab === 'login' && (
-          <div style={{ padding: '2.5rem 1.25rem' }}>
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          <div style={{ padding: '2.5rem 1.25rem', maxWidth: '420px', margin: '0 auto' }}>
+            <div className="portal-card" style={{ padding: '1.75rem 1.5rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <Lock size={28} style={{ color: 'var(--primary)', marginBottom: '0.5rem' }} />
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#ffffff' }}>Masuk Admin</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem' }}>Kelola profil &amp; katalog bisnis Anda</p>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto', border: '1px solid #bfdbfe' }}>
+                  <Lock size={22} />
+                </div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.25rem 0' }}>Masuk Administrator</h2>
+                <p style={{ color: '#64748b', fontSize: '0.78rem', margin: 0 }}>Kelola profil &amp; katalog bisnis Anda</p>
               </div>
               
               {loginError && (
@@ -6117,40 +7048,41 @@ function App() {
                 onClick={handleGoogleSSO}
                 style={{ 
                   width: '100%', 
-                  padding: '0.65rem', 
-                  borderRadius: '0.5rem', 
-                  backgroundColor: 'rgba(255,255,255,0.06)', 
-                  border: '1px solid rgba(255,255,255,0.15)', 
-                  color: '#ffffff', 
-                  fontSize: '0.8rem', 
+                  padding: '0.75rem', 
+                  borderRadius: '0.65rem', 
+                  backgroundColor: '#ffffff', 
+                  border: '1px solid #cbd5e1', 
+                  color: '#334155', 
+                  fontSize: '0.82rem', 
                   fontWeight: 700, 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center', 
                   gap: '0.5rem', 
-                  marginBottom: '1rem',
+                  marginBottom: '1.25rem',
                   cursor: 'pointer',
+                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
                   transition: 'all 0.2s ease'
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-    </svg>
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
                 <span>Masuk dengan Google</span>
               </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0', gap: '0.5rem' }}>
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
-                <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>ATAU LOGIN MANUAL</span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.5rem' }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.05em' }}>ATAU MASUK MANUAL</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
               </div>
 
-              <form onSubmit={handleLoginSubmit}>
-                <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label className="form-label">Email Admin</label>
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Email Administrator</label>
                   <input 
                     type="email" 
                     className="form-input" 
@@ -6160,86 +7092,74 @@ function App() {
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                   />
                 </div>
-                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label">Kata Sandi</label>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Kata Sandi</label>
                   <input 
                     type="password" 
                     className="form-input" 
-                    placeholder="Ketik password..." 
+                    placeholder="Ketik kata sandi..." 
                     required 
                     value={loginForm.password} 
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                   />
                 </div>
-                <button type="submit" className="btn-primary btn-full" disabled={loginLoading}>
+                <button type="submit" className="btn-portal-primary" style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem' }} disabled={loginLoading}>
                   {loginLoading ? 'Memproses...' : 'Masuk Dashboard'}
                 </button>
                 <button 
                   type="button" 
-                  className="btn-secondary btn-full" 
-                  style={{ 
-                    marginTop: '0.65rem', 
-                    padding: '0.65rem', 
-                    fontWeight: 700, 
-                    fontSize: '0.78rem', 
-                    borderRadius: '0.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    backgroundColor: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#d1d5db',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
+                  className="btn-portal-secondary" 
+                  style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
                   onClick={() => {
                     setPortalTab('home');
                     setLoginError(null);
                   }}
                 >
                   <Home size={15} />
-                  <span>Kembali ke Halaman Utama</span>
+                  <span>Kembali ke Beranda</span>
                 </button>
               </form>
-              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Belum punya akun? <span style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }} onClick={() => { setRegisterStep(1); setPortalTab('register'); }}>Daftar Baru</span>
+              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.76rem', color: '#64748b' }}>
+                Belum punya akun? <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setPortalTab('register'); }}>Daftar Gratis</span>
               </div>
             </div>
           </div>
         )}
 
+        {/* REGISTER TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
         {portalTab === 'register' && (
-          <div style={{ padding: '2.5rem 1.25rem' }}>
-            <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem 1.25rem', borderRadius: '1.15rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'linear-gradient(180deg, rgba(17, 24, 21, 0.95) 0%, rgba(9, 14, 12, 0.98) 100%)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.6)' }}>
-              {/* Premium Header Icon & Branding Mobile */}
-              <div style={{ textAlign: 'center', marginBottom: '1.25rem', position: 'relative' }}>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", margin: '0 0 0.25rem 0' }}>
-                  Daftar Katalog Catavor
+          <div style={{ padding: '2.5rem 1.25rem', maxWidth: '460px', margin: '0 auto' }}>
+            <div className="portal-card animate-fade-in" style={{ padding: '1.75rem 1.35rem' }}>
+              <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.65rem auto', border: '1px solid #bfdbfe' }}>
+                  <Store size={22} />
+                </div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
+                  Buat Katalog Bisnis
                 </h2>
-                <p style={{ color: '#9ca3af', fontSize: '0.75rem', margin: 0, lineHeight: 1.3 }}>
-                  Katalog Online &amp; Biolink Bisnis Modern
+                <p style={{ color: '#64748b', fontSize: '0.76rem', margin: 0 }}>
+                  Katalog Online &amp; Biolink Terhubung Langsung ke WhatsApp
                 </p>
               </div>
 
-              {/* 3-Step Progress Indicator Mobile */}
+              {/* 3-Step Progress Indicator Clean Mobile */}
               <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', padding: '0 0.1rem' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: registerStep === 1 ? '#10b981' : '#9ca3af', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: registerStep === 1 ? '#10b981' : 'rgba(255,255,255,0.1)', color: registerStep === 1 ? '#000' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 900 }}>1</span>
-                    Otentikasi
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.1rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep >= 1 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep >= 1 ? '#2563eb' : '#e2e8f0', color: registerStep >= 1 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>1</span>
+                    Akun
                   </span>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: registerStep === 2 ? '#10b981' : '#9ca3af', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: registerStep === 2 ? '#10b981' : 'rgba(255,255,255,0.1)', color: registerStep === 2 ? '#000' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 900 }}>2</span>
-                    Profil Usaha
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep >= 2 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep >= 2 ? '#2563eb' : '#e2e8f0', color: registerStep >= 2 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>2</span>
+                    Profil Toko
                   </span>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: registerStep === 3 ? '#f59e0b' : '#9ca3af', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: registerStep === 3 ? '#f59e0b' : 'rgba(255,255,255,0.1)', color: registerStep === 3 ? '#000' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 900 }}>3</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep === 3 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep === 3 ? '#2563eb' : '#e2e8f0', color: registerStep === 3 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>3</span>
                     Pilih Paket
                   </span>
                 </div>
-                <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
-                  <div style={{ width: registerStep === 1 ? '33.3%' : registerStep === 2 ? '66.6%' : '100%', height: '100%', background: registerStep === 3 ? 'linear-gradient(90deg, #10b981, #f59e0b)' : '#10b981', transition: 'all 0.3s ease-in-out' }} />
+                <div style={{ width: '100%', height: '4px', backgroundColor: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: registerStep === 1 ? '33.3%' : registerStep === 2 ? '66.6%' : '100%', height: '100%', background: '#2563eb', transition: 'all 0.3s ease-in-out' }} />
                 </div>
               </div>
 
@@ -6248,61 +7168,46 @@ function App() {
                   id="register-error-banner-mobile"
                   style={{ 
                     marginBottom: '1rem', 
-                    fontSize: '0.75rem', 
+                    fontSize: '0.76rem', 
                     borderRadius: '0.65rem', 
                     padding: '0.75rem 0.85rem',
-                    backgroundColor: 'rgba(239, 68, 68, 0.14)',
-                    border: '1px solid rgba(239, 68, 68, 0.45)',
-                    boxShadow: '0 6px 20px rgba(239, 68, 68, 0.25)',
-                    color: '#fca5a5',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#dc2626',
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '0.5rem',
                     lineHeight: 1.4,
-                    fontWeight: 600,
-                    backdropFilter: 'blur(10px)',
-                    animation: 'fadeIn 0.3s ease-in-out'
+                    fontWeight: 600
                   }}
                 >
-                  <AlertTriangle size={16} style={{ color: '#f87171', flexShrink: 0, marginTop: '0.1rem' }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, color: '#f87171', fontSize: '0.78rem', marginBottom: '0.1rem' }}>Perhatian!</div>
-                    <div>{registerError}</div>
-                  </div>
+                  <AlertTriangle size={16} style={{ color: '#dc2626', flexShrink: 0, marginTop: '0.1rem' }} />
+                  <div style={{ flex: 1 }}>{registerError}</div>
                 </div>
               )}
 
               {/* STEP 1: Account & Email / Google SSO Mobile */}
               {registerStep === 1 && (
-                <div>
-                  <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f3f4f6', margin: '0 0 0.2rem 0' }}>
-                      Langkah 1: Identitas Pemilik Usaha
-                    </h3>
-                    <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: 0 }}>
-                      Daftar instan dengan Google atau buat password manual
-                    </p>
-                  </div>
-
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {/* Google SSO Register Button Mobile */}
                   <button 
                     type="button" 
                     onClick={handleGoogleSSO}
                     style={{ 
                       width: '100%', 
-                      padding: '0.65rem', 
-                      borderRadius: '0.5rem', 
-                      backgroundColor: 'rgba(255,255,255,0.06)', 
-                      border: '1px solid rgba(255,255,255,0.15)', 
-                      color: '#ffffff', 
-                      fontSize: '0.8rem', 
+                      padding: '0.75rem', 
+                      borderRadius: '0.65rem', 
+                      backgroundColor: '#ffffff', 
+                      border: '1px solid #cbd5e1', 
+                      color: '#334155', 
+                      fontSize: '0.82rem', 
                       fontWeight: 700, 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'center', 
                       gap: '0.5rem', 
-                      marginBottom: '0.85rem',
                       cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -6315,10 +7220,10 @@ function App() {
                     <span>Daftar Cepat dengan Google</span>
                   </button>
 
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', gap: '0.5rem' }}>
-                    <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
-                    <span style={{ fontSize: '0.65rem', color: '#6b7280', fontWeight: 600 }}>ATAU DAFTAR MANUAL</span>
-                    <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.05em' }}>ATAU DAFTAR MANUAL</span>
+                    <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
                   </div>
 
                   <form 
@@ -6327,10 +7232,6 @@ function App() {
                       e.preventDefault();
                       if (!validateStep1()) {
                         setRegisterError('Mohon periksa kembali isian Anda. Lengkapi bidang formulir yang belum diisi.');
-                        setTimeout(() => {
-                          const el = document.getElementById('register-error-banner-mobile');
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 50);
                         return;
                       }
                       setRegisterError(null);
@@ -6340,28 +7241,24 @@ function App() {
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
                   >
                     <div className="form-group">
-                      <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: '#e5e7eb' }}>Nama Pemilik Usaha *</label>
+                      <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nama Lengkap Pemilik *</label>
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Contoh: Dzikri Muhammad" 
+                        placeholder="Contoh: Budi Santoso" 
                         value={registerForm.name} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, name: e.target.value });
                           if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
                         }}
-                        style={{ borderRadius: '0.5rem', padding: '0.65rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'rgba(0,0,0,0.3)', border: fieldErrors.name ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.12)', boxShadow: fieldErrors.name ? '0 0 8px rgba(239, 68, 68, 0.25)' : 'none', color: '#fff' }}
                       />
                       {fieldErrors.name && (
-                        <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                          <AlertTriangle size={12} style={{ color: '#f87171', flexShrink: 0 }} />
-                          <span>{fieldErrors.name}</span>
-                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.name}</div>
                       )}
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: '#e5e7eb' }}>Email *</label>
+                      <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Email *</label>
                       <input 
                         type="email" 
                         className="form-input" 
@@ -6371,18 +7268,14 @@ function App() {
                           setRegisterForm({ ...registerForm, email: e.target.value });
                           if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
                         }}
-                        style={{ borderRadius: '0.5rem', padding: '0.65rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'rgba(0,0,0,0.3)', border: fieldErrors.email ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.12)', boxShadow: fieldErrors.email ? '0 0 8px rgba(239, 68, 68, 0.25)' : 'none', color: '#fff' }}
                       />
                       {fieldErrors.email && (
-                        <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                          <AlertTriangle size={12} style={{ color: '#f87171', flexShrink: 0 }} />
-                          <span>{fieldErrors.email}</span>
-                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.email}</div>
                       )}
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: '#e5e7eb' }}>Kata Sandi *</label>
+                      <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Kata Sandi *</label>
                       <input 
                         type="password" 
                         className="form-input" 
@@ -6392,63 +7285,31 @@ function App() {
                           setRegisterForm({ ...registerForm, password: e.target.value });
                           if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: '' }));
                         }}
-                        style={{ borderRadius: '0.5rem', padding: '0.65rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'rgba(0,0,0,0.3)', border: fieldErrors.password ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.12)', boxShadow: fieldErrors.password ? '0 0 8px rgba(239, 68, 68, 0.25)' : 'none', color: '#fff' }}
                       />
                       {fieldErrors.password && (
-                        <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                          <AlertTriangle size={12} style={{ color: '#f87171', flexShrink: 0 }} />
-                          <span>{fieldErrors.password}</span>
-                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.password}</div>
                       )}
                     </div>
 
                     <button 
                       type="submit" 
-                      className="btn-primary btn-full" 
-                      style={{ 
-                        marginTop: '0.35rem', 
-                        padding: '0.7rem', 
-                        fontWeight: 800, 
-                        fontSize: '0.8rem', 
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.4rem',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                        border: 'none',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-portal-primary" 
+                      style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem', marginTop: '0.35rem' }}
                     >
-                      <span>Lanjut ke Informasi Katalog</span>
+                      <span>Lanjut ke Informasi Usaha</span>
                       <ChevronRight size={15} />
                     </button>
                     <button 
                       type="button" 
-                      className="btn-secondary btn-full" 
-                      style={{ 
-                        padding: '0.65rem', 
-                        fontWeight: 700, 
-                        fontSize: '0.78rem', 
-                        borderRadius: '0.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.4rem',
-                        backgroundColor: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        color: '#d1d5db',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
+                      className="btn-portal-secondary" 
+                      style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
                       onClick={() => {
                         resetRegisterFormState();
                         setPortalTab('home');
                       }}
                     >
                       <Home size={15} />
-                      <span>Kembali ke Halaman Utama</span>
+                      <span>Kembali ke Beranda</span>
                     </button>
                   </form>
                 </div>
@@ -6462,10 +7323,6 @@ function App() {
                     e.preventDefault();
                     if (!validateStep2()) {
                       setRegisterError('Mohon periksa kembali isian Anda. Lengkapi bidang formulir yang belum diisi.');
-                      setTimeout(() => {
-                        const el = document.getElementById('register-error-banner-mobile');
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 50);
                       return;
                     }
 
@@ -6475,14 +7332,10 @@ function App() {
                       const res = await fetch(`${API_BASE}/check-slug/${registerForm.store_slug.toLowerCase()}`);
                       const data = await res.json();
                       if (!data.available) {
-                        const errMsg = 'Mohon periksa kembali isian Anda: Link username yang Anda masukkan sudah digunakan oleh pengelola lain. Silakan ganti dengan username lain yang masih tersedia.';
+                        const errMsg = `Link username "${registerForm.store_slug}" sudah digunakan. Silakan pilih username lain.`;
                         setRegisterError(errMsg);
-                        setFieldErrors(prev => ({ ...prev, store_slug: `Link username "${registerForm.store_slug}" sudah digunakan oleh pengelola lain.` }));
-                        setSlugStatus({ available: false, message: `Link username "${registerForm.store_slug}" sudah digunakan oleh pengelola lain.` });
-                        setTimeout(() => {
-                          const el = document.getElementById('register-error-banner-mobile');
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 50);
+                        setFieldErrors(prev => ({ ...prev, store_slug: errMsg }));
+                        setSlugStatus({ available: false, message: errMsg });
                         return;
                       }
                       setRegisterError(null);
@@ -6496,74 +7349,44 @@ function App() {
                   }} 
                   style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
                 >
-                  <div style={{ textAlign: 'center', marginBottom: '0.15rem' }}>
-                    <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f3f4f6', margin: '0 0 0.2rem 0' }}>
-                      Langkah 2: Informasi Katalog Usaha
-                    </h3>
-                    <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: 0 }}>
-                      Tentukan nama usaha dan link tautan unik katalog Anda
-                    </p>
-                  </div>
-
-                  {registerForm.email && (
-                    <div style={{ padding: '0.5rem 0.75rem', borderRadius: '0.4rem', backgroundColor: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.7rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Check size={12} /> Terverifikasi: <strong>{registerForm.email}</strong>
-                    </div>
-                  )}
-
                   <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: '#e5e7eb' }}>Nama Usaha / Brand *</label>
+                    <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nama Toko / Usaha *</label>
                     <input 
                       type="text" 
                       className="form-input" 
-                      placeholder="Contoh: Catavor Studio & Gallery" 
+                      placeholder="Contoh: Kopi Senja Roastery" 
                       value={registerForm.store_name} 
                       onChange={(e) => {
                         setRegisterForm({ ...registerForm, store_name: e.target.value });
                         if (fieldErrors.store_name) setFieldErrors(prev => ({ ...prev, store_name: '' }));
                       }}
-                      style={{ borderRadius: '0.5rem', padding: '0.65rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'rgba(0,0,0,0.3)', border: fieldErrors.store_name ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.12)', boxShadow: fieldErrors.store_name ? '0 0 8px rgba(239, 68, 68, 0.25)' : 'none', color: '#fff' }}
                     />
                     {fieldErrors.store_name && (
-                      <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                        <AlertTriangle size={12} style={{ color: '#f87171', flexShrink: 0 }} />
-                        <span>{fieldErrors.store_name}</span>
-                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.store_name}</div>
                     )}
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: '#e5e7eb' }}>Link Username Katalog *</label>
-                    <div style={{ display: 'flex', alignItems: 'center', borderRadius: '0.5rem', backgroundColor: 'rgba(0,0,0,0.3)', border: fieldErrors.store_slug ? '1px solid #ef4444' : (slugStatus ? (slugStatus.available ? '1px solid #10b981' : '1px solid #ef4444') : '1px solid rgba(255,255,255,0.12)'), boxShadow: fieldErrors.store_slug ? '0 0 8px rgba(239, 68, 68, 0.25)' : 'none', overflow: 'hidden', paddingLeft: '0.65rem', transition: 'all 0.2s ease' }}>
-                      <span style={{ color: '#6b7280', fontSize: '0.75rem', fontWeight: 600, userSelect: 'none' }}>catavor.com/</span>
+                    <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Link Tautan Katalog *</label>
+                    <div style={{ display: 'flex', alignItems: 'center', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', overflow: 'hidden', paddingLeft: '0.65rem' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.78rem', fontWeight: 700, userSelect: 'none' }}>catavor.com/</span>
                       <input 
                         type="text" 
-                        className="form-input" 
                         placeholder="toko-saya" 
                         value={registerForm.store_slug} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, store_slug: e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, '') });
                           if (fieldErrors.store_slug) setFieldErrors(prev => ({ ...prev, store_slug: '' }));
                         }}
-                        style={{ flex: 1, padding: '0.65rem 0.5rem', fontSize: '0.8rem', border: 'none', backgroundColor: 'transparent', color: '#fff' }}
+                        style={{ flex: 1, padding: '0.65rem 0.5rem', fontSize: '0.85rem', border: 'none', outline: 'none', color: '#0f172a' }}
                       />
                     </div>
                     {slugChecking && (
-                      <div style={{ fontSize: '0.68rem', color: '#38bdf8', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Sparkles size={11} style={{ color: '#38bdf8' }} />
-                        <span>Memeriksa ketersediaan username catavor.com/{registerForm.store_slug}...</span>
-                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#2563eb', marginTop: '0.3rem' }}>Memeriksa ketersediaan username...</div>
                     )}
                     {!slugChecking && slugStatus && (
-                      <div style={{ fontSize: '0.68rem', color: slugStatus.available ? '#34d399' : '#f87171', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                        {slugStatus.available ? <Check size={12} style={{ color: '#34d399' }} /> : <AlertTriangle size={12} style={{ color: '#f87171' }} />}
-                        <span>{slugStatus.message}</span>
-                      </div>
-                    )}
-                    {!slugChecking && !slugStatus && fieldErrors.store_slug && (
-                      <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                        <AlertTriangle size={12} style={{ color: '#f87171', flexShrink: 0 }} />
-                        <span>{fieldErrors.store_slug}</span>
+                      <div style={{ fontSize: '0.7rem', color: slugStatus.available ? '#16a34a' : '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>
+                        {slugStatus.message}
                       </div>
                     )}
                   </div>
@@ -6571,49 +7394,20 @@ function App() {
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
                     <button 
                       type="button" 
-                      className="btn-secondary" 
-                      style={{ 
-                        padding: '0.65rem 0.85rem', 
-                        fontSize: '0.75rem', 
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        color: '#d1d5db',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        cursor: 'pointer',
-                        fontWeight: 600
-                      }}
-                      onClick={() => {
-                        resetRegisterFormState();
-                        setPortalTab('register');
-                        setRegisterStep(1);
-                      }}
+                      className="btn-portal-secondary" 
+                      style={{ padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}
+                      onClick={() => setRegisterStep(1)}
                     >
                       <ChevronLeft size={15} />
                       <span>Kembali</span>
                     </button>
                     <button 
                       type="submit" 
-                      className="btn-primary" 
-                      style={{ 
-                        flex: 1, 
-                        padding: '0.65rem', 
-                        fontWeight: 800, 
-                        fontSize: '0.78rem', 
-                        borderRadius: '0.5rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.4rem',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                      }}
+                      className="btn-portal-primary" 
+                      style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.82rem' }}
+                      disabled={registerLoading}
                     >
-                      <span>Lanjut ke Pemilihan Paket</span>
+                      <span>{registerLoading ? 'Memeriksa...' : 'Lanjut ke Pilih Paket'}</span>
                       <ChevronRight size={15} />
                     </button>
                   </div>
@@ -6623,187 +7417,112 @@ function App() {
               {/* STEP 3: Plan Selection Mobile */}
               {registerStep === 3 && (
                 <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '0.15rem' }}>
-                    <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f3f4f6', margin: '0 0 0.2rem 0' }}>
-                      Langkah 3: Pilih Paket untuk <strong>{registerForm.store_name}</strong>
-                    </h3>
-                    <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: 0 }}>
-                      Pilih paket yang paling sesuai dengan kebutuhan usaha Anda
-                    </p>
-                  </div>
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {/* Plan Gratis Option Card Mobile */}
+                    {/* Free Plan Card Mobile */}
                     <div 
                       onClick={() => setRegisterPlan('free')}
                       style={{ 
-                        padding: '0.85rem 1rem', 
-                        borderRadius: '0.65rem', 
-                        border: registerPlan === 'free' ? '2px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)', 
-                        backgroundColor: registerPlan === 'free' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)', 
+                        padding: '1rem', 
+                        borderRadius: '0.75rem', 
+                        border: registerPlan === 'free' ? '2px solid #2563eb' : '1px solid #e2e8f0', 
+                        backgroundColor: registerPlan === 'free' ? '#eff6ff' : '#ffffff', 
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        position: 'relative'
+                        transition: 'all 0.2s ease'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'free' ? '4px solid #10b981' : '2px solid #6b7280', backgroundColor: registerPlan === 'free' ? '#000' : 'transparent', transition: 'all 0.2s ease' }} />
-                          <span style={{ fontSize: '0.85rem', fontWeight: 800, color: registerPlan === 'free' ? '#10b981' : '#ffffff' }}>Plan Gratis (Free)</span>
-                        </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ffffff' }}>Rp 0 <small style={{ fontSize: '0.6rem', color: '#9ca3af' }}>/selamanya</small></span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'free' ? '#1d4ed8' : '#0f172a' }}>Plan Free (Starter)</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#0f172a' }}>Rp 0 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400 }}>/selamanya</small></span>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', paddingLeft: '1.4rem' }}>
-                        <div style={{ fontSize: '0.68rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#10b981', flexShrink: 0 }} /> Maksimal 10 postingan produk
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#10b981', flexShrink: 0 }} /> Katalog interaktif &amp; WhatsApp
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#10b981', flexShrink: 0 }} /> Watermark "Free by Catavor"
-                        </div>
+                      <div style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.4 }}>
+                        ✅ 10 postingan produk • Direct WA • QR Code
                       </div>
                     </div>
 
-                    {/* Plan Pro Option Card Mobile */}
+                    {/* Pro Plan Card Mobile */}
                     <div 
                       onClick={() => setRegisterPlan('pro')}
                       style={{ 
-                        padding: '0.85rem 1rem', 
-                        borderRadius: '0.65rem', 
-                        border: registerPlan === 'pro' ? '2px solid #f59e0b' : '1px solid rgba(245, 158, 11, 0.3)', 
-                        backgroundColor: registerPlan === 'pro' ? 'rgba(245, 158, 11, 0.09)' : 'rgba(245, 158, 11, 0.03)', 
+                        padding: '1rem', 
+                        borderRadius: '0.75rem', 
+                        border: registerPlan === 'pro' ? '2px solid #2563eb' : '1px solid #e2e8f0', 
+                        backgroundColor: registerPlan === 'pro' ? '#eff6ff' : '#ffffff', 
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        position: 'relative'
+                        position: 'relative',
+                        transition: 'all 0.2s ease'
                       }}
                     >
-                      <div style={{ position: 'absolute', top: '-9px', right: '12px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.52rem', fontWeight: 900, padding: '0.12rem 0.45rem', borderRadius: '15px', textTransform: 'uppercase', letterSpacing: '0.03em', boxShadow: '0 2px 6px rgba(245,158,11,0.4)' }}>
-                        🔥 Rekomendasi
+                      <div style={{ position: 'absolute', top: '-8px', right: '12px', background: '#2563eb', color: '#ffffff', fontSize: '0.55rem', fontWeight: 900, padding: '0.12rem 0.5rem', borderRadius: '999px' }}>
+                        POPULER
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro' ? '4px solid #f59e0b' : '2px solid #6b7280', backgroundColor: registerPlan === 'pro' ? '#000' : 'transparent', transition: 'all 0.2s ease' }} />
-                          <span style={{ fontSize: '0.85rem', fontWeight: 800, color: registerPlan === 'pro' ? '#f59e0b' : '#ffffff' }}>Plan Pro (Premium)</span>
-                        </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '0.7rem', fontWeight: 500 }}>Rp 50rb</span>
-                          <span style={{ color: '#f59e0b', fontWeight: 800 }}>Rp 30rb</span>
-                          <small style={{ fontSize: '0.6rem', color: '#9ca3af' }}>/bln</small>
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro' ? '#1d4ed8' : '#0f172a' }}>Plan Pro (Unlimited)</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#0f172a' }}>Rp 30.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400 }}>/bln</small></span>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', paddingLeft: '1.4rem' }}>
-                        <div style={{ fontSize: '0.68rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#f59e0b', flexShrink: 0 }} /> Postingan produk Unlimited
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#f59e0b', flexShrink: 0 }} /> Halaman "Tentang Kami" kustom
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#f59e0b', flexShrink: 0 }} /> Bebas watermark Catavor
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Check size={12} style={{ color: '#f59e0b', flexShrink: 0 }} /> Kontrol tombol beli
-                        </div>
+                      <div style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.4 }}>
+                        ✨ Unlimited produk • Bebas Watermark • Halaman Profil
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ margin: '0.85rem 0 0.35rem 0', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.72rem', color: '#cbd5e1', lineHeight: 1.45, backgroundColor: agreeTermsError && !agreeTerms ? 'rgba(239, 68, 68, 0.12)' : 'rgba(0,0,0,0.25)', padding: '0.65rem 0.75rem', borderRadius: '0.5rem', border: agreeTermsError && !agreeTerms ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.08)', transition: 'all 0.2s ease' }}>
-                      <input 
-                        type="checkbox" 
-                        id="mobile-register-agree" 
-                        checked={agreeTerms} 
-                        onChange={(e) => { setAgreeTerms(e.target.checked); if (e.target.checked) setAgreeTermsError(false); }} 
-                        onInvalid={(e) => (e.target as HTMLInputElement).setCustomValidity('Harap centang kotak ini untuk menyetujui Syarat & Ketentuan serta Kebijakan Privasi.')}
-                        onInput={(e) => (e.target as HTMLInputElement).setCustomValidity('')}
-                        style={{ marginTop: '0.15rem', accentColor: '#10b981', cursor: 'pointer', flexShrink: 0, width: '15px', height: '15px' }} 
-                        required 
-                      />
-                      <label htmlFor="mobile-register-agree" style={{ cursor: 'pointer' }}>
-                        Saya menyetujui <span style={{ color: '#34d399', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviousPortalTab('register'); setPortalTab('terms'); }}>Syarat &amp; Ketentuan</span> serta <span style={{ color: '#34d399', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviousPortalTab('register'); setPortalTab('privacy'); }}>Kebijakan Privasi</span> Catavor.
-                      </label>
-                    </div>
-                    {agreeTermsError && !agreeTerms && (
-                      <div style={{ fontSize: '0.68rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600, paddingLeft: '0.2rem' }}>
-                        <AlertTriangle size={12} style={{ color: '#f87171', flexShrink: 0 }} />
-                        <span>Anda harus mencentang persetujuan kebijakan terlebih dahulu.</span>
-                      </div>
-                    )}
+                  <div style={{ margin: '0.5rem 0', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.74rem', color: '#475569', lineHeight: 1.4 }}>
+                    <input 
+                      type="checkbox" 
+                      id="mobile-register-agree" 
+                      checked={agreeTerms} 
+                      onChange={(e) => { setAgreeTerms(e.target.checked); if (e.target.checked) setAgreeTermsError(false); }} 
+                      style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer' }} 
+                      required 
+                    />
+                    <label htmlFor="mobile-register-agree" style={{ cursor: 'pointer' }}>
+                      Saya menyetujui <span style={{ color: '#2563eb', fontWeight: 700 }} onClick={(e) => { e.preventDefault(); setPreviousPortalTab('register'); setPortalTab('terms'); }}>Syarat &amp; Ketentuan</span> serta <span style={{ color: '#2563eb', fontWeight: 700 }} onClick={(e) => { e.preventDefault(); setPreviousPortalTab('register'); setPortalTab('privacy'); }}>Kebijakan Privasi</span> Catavor.
+                    </label>
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
                     <button 
                       type="button" 
-                      className="btn-secondary" 
-                      style={{ 
-                        padding: '0.65rem 0.85rem', 
-                        fontSize: '0.75rem', 
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        color: '#d1d5db',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        cursor: 'pointer',
-                        fontWeight: 600
-                      }}
-                      onClick={() => window.history.back()}
+                      className="btn-portal-secondary" 
+                      style={{ padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}
+                      onClick={() => setRegisterStep(2)}
                     >
                       <ChevronLeft size={15} />
-                      <span>Edit Toko</span>
+                      <span>Kembali</span>
                     </button>
                     <button 
                       type="submit" 
-                      className="btn-primary" 
-                      style={{ 
-                        flex: 1, 
-                        padding: '0.65rem', 
-                        fontWeight: 800, 
-                        fontSize: '0.78rem', 
-                        borderRadius: '0.5rem',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.4rem',
-                        background: registerPlan === 'pro' ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        boxShadow: registerPlan === 'pro' ? '0 4px 12px rgba(245, 158, 11, 0.35)' : '0 4px 12px rgba(16, 185, 129, 0.35)'
-                      }}
+                      className="btn-portal-primary" 
+                      style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.82rem' }}
                       disabled={registerLoading}
                     >
-                      <span>{registerLoading ? 'Mendaftarkan Toko...' : 'Selesaikan & Buka Toko'}</span>
+                      <span>{registerLoading ? 'Mendaftarkan...' : 'Selesaikan & Buka Toko'}</span>
                       <CheckCircle size={15} />
                     </button>
                   </div>
                 </form>
               )}
 
-              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.75rem', color: '#9ca3af' }}>
-                Sudah punya akun? <span style={{ color: '#10b981', cursor: 'pointer', fontWeight: 700 }} onClick={() => setPortalTab('login')}>Login Admin</span>
+              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.76rem', color: '#64748b' }}>
+                Sudah punya akun? <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 700 }} onClick={() => setPortalTab('login')}>Masuk Admin</span>
               </div>
             </div>
           </div>
         )}
 
+        {/* CHECKOUT TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
         {portalTab === 'checkout' && (
-          <div style={{ padding: '2.5rem 1.25rem', animation: 'fadeIn 0.3s ease-in-out' }}>
-            <div className="glass-panel" style={{ padding: '1.25rem 1rem', borderRadius: '1.15rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'linear-gradient(180deg, rgba(17, 24, 21, 0.95) 0%, rgba(9, 14, 12, 0.98) 100%)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.6)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Header Title Checkout Mobile */}
+          <div style={{ padding: '2.5rem 1.25rem', maxWidth: '460px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out' }}>
+            <div className="portal-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.75rem', borderRadius: '9999px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', marginBottom: '0.65rem' }}>
-                  <Sparkles size={12} style={{ color: '#f59e0b' }} />
-                  <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.03em', textTransform: 'uppercase' }}>CHECKOUT PEMBAYARAN PLAN PRO</span>
+                <div className="hero-pill-badge-clean" style={{ marginBottom: '0.65rem' }}>
+                  <Sparkles size={12} />
+                  <span>Aktivasi Paket Pro</span>
                 </div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.02em', margin: '0 0 0.35rem 0' }}>
-                  Aktivasi Paket Pro Catavor
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
+                  Konfirmasi Pembayaran
                 </h2>
-                <p style={{ color: '#9ca3af', fontSize: '0.72rem', margin: 0, lineHeight: 1.35 }}>
-                  Transfer sesuai nominal berikut untuk mengaktifkan fitur Unlimited produk &amp; biolink kustom.
+                <p style={{ color: '#64748b', fontSize: '0.76rem', margin: 0, lineHeight: 1.4 }}>
+                  Transfer sesuai nominal berikut untuk mengaktifkan akses Unlimited produk &amp; fitur Pro.
                 </p>
               </div>
 
@@ -6815,199 +7534,46 @@ function App() {
 
                 return (
                   <>
-                    {/* Rincian Tagihan Card Mobile */}
-                    <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(15, 23, 42, 0.75)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.45rem' }}>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#ffffff' }}>Rincian Tagihan</span>
-                        <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>PAKET PRO</span>
+                    <div style={{ padding: '1rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b' }}>
+                        <span>Paket Berlangganan:</span>
+                        <strong style={{ color: '#0f172a' }}>Plan Pro (1 Bulan)</strong>
                       </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.72rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
-                          <span>Berlangganan:</span>
-                          <strong style={{ color: '#ffffff' }}>Plan Pro (1 Bulan)</strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
-                          <span>Harga Normal:</span>
-                          <span style={{ textDecoration: 'line-through', color: '#64748b' }}>Rp 50.000</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
-                          <span>Diskon Promo:</span>
-                          <strong style={{ color: '#34d399' }}>- Rp 20.000</strong>
-                        </div>
-                        {appliedCoupon && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.08)', padding: '0.35rem 0.5rem', borderRadius: '0.35rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                            <span>Kupon ({appliedCoupon.code}):</span>
-                            <strong>- Rp {discountAmount.toLocaleString('id-ID')}</strong>
-                          </div>
-                        )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b' }}>
+                        <span>Harga Normal:</span>
+                        <span style={{ textDecoration: 'line-through' }}>Rp 50.000</span>
                       </div>
-
-                      {/* Input Box Kode Kupon Mobile */}
-                      <div style={{ marginTop: '0.2rem', paddingTop: '0.55rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#e5e7eb', marginBottom: '0.35rem', display: 'block' }}>Gunakan Kode Kupon / Diskon:</label>
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: CATAVOR100" 
-                            value={couponInput} 
-                            onChange={(e) => {
-                              setCouponInput(e.target.value.toUpperCase());
-                              if (couponMsg) setCouponMsg(null);
-                            }}
-                            style={{ flex: 1, padding: '0.45rem 0.65rem', fontSize: '0.75rem', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.45rem', color: '#fff', textTransform: 'uppercase' }}
-                          />
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              const cleanCode = couponInput.trim().toUpperCase();
-                              if (!cleanCode) {
-                                setCouponMsg({ type: 'error', text: 'Masukkan kode kupon.' });
-                                return;
-                              }
-                              let masterCoupons = [];
-                              try {
-                                if (settings.master_coupons) masterCoupons = JSON.parse(settings.master_coupons);
-                              } catch {}
-                              if (!masterCoupons.length) {
-                                masterCoupons = [
-                                  { code: 'CATAVOR100', type: 'free', discount: 30000, label: 'Gratis 100% Plan Pro (1 Bulan)' },
-                                  { code: 'GRATISPRO', type: 'free', discount: 30000, label: 'Gratis Uji Coba Plan Pro' },
-                                  { code: 'DISKON10K', type: 'discount', discount: 10000, label: 'Potongan Harga Rp 10.000' }
-                                ];
-                              }
-                              const found = masterCoupons.find((c: any) => c.code.toUpperCase() === cleanCode);
-                              if (found) {
-                                setAppliedCoupon(found);
-                                setCouponMsg({ type: 'success', text: `Kupon ${found.code} Berhasil!` });
-                              } else {
-                                setCouponMsg({ type: 'error', text: `Kode "${cleanCode}" tidak berlaku.` });
-                              }
-                            }}
-                            style={{ padding: '0.45rem 0.75rem', borderRadius: '0.45rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
-                          >
-                            Terapkan
-                          </button>
-                        </div>
-
-                        {couponMsg && (
-                          <div style={{ fontSize: '0.68rem', color: couponMsg.type === 'success' ? '#34d399' : '#f87171', marginTop: '0.35rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            {couponMsg.type === 'success' ? <Check size={12} /> : <AlertTriangle size={12} />}
-                            <span>{couponMsg.text}</span>
-                          </div>
-                        )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#16a34a' }}>
+                        <span>Diskon Promo:</span>
+                        <strong>- Rp 20.000</strong>
                       </div>
-
-<div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.15)', paddingTop: '0.55rem', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#ffffff' }}>Total Tagihan:</span>
-                        <div style={{ fontSize: '1.35rem', fontWeight: 900, color: finalPrice === 0 ? '#34d399' : '#f59e0b' }}>
-                          Rp {finalPrice.toLocaleString('id-ID')}
-                          {finalPrice === 0 && <span style={{ fontSize: '0.65rem', color: '#34d399', marginLeft: '0.3rem', fontWeight: 800 }}>(GRATIS)</span>}
-                        </div>
-                      </div>
-
-                      {finalPrice > 0 ? (
-                        <div style={{ padding: '0.45rem 0.6rem', borderRadius: '0.45rem', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', fontSize: '0.68rem', color: '#fcd34d', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.5rem' }}>
-                          <Clock size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                          <span>Batas pembayaran: <strong>24 jam</strong></span>
-                        </div>
-                      ) : (
-                        <div style={{ padding: '0.45rem 0.6rem', borderRadius: '0.45rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '0.68rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.5rem' }}>
-                          <Sparkles size={13} style={{ color: '#34d399', flexShrink: 0 }} />
-                          <span>Kupon gratis 100%! Tidak perlu transfer bank.</span>
+                      {appliedCoupon && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#2563eb' }}>
+                          <span>Kupon ({appliedCoupon.code}):</span>
+                          <strong>- Rp {discountAmount.toLocaleString('id-ID')}</strong>
                         </div>
                       )}
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* Payment Method & Proof Form Section Mobile */}
-              {(() => {
-                const originalPrice = 30000;
-                const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? 30000 : appliedCoupon.discount) : 0;
-                const finalPrice = Math.max(0, originalPrice - discountAmount);
-
-                if (finalPrice === 0) {
-                  return (
-                    <div style={{ padding: '0.75rem 0.35rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '2px solid #10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Sparkles size={24} style={{ color: '#10b981' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', fontSize: '0.9rem', fontWeight: 900, color: '#0f172a' }}>
+                        <span>Total Pembayaran:</span>
+                        <span style={{ fontSize: '1.15rem', color: '#2563eb' }}>Rp {finalPrice.toLocaleString('id-ID')}</span>
                       </div>
-                      <div>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>Aktivasi 100% Gratis!</h3>
-                        <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: 0, lineHeight: 1.35 }}>
-                          Kupon Anda berhasil menggratiskan Paket Pro. Tidak perlu melakukan transfer bank atau mengunggah bukti pembayaran.
-                        </p>
-                      </div>
-                      <button 
-                        type="button" 
-                        className="btn-primary btn-full" 
-                        style={{ 
-                          padding: '0.75rem', 
-                          fontWeight: 800, 
-                          fontSize: '0.82rem', 
-                          borderRadius: '0.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                          border: 'none',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => processCheckoutSubmission(true)}
-                        disabled={registerLoading}
-                      >
-                        <Sparkles size={16} />
-                        <span>{registerLoading ? 'Mengaktifkan Akun...' : 'Aktifkan Paket Pro Gratis Sekarang'}</span>
-                      </button>
-
-                      <button 
-                        type="button" 
-                        className="btn-secondary btn-full" 
-                        style={{ 
-                          padding: '0.65rem', 
-                          fontWeight: 700, 
-                          fontSize: '0.78rem', 
-                          borderRadius: '0.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          backgroundColor: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          color: '#d1d5db',
-                          cursor: 'pointer'
-                        }}
-                        onClick={handleCancelCheckout}
-                      >
-                        <Home size={15} />
-                        <span>Kembali ke Halaman Utama</span>
-                      </button>
                     </div>
-                  );
-                }
 
-                return (
-                  <>
-                    {/* Payment Method Selector Tabs Mobile */}
+                    {/* Method Switcher Mobile */}
                     <div>
-                      <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#e5e7eb', marginBottom: '0.45rem', display: 'block' }}>Metode Pembayaran:</label>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.45rem', display: 'block' }}>Pilih Metode Pembayaran:</label>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                         <button 
                           type="button"
                           onClick={() => setPaymentMethod('bank')}
                           style={{ 
-                            padding: '0.55rem 0.4rem', 
+                            padding: '0.65rem 0.5rem', 
                             borderRadius: '0.5rem', 
-                            border: paymentMethod === 'bank' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.12)', 
-                            backgroundColor: paymentMethod === 'bank' ? 'rgba(16,185,129,0.12)' : 'rgba(0,0,0,0.3)', 
-                            color: paymentMethod === 'bank' ? '#ffffff' : '#9ca3af',
+                            border: paymentMethod === 'bank' ? '2px solid #2563eb' : '1px solid #cbd5e1', 
+                            backgroundColor: paymentMethod === 'bank' ? '#eff6ff' : '#ffffff', 
+                            color: paymentMethod === 'bank' ? '#1d4ed8' : '#475569',
                             fontWeight: 700,
-                            fontSize: '0.72rem',
+                            fontSize: '0.76rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -7015,7 +7581,7 @@ function App() {
                             cursor: 'pointer'
                           }}
                         >
-                          <CreditCard size={14} style={{ color: paymentMethod === 'bank' ? '#10b981' : '#9ca3af' }} />
+                          <CreditCard size={15} />
                           <span>Transfer Bank</span>
                         </button>
 
@@ -7023,13 +7589,13 @@ function App() {
                           type="button"
                           onClick={() => setPaymentMethod('qris')}
                           style={{ 
-                            padding: '0.55rem 0.4rem', 
+                            padding: '0.65rem 0.5rem', 
                             borderRadius: '0.5rem', 
-                            border: paymentMethod === 'qris' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.12)', 
-                            backgroundColor: paymentMethod === 'qris' ? 'rgba(16,185,129,0.12)' : 'rgba(0,0,0,0.3)', 
-                            color: paymentMethod === 'qris' ? '#ffffff' : '#9ca3af',
+                            border: paymentMethod === 'qris' ? '2px solid #2563eb' : '1px solid #cbd5e1', 
+                            backgroundColor: paymentMethod === 'qris' ? '#eff6ff' : '#ffffff', 
+                            color: paymentMethod === 'qris' ? '#1d4ed8' : '#475569',
                             fontWeight: 700,
-                            fontSize: '0.72rem',
+                            fontSize: '0.76rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -7037,24 +7603,23 @@ function App() {
                             cursor: 'pointer'
                           }}
                         >
-                          <QrCode size={14} style={{ color: paymentMethod === 'qris' ? '#10b981' : '#9ca3af' }} />
+                          <QrCode size={15} />
                           <span>Scan QRIS</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Panel Details: Bank Transfer Manual Mobile */}
+                    {/* Bank Details Mobile */}
                     {paymentMethod === 'bank' && (
-                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#9ca3af' }}>Bank Tujuan:</span>
-                          <strong style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 800 }}>{settings.payment_bank_name || 'Bank Central Asia (BCA)'}</strong>
+                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+                          <span style={{ color: '#64748b' }}>Bank Tujuan:</span>
+                          <strong style={{ color: '#0f172a' }}>{settings.payment_bank_name || 'BCA (Bank Central Asia)'}</strong>
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.04)', padding: '0.5rem 0.75rem', borderRadius: '0.45rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff', padding: '0.5rem 0.75rem', borderRadius: '0.45rem', border: '1px solid #e2e8f0' }}>
                           <div>
-                            <div style={{ fontSize: '0.62rem', color: '#9ca3af' }}>Nomor Rekening:</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', letterSpacing: '0.03em' }}>{settings.payment_bank_account || '8830-1928-3920'}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Nomor Rekening:</div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>{settings.payment_bank_account || '8830-1928-3920'}</div>
                           </div>
                           <button 
                             type="button"
@@ -7063,64 +7628,33 @@ function App() {
                               setCopiedAccountToast(true);
                               setTimeout(() => setCopiedAccountToast(false), 2500);
                             }}
-                            style={{ 
-                              padding: '0.35rem 0.65rem', 
-                              borderRadius: '0.35rem', 
-                              backgroundColor: copiedAccountToast ? '#10b981' : 'rgba(16, 185, 129, 0.15)', 
-                              border: '1px solid rgba(16, 185, 129, 0.3)', 
-                              color: copiedAccountToast ? '#000' : '#34d399',
-                              fontSize: '0.68rem',
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
+                            className="btn-portal-secondary"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.7rem' }}
                           >
-                            {copiedAccountToast ? <Check size={11} /> : <Copy size={11} />}
-                            <span>{copiedAccountToast ? 'Tersalin!' : 'Salin'}</span>
+                            {copiedAccountToast ? <Check size={12} /> : <Copy size={12} />}
+                            <span>{copiedAccountToast ? 'Disalin!' : 'Salin'}</span>
                           </button>
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#9ca3af' }}>Atas Nama:</span>
-                          <strong style={{ fontSize: '0.75rem', color: '#ffffff' }}>{settings.payment_bank_holder || 'PT Catavor Media Digital'}</strong>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+                          <span style={{ color: '#64748b' }}>Atas Nama:</span>
+                          <strong style={{ color: '#0f172a' }}>{settings.payment_bank_holder || 'PT Catavor Media Digital'}</strong>
                         </div>
                       </div>
                     )}
 
-                    {/* Panel Details: QRIS Mobile */}
+                    {/* QRIS Details Mobile */}
                     {paymentMethod === 'qris' && (
-                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', textAlign: 'center' }}>
-                        <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', boxShadow: '0 0 16px rgba(16, 185, 129, 0.25)', border: '2px solid #10b981' }}>
+                      <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', textAlign: 'center' }}>
+                        <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb' }}>
                           <img 
                             src={settings.payment_qris_image || '/img/qris_demo.svg'} 
                             alt="QRIS Catavor" 
                             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                           />
                         </div>
-                        <p style={{ fontSize: '0.68rem', color: '#9ca3af', margin: 0, lineHeight: 1.35 }}>
-                          Scan QRIS via M-Banking / E-Wallet (GoPay, OVO, ShopeePay, DANA, LinkAja).
+                        <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
+                          Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau DANA.
                         </p>
-                        <a 
-                          href={settings.payment_qris_image || '/img/qris_demo.svg'} 
-                          download="QRIS_Catavor_Payment.svg"
-                          style={{ 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            gap: '0.3rem', 
-                            padding: '0.4rem 0.75rem', 
-                            borderRadius: '0.4rem', 
-                            backgroundColor: 'rgba(255,255,255,0.08)', 
-                            border: '1px solid rgba(255,255,255,0.15)', 
-                            color: '#ffffff', 
-                            fontSize: '0.7rem', 
-                            fontWeight: 700, 
-                            textDecoration: 'none' 
-                          }}
-                        >
-                          <Download size={13} /> Download Gambar QRIS
-                        </a>
                       </div>
                     )}
 
@@ -7133,103 +7667,76 @@ function App() {
                       style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
                     >
                       <div className="form-group">
-                        <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 600, color: '#e5e7eb' }}>Unggah Bukti Transfer / Scan *</label>
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Unggah Bukti Transfer / Scan *</label>
                         <div 
                           style={{ 
-                            border: '2px dashed rgba(255,255,255,0.18)', 
-                            borderRadius: '0.5rem', 
-                            padding: '0.75rem', 
+                            border: '2px dashed #cbd5e1', 
+                            borderRadius: '0.65rem', 
+                            padding: '1rem', 
                             textAlign: 'center', 
-                            backgroundColor: 'rgba(0,0,0,0.25)', 
-                            cursor: 'pointer',
-                            position: 'relative'
+                            position: 'relative', 
+                            backgroundColor: '#ffffff',
+                            cursor: 'pointer' 
                           }}
                         >
                           <input 
                             type="file" 
                             accept="image/*" 
-                            required
+                            required 
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
                                 const reader = new FileReader();
-                                reader.onload = () => setPaymentProofPreview(reader.result as string);
+                                reader.onloadend = () => setPaymentProofPreview(reader.result as string);
                                 reader.readAsDataURL(file);
                               }
-                            }}
+                            }} 
                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
                           />
                           {paymentProofPreview ? (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                              <img src={paymentProofPreview} alt="Bukti Transfer" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #10b981' }} />
-                              <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 700 }}>Foto Bukti Siap (Klik ganti)</span>
+                              <img src={paymentProofPreview} alt="Bukti Transfer" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #2563eb' }} />
+                              <span style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700 }}>Foto Bukti Siap (Klik untuk ganti)</span>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-                              <Upload size={18} style={{ color: '#10b981' }} />
-                              <span style={{ fontSize: '0.7rem', color: '#d1d5db', fontWeight: 600 }}>Upload Foto Bukti Transfer</span>
-                              <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>JPG, PNG, WEBP (Maks 5MB)</span>
+                              <Upload size={20} style={{ color: '#2563eb' }} />
+                              <span style={{ fontSize: '0.74rem', color: '#334155', fontWeight: 700 }}>Pilih Foto Bukti Transfer</span>
+                              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>JPG, PNG, WEBP (Maks 5MB)</span>
                             </div>
                           )}
                         </div>
                       </div>
 
                       <div className="form-group">
-                        <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 600, color: '#e5e7eb' }}>Nomor WA / Catatan Pengirim (Opsional)</label>
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nomor WA / Catatan Pengirim (Opsional)</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: WA 08123456789 - a.n Dzikri" 
+                          placeholder="Contoh: WA 08123456789 - a.n Budi" 
                           value={paymentProofNote} 
                           onChange={(e) => setPaymentProofNote(e.target.value)}
-                          style={{ borderRadius: '0.5rem', padding: '0.6rem 0.75rem', fontSize: '0.78rem', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
                         />
                       </div>
 
                       <button 
                         type="submit" 
-                        className="btn-primary btn-full" 
-                        style={{ 
-                          padding: '0.7rem', 
-                          fontWeight: 800, 
-                          fontSize: '0.8rem', 
-                          borderRadius: '0.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                          border: 'none',
-                          cursor: 'pointer'
-                        }}
+                        className="btn-portal-primary" 
+                        style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem' }}
                         disabled={registerLoading}
                       >
                         <Send size={15} />
-                        <span>{registerLoading ? 'Memproses...' : 'Kirim Bukti Pembayaran'}</span>
+                        <span>{registerLoading ? 'Memproses...' : 'Kirim Konfirmasi Pembayaran'}</span>
                       </button>
 
                       <button 
                         type="button" 
-                        className="btn-secondary btn-full" 
-                        style={{ 
-                          padding: '0.65rem', 
-                          fontWeight: 700, 
-                          fontSize: '0.78rem', 
-                          borderRadius: '0.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.4rem',
-                          backgroundColor: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          color: '#d1d5db',
-                          cursor: 'pointer'
-                        }}
+                        className="btn-portal-secondary" 
+                        style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
                         onClick={handleCancelCheckout}
                       >
                         <Home size={15} />
-                        <span>Kembali ke Halaman Utama</span>
+                        <span>Kembali ke Beranda</span>
                       </button>
                     </form>
                   </>
@@ -7239,21 +7746,21 @@ function App() {
 
             {/* Modal Sukses Konfirmasi Pembayaran Mobile */}
             {showPaymentSuccessModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '380px', padding: '1.5rem 1.25rem', borderRadius: '1.15rem', border: '1px solid rgba(16, 185, 129, 0.35)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(16, 185, 129, 0.2)', textAlign: 'center' }}>
-                  <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', border: '2px solid #10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto', boxShadow: '0 0 16px rgba(16, 185, 129, 0.4)' }}>
-                    <CheckCircle size={30} style={{ color: '#10b981' }} />
+              <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
+                <div className="portal-card animate-scale-up" style={{ width: '100%', maxWidth: '380px', padding: '1.75rem 1.5rem', textAlign: 'center' }}>
+                  <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+                    <CheckCircle size={30} />
                   </div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ffffff', marginBottom: '0.4rem', letterSpacing: '-0.02em' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a', marginBottom: '0.35rem' }}>
                     Bukti Pembayaran Berhasil!
                   </h3>
-                  <p style={{ fontSize: '0.75rem', color: '#9ca3af', lineHeight: 1.45, marginBottom: '1.25rem' }}>
-                    Terima kasih telah mengonfirmasi. Tim Admin Catavor akan memverifikasi transaksi. Akses <strong>Plan Pro</strong> Anda akan otomatis aktif maksimal dalam <strong>1x24 Jam</strong>.
+                  <p style={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.5, marginBottom: '1.25rem' }}>
+                    Terima kasih telah mengonfirmasi. Tim Admin Catavor akan memverifikasi transaksi. Akses <strong>Plan Pro</strong> Anda akan aktif maksimal dalam <strong>1x24 Jam</strong>.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <button 
-                      className="btn-primary btn-full" 
-                      style={{ padding: '0.75rem', fontSize: '0.8rem', fontWeight: 800 }}
+                      className="btn-portal-primary" 
+                      style={{ padding: '0.75rem', fontSize: '0.82rem', justifyContent: 'center' }}
                       onClick={() => {
                         const user = JSON.parse(localStorage.getItem('catavor_user') || '{}');
                         if (user.store_slug) {
@@ -7269,14 +7776,14 @@ function App() {
                       <ArrowRight size={15} />
                     </button>
                     <button 
-                      className="btn-secondary btn-full" 
-                      style={{ padding: '0.65rem', fontSize: '0.75rem', fontWeight: 700 }}
+                      className="btn-portal-secondary" 
+                      style={{ padding: '0.65rem', fontSize: '0.78rem', justifyContent: 'center' }}
                       onClick={() => {
                         setShowPaymentSuccessModal(false);
                         setPortalTab('home');
                       }}
                     >
-                      <span>Kembali ke Halaman Utama</span>
+                      <span>Kembali ke Beranda</span>
                     </button>
                   </div>
                 </div>
@@ -8097,294 +8604,387 @@ function App() {
             </div>
           </div>
         </div>
-      ) : view === 'fauna-editor' ? (
-        /* ==========================================================
-           MOBILE FULL-PAGE FAUNA EDITOR (PREMIUM FORM VIEW)
-           ========================================================== */
-        <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', padding: '1rem', paddingTop: '4.5rem', paddingBottom: '4rem', overflowY: 'auto' }}>
-          {/* Sub-Header / Back Bar (Fixed Top) */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            height: '3.5rem', 
-            zIndex: 100, 
-            backgroundColor: 'var(--header-bg)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            padding: '0 1rem', 
-            borderBottom: '1px solid var(--border-light)',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
-          }}>
-            <button 
-              type="button"
-              onClick={() => {
-                if (crudMode === 'create') {
-                  setShowProductTypeSelector(true);
-                  setView('product-type-selector');
-                } else {
-                  setView('tabs');
-                  setActiveTab('admin');
-                  setAdminSubTab('items');
-                  setShowProductTypeSelector(false);
-                }
-              }}
-              className="btn-back-circle"
-              title="Batal"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              {crudMode === 'create' ? 'Tambah Postingan Produk' : 'Edit Postingan Produk'}
-            </h3>
-            <div style={{ width: '2.25rem' }} /> {/* Spacer to center the title */}
-          </div>
+      ) : view === 'fauna-editor' ? (() => {
+        const typeConfig = getItemTypeFormConfig(crudForm.product_type);
+        const TypeIcon = typeConfig.icon;
 
-          {/* Form Content */}
-          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-            {/* Banner Switcher Tipe Produk (Premium Design) */}
+        return (
+          /* ==========================================================
+             MOBILE FULL-PAGE UNIVERSAL ITEM EDITOR (PREMIUM FORM VIEW)
+             ========================================================== */
+          <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', padding: '1rem', paddingTop: '4.5rem', paddingBottom: '4rem', overflowY: 'auto' }}>
+            {/* Sub-Header / Back Bar (Fixed Top) */}
             <div style={{ 
-              padding: '0.85rem 1rem', 
-              borderRadius: '1rem', 
-              backgroundColor: 'var(--bg-card)', 
-              border: '1px solid var(--border-light)', 
               display: 'flex', 
+              justifyContent: 'space-between', 
               alignItems: 'center', 
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              marginBottom: '1.25rem',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-              position: 'relative',
-              overflow: 'hidden'
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              height: '3.5rem', 
+              zIndex: 100, 
+              backgroundColor: 'var(--header-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              padding: '0 1rem', 
+              borderBottom: '1px solid var(--border-light)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
             }}>
-              {/* Subtle ambient radial glow behind banner */}
-              <div style={{
-                position: 'absolute',
-                top: '-50%',
-                left: '-20%',
-                width: '140%',
-                height: '200%',
-                background: crudForm.product_type === 'digital'
-                  ? 'radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, transparent 70%)'
-                  : crudForm.product_type === 'physical'
-                  ? 'radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%)'
-                  : crudForm.product_type === 'service'
-                  ? 'radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, transparent 70%)'
-                  : crudForm.product_type === 'food'
-                  ? 'radial-gradient(circle, rgba(239, 68, 68, 0.12) 0%, transparent 70%)'
-                  : 'radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%)',
-                pointerEvents: 'none'
-              }} />
-
-              {/* Left Side: Category Icon + Title */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'relative', zIndex: 1, minWidth: 0 }}>
-                <div style={{ 
-                  width: '38px', 
-                  height: '38px', 
-                  borderRadius: '0.65rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  backgroundColor: crudForm.product_type === 'digital' ? 'rgba(139, 92, 246, 0.15)' : crudForm.product_type === 'physical' ? 'rgba(59, 130, 246, 0.15)' : crudForm.product_type === 'service' ? 'rgba(245, 158, 11, 0.15)' : crudForm.product_type === 'food' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                  border: crudForm.product_type === 'digital' ? '1px solid rgba(139, 92, 246, 0.3)' : crudForm.product_type === 'physical' ? '1px solid rgba(59, 130, 246, 0.3)' : crudForm.product_type === 'service' ? '1px solid rgba(245, 158, 11, 0.3)' : crudForm.product_type === 'food' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                  color: crudForm.product_type === 'digital' ? '#c084fc' : crudForm.product_type === 'physical' ? '#60a5fa' : crudForm.product_type === 'service' ? '#fbbf24' : crudForm.product_type === 'food' ? '#f87171' : '#34d399',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-                }}>
-                  {crudForm.product_type === 'digital' ? <FileCode size={20} /> : crudForm.product_type === 'physical' ? <Package size={20} /> : crudForm.product_type === 'service' ? <Wrench size={20} /> : crudForm.product_type === 'food' ? <Utensils size={20} /> : <PawPrint size={20} />}
-                </div>
-
-                <div style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.1rem' }}>
-                    Tipe Produk
-                  </span>
-                  <span style={{ 
-                    fontSize: '0.88rem', 
-                    fontWeight: 800, 
-                    color: 'var(--text-primary)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: 'block'
-                  }}>
-                    {crudForm.product_type === 'digital' ? 'Barang Digital' : crudForm.product_type === 'physical' ? 'Barang Fisik' : crudForm.product_type === 'service' ? 'Jasa & Layanan' : crudForm.product_type === 'food' ? 'Makanan & Minuman' : 'Hewan / Living Fauna'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Right Side: Action Button "Ganti Tipe" */}
               <button 
-                type="button" 
+                type="button"
                 onClick={() => {
-                  setShowProductTypeSelector(true);
-                  setView('product-type-selector');
+                  if (crudMode === 'create') {
+                    setShowProductTypeSelector(true);
+                    setView('product-type-selector');
+                  } else {
+                    setView('tabs');
+                    setActiveTab('admin');
+                    setAdminSubTab('items');
+                    setShowProductTypeSelector(false);
+                  }
                 }}
-                style={{ 
-                  background: 'var(--primary-glow)', 
-                  border: '1px solid var(--primary)', 
-                  color: 'var(--primary)', 
-                  fontSize: '0.75rem', 
-                  fontWeight: 800, 
-                  cursor: 'pointer',
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: '9999px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  position: 'relative',
-                  zIndex: 1,
-                  flexShrink: 0
-                }}
-                className="btn-glow-hover"
-                title="Ganti Tipe Produk"
+                className="btn-back-circle"
+                title="Batal"
               >
-                <RefreshCw size={13} />
-                <span>Ganti Tipe</span>
+                <ChevronLeft size={20} />
               </button>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                {typeConfig.modalTitle(crudMode)}
+              </h3>
+              <div style={{ width: '2.25rem' }} /> {/* Spacer to center the title */}
             </div>
 
-            {crudError && (
-              <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '1.25rem' }}>
-                {crudError}
-              </div>
-            )}
+            {/* Form Content */}
+            <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+              {/* Banner Switcher Tipe Item (Premium Design) */}
+              <div style={{ 
+                padding: '0.85rem 1rem', 
+                borderRadius: '1rem', 
+                backgroundColor: 'var(--bg-card)', 
+                border: '1px solid var(--border-light)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                marginBottom: '1.25rem',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                {/* Subtle ambient radial glow behind banner */}
+                <div style={{
+                  position: 'absolute',
+                  top: '-50%',
+                  left: '-20%',
+                  width: '140%',
+                  height: '200%',
+                  background: typeConfig.gradientBg,
+                  pointerEvents: 'none'
+                }} />
 
-            <form onSubmit={handleFaunaSubmit}>
-              {/* Standar Fields: Nama & Harga */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Nama Produk / Item / Layanan *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Nama produk/layanan..."
-                    required
-                    value={crudForm.name}
-                    onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
-                  />
+                {/* Left Side: Category Icon + Title */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'relative', zIndex: 1, minWidth: 0 }}>
+                  <div style={{ 
+                    width: '38px', 
+                    height: '38px', 
+                    borderRadius: '0.65rem', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    backgroundColor: `${typeConfig.color}20`,
+                    border: `1px solid ${typeConfig.color}40`,
+                    color: typeConfig.color,
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+                  }}>
+                    <TypeIcon size={20} />
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '0.1rem' }}>
+                      Tipe Item Katalog
+                    </span>
+                    <span style={{ 
+                      fontSize: '0.88rem', 
+                      fontWeight: 800, 
+                      color: 'var(--text-primary)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: 'block'
+                    }}>
+                      {typeConfig.typeName}
+                    </span>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Harga (IDR) *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Harga jual..."
-                    required
-                    value={formatRupiahInput(crudForm.price)}
-                    onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
-                  />
-                </div>
+
+                {/* Right Side: Action Button "Ganti Tipe" */}
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowProductTypeSelector(true);
+                    setView('product-type-selector');
+                  }}
+                  style={{ 
+                    background: 'var(--primary-glow)', 
+                    border: '1px solid var(--primary)', 
+                    color: 'var(--primary)', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 800, 
+                    cursor: 'pointer',
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '9999px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                    zIndex: 1,
+                    flexShrink: 0
+                  }}
+                  className="btn-glow-hover"
+                  title="Ganti Tipe Item"
+                >
+                  <RefreshCw size={13} />
+                  <span>Ganti Tipe</span>
+                </button>
               </div>
 
-              {/* DYNAMIC FIELDS SPECIFIC TO PRODUCT TYPE */}
-              {crudForm.product_type === 'physical' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Stok (Unit) *</label>
-                    <input 
-                      type="number" 
-                      className="form-input" 
-                      placeholder="Stok barang..."
-                      required
-                      value={crudForm.attributes.stock}
-                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, stock: parseInt(e.target.value) || 0 } })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Kondisi *</label>
-                    <select 
-                      className="form-select"
-                      value={crudForm.attributes.condition}
-                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
-                    >
-                      <option value="Baru">Baru</option>
-                      <option value="Bekas">Bekas / Second</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Berat (Gram) *</label>
-                    <input 
-                      type="number" 
-                      className="form-input" 
-                      placeholder="Contoh: 500"
-                      required
-                      value={crudForm.attributes.weight}
-                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, weight: parseInt(e.target.value) || 0 } })}
-                    />
-                  </div>
+              {crudError && (
+                <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '1.25rem' }}>
+                  {crudError}
                 </div>
               )}
 
-              {crudForm.product_type === 'digital' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <form onSubmit={handleFaunaSubmit}>
+                {/* Standar Fields: Nama & Harga */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
                   <div className="form-group">
-                    <label className="form-label">Link Akses / Download File *</label>
-                    <input 
-                      type="url" 
-                      className="form-input" 
-                      placeholder="https://drive.google.com/file/d/..."
-                      required
-                      value={crudForm.attributes.download_url}
-                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
-                    />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Format File *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: PDF / ZIP / MP3"
-                        required
-                        value={crudForm.attributes.file_format}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Ukuran File *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: 15 MB"
-                        required
-                        value={crudForm.attributes.file_size}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_size: e.target.value } })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {crudForm.product_type === 'fauna' && (
-                <>
-                  <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                    <label className="form-label">Nama Ilmiah / Taksonomi *</label>
+                    <label className="form-label">{typeConfig.nameLabel}</label>
                     <input 
                       type="text" 
                       className="form-input" 
-                      placeholder="Nama latin atau taksonomi..."
+                      placeholder={typeConfig.namePlaceholder}
                       required
-                      value={crudForm.scientific_name}
-                      onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
+                      value={crudForm.name}
+                      onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
                     />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">{typeConfig.priceLabel}</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder={typeConfig.pricePlaceholder}
+                      required
+                      value={formatRupiahInput(crudForm.price)}
+                      onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                {/* Kategori Field */}
+                <div className="form-group" style={{ marginTop: '0.25rem' }}>
+                  <label className="form-label">{typeConfig.categoryLabel}</label>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <select
+                      className="form-select"
+                      style={{ flex: 1, height: '38px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                      value={showCustomClassInput ? '__NEW__' : crudForm.class}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setShowCustomClassInput(true);
+                          setCustomClass('');
+                        } else {
+                          setShowCustomClassInput(false);
+                          setCrudForm({ ...crudForm, class: e.target.value });
+                        }
+                      }}
+                    >
+                      {typeConfig.categoryOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                      <option value="__NEW__">+ Tambah Kategori Baru...</option>
+                    </select>
+                  </div>
+                  {showCustomClassInput && (
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ marginTop: '0.35rem' }}
+                      placeholder="Ketik nama kategori baru..."
+                      value={customClass}
+                      onChange={(e) => setCustomClass(e.target.value)}
+                      required
+                    />
+                  )}
+                </div>
+
+                {/* DYNAMIC FIELDS SPECIFIC TO PRODUCT TYPE */}
+                {/* 1. BARANG FISIK */}
+                {crudForm.product_type === 'physical' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Stok (Unit) *</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          placeholder="Stok..."
+                          required
+                          value={crudForm.attributes.stock}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, stock: parseInt(e.target.value) || 0 } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Kondisi *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes.condition}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
+                        >
+                          <option value="Baru">Baru</option>
+                          <option value="Bekas">Bekas / Second</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Berat (Gram) *</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          placeholder="Gram..."
+                          required
+                          value={crudForm.attributes.weight}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, weight: parseInt(e.target.value) || 0 } })}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Merek / Brand</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Nike / Asus / Custom"
+                          value={crudForm.attributes.brand || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, brand: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Varian / Opsi Ukuran</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Hitam, Putih / S, M, L"
+                          value={crudForm.attributes.variant || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. ITEM DIGITAL */}
+                {crudForm.product_type === 'digital' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
                     <div className="form-group">
-                      <label className="form-label">Kelas / Kategori *</label>
+                      <label className="form-label">Link Akses / Download File *</label>
+                      <input 
+                        type="url" 
+                        className="form-input" 
+                        placeholder="https://drive.google.com/file/d/..."
+                        required
+                        value={crudForm.attributes.download_url}
+                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Format File *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="PDF / ZIP / MP3"
+                          required
+                          value={crudForm.attributes.file_format}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Ukuran File *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 15 MB"
+                          required
+                          value={crudForm.attributes.file_size}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_size: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Tipe Lisensi *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes.license_type || 'Lisensi Personal'}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: e.target.value } })}
+                        >
+                          <option value="Lisensi Personal">Personal</option>
+                          <option value="Komersial">Komersial</option>
+                          <option value="Resale Rights">Resale Rights</option>
+                          <option value="Unlimited">Unlimited</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. SATWA & LIVING FAUNA */}
+                {crudForm.product_type === 'fauna' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">Nama Ilmiah / Taksonomi *</label>
                       <input 
                         type="text" 
                         className="form-input" 
-                        placeholder="Contoh: Reptil / Burung / Ikan Hias"
+                        placeholder="Nama latin atau taksonomi..."
                         required
-                        value={crudForm.class}
-                        onChange={(e) => setCrudForm({ ...crudForm, class: e.target.value })}
+                        value={crudForm.scientific_name}
+                        onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
                       />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.25rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Asal Wilayah</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Kalimantan..."
+                          value={crudForm.native_region}
+                          onChange={(e) => setCrudForm({ ...crudForm, native_region: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Masa Hidup</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="10 tahun..."
+                          value={crudForm.lifespan}
+                          onChange={(e) => setCrudForm({ ...crudForm, lifespan: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Bobot</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="1 kg..."
+                          value={crudForm.weight}
+                          onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
+                        />
+                      </div>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Status Ketersediaan *</label>
@@ -8399,332 +8999,334 @@ function App() {
                       </select>
                     </div>
                   </div>
-                </>
-              )}
+                )}
 
-              {crudForm.product_type === 'service' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Durasi Layanan *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: 1 Sesi / 1 Jam / 1 Hari"
-                        required
-                        value={crudForm.attributes.duration}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, duration: e.target.value } })}
-                      />
+                {/* 4. JASA & LAYANAN */}
+                {crudForm.product_type === 'service' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Durasi Layanan *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 1 Sesi / 1 Jam / 1 Hari"
+                          required
+                          value={crudForm.attributes.duration}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, duration: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Metode Layanan *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes.service_location}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
+                        >
+                          <option value="Datang ke Toko">Datang ke Toko</option>
+                          <option value="Home Visit (Ke Rumah)">Home Visit (Ke Rumah)</option>
+                          <option value="Online">Online / Jarak Jauh</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Metode Layanan *</label>
-                      <select 
-                        className="form-select"
-                        value={crudForm.attributes.service_location}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
-                      >
-                        <option value="Datang ke Toko">Datang ke Toko</option>
-                        <option value="Home Visit (Ke Rumah)">Home Visit (Ke Rumah)</option>
-                        <option value="Online">Online / Jarak Jauh</option>
-                      </select>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Area Jangkauan Operasional *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Jabodetabek / Bandung / Online"
+                          required
+                          value={crudForm.attributes.service_area}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Inklusi / Fasilitas Paket</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Full Alat + Shampo Medicated"
+                          value={crudForm.attributes.inclusions || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, inclusions: e.target.value } })}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Area Jangkauan Operasional *</label>
+                )}
+
+                {/* 5. MAKANAN & MINUMAN (F&B) */}
+                {crudForm.product_type === 'food' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Porsi / Isi Bersih</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 1 Porsi / Box 500gr / 250ml"
+                          value={crudForm.attributes.portion_size || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Ketahanan / Expired Date *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 7 Hari / 3 Bulan / Fresh Daily"
+                          required
+                          value={crudForm.attributes.expired_info}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">Suhu Penyimpanan *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes.storage_temp}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                        >
+                          <option value="Suhu Ruang">Suhu Ruang</option>
+                          <option value="Dingin (Chiller)">Dingin (Chiller)</option>
+                          <option value="Beku (Freezer)">Beku (Freezer)</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Sertifikasi / Label *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes.certification}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                        >
+                          <option value="100% Halal">100% Halal</option>
+                          <option value="BPOM">Izin BPOM</option>
+                          <option value="PIRT">Dinkes P-IRT</option>
+                          <option value="Home-made">Home-made / Buatan Sendiri</option>
+                          <option value="Fresh / Tanpa Pengawet">Fresh / Tanpa Pengawet</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Multi-image upload section */}
+                <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div>
+                      <label className="form-label" style={{ margin: 0 }}>{typeConfig.photoLabel}</label>
+                      <small style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', display: 'block' }}>{typeConfig.photoHelper}</small>
+                    </div>
+                    {crudImages.length < 5 && (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.25rem' }}
+                        onClick={() => setCrudImages([...crudImages, ''])}
+                      >
+                        + Foto
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    {crudImages.map((imgUrl, index) => (
+                      <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                        {/* Preview Thumbnail */}
+                        <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                              <Image size={13} style={{ color: 'var(--primary)' }} />
+                              <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                            </div>
+                          )}
+                          {uploadingIndex === index && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Loader className="animate-spin" size={10} style={{ color: 'var(--primary)' }} />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Input & Upload Controls */}
+                        <div style={{ flexGrow: 1, display: 'flex', gap: '0.35rem' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder={`Tautan Foto ${index === 0 ? 'Utama *' : `${index + 1}`}`}
+                            value={imgUrl}
+                            onChange={(e) => {
+                              const newImages = [...crudImages]
+                              newImages[index] = e.target.value
+                              setCrudImages(newImages)
+                            }}
+                            required={index === 0}
+                            style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+                          />
+                          
+                          {/* Device File Upload Button */}
+                          <label 
+                            className="btn-secondary" 
+                            style={{ 
+                              padding: '0.35rem 0.65rem', 
+                              height: '36px', 
+                              borderRadius: '0.4rem', 
+                              fontSize: '0.75rem', 
+                              fontWeight: 700,
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.25rem', 
+                              cursor: 'pointer', 
+                              whiteSpace: 'nowrap',
+                              background: 'var(--btn-secondary-bg)',
+                              color: 'var(--btn-secondary-text)',
+                              border: '1px solid var(--btn-secondary-border)'
+                            }}
+                          >
+                            <Upload size={12} style={{ color: 'var(--primary)' }} />
+                            <span>Upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleImageUpload(index, e.target.files[0])
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Delete Row Button */}
+                        {crudImages.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ 
+                              padding: '0.35rem', 
+                              color: '#f87171', 
+                              backgroundColor: 'rgba(239, 68, 68, 0.12)', 
+                              border: '1px solid rgba(239, 68, 68, 0.3)', 
+                              height: '36px', 
+                              width: '36px', 
+                              borderRadius: '0.4rem', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              flexShrink: 0,
+                              cursor: 'pointer' 
+                            }}
+                            onClick={() => {
+                              const newImages = crudImages.filter((_, i) => i !== index)
+                              setCrudImages(newImages)
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{typeConfig.videoLabel}</label>
+                  <input 
+                    type="url" 
+                    className="form-input" 
+                    placeholder={typeConfig.videoPlaceholder}
+                    value={crudForm.video_url}
+                    onChange={(e) => setCrudForm({ ...crudForm, video_url: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">{typeConfig.deliveryLabel}</label>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <select 
+                      className="form-select"
+                      style={{ flex: 1, height: '38px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                      value={showCustomShippingCoverageInput ? '__NEW__' : crudForm.shipping_coverage}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setShowCustomShippingCoverageInput(true)
+                          setCustomShippingCoverage('')
+                        } else {
+                          setShowCustomShippingCoverageInput(false)
+                          setCrudForm({ ...crudForm, shipping_coverage: e.target.value })
+                        }
+                      }}
+                    >
+                      {typeConfig.deliveryOptions.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="__NEW__">+ Tambah Baru...</option>
+                    </select>
+                  </div>
+                  {showCustomShippingCoverageInput && (
                     <input 
                       type="text" 
                       className="form-input" 
-                      placeholder="Contoh: Jabodetabek / Bandung / Online"
-                      required
-                      value={crudForm.attributes.service_area}
-                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                      style={{ marginTop: '0.35rem' }} 
+                      placeholder="Ketik jangkauan pengiriman / layanan baru..." 
+                      value={customShippingCoverage} 
+                      onChange={(e) => setCustomShippingCoverage(e.target.value)} 
+                      required 
                     />
-                  </div>
-                </div>
-              )}
-
-              {crudForm.product_type === 'food' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Ketahanan / Expired Date *</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Contoh: 7 Hari / 3 Bulan / Fresh Daily"
-                        required
-                        value={crudForm.attributes.expired_info}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Suhu Penyimpanan *</label>
-                      <select 
-                        className="form-select"
-                        value={crudForm.attributes.storage_temp}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
-                      >
-                        <option value="Suhu Ruang">Suhu Ruang</option>
-                        <option value="Dingin (Chiller)">Dingin (Chiller)</option>
-                        <option value="Beku (Freezer)">Beku (Freezer)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Sertifikasi / Label *</label>
-                    <select 
-                      className="form-select"
-                      value={crudForm.attributes.certification}
-                      onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
-                    >
-                      <option value="Halal">Sertifikat Halal</option>
-                      <option value="BPOM">Izin BPOM</option>
-                      <option value="Home-made">Home-made / Buatan Sendiri</option>
-                      <option value="Fresh / Tanpa Pengawet">Fresh / Tanpa Pengawet</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-              {/* Multi-image upload section */}
-              <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Foto Satwa (1-5 Foto) *</label>
-                  {crudImages.length < 5 && (
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.25rem' }}
-                      onClick={() => setCrudImages([...crudImages, ''])}
-                    >
-                      + Foto
-                    </button>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  {crudImages.map((imgUrl, index) => (
-                    <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
-                      {/* Preview Thumbnail */}
-                      <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                        {imgUrl ? (
-                          <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-                            <Image size={13} style={{ color: 'var(--primary)' }} />
-                            <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
-                          </div>
-                        )}
-                        {uploadingIndex === index && (
-                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Loader className="animate-spin" size={10} style={{ color: 'var(--primary)' }} />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Input & Upload Controls */}
-                      <div style={{ flexGrow: 1, display: 'flex', gap: '0.35rem' }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder={`Tautan Foto ${index === 0 ? 'Utama *' : `${index + 1}`}`}
-                          value={imgUrl}
-                          onChange={(e) => {
-                            const newImages = [...crudImages]
-                            newImages[index] = e.target.value
-                            setCrudImages(newImages)
-                          }}
-                          required={index === 0}
-                          style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
-                        />
-                        
-                        {/* Device File Upload Button */}
-                        <label 
-                          className="btn-secondary" 
-                          style={{ 
-                            padding: '0.35rem 0.65rem', 
-                            height: '36px', 
-                            borderRadius: '0.4rem', 
-                            fontSize: '0.75rem', 
-                            fontWeight: 700,
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            gap: '0.25rem', 
-                            cursor: 'pointer', 
-                            whiteSpace: 'nowrap',
-                            background: 'var(--btn-secondary-bg)',
-                            color: 'var(--btn-secondary-text)',
-                            border: '1px solid var(--btn-secondary-border)'
-                          }}
-                        >
-                          <Upload size={12} style={{ color: 'var(--primary)' }} />
-                          <span>Upload</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            style={{ display: 'none' }}
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                handleImageUpload(index, e.target.files[0])
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-
-                      {/* Delete Row Button */}
-                      {crudImages.length > 1 && (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          style={{ 
-                            padding: '0.35rem', 
-                            color: '#f87171', 
-                            backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-                            border: '1px solid rgba(239, 68, 68, 0.3)', 
-                            height: '36px', 
-                            width: '36px', 
-                            borderRadius: '0.4rem', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            flexShrink: 0,
-                            cursor: 'pointer' 
-                          }}
-                          onClick={() => {
-                            const newImages = crudImages.filter((_, i) => i !== index)
-                            setCrudImages(newImages)
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Video YouTube (URL - Opsional)</label>
-                <input 
-                  type="url" 
-                  className="form-input" 
-                  placeholder="Tautan video YouTube..."
-                  value={crudForm.video_url}
-                  onChange={(e) => setCrudForm({ ...crudForm, video_url: e.target.value })}
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.25rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Asal</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Kalimantan..."
-                    value={crudForm.native_region}
-                    onChange={(e) => setCrudForm({ ...crudForm, native_region: e.target.value })}
+                  <label className="form-label">{typeConfig.deliveryTermsLabel}</label>
+                  <textarea 
+                    rows={2} 
+                    className="form-textarea" 
+                    placeholder={typeConfig.deliveryTermsPlaceholder}
+                    value={crudForm.shipping_terms}
+                    onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
                   />
                 </div>
+
                 <div className="form-group">
-                  <label className="form-label">Lifespan</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="10 tahun..."
-                    value={crudForm.lifespan}
-                    onChange={(e) => setCrudForm({ ...crudForm, lifespan: e.target.value })}
+                  <label className="form-label">{typeConfig.warrantyLabel}</label>
+                  <textarea 
+                    rows={2} 
+                    className="form-textarea" 
+                    placeholder={typeConfig.warrantyPlaceholder}
+                    value={crudForm.warranty_info}
+                    onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
                   />
                 </div>
+
                 <div className="form-group">
-                  <label className="form-label">Bobot</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="1 kg..."
-                    value={crudForm.weight}
-                    onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
+                  <label className="form-label">{typeConfig.descLabel}</label>
+                  <textarea 
+                    rows={4} 
+                    className="form-textarea" 
+                    placeholder={typeConfig.descPlaceholder}
+                    required
+                    value={crudForm.description}
+                    onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
                   />
                 </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Jangkauan Pengiriman *</label>
-                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                  <select 
-                    className="form-select"
-                    style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                    value={showCustomShippingCoverageInput ? '__NEW__' : crudForm.shipping_coverage}
-                    onChange={(e) => {
-                      if (e.target.value === '__NEW__') {
-                        setShowCustomShippingCoverageInput(true)
-                        setCustomShippingCoverage('')
-                      } else {
-                        setShowCustomShippingCoverageInput(false)
-                        setCrudForm({ ...crudForm, shipping_coverage: e.target.value })
-                      }
-                    }}
-                  >
-                    {getUniqueShippingCoverages().map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                    <option value="__NEW__">+ Tambah Baru...</option>
-                  </select>
-                </div>
-                {showCustomShippingCoverageInput && (
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    style={{ marginTop: '0.35rem' }} 
-                    placeholder="Ketik Jangkauan Pengiriman Baru..." 
-                    value={customShippingCoverage} 
-                    onChange={(e) => setCustomShippingCoverage(e.target.value)} 
-                    required 
-                  />
-                )}
-              </div>
-              <div className="form-group">
-                <label className="form-label">Deskripsi Hewan *</label>
-                <textarea 
-                  rows={3} 
-                  className="form-textarea" 
-                  placeholder="Tuliskan keterangan detail kondisi fisik..."
-                  required
-                  value={crudForm.description}
-                  onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
-                />
-              </div>
 
-              <div className="form-group">
-                <label className="form-label">Ketentuan Pengiriman</label>
-                <textarea 
-                  rows={2} 
-                  className="form-textarea" 
-                  placeholder="Contoh: Pengiriman via ojek online..."
-                  value={crudForm.shipping_terms}
-                  onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Ketentuan Garansi</label>
-                <textarea 
-                  rows={2} 
-                  className="form-textarea" 
-                  placeholder="Contoh: Garansi hidup sampai tujuan..."
-                  value={crudForm.warranty_info}
-                  onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                className="btn-full btn-primary"
-                disabled={crudLoading}
-                style={{ marginTop: '1rem', height: '44px', fontSize: '0.9rem', fontWeight: 'bold' }}
-              >
-                {crudLoading ? 'Menyimpan...' : 'Simpan Postingan'}
-              </button>
-            </form>
+                <button 
+                  type="submit" 
+                  className="btn-full btn-primary"
+                  disabled={crudLoading}
+                  style={{ marginTop: '1rem', height: '44px', fontSize: '0.9rem', fontWeight: 'bold' }}
+                >
+                  {crudLoading ? 'Menyimpan...' : 'Simpan Item'}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-      ) : view === 'article-editor' ? (
+        );
+      })() : view === 'article-editor' ? (
         /* ==========================================================
            MOBILE FULL-PAGE ARTICLE EDITOR (WORDPRESS/BLOGGER STYLE)
            ========================================================== */
@@ -9553,7 +10155,7 @@ function App() {
                 </button>
                 <div>
                   <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
-                    Pilih Tipe Produk / Usaha
+                    Pilih Tipe Item Katalog
                   </h3>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     Step 1 dari 2: Kategori Item Katalog
@@ -9601,7 +10203,7 @@ function App() {
                   Mau Menambahkan Item Apa Hari Ini?
                 </h2>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
-                  Pilih tipe item di bawah agar struktur form, bidang input, dan fitur pendukung secara otomatis disesuaikan dengan jenis produk atau jasa Anda.
+                  Pilih tipe item katalog di bawah agar struktur formulir, bidang input, dan atribut spesifik disesuaikan secara otomatis.
                 </p>
               </div>
 
@@ -9650,10 +10252,10 @@ function App() {
                       </span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                      Pakaian, Aksesoris, Gadget, Kerajinan, & Produk Manufaktur.
+                      Pakaian, Aksesoris, Gadget, Kerajinan, & Produk Fisik.
                     </p>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                      ⚡ Form: Stok, Kondisi (Baru/Bekas), Berat, Variasi
+                      ⚡ Form: Stok, Kondisi, Berat, Merek, Varian
                     </div>
                   </div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -9661,7 +10263,7 @@ function App() {
                   </div>
                 </div>
 
-                {/* 2. Barang Digital */}
+                {/* 2. Item Digital */}
                 <div 
                   onClick={() => handleSelectProductType('digital')}
                   style={{ 
@@ -9696,17 +10298,17 @@ function App() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                        Barang Digital
+                        Item Digital
                       </h4>
                       <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
                         File & Lisensi
                       </span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                      E-book, Template, File PDF, Source Code, Lisensi, & File Unduhan.
+                      E-book, Template, File PDF, Source Code, Lisensi & Unduhan.
                     </p>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                      ⚡ Form: Link Download, Format File, Ukuran File
+                      ⚡ Form: Link Akses, Format File, Ukuran, Lisensi
                     </div>
                   </div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -9714,7 +10316,7 @@ function App() {
                   </div>
                 </div>
 
-                {/* 3. Hewan & Living Fauna */}
+                {/* 3. Satwa & Living Fauna */}
                 <div 
                   onClick={() => handleSelectProductType('fauna')}
                   style={{ 
@@ -9749,7 +10351,7 @@ function App() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                        Hewan & Living Fauna
+                        Satwa & Living Fauna
                       </h4>
                       <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                         Satwa & Fauna
@@ -9759,7 +10361,7 @@ function App() {
                       Pet Shop, Reptil, Burung, Ikan Hias, Tanaman Hias, & Biota.
                     </p>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                      ⚡ Form: Nama Latin, Kategori Fauna, Status Konservasi
+                      ⚡ Form: Nama Latin, Asal, Bobot, Masa Hidup
                     </div>
                   </div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -9809,10 +10411,10 @@ function App() {
                       </span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                      Grooming, Desain, Service, Repair, Les/Kursus, & Konsultasi.
+                      Grooming, Desain, Service, Repair, Kursus, & Konsultasi.
                     </p>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                      ⚡ Form: Durasi Layanan, Sesi, Lokasi Service
+                      ⚡ Form: Durasi Layanan, Lokasi, Jangkauan, Fasilitas
                     </div>
                   </div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -9855,7 +10457,7 @@ function App() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                        Makanan & Minuman (F&B)
+                        Menu Kuliner (F&B)
                       </h4>
                       <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
                         Kuliner & F&B
@@ -9865,7 +10467,7 @@ function App() {
                       Kuliner, Camilan, Frozen Food, Minuman Olahan, & Katering.
                     </p>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                      ⚡ Form: Expired Date, Suhu Simpan, Sertifikasi
+                      ⚡ Form: Porsi, Expired Date, Suhu Simpan, Sertifikasi
                     </div>
                   </div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -12138,175 +12740,402 @@ function App() {
                           )}
                         </form>
                       ) : (
-                        /* Master Data Subtab on Mobile */
-                        <div className="glass-panel animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                          <div>
-                            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Pilihan Master Data</h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', marginTop: '0.2rem' }}>
-                              Kelola daftar pilihan dropdown bawaan aplikasi.
+                        /* Master Data Subtab on Mobile (Touch-Optimized Hub) */
+                        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          {/* Header and 1-Click Preset Bar */}
+                          <div className="glass-panel" style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.85rem', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 900, padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                                TWO-TIER MASTER DATA
+                              </span>
+                            </div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                              Kelola Kategori &amp; Opsi Toko
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', margin: '0.25rem 0 0.75rem 0', lineHeight: 1.4 }}>
+                              Atur kategori dan opsi dropdown katalog Anda secara independen.
                             </p>
+
+                            {/* 1-Click Industry Presets Horizontal Slider */}
+                            <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.75rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                                <Sparkles size={14} style={{ color: 'var(--primary)' }} />
+                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Preset Industri Instan (1-Click):
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
+                                {[
+                                  { key: 'physical', label: '📦 Retail & Fisik', color: '#3b82f6', desc: 'Pakaian, Gadget, Aksesoris' },
+                                  { key: 'digital', label: '💾 File & Digital', color: '#8b5cf6', desc: 'E-Book, Script, Video' },
+                                  { key: 'fauna', label: '🐾 Satwa & Flora', color: '#10b981', desc: 'Reptil, Ikan, Burung, Pakan' },
+                                  { key: 'service', label: '🛠️ Jasa & Layanan', color: '#f59e0b', desc: 'Konsultasi, Servis, Desain' },
+                                  { key: 'food', label: '🍱 Menu Kuliner', color: '#ef4444', desc: 'Makanan, Minuman, Snack' },
+                                  { key: 'general', label: '⚡ Universal', color: '#06b6d4', desc: 'Template netral umum' },
+                                ].map((preset) => (
+                                  <button
+                                    key={preset.key}
+                                    type="button"
+                                    onClick={() => {
+                                      setPresetModalData({
+                                        key: preset.key as any,
+                                        title: preset.label,
+                                        desc: preset.desc,
+                                        sampleCategories: preset.key === 'physical'
+                                          ? ['Pakaian & Busana', 'Aksesoris & Fashion', 'Gadget & Elektronik', 'Kebutuhan Rumah Tangga', 'Kerajinan Tangan']
+                                          : preset.key === 'digital'
+                                          ? ['E-Book & Panduan', 'Source Code & Script', 'Template Desain', 'Video & Audio Materi', 'Tools & Aset Digital']
+                                          : preset.key === 'fauna'
+                                          ? ['Reptil & Amfibi', 'Ikan Hias & Aquascape', 'Burung Kicau & Unggas', 'Mamalia Hias', 'Pakan & Perlengkapan']
+                                          : preset.key === 'service'
+                                          ? ['Konsultasi & Advice', 'Desain & Kreatif', 'Perbaikan & Servis', 'Kursus & Pelatihan', 'Pembuatan Web & Aplikasi']
+                                          : preset.key === 'food'
+                                          ? ['Makanan Utama / Berat', 'Camilan & Snack', 'Minuman Segar & Kopi', 'Frozen Food Siap Masak', 'Paket Katering']
+                                          : ['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial']
+                                      });
+                                    }}
+                                    style={{
+                                      padding: '0.45rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                      border: '1px solid var(--border-light)',
+                                      color: 'var(--text-primary)',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 800,
+                                      whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'flex-start',
+                                      gap: '0.15rem'
+                                    }}
+                                  >
+                                    <span>{preset.label}</span>
+                                    <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{preset.desc}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Kelas Category */}
-                          <div className="glass-panel" style={{ padding: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
-                            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--primary)' }}>Kelas Hewan</h4>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.85rem' }}>
-                              {getUniqueClasses().map((c) => (
-                                <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.25rem 0.5rem', borderRadius: '0.35rem', fontSize: '0.72rem' }}>
-                                  {c}
-                                  <span
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleDeleteMasterOption('class', c);
-                                    }}
-                                    style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.1rem', display: 'inline-flex' }}
-                                    title={`Hapus opsi ${c}`}
-                                  >
-                                    <X size={10} />
-                                  </span>
-                                </span>
-                              ))}
+                          {/* 1. Kategori Item (master_classes) */}
+                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Package size={14} /> Kategori Item Toko
+                              </h4>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                                {getUniqueClasses().length} Opsi
+                              </span>
                             </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                              {getUniqueClasses().map((c) => {
+                                const count = faunas.filter(f => f.class === c).length;
+                                return (
+                                  <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
+                                    <span>{c}</span>
+                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                      {count}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setRenameMasterModalData({
+                                          field: 'class',
+                                          fieldLabel: 'Kategori Item Toko',
+                                          oldValue: c,
+                                          newValue: c
+                                        });
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Ubah nama ${c}`}
+                                    >
+                                      <Edit3 size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleDeleteMasterOption('class', c);
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Hapus opsi ${c}`}
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+
                             <div style={{ display: 'flex', gap: '0.35rem' }}>
                               <input 
                                 type="text" 
-                                placeholder="Kelas baru..." 
+                                placeholder="Ketik kategori baru..." 
                                 className="form-input" 
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: '30px', flex: 1 }}
+                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
                                 value={newClassInput}
                                 onChange={(e) => setNewClassInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddMasterOption('class', newClassInput, setNewClassInput);
+                                  }
+                                }}
                               />
                               <button 
                                 type="button" 
                                 className="btn-primary" 
-                                style={{ padding: '0 0.6rem', fontSize: '0.75rem', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                                 onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
                               >
-                                <Plus size={12} />
+                                <Plus size={13} /> Tambah
                               </button>
                             </div>
                           </div>
 
-                          {/* Habitat Category */}
-                          <div className="glass-panel" style={{ padding: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
-                            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--primary)' }}>Habitat</h4>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.85rem' }}>
-                              {getUniqueHabitats().map((h) => (
-                                <span key={h} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.25rem 0.5rem', borderRadius: '0.35rem', fontSize: '0.72rem' }}>
-                                  {h}
-                                  <span
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleDeleteMasterOption('habitat', h);
-                                    }}
-                                    style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.1rem', display: 'inline-flex' }}
-                                    title={`Hapus opsi ${h}`}
-                                  >
-                                    <X size={10} />
-                                  </span>
-                                </span>
-                              ))}
+                          {/* 2. Sub-Klasifikasi / Karakteristik Item (master_habitats) */}
+                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Layers size={14} /> Sub-Klasifikasi / Karakter
+                              </h4>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa' }}>
+                                {getUniqueHabitats().length} Opsi
+                              </span>
                             </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                              {getUniqueHabitats().map((h) => {
+                                const count = faunas.filter(f => f.habitat === h).length;
+                                return (
+                                  <span key={h} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
+                                    <span>{h}</span>
+                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                      {count}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setRenameMasterModalData({
+                                          field: 'habitat',
+                                          fieldLabel: 'Sub-Klasifikasi / Karakter',
+                                          oldValue: h,
+                                          newValue: h
+                                        });
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Ubah nama ${h}`}
+                                    >
+                                      <Edit3 size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleDeleteMasterOption('habitat', h);
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Hapus opsi ${h}`}
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+
                             <div style={{ display: 'flex', gap: '0.35rem' }}>
                               <input 
                                 type="text" 
-                                placeholder="Habitat baru..." 
+                                placeholder="Ketik sub-klasifikasi baru..." 
                                 className="form-input" 
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: '30px', flex: 1 }}
+                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
                                 value={newHabitatInput}
                                 onChange={(e) => setNewHabitatInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput);
+                                  }
+                                }}
                               />
                               <button 
                                 type="button" 
                                 className="btn-primary" 
-                                style={{ padding: '0 0.6rem', fontSize: '0.75rem', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                                 onClick={() => handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput)}
                               >
-                                <Plus size={12} />
+                                <Plus size={13} /> Tambah
                               </button>
                             </div>
                           </div>
 
-                          {/* Status Konservasi Category */}
-                          <div className="glass-panel" style={{ padding: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
-                            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--primary)' }}>Status Konservasi</h4>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.85rem' }}>
-                              {getUniqueConservationStatuses().map((s) => (
-                                <span key={s} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.25rem 0.5rem', borderRadius: '0.35rem', fontSize: '0.72rem' }}>
-                                  {s}
-                                  <span
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleDeleteMasterOption('conservation_status', s);
-                                    }}
-                                    style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.1rem', display: 'inline-flex' }}
-                                    title={`Hapus opsi ${s}`}
-                                  >
-                                    <X size={10} />
-                                  </span>
-                                </span>
-                              ))}
+                          {/* 3. Status Ketersediaan Item (master_statuses) */}
+                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <ShieldCheck size={14} /> Status Ketersediaan
+                              </h4>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
+                                {getUniqueConservationStatuses().length} Opsi
+                              </span>
                             </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                              {getUniqueConservationStatuses().map((s) => {
+                                const count = faunas.filter(f => f.conservation_status === s).length;
+                                return (
+                                  <span key={s} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
+                                    <span>{s}</span>
+                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                      {count}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setRenameMasterModalData({
+                                          field: 'conservation_status',
+                                          fieldLabel: 'Status Ketersediaan',
+                                          oldValue: s,
+                                          newValue: s
+                                        });
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Ubah nama ${s}`}
+                                    >
+                                      <Edit3 size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleDeleteMasterOption('conservation_status', s);
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Hapus opsi ${s}`}
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+
                             <div style={{ display: 'flex', gap: '0.35rem' }}>
                               <input 
                                 type="text" 
-                                placeholder="Status baru..." 
+                                placeholder="Ketik status baru..." 
                                 className="form-input" 
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: '30px', flex: 1 }}
+                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
                                 value={newStatusInput}
                                 onChange={(e) => setNewStatusInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput);
+                                  }
+                                }}
                               />
                               <button 
                                 type="button" 
                                 className="btn-primary" 
-                                style={{ padding: '0 0.6rem', fontSize: '0.75rem', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                                 onClick={() => handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput)}
                               >
-                                <Plus size={12} />
+                                <Plus size={13} /> Tambah
                               </button>
                             </div>
                           </div>
 
-                          {/* Jangkauan Pengiriman Category */}
-                          <div className="glass-panel" style={{ padding: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
-                            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--primary)' }}>Jangkauan Pengiriman</h4>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.85rem' }}>
-                              {getUniqueShippingCoverages().map((sc) => (
-                                <span key={sc} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.25rem 0.5rem', borderRadius: '0.35rem', fontSize: '0.72rem' }}>
-                                  {sc}
-                                  <span
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleDeleteMasterOption('shipping_coverage', sc);
-                                    }}
-                                    style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.1rem', display: 'inline-flex' }}
-                                    title={`Hapus opsi ${sc}`}
-                                  >
-                                    <X size={10} />
-                                  </span>
-                                </span>
-                              ))}
+                          {/* 4. Jangkauan Pengiriman / Wilayah Layanan (master_shipping_coverages) */}
+                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Truck size={14} /> Jangkauan Pengiriman &amp; Layanan
+                              </h4>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
+                                {getUniqueShippingCoverages().length} Opsi
+                              </span>
                             </div>
+
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                              {getUniqueShippingCoverages().map((sc) => {
+                                const count = faunas.filter(f => f.detailed_info?.shipping_coverage === sc).length;
+                                return (
+                                  <span key={sc} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
+                                    <span>{sc}</span>
+                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                      {count}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setRenameMasterModalData({
+                                          field: 'shipping_coverage',
+                                          fieldLabel: 'Jangkauan Pengiriman & Layanan',
+                                          oldValue: sc,
+                                          newValue: sc
+                                        });
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Ubah nama ${sc}`}
+                                    >
+                                      <Edit3 size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleDeleteMasterOption('shipping_coverage', sc);
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                      title={`Hapus opsi ${sc}`}
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+
                             <div style={{ display: 'flex', gap: '0.35rem' }}>
                               <input 
                                 type="text" 
-                                placeholder="Jangkauan baru..." 
+                                placeholder="Ketik jangkauan baru..." 
                                 className="form-input" 
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: '30px', flex: 1 }}
+                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
                                 value={newShippingInput}
                                 onChange={(e) => setNewShippingInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput);
+                                  }
+                                }}
                               />
                               <button 
                                 type="button" 
                                 className="btn-primary" 
-                                style={{ padding: '0 0.6rem', fontSize: '0.75rem', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                                 onClick={() => handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput)}
                               >
-                                <Plus size={12} />
+                                <Plus size={13} /> Tambah
                               </button>
                             </div>
                           </div>
@@ -13278,10 +14107,10 @@ function App() {
               <AlertTriangle size={24} style={{ color: '#f87171' }} />
             </div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--text-primary)', textAlign: 'center' }}>
-              Hapus Postingan?
+              Hapus Item Katalog?
             </h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1.5rem', lineHeight: '1.45', textAlign: 'center' }}>
-              Apakah Anda yakin ingin menghapus postingan fauna <strong>"{faunaToDelete.name}"</strong>? Tindakan ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus item <strong>"{faunaToDelete.name}"</strong>? Tindakan ini tidak dapat dibatalkan.
             </p>
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -13388,424 +14217,7 @@ function App() {
         </div>
       )}
 
-      {/* MOBILE BOTTOM SHEET: ADMIN CRUD FORM */}
-      {showCrudSheet && (
-        <div className="bottom-sheet-overlay" onClick={() => setShowCrudSheet(false)}>
-          <div className="bottom-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
-            <div className="sheet-handle"></div>
-            <div className="sheet-content">
-              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>
-                {crudMode === 'create' ? 'Tambah Postingan Hewan' : 'Edit Postingan Hewan'}
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: '1.25rem' }}>
-                Silakan isi data inventaris toko dengan benar.
-              </p>
 
-              {crudError && (
-                <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                  {crudError}
-                </div>
-              )}
-
-              <form onSubmit={handleFaunaSubmit}>
-                <div className="form-group">
-                  <label className="form-label">Nama Hewan *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Nama hewan hias..."
-                    required
-                    value={crudForm.name}
-                    onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Nama Ilmiah *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Nama ilmiah/taksonomi..."
-                    required
-                    value={crudForm.scientific_name}
-                    onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Kelas *</label>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                        value={showCustomClassInput ? '__NEW__' : crudForm.class}
-                        onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
-                            setShowCustomClassInput(true)
-                            setCustomClass('')
-                          } else {
-                            setShowCustomClassInput(false)
-                            setCrudForm({ ...crudForm, class: e.target.value })
-                          }
-                        }}
-                      >
-                        {getUniqueClasses().map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomClassInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.35rem' }} 
-                        placeholder="Ketik Kelas Baru..." 
-                        value={customClass} 
-                        onChange={(e) => setCustomClass(e.target.value)} 
-                        required 
-                      />
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Habitat *</label>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                        value={showCustomHabitatInput ? '__NEW__' : crudForm.habitat}
-                        onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
-                            setShowCustomHabitatInput(true)
-                            setCustomHabitat('')
-                          } else {
-                            setShowCustomHabitatInput(false)
-                            setCrudForm({ ...crudForm, habitat: e.target.value })
-                          }
-                        }}
-                      >
-                        {getUniqueHabitats().map((h) => (
-                          <option key={h} value={h}>{h}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomHabitatInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.35rem' }} 
-                        placeholder="Ketik Habitat Baru..." 
-                        value={customHabitat} 
-                        onChange={(e) => setCustomHabitat(e.target.value)} 
-                        required 
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Makanan/Diet *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Cacing/Katak/Pelet..."
-                      required
-                      value={crudForm.diet}
-                      onChange={(e) => setCrudForm({ ...crudForm, diet: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Status *</label>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                        value={showCustomConservationStatusInput ? '__NEW__' : crudForm.conservation_status}
-                        onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
-                            setShowCustomConservationStatusInput(true)
-                            setCustomConservationStatus('')
-                          } else {
-                            setShowCustomConservationStatusInput(false)
-                            setCrudForm({ ...crudForm, conservation_status: e.target.value })
-                          }
-                        }}
-                      >
-                        {getUniqueConservationStatuses().map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomConservationStatusInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.35rem' }} 
-                        placeholder="Ketik Status Baru..." 
-                        value={customConservationStatus} 
-                        onChange={(e) => setCustomConservationStatus(e.target.value)} 
-                        required 
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Harga (IDR) *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Harga jual..."
-                      required
-                      value={formatRupiahInput(crudForm.price)}
-                      onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
-                    />
-                  </div>
-                </div>
-                {/* Multi-image upload section */}
-                <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <label className="form-label" style={{ margin: 0 }}>Foto Satwa (1-5 Foto) *</label>
-                    {crudImages.length < 5 && (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.25rem' }}
-                        onClick={() => setCrudImages([...crudImages, ''])}
-                      >
-                        + Foto
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                    {crudImages.map((imgUrl, index) => (
-                      <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
-                        {/* Preview Thumbnail */}
-                        <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                          {imgUrl ? (
-                            <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-                              <Image size={13} style={{ color: 'var(--primary)' }} />
-                              <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
-                            </div>
-                          )}
-                          {uploadingIndex === index && (
-                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Loader className="animate-spin" size={10} style={{ color: 'var(--primary)' }} />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Input & Upload Controls */}
-                        <div style={{ flexGrow: 1, display: 'flex', gap: '0.35rem' }}>
-                          <input
-                            type="text"
-                            className="form-input"
-                            placeholder={`Tautan Foto ${index === 0 ? 'Utama *' : `${index + 1}`}`}
-                            value={imgUrl}
-                            onChange={(e) => {
-                              const newImages = [...crudImages]
-                              newImages[index] = e.target.value
-                              setCrudImages(newImages)
-                            }}
-                            required={index === 0}
-                            style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
-                          />
-                          
-                          {/* Device File Upload Button */}
-                          <label 
-                            className="btn-secondary" 
-                            style={{ 
-                              padding: '0.35rem 0.65rem', 
-                              height: '36px', 
-                              borderRadius: '0.4rem', 
-                              fontSize: '0.75rem', 
-                              fontWeight: 700,
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: '0.25rem', 
-                              cursor: 'pointer', 
-                              whiteSpace: 'nowrap',
-                              background: 'var(--btn-secondary-bg)',
-                              color: 'var(--btn-secondary-text)',
-                              border: '1px solid var(--btn-secondary-border)'
-                            }}
-                          >
-                            <Upload size={12} style={{ color: 'var(--primary)' }} />
-                            <span>Upload</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={(e) => {
-                                if (e.target.files && e.target.files[0]) {
-                                  handleImageUpload(index, e.target.files[0])
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
-
-                        {/* Delete Row Button */}
-                        {crudImages.length > 1 && (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ 
-                              padding: '0.35rem', 
-                              color: '#f87171', 
-                              backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-                              border: '1px solid rgba(239, 68, 68, 0.3)', 
-                              height: '36px', 
-                              width: '36px', 
-                              borderRadius: '0.4rem', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              flexShrink: 0,
-                              cursor: 'pointer' 
-                            }}
-                            onClick={() => {
-                              const newImages = crudImages.filter((_, i) => i !== index)
-                              setCrudImages(newImages)
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Video YouTube (URL - Opsional)</label>
-                  <input 
-                    type="url" 
-                    className="form-input" 
-                    placeholder="Tautan video YouTube..."
-                    value={crudForm.video_url}
-                    onChange={(e) => setCrudForm({ ...crudForm, video_url: e.target.value })}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.25rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Asal</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Kalimantan..."
-                      value={crudForm.native_region}
-                      onChange={(e) => setCrudForm({ ...crudForm, native_region: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Lifespan</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="10 tahun..."
-                      value={crudForm.lifespan}
-                      onChange={(e) => setCrudForm({ ...crudForm, lifespan: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Bobot</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="1 kg..."
-                      value={crudForm.weight}
-                      onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Jangkauan Pengiriman *</label>
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <select 
-                      className="form-select"
-                      style={{ flex: 1, height: '34px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      value={showCustomShippingCoverageInput ? '__NEW__' : crudForm.shipping_coverage}
-                      onChange={(e) => {
-                        if (e.target.value === '__NEW__') {
-                          setShowCustomShippingCoverageInput(true)
-                          setCustomShippingCoverage('')
-                        } else {
-                          setShowCustomShippingCoverageInput(false)
-                          setCrudForm({ ...crudForm, shipping_coverage: e.target.value })
-                        }
-                      }}
-                    >
-                      {getUniqueShippingCoverages().map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                      <option value="__NEW__">+ Tambah Baru...</option>
-                    </select>
-                  </div>
-                  {showCustomShippingCoverageInput && (
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      style={{ marginTop: '0.35rem' }} 
-                      placeholder="Ketik Jangkauan Pengiriman Baru..." 
-                      value={customShippingCoverage} 
-                      onChange={(e) => setCustomShippingCoverage(e.target.value)} 
-                      required 
-                    />
-                  )}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Deskripsi Hewan *</label>
-                  <textarea 
-                    rows={3} 
-                    className="form-textarea" 
-                    placeholder="Tuliskan keterangan detail kondisi fisik..."
-                    required
-                    value={crudForm.description}
-                    onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Ketentuan Pengiriman</label>
-                  <textarea 
-                    rows={2} 
-                    className="form-textarea" 
-                    placeholder="Contoh: Pengiriman via ojek online..."
-                    value={crudForm.shipping_terms}
-                    onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Ketentuan Garansi</label>
-                  <textarea 
-                    rows={2} 
-                    className="form-textarea" 
-                    placeholder="Contoh: Garansi hidup sampai tujuan..."
-                    value={crudForm.warranty_info}
-                    onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
-                  />
-                </div>
-
-                <button 
-                  type="submit" 
-                  className="btn-full btn-primary"
-                  disabled={crudLoading}
-                  style={{ marginTop: '0.5rem' }}
-                >
-                  {crudLoading ? 'Menyimpan...' : 'Simpan Postingan'}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
 
 
@@ -14336,6 +14748,129 @@ function App() {
             <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1rem', padding: '0.65rem', fontSize: '0.8rem', fontWeight: 800 }}>
               Saya Mengerti &amp; Tutup
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* RENAME MASTER OPTION MODAL (MOBILE) */}
+      {renameMasterModalData && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setRenameMasterModalData(null)}>
+          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '420px', padding: '1.25rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Edit3 size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
+                  Ubah Nama {renameMasterModalData.fieldLabel}
+                </span>
+              </div>
+              <button type="button" onClick={() => setRenameMasterModalData(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.3rem' }}>
+                Nama Saat Ini:
+              </label>
+              <div style={{ padding: '0.45rem 0.65rem', borderRadius: '0.45rem', backgroundColor: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.85rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                {renameMasterModalData.oldValue}
+              </div>
+
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#ffffff', display: 'block', marginBottom: '0.3rem' }}>
+                Nama Baru:
+              </label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Masukkan nama baru..." 
+                value={renameMasterModalData.newValue} 
+                onChange={(e) => setRenameMasterModalData({ ...renameMasterModalData, newValue: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleRenameMasterOption(renameMasterModalData.field, renameMasterModalData.oldValue, renameMasterModalData.newValue);
+                  }
+                }}
+                autoFocus
+                style={{ width: '100%', padding: '0.55rem 0.75rem', fontSize: '0.85rem', borderRadius: '0.5rem' }}
+              />
+            </div>
+
+            <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: '1rem', display: 'flex', gap: '0.45rem' }}>
+              <Info size={15} style={{ color: '#60a5fa', flexShrink: 0, marginTop: '2px' }} />
+              <span style={{ fontSize: '0.72rem', color: '#93c5fd', lineHeight: 1.35 }}>
+                Otomatis disinkronkan ke seluruh item katalog yang memakai opsi ini.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => setRenameMasterModalData(null)} style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem' }}>
+                Batal
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary" 
+                disabled={crudLoading || !renameMasterModalData.newValue.trim()} 
+                onClick={() => handleRenameMasterOption(renameMasterModalData.field, renameMasterModalData.oldValue, renameMasterModalData.newValue)}
+                style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', fontWeight: 800 }}
+              >
+                {crudLoading ? 'Menyimpan...' : 'Simpan Nama Baru'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRESET MASTER DATA CONFIRMATION MODAL (MOBILE) */}
+      {presetModalData && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setPresetModalData(null)}>
+          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '440px', padding: '1.25rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Sparkles size={18} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
+                  Terapkan Template {presetModalData.title}
+                </span>
+              </div>
+              <button type="button" onClick={() => setPresetModalData(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <p style={{ fontSize: '0.78rem', color: '#cbd5e1', marginBottom: '0.85rem', lineHeight: 1.4 }}>
+              Template ini akan menyusun ulang opsi kategori toko bawaan sesuai standar <strong>{presetModalData.title}</strong>:
+            </p>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.35rem' }}>
+                Kategori yang Akan Dimuat:
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {presetModalData.sampleCategories.map((cat, idx) => (
+                  <span key={idx} style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', borderRadius: '5px', backgroundColor: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '1rem', display: 'flex', gap: '0.45rem' }}>
+              <CheckCircle2 size={15} style={{ color: '#34d399', flexShrink: 0, marginTop: '2px' }} />
+              <span style={{ fontSize: '0.72rem', color: '#6ee7b7', lineHeight: 1.35 }}>
+                Item katalog Anda tetap aman &amp; tidak akan terhapus.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => setPresetModalData(null)} style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem' }}>
+                Batal
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary" 
+                disabled={crudLoading} 
+                onClick={() => handleApplyPreset(presetModalData.key)}
+                style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', fontWeight: 800 }}
+              >
+                {crudLoading ? 'Menerapkan...' : 'Terapkan Template Ini'}
+              </button>
+            </div>
           </div>
         </div>
       )}

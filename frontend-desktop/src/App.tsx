@@ -48,6 +48,9 @@ import {
   Heart,
   Truck,
   Sparkles,
+  Package,
+  FileCode,
+  Wrench,
   Star,
   AlertTriangle,
   ArrowRight,
@@ -98,7 +101,11 @@ import {
   Trees,
   Sunset,
   Waves,
-  Flower2
+  Flower2,
+  ChevronUp,
+  CheckCheck,
+  RefreshCw,
+  LayoutGrid
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -165,6 +172,193 @@ function cacheLogoAsBase64(slug: string, url: string) {
   } catch {}
 }
 
+export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food';
+
+export interface ItemTypeConfig {
+  type: ItemCategoryType;
+  typeName: string;
+  badgeName: string;
+  icon: any;
+  color: string;
+  gradientBg: string;
+  modalTitle: (mode: 'create' | 'edit') => string;
+  modalSubtitle: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  categoryLabel: string;
+  defaultCategory: string;
+  categoryOptions: string[];
+  priceLabel: string;
+  pricePlaceholder: string;
+  photoLabel: string;
+  photoHelper: string;
+  videoLabel: string;
+  videoPlaceholder: string;
+  deliveryLabel: string;
+  deliveryOptions: string[];
+  deliveryTermsLabel: string;
+  deliveryTermsPlaceholder: string;
+  warrantyLabel: string;
+  warrantyPlaceholder: string;
+  descLabel: string;
+  descPlaceholder: string;
+}
+
+export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
+  switch (type) {
+    case 'physical':
+      return {
+        type: 'physical',
+        typeName: 'Barang Fisik',
+        badgeName: 'Barang Fisik',
+        icon: Package,
+        color: '#2563eb',
+        gradientBg: 'radial-gradient(circle at top left, rgba(37, 99, 235, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Barang Fisik' : 'Edit Barang Fisik',
+        modalSubtitle: 'Lengkapi spesifikasi barang fisik, stok inventaris, dan opsi pengiriman.',
+        nameLabel: 'Nama Barang *',
+        namePlaceholder: 'Contoh: Kaos Oversize Cotton Combed 24s / Keyboard Mechanical...',
+        categoryLabel: 'Kategori / Jenis Barang *',
+        defaultCategory: 'Pakaian & Fashion',
+        categoryOptions: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
+        priceLabel: 'Harga Jual Satuan (IDR) *',
+        pricePlaceholder: 'Contoh: 150.000',
+        photoLabel: 'Foto Barang (1-5 Foto) *',
+        photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
+        videoLabel: 'Video Review / Unboxing (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Jangkauan Pengiriman Ekspedisi *',
+        deliveryOptions: ['Bisa Kirim se-Indonesia', 'Khusus Pulau Jawa / Satu Wilayah', 'Ambil Sendiri di Toko (No Shipping)', 'Kurir Instan / Sameday Only'],
+        deliveryTermsLabel: 'Ketentuan Ekspedisi & Packing',
+        deliveryTermsPlaceholder: 'Contoh: Pengiriman via JNE / J&T / SiCepat setiap hari kerja. Packing aman bubble wrap tebal + kardus gratis...',
+        warrantyLabel: 'Kebijakan Garansi / Retur Barang',
+        warrantyPlaceholder: 'Contoh: Garansi tukar baru 7 hari jika barang cacat produksi dengan melampirkan video unboxing...',
+        descLabel: 'Deskripsi Lengkap Barang *',
+        descPlaceholder: 'Jelaskan detail spesifikasi bahan/material, dimensi ukuran, kelengkapan isi kemasan, dan fitur unggulan barang ini...'
+      };
+    case 'digital':
+      return {
+        type: 'digital',
+        typeName: 'Item Digital',
+        badgeName: 'Item Digital',
+        icon: FileCode,
+        color: '#8b5cf6',
+        gradientBg: 'radial-gradient(circle at top left, rgba(139, 92, 246, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Item Digital' : 'Edit Item Digital',
+        modalSubtitle: 'Lengkapi tautan unduhan, format file, dan lisensi penggunaan item digital.',
+        nameLabel: 'Nama File / Item Digital *',
+        namePlaceholder: 'Contoh: E-Book Panduan Bisnis Kuliner / Template Notion 2026 / Source Code...',
+        categoryLabel: 'Format & Kategori Digital *',
+        defaultCategory: 'E-Book & PDF',
+        categoryOptions: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software'],
+        priceLabel: 'Harga Akses / Lisensi (IDR) *',
+        pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
+        photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
+        photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
+        videoLabel: 'Video Preview / Demo Item Digital (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Metode Pengiriman File Digital *',
+        deliveryOptions: ['Akses Instan Otomatis (Link Cloud)', 'Kirim via Email Pembeli', 'Kirim via WhatsApp Admin', 'Akses Member Area'],
+        deliveryTermsLabel: 'Panduan Akses & Unduhan File',
+        deliveryTermsPlaceholder: 'Contoh: Setelah pembayaran diverifikasi, link akses Google Drive / Dropbox akan otomatis dikirimkan dan aktif selamanya...',
+        warrantyLabel: 'Ketentuan Lisensi & Hak Cipta',
+        warrantyPlaceholder: 'Contoh: Pembelian mencakup lisensi personal. Dilarang keras membagikan ulang, menjual kembali, atau mendistribusikan tanpa izin...',
+        descLabel: 'Deskripsi & Isi Materi Digital *',
+        descPlaceholder: 'Jelaskan daftar isi bab/file yang didapat, software yang dibutuhkan untuk membuka file, dan manfaat materi digital ini...'
+      };
+    case 'fauna':
+      return {
+        type: 'fauna',
+        typeName: 'Satwa & Living Fauna',
+        badgeName: 'Satwa & Fauna',
+        icon: PawPrint,
+        color: '#059669',
+        gradientBg: 'radial-gradient(circle at top left, rgba(5, 150, 105, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Satwa / Living Fauna' : 'Edit Satwa / Living Fauna',
+        modalSubtitle: 'Lengkapi taksonomi ilmiah, kondisi satwa, masa hidup, dan garansi pengiriman hidup.',
+        nameLabel: 'Nama Hewan / Tanaman Hias *',
+        namePlaceholder: 'Contoh: Arwana Super Red Joey / Gecko Sunglow / Sugar Glider...',
+        categoryLabel: 'Kelas / Kategori Fauna *',
+        defaultCategory: 'Ikan Hias',
+        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
+        priceLabel: 'Harga Satuan Hewan (IDR) *',
+        pricePlaceholder: 'Contoh: 350.000',
+        photoLabel: 'Foto Satwa & Kondisi Nyata (1-5 Foto) *',
+        photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
+        videoLabel: 'Video Satwa / Feeding Video (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Jangkauan Pengiriman Satwa Hidup *',
+        deliveryOptions: ['Bisa Kirim se-Indonesia (Legal & Berizin)', 'Khusus Pulau Jawa / Jalur Kereta', 'Ambil Sendiri di Toko (Pickup Only)', 'Kurir Instan Hewan (Gojek/Grab)'],
+        deliveryTermsLabel: 'Ketentuan Pengiriman (Live Arrival)',
+        deliveryTermsPlaceholder: 'Contoh: Pengiriman via Kereta Api Express (KIB/KI8/Herona) atau Bus. Packing menggunakan boks styrofoam beroksigen khusus...',
+        warrantyLabel: 'Ketentuan Garansi D.O.A (Dead On Arrival)',
+        warrantyPlaceholder: 'Contoh: Garansi hidup sampai tujuan (D.O.A 100%) berlaku dengan menyertakan video unboxing full tanpa jeda/cut maksimal 2 jam setelah paket diterima...',
+        descLabel: 'Deskripsi & Kondisi Satwa *',
+        descPlaceholder: 'Jelaskan riwayat kesehatan, pola makan, keaktifan, minus (jika ada), umur/size, dan petunjuk perawatan harian...'
+      };
+    case 'service':
+      return {
+        type: 'service',
+        typeName: 'Jasa & Layanan',
+        badgeName: 'Jasa & Layanan',
+        icon: Wrench,
+        color: '#d97706',
+        gradientBg: 'radial-gradient(circle at top left, rgba(217, 119, 6, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Jasa & Layanan' : 'Edit Jasa & Layanan',
+        modalSubtitle: 'Lengkapi estimasi durasi, metode layanan, wilayah operasional, dan jaminan pengerjaan.',
+        nameLabel: 'Nama Jasa / Layanan *',
+        namePlaceholder: 'Contoh: Executive Pet Grooming / Servis Laptop & PC / Sesi Foto Studio...',
+        categoryLabel: 'Kategori Bidang Jasa *',
+        defaultCategory: 'Perawatan & Grooming',
+        categoryOptions: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance'],
+        priceLabel: 'Biaya / Tarif Layanan (IDR) *',
+        pricePlaceholder: 'Contoh: 120.000 / Mulai dari Rp 100.000',
+        photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-5 Foto) *',
+        photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
+        videoLabel: 'Video Dokumentasi / Hasil Kerja (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Sistem Pemesanan & Reservasi *',
+        deliveryOptions: ['Booking Jadwal via WhatsApp', 'Datang Langsung ke Toko (Walk-in)', 'Reservasi DP 50% di Awal', 'Konsultasi Online Terlebih Dahulu'],
+        deliveryTermsLabel: 'Ketentuan & Jadwal Pelaksanaan',
+        deliveryTermsPlaceholder: 'Contoh: Harap booking minimal H-1 sebelum jadwal pengerjaan. Layanan beroperasi Selasa - Minggu pukul 09.00 - 18.00 WIB...',
+        warrantyLabel: 'Kebijakan Garansi Servis / Revisi Hasil',
+        warrantyPlaceholder: 'Contoh: Garansi servis 30 hari untuk kerusakan yang sama. Free revisi desain hingga 3 kali...',
+        descLabel: 'Deskripsi Cakupan Layanan *',
+        descPlaceholder: 'Jelaskan tahapan pengerjaan, keahlian teknisi/ahli, apa saja yang termasuk dalam paket, dan keuntungan yang didapat klien...'
+      };
+    case 'food':
+      return {
+        type: 'food',
+        typeName: 'Menu Kuliner (F&B)',
+        badgeName: 'Makanan & Minuman',
+        icon: Utensils,
+        color: '#dc2626',
+        gradientBg: 'radial-gradient(circle at top left, rgba(220, 38, 38, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Menu Kuliner' : 'Edit Menu Kuliner',
+        modalSubtitle: 'Lengkapi takaran porsi, ketahanan makanan, suhu simpan, dan sertifikasi kuliner.',
+        nameLabel: 'Nama Menu Makanan / Minuman *',
+        namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Artisan Cold Brew Coffee / Frozen Dimsum 20pcs...',
+        categoryLabel: 'Kategori Menu Kuliner *',
+        defaultCategory: 'Makanan Utama',
+        categoryOptions: ['Makanan Utama', 'Minuman Olahan & Kopi', 'Camilan & Snack', 'Frozen Food & Olahan', 'Bakery & Pastry', 'Katering & Paket Nasi Boks', 'Bumbu & Frozen Ready-to-Cook'],
+        priceLabel: 'Harga Porsi / Menu (IDR) *',
+        pricePlaceholder: 'Contoh: 35.000',
+        photoLabel: 'Foto Menu / Penyajian Makanan (1-5 Foto) *',
+        photoHelper: 'Unggah foto hidangan yang menggugah selera, kemasan makanan, atau komposisi menu.',
+        videoLabel: 'Video Penyajian / Food Review (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Jangkauan Pengiriman Menu *',
+        deliveryOptions: ['Khusus Kurir Instan / Sameday (Gojek/Grab)', 'Bisa Kirim Luar Kota (Paxel Frozen / 1 Hari Sampai)', 'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)', 'Pre-Order Katering Khusus'],
+        deliveryTermsLabel: 'Ketentuan Pemesanan & Penyajian',
+        deliveryTermsPlaceholder: 'Contoh: Menu dimasak fresh saat pesanan masuk (Made by order). Waktu penyiapan 15-25 menit sebelum kurir pickup...',
+        warrantyLabel: 'Petunjuk Penyajian & Penyimpanan',
+        warrantyPlaceholder: 'Contoh: Untuk frozen food, simpan pada freezer -18°C. Kukus selama 10 menit atau panaskan microwave 2 menit sebelum dinikmati...',
+        descLabel: 'Deskripsi Rasa & Komposisi Menu *',
+        descPlaceholder: 'Jelaskan cita rasa makanan/minuman, bahan-bahan premium yang digunakan, informasi alergen (kacang, seafood), dan saran penyajian...'
+      };
+  }
+}
+
 interface Fauna {
   id: number
   name: string
@@ -178,6 +372,33 @@ interface Fauna {
   is_shipping_available: boolean
   description: string
   image_url: string
+  product_type?: ItemCategoryType
+  attributes?: {
+    stock?: number
+    condition?: 'Baru' | 'Bekas' | 'Refurbished'
+    weight?: number
+    brand?: string
+    variant?: string
+    download_url?: string
+    file_format?: string
+    file_size?: string
+    license_type?: string
+    version?: string
+    scientific_name?: string
+    fauna_class?: string
+    fauna_status?: string
+    duration?: string
+    service_location?: string
+    service_area?: string
+    inclusions?: string
+    client_requirements?: string
+    portion_size?: string
+    expired_info?: string
+    storage_temp?: string
+    certification?: string
+    taste_options?: string
+    [key: string]: any
+  }
   detailed_info?: {
     native_region: string
     lifespan: string
@@ -265,6 +486,342 @@ const INITIAL_TICKETS: SupportTicket[] = [
         timestamp: '25 Jul 2026, 09:40'
       }
     ]
+  }
+];
+
+export const LANDING_INDUSTRIES = [
+  {
+    id: 'culinary',
+    name: 'Kuliner & F&B',
+    badge: 'Menu Digital & Kafe',
+    tagline: 'Restoran, Kafe, Katering, Bakery & Cloud Kitchen',
+    description: 'Buku menu digital interaktif dengan visual hidangan menggugah selera, pilihan varian, serta direct order WhatsApp.',
+    icon: Utensils,
+    color: '#f97316',
+    accentBg: '#fff7ed',
+    products: [
+      {
+        id: 'c1',
+        title: 'Artisan Cold Brew Coffee (250ml)',
+        category: 'Signature Drink',
+        price: 'Rp 28.000',
+        badge: 'Best Seller',
+        rating: '4.9',
+        reviews: 142,
+        description: 'Biji kopi arabika Gayo diseduh dingin 16 jam, aroma nutty cokelat dengan manis alami aren organik.',
+        image: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Kopi Senja Roastery',
+        location: 'Bandung'
+      },
+      {
+        id: 'c2',
+        title: 'French Butter Croissant Supreme',
+        category: 'Bakery & Pastry',
+        price: 'Rp 24.000',
+        badge: 'Fresh Daily',
+        rating: '4.8',
+        reviews: 95,
+        description: 'Pastry mentega Prancis renyah berlapis di luar dan lembut wangi di dalam, dipanggang fresh setiap pagi.',
+        image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Maison & Boulangerie',
+        location: 'Jakarta Selatan'
+      },
+      {
+        id: 'c3',
+        title: 'Wagyu Beef Saikoro Rice Bowl',
+        category: 'Main Course',
+        price: 'Rp 48.000',
+        badge: 'Chef Choice',
+        rating: '5.0',
+        reviews: 210,
+        description: 'Nasi jepang pulen dengan saikoro wagyu melt-in-mouth, onsen egg lembut, dan siraman saus tare homemade.',
+        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Tokyo Rice & Grill',
+        location: 'Surabaya'
+      }
+    ]
+  },
+  {
+    id: 'fashion',
+    name: 'Fashion & Apparel',
+    badge: 'Lookbook & Butik',
+    tagline: 'Butik, Distro, Hijab, Sepatu, Tas & Aksesoris',
+    description: 'Etalase lookbook modern dengan informasi varian size/warna, panduan ukuran, dan tautan belanja WhatsApp atau marketplace.',
+    icon: Shirt,
+    color: '#2563eb',
+    accentBg: '#eff6ff',
+    products: [
+      {
+        id: 'f1',
+        title: 'Heavyweight Boxy Tee (24s Cotton)',
+        category: 'Streetwear',
+        price: 'Rp 115.000',
+        badge: 'Trending',
+        rating: '4.9',
+        reviews: 320,
+        description: 'Bahan 100% combed cotton 24s gramasi solid, potongan boxy fit modern tidak mudah melar setelah dicuci.',
+        image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Atelier Monochrome',
+        location: 'Jakarta Pusat'
+      },
+      {
+        id: 'f2',
+        title: 'Vegan Leather Structured Tote Bag',
+        category: 'Bags & Leather',
+        price: 'Rp 275.000',
+        badge: 'Premium Finish',
+        rating: '4.9',
+        reviews: 88,
+        description: 'Tas jinjing kulit sintetis tebal anti-gores dengan kompartemen laptop 14 inch dan resleting YKK premium.',
+        image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Terra Leather Craft',
+        location: 'Yogyakarta'
+      },
+      {
+        id: 'f3',
+        title: 'Daily Canvas Low-Top Sneakers',
+        category: 'Footwear',
+        price: 'Rp 210.000',
+        badge: 'Ready Stock',
+        rating: '4.8',
+        reviews: 154,
+        description: 'Sepatu kanvas klasik dengan sol karet vulcanized fleksibel dan insole memory foam anti-pegal.',
+        image: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Karsa Footwear Studio',
+        location: 'Tangerang'
+      }
+    ]
+  },
+  {
+    id: 'plants',
+    name: 'Tanaman & Living',
+    badge: 'Florist & Botanical',
+    tagline: 'Tanaman Hias, Pot Keramik, Florist & Dekorasi',
+    description: 'Tampilkan keindahan tanaman hias indoor, buket bunga, pot terakota, dan panduan perawatan dengan visual estetik.',
+    icon: Flower2,
+    color: '#059669',
+    accentBg: '#ecfdf5',
+    products: [
+      {
+        id: 'p1',
+        title: 'Monstera Deliciosa Variegata Albo',
+        category: 'Rare Aroids',
+        price: 'Rp 195.000',
+        badge: 'Rare Item',
+        rating: '5.0',
+        reviews: 45,
+        description: 'Corak marmer putih bersih 3-4 daun aktif dengan perakaran matang dan media tanam porous siap pajang.',
+        image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Flora Botanica House',
+        location: 'Bogor'
+      },
+      {
+        id: 'p2',
+        title: 'Handcrafted Terrazzo Ceramic Planter',
+        category: 'Pots & Living',
+        price: 'Rp 85.000',
+        badge: 'Handmade',
+        rating: '4.9',
+        reviews: 112,
+        description: 'Pot gerabah motif terrazzo minimalis dengan tatakan piringan terpisah dan lubang aerasi drainase optimal.',
+        image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Studio Pot Nusantara',
+        location: 'Bali'
+      },
+      {
+        id: 'p3',
+        title: 'Rustic Everlasting Dried Flower Bouquet',
+        category: 'Florist & Gift',
+        price: 'Rp 140.000',
+        badge: 'Tahan 3 Tahun',
+        rating: '4.8',
+        reviews: 86,
+        description: 'Rangkaian bunga kering alami bernuansa earth-tone hangat, cocok untuk kado kelulusan maupun pemanis interior.',
+        image: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Aura Flower Atelier',
+        location: 'Semarang'
+      }
+    ]
+  },
+  {
+    id: 'pets',
+    name: 'Satwa & Hewan Hias',
+    badge: 'Fauna & Aquatics',
+    tagline: 'Reptil, Aquascape, Burung, Pakan & Pet Shop',
+    description: 'Galeri spesifikasi satwa hias lengkap dengan kelas taksonomi, video satwa, garansi kesehatan, dan panduan perawatan.',
+    icon: PawPrint,
+    color: '#0891b2',
+    accentBg: '#ecfeff',
+    products: [
+      {
+        id: 'a1',
+        title: 'Crested Gecko Lily White Sub-Adult',
+        category: 'Exotic Reptiles',
+        price: 'Rp 850.000',
+        badge: 'Garansi Hidup',
+        rating: '5.0',
+        reviews: 62,
+        description: 'Karakter jinak total, kontras putih tinggi, makan rakus diet buah & serangga, aman kirim ke seluruh kota bergaransi.',
+        image: 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=600&auto=format&fit=crop&q=80',
+        merchant: 'DFauna Exotic Pet',
+        location: 'Jakarta Barat'
+      },
+      {
+        id: 'a2',
+        title: 'Aquascape Nature Display System (30cm)',
+        category: 'Aquatic Living',
+        price: 'Rp 480.000',
+        badge: 'Full Set System',
+        rating: '4.9',
+        reviews: 38,
+        description: 'Tank kaca optik 30cm dengan ekosistem tanaman moss hidup, hardscape lava rock, dan filter mini siap rawat.',
+        image: 'https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?w=600&auto=format&fit=crop&q=80',
+        merchant: 'AquaScaper Studio',
+        location: 'Malang'
+      },
+      {
+        id: 'a3',
+        title: 'Sugar Glider Classic Joey (2 Bulan)',
+        category: 'Small Mammals',
+        price: 'Rp 320.000',
+        badge: 'Jinak Bonding',
+        rating: '4.9',
+        reviews: 50,
+        description: 'Joey sehat aktif usia 2 bulan lepas kantung, bonding tangan manusia, sudah makan mandiri buah & bubur halus.',
+        image: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Pouch Pet Nusantara',
+        location: 'Solo'
+      }
+    ]
+  },
+  {
+    id: 'services',
+    name: 'Jasa & Layanan',
+    badge: 'Portofolio & Booking',
+    tagline: 'Barbershop, Salon & Spa, Studio Foto, Kreatif & Konsultasi',
+    description: 'Daftar tarif layanan profesional, portofolio karya, jadwal jam operasional, dan kemudahan booking langsung via WhatsApp.',
+    icon: Scissors,
+    color: '#7c3aed',
+    accentBg: '#f5f3ff',
+    products: [
+      {
+        id: 's1',
+        title: 'Executive Haircut & Hot Towel Treatment',
+        category: 'Grooming & Barbershop',
+        price: 'Rp 65.000',
+        badge: 'Paling Populer',
+        rating: '4.9',
+        reviews: 450,
+        description: 'Potong rambut presisi, pijat relaksasi kepala, kompres handuk hangat aromaterapi, dan styling pomade premium.',
+        image: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Gentleman Heritage Barber',
+        location: 'Bekasi'
+      },
+      {
+        id: 's2',
+        title: 'Sesi Foto Studio Wisuda / Keluarga (1 Jam)',
+        category: 'Creative Studio',
+        price: 'Rp 299.000',
+        badge: 'Unlimited Pose',
+        rating: '5.0',
+        reviews: 184,
+        description: 'Sesi pemotretan studio ber-AC, bebas ganti kostum, 10 foto edited resolusi cetak, dan seluruh file master dikirim via Cloud.',
+        image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Lensa Visual Creative',
+        location: 'Depok'
+      },
+      {
+        id: 's3',
+        title: 'Jasa Desain 3D Interior & Gambar Kerja RAB',
+        category: 'Design & Living',
+        price: 'Rp 450.000',
+        badge: 'Revisi 3x',
+        rating: '4.8',
+        reviews: 76,
+        description: 'Visualisasi render 3D fotorealistik denah ruang, layout furnitur 2D skala milimeter, dan estimasi rincian anggaran material.',
+        image: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Ruang Idaman Studio',
+        location: 'Jakarta Barat'
+      }
+    ]
+  },
+  {
+    id: 'tech',
+    name: 'Gadget & Hobi',
+    badge: 'Spesifikasi & Garansi',
+    tagline: 'Elektronik, Audio, Aksesoris Komputer & Alat Harian',
+    description: 'Etalase produk dengan spesifikasi teknis mendalam, informasi garansi resmi, dan kemudahan tanya ketersediaan stok ke admin.',
+    icon: Smartphone,
+    color: '#db2777',
+    accentBg: '#fdf2f8',
+    products: [
+      {
+        id: 't1',
+        title: 'Mechanical Keyboard 75% Tri-Mode RGB Hot-Swap',
+        category: 'PC Gaming & Setup',
+        price: 'Rp 499.000',
+        badge: 'Garansi 1 Tahun',
+        rating: '4.9',
+        reviews: 135,
+        description: 'Keyboard mekanikal dengan switch linear pre-lubed, keycaps PBT dye-sub, baterai 4000mAh, dan konektivitas Bluetooth/2.4G.',
+        image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80',
+        merchant: 'KeyForge Gear',
+        location: 'Tangerang Selatan'
+      },
+      {
+        id: 't2',
+        title: 'ANC Wireless Over-Ear Headphones (50H Battery)',
+        category: 'Audio & Acoustics',
+        price: 'Rp 385.000',
+        badge: 'Hi-Res Audio',
+        rating: '4.8',
+        reviews: 92,
+        description: 'Peredam bising aktif ganda, ear cushion memory foam lembut nyaman dipakai berjam-jam, serta mikrofon jernih untuk panggilan.',
+        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80',
+        merchant: 'SonicPulse Audio',
+        location: 'Jakarta Utara'
+      },
+      {
+        id: 't3',
+        title: 'Nordic LED Desk Lamp with 15W Qi Wireless Charger',
+        category: 'Smart Desk Living',
+        price: 'Rp 165.000',
+        badge: 'Smart Touch',
+        rating: '4.9',
+        reviews: 118,
+        description: 'Lampu baca aluminium anodized dengan 5 pilihan temperatur cahaya, sensor sentuh, dan fast wireless charging pad di dudukannya.',
+        image: 'https://images.unsplash.com/photo-1534073828943-f801091bb18c?w=600&auto=format&fit=crop&q=80',
+        merchant: 'Lumina Tech Home',
+        location: 'Bandung'
+      }
+    ]
+  }
+];
+
+export const LANDING_FAQS = [
+  {
+    q: 'Apakah saya perlu menyewa hosting atau membeli domain terpisah?',
+    a: 'Tidak perlu sama sekali! Catavor adalah platform SaaS lengkap. Begitu Anda mendaftar, link katalog Anda langsung aktif seketika (contoh: catavor.com/nama-usaha) di atas infrastruktur cloud kami yang cepat dan aman tanpa biaya server tambahan.'
+  },
+  {
+    q: 'Bagaimana alur pelanggan memesan produk di katalog saya?',
+    a: 'Pelanggan cukup membuka link katalog Anda di ponsel atau komputer, memilih produk yang disukai, lalu menekan tombol "Pesan via WhatsApp". Sistem kami secara otomatis membuat draf pesan WhatsApp yang terstruktur rapi (berisi nama produk, harga, varian, dan catatan) sehingga penjual bisa langsung memproses pesanan dengan cepat.'
+  },
+  {
+    q: 'Apakah ada potongan komisi atau biaya transaksi per penjualan?',
+    a: '0% Komisi! Catavor tidak memotong sepeser pun dari nominal penjualan Anda. Seluruh pembayaran dari pembeli dan data pelanggan 100% menjadi milik Anda seutuhnya.'
+  },
+  {
+    q: 'Apakah saya bisa mengubah foto, harga, atau menambah produk kapan saja?',
+    a: 'Tentu! Anda memiliki akses penuh ke Dashboard Admin yang sangat mudah digunakan. Anda dapat menambah item baru, mengedit harga promo, mengganti foto produk, hingga mengatur jam operasional toko langsung dari ponsel maupun laptop dalam hitungan detik.'
+  },
+  {
+    q: 'Bagaimana jika usaha saya memiliki banyak varian atau jenis layanan berbeda?',
+    a: 'Catavor dirancang multi-kategori dan sangat fleksibel. Anda dapat mengelompokkan produk ke dalam berbagai kategori, menambahkan opsi varian (seperti rasa, ukuran, warna), mencantumkan estimasi pengerjaan jasa, hingga menyertakan link marketplace cadangan.'
+  },
+  {
+    q: 'Apakah saya bisa mencetak QR Code untuk dipajang di kasir atau meja toko fisik?',
+    a: 'Bisa! Di dalam Dashboard Admin, Anda dapat mengunduh file QR Code beresolusi tinggi secara gratis dalam 1 klik. Anda dapat mencetaknya pada standing acrylic meja kasir, kartu nama bisnis, banner, ataupun stiker packaging pengiriman.'
   }
 ];
 
@@ -2165,6 +2722,13 @@ function App() {
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [heroEmailInput, setHeroEmailInput] = useState('');
+  // Landing Page Interactive States
+  const [landingCategory, setLandingCategory] = useState<'culinary' | 'fashion' | 'plants' | 'pets' | 'services' | 'tech'>('culinary');
+  const [pricingBillingCycle, setPricingBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
+  const [searchStoreQuery, setSearchStoreQuery] = useState<string>('');
+  const [previewProductModal, setPreviewProductModal] = useState<any | null>(null);
+  const [simulatedOrderToast, setSimulatedOrderToast] = useState<string | null>(null);
   // Policy & Privacy System States
   const [policies, setPolicies] = useState<{ [key: string]: { type: string, version: string, title: string, content: string, published_at?: string } }>({
     terms: {
@@ -2686,6 +3250,20 @@ function App() {
     selectedReplacement: string
   } | null>(null)
 
+  const [renameMasterModalData, setRenameMasterModalData] = useState<{
+    field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage'
+    fieldLabel: string
+    oldValue: string
+    newValue: string
+  } | null>(null)
+
+  const [presetModalData, setPresetModalData] = useState<{
+    key: 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'general'
+    title: string
+    desc: string
+    sampleCategories: string[]
+  } | null>(null)
+
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
@@ -2706,10 +3284,10 @@ function App() {
   const [crudForm, setCrudForm] = useState({
     name: '',
     scientific_name: '',
-    class: 'Ikan Hias',
-    habitat: 'Air Tawar',
+    class: 'Pakaian & Fashion',
+    habitat: 'General',
     diet: '',
-    conservation_status: 'Tersedia (For Sale)',
+    conservation_status: 'Tersedia',
     price: 0,
     video_url: '',
     is_shipping_available: true,
@@ -2721,7 +3299,33 @@ function App() {
     shipping_terms: '',
     warranty_info: '',
     shipping_coverage: 'Bisa Kirim se-Indonesia',
-    purchase_links: [] as { platform: string, url: string }[]
+    purchase_links: [] as { platform: string, url: string }[],
+    product_type: 'physical' as ItemCategoryType,
+    attributes: {
+      stock: 1,
+      condition: 'Baru' as 'Baru' | 'Bekas' | 'Refurbished',
+      weight: 100,
+      brand: '',
+      variant: '',
+      download_url: '',
+      file_format: 'PDF',
+      file_size: '10 MB',
+      license_type: 'Lisensi Personal',
+      version: 'v1.0',
+      scientific_name: '',
+      fauna_class: 'Ikan Hias',
+      fauna_status: 'Tersedia',
+      duration: '1 Sesi / 1 Jam',
+      service_location: 'Datang ke Toko',
+      service_area: 'Jabodetabek',
+      inclusions: '',
+      client_requirements: '',
+      portion_size: '1 Porsi',
+      expired_info: 'Fresh Daily',
+      storage_temp: 'Suhu Ruang',
+      certification: '100% Halal',
+      taste_options: ''
+    }
   })
 
   // Dynamic Master dropdown custom inputs
@@ -2848,6 +3452,10 @@ function App() {
           if (pageSub === 'items') {
             setAdminTab('items');
             if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
+              const prodType = parts[4];
+              if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
+                setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+              }
               setCrudMode('create');
               setShowCrudModal(true);
             } else if (subSub === 'edit' && paramId) {
@@ -3070,6 +3678,10 @@ function App() {
             if (pageSub === 'items') {
               setAdminTab('items');
               if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
+                const prodType = parts[4];
+                if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
+                  setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+                }
                 setCrudMode('create');
                 setShowCrudModal(true);
               } else if (subSub === 'edit' && paramId) {
@@ -4415,20 +5027,21 @@ function App() {
   }
 
   // Open CRUD modal for create
-  const openCreateModal = () => {
+  const openCreateModal = (initialType: ItemCategoryType = 'physical') => {
     if (settings.plan === 'free' && faunas.length >= 10) {
-      showToast('Batas postingan Plan Gratis (Maksimal 10 produk) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
+      showToast('Batas listing Plan Gratis (Maksimal 10 item) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
       return
     }
+    const typeConfig = getItemTypeFormConfig(initialType);
     setCrudMode('create')
     setEditId(null)
     setCrudForm({
       name: '',
       scientific_name: '',
-      class: 'Ikan Hias',
-      habitat: 'Air Tawar',
+      class: typeConfig.defaultCategory,
+      habitat: 'General',
       diet: '',
-      conservation_status: 'Tersedia (For Sale)',
+      conservation_status: 'Tersedia',
       price: 0,
       video_url: '',
       is_shipping_available: true,
@@ -4439,8 +5052,34 @@ function App() {
       weight: '',
       shipping_terms: '',
       warranty_info: '',
-      shipping_coverage: 'Bisa Kirim se-Indonesia',
-      purchase_links: []
+      shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+      purchase_links: [],
+      product_type: initialType,
+      attributes: {
+        stock: 1,
+        condition: 'Baru',
+        weight: 100,
+        brand: '',
+        variant: '',
+        download_url: '',
+        file_format: 'PDF',
+        file_size: '10 MB',
+        license_type: 'Lisensi Personal',
+        version: 'v1.0',
+        scientific_name: '',
+        fauna_class: 'Ikan Hias',
+        fauna_status: 'Tersedia',
+        duration: '1 Sesi / 1 Jam',
+        service_location: 'Datang ke Toko',
+        service_area: 'Jabodetabek',
+        inclusions: '',
+        client_requirements: '',
+        portion_size: '1 Porsi',
+        expired_info: 'Fresh Daily',
+        storage_temp: 'Suhu Ruang',
+        certification: '100% Halal',
+        taste_options: ''
+      }
     })
     setCustomClass('')
     setShowCustomClassInput(false)
@@ -4457,15 +5096,17 @@ function App() {
 
   // Open CRUD modal for edit
   const openEditModal = (item: Fauna) => {
+    const itemType = (item.product_type || 'physical') as ItemCategoryType;
+    const typeConfig = getItemTypeFormConfig(itemType);
     setCrudMode('edit')
     setEditId(item.id)
     setCrudForm({
       name: item.name,
-      scientific_name: item.scientific_name,
-      class: item.class,
-      habitat: item.habitat,
-      diet: item.diet,
-      conservation_status: item.conservation_status,
+      scientific_name: item.scientific_name || '',
+      class: item.class || typeConfig.defaultCategory,
+      habitat: item.habitat || 'General',
+      diet: item.diet || '',
+      conservation_status: item.conservation_status || 'Tersedia',
       price: item.price,
       video_url: item.video_url || '',
       is_shipping_available: item.is_shipping_available,
@@ -4483,7 +5124,33 @@ function App() {
         ...(item.detailed_info?.lazada_url ? [{ platform: 'Lazada', url: item.detailed_info.lazada_url }] : []),
         ...(item.detailed_info?.bukalapak_url ? [{ platform: 'Bukalapak', url: item.detailed_info.bukalapak_url }] : []),
         ...(item.detailed_info?.custom_shop_url ? [{ platform: item.detailed_info.custom_shop_name || 'Marketplace', url: item.detailed_info.custom_shop_url }] : [])
-      ]
+      ],
+      product_type: itemType,
+      attributes: {
+        stock: item.attributes?.stock ?? 1,
+        condition: item.attributes?.condition ?? 'Baru',
+        weight: item.attributes?.weight ?? 100,
+        brand: item.attributes?.brand ?? '',
+        variant: item.attributes?.variant ?? '',
+        download_url: item.attributes?.download_url ?? '',
+        file_format: item.attributes?.file_format ?? 'PDF',
+        file_size: item.attributes?.file_size ?? '10 MB',
+        license_type: item.attributes?.license_type ?? 'Lisensi Personal',
+        version: item.attributes?.version ?? 'v1.0',
+        scientific_name: item.attributes?.scientific_name ?? item.scientific_name ?? '',
+        fauna_class: item.attributes?.fauna_class ?? item.class ?? 'Ikan Hias',
+        fauna_status: item.attributes?.fauna_status ?? item.conservation_status ?? 'Tersedia',
+        duration: item.attributes?.duration ?? '1 Sesi / 1 Jam',
+        service_location: item.attributes?.service_location ?? 'Datang ke Toko',
+        service_area: item.attributes?.service_area ?? 'Jabodetabek',
+        inclusions: item.attributes?.inclusions ?? '',
+        client_requirements: item.attributes?.client_requirements ?? '',
+        portion_size: item.attributes?.portion_size ?? '1 Porsi',
+        expired_info: item.attributes?.expired_info ?? 'Fresh Daily',
+        storage_temp: item.attributes?.storage_temp ?? 'Suhu Ruang',
+        certification: item.attributes?.certification ?? '100% Halal',
+        taste_options: item.attributes?.taste_options ?? ''
+      }
     })
     setCustomClass('')
     setShowCustomClassInput(false)
@@ -4507,14 +5174,16 @@ function App() {
     setCrudLoading(true)
     setCrudError(null)
 
+    const typeConfig = getItemTypeFormConfig(crudForm.product_type)
+
     const filteredImages = crudImages.map(img => img.trim()).filter(Boolean)
     if (filteredImages.length === 0) {
-      setCrudError('Minimal harus menginput 1 foto hewan.')
+      setCrudError('Minimal harus menginput 1 foto.')
       setCrudLoading(false)
       return
     }
     if (filteredImages.length > 5) {
-      setCrudError('Maksimal hanya dapat menginput 5 foto hewan.')
+      setCrudError('Maksimal hanya dapat menginput 5 foto.')
       setCrudLoading(false)
       return
     }
@@ -4525,38 +5194,40 @@ function App() {
     const selectedShippingCoverage = showCustomShippingCoverageInput ? customShippingCoverage.trim() : crudForm.shipping_coverage
 
     if (!selectedClass) {
-      setCrudError('Kelas hewan wajib diisi.')
+      setCrudError(`${typeConfig.categoryLabel.replace('*', '').trim()} wajib diisi.`)
       setCrudLoading(false)
       return
     }
-    if (!selectedHabitat) {
-      setCrudError('Habitat hewan wajib diisi.')
+    if (crudForm.product_type === 'fauna' && !selectedHabitat) {
+      setCrudError('Habitat wajib diisi.')
       setCrudLoading(false)
       return
     }
-    if (!selectedConservationStatus) {
-      setCrudError('Status konservasi wajib diisi.')
+    if (crudForm.product_type === 'fauna' && !selectedConservationStatus) {
+      setCrudError('Status ketersediaan / konservasi wajib diisi.')
       setCrudLoading(false)
       return
     }
     if (!selectedShippingCoverage) {
-      setCrudError('Jangkauan pengiriman wajib diisi.')
+      setCrudError(`${typeConfig.deliveryLabel.replace('*', '').trim()} wajib dipilih.`)
       setCrudLoading(false)
       return
     }
 
     const payload = {
       name: crudForm.name,
-      scientific_name: crudForm.scientific_name,
+      scientific_name: crudForm.product_type === 'fauna' ? (crudForm.scientific_name || 'N/A') : (crudForm.scientific_name || 'N/A'),
       class: selectedClass,
-      habitat: selectedHabitat,
-      diet: crudForm.diet,
-      conservation_status: selectedConservationStatus,
+      habitat: crudForm.product_type === 'fauna' ? selectedHabitat : 'General',
+      diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
+      conservation_status: crudForm.product_type === 'fauna' ? selectedConservationStatus : 'Tersedia',
       price: crudForm.price,
       video_url: crudForm.video_url || null,
-      is_shipping_available: !selectedShippingCoverage.toLowerCase().includes('ambil sendiri'),
+      is_shipping_available: !selectedShippingCoverage.toLowerCase().includes('ambil sendiri') && !selectedShippingCoverage.toLowerCase().includes('pickup only') && !selectedShippingCoverage.toLowerCase().includes('dine-in'),
       description: crudForm.description,
       image_url: filteredImages[0],
+      product_type: crudForm.product_type,
+      attributes: crudForm.attributes,
       detailed_info: {
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
@@ -4585,7 +5256,7 @@ function App() {
       if (res.ok && data.success) {
         setShowCrudModal(false)
         loadData()
-        showToast('Data satwa berhasil disimpan!')
+        showToast('Item katalog berhasil disimpan!')
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -4595,7 +5266,7 @@ function App() {
           showToast(firstErr[0], 'error')
         } else {
           setCrudError(data.message || 'Terjadi kesalahan sistem.')
-          showToast(data.message || 'Gagal menyimpan data satwa.', 'error')
+          showToast(data.message || 'Gagal menyimpan item katalog.', 'error')
         }
       }
     } catch (err) {
@@ -4922,6 +5593,68 @@ function App() {
     }
   }
 
+  const handleRenameMasterOption = async (
+    field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage',
+    oldValue: string,
+    newValue: string
+  ) => {
+    const trimmed = newValue.trim()
+    if (!trimmed) {
+      showToast('Nama opsi tidak boleh kosong.', 'error')
+      return
+    }
+    if (trimmed === oldValue) {
+      setRenameMasterModalData(null)
+      return
+    }
+
+    try {
+      setCrudLoading(true)
+      const res = await fetch(`${API_BASE}/stores/rename-master-option`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ field, old_value: oldValue, new_value: trimmed })
+      })
+      const data = await res.json()
+      if (!checkAuthResponse(res, data)) return
+      if (res.ok && data.success) {
+        showToast('Nama kategori/opsi berhasil diubah dan disinkronkan!')
+        setRenameMasterModalData(null)
+        loadData()
+      } else {
+        showToast(data.message || 'Gagal mengubah nama opsi.', 'error')
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi saat mengubah nama opsi.', 'error')
+    } finally {
+      setCrudLoading(false)
+    }
+  }
+
+  const handleApplyPreset = async (presetKey: string) => {
+    try {
+      setCrudLoading(true)
+      const res = await fetch(`${API_BASE}/stores/apply-master-preset`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ preset: presetKey })
+      })
+      const data = await res.json()
+      if (!checkAuthResponse(res, data)) return
+      if (res.ok && data.success) {
+        showToast('Template preset industri berhasil diterapkan ke katalog toko!')
+        setPresetModalData(null)
+        loadData()
+      } else {
+        showToast(data.message || 'Gagal menerapkan preset industri.', 'error')
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi saat menerapkan preset industri.', 'error')
+    } finally {
+      setCrudLoading(false)
+    }
+  }
+
   // Handle Fauna Delete
   const handleFaunaDelete = async (id: number): Promise<boolean> => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus postingan hewan ini?')) return false
@@ -4979,7 +5712,21 @@ function App() {
 
 
   // Dynamic Theme Style Resolver for Multi-Tenant Loading Gate Screen
-  const getThemeGateStyles = (themeName?: string) => {
+  const getThemeGateStyles = (themeName?: string, isPortalMode: boolean = false) => {
+    if (isPortalMode || themeName === 'portal') {
+      return {
+        bg: '#f8fafc',
+        bgGradient: 'radial-gradient(circle at 50% 35%, #eff6ff 0%, #f8fafc 70%)',
+        cardBg: '#ffffff',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid #e2e8f0',
+        logoBoxShadow: '0 10px 30px rgba(37, 99, 235, 0.08)',
+        titleColor: '#0f172a',
+        subtitleColor: '#475569',
+        trackBg: 'rgba(37, 99, 235, 0.15)',
+        accent: '#2563eb'
+      };
+    }
     const theme = (themeName || 'emerald').toLowerCase();
     switch (theme) {
       case 'cyberpunk':
@@ -5067,6 +5814,7 @@ function App() {
   // Render App Readiness Loader Gate Screen
   if (isAppInitializing) {
     const currentSlug = getStoreSlug();
+    const isPortalLanding = !currentSlug;
     let themeFromCache = 'emerald';
     if (currentSlug) {
       try {
@@ -5079,12 +5827,17 @@ function App() {
         }
       } catch {}
     }
-    const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'emerald';
-    const themeStyles = getThemeGateStyles(activeTheme);
-    const displayLogo = initialGateLogoRef.current || APP_LOGO_BASE64;
+    const activeTheme = isPortalLanding 
+      ? 'portal' 
+      : ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'emerald');
+    const themeStyles = getThemeGateStyles(activeTheme, isPortalLanding);
+    const displayLogo = isPortalLanding ? (logoHeaderImg || APP_LOGO_BASE64) : (initialGateLogoRef.current || APP_LOGO_BASE64);
     const displayTitle = (currentSlug && settings.store_title && settings.store_title !== 'Catavor')
       ? settings.store_title
       : (currentSlug ? currentSlug.charAt(0).toUpperCase() + currentSlug.slice(1) : 'Catavor');
+    const displaySubtitle = isPortalLanding
+      ? 'Platform Katalog Digital & Biolink Usaha'
+      : 'Mempersiapkan Halaman...';
 
     return (
       <div style={{
@@ -5109,33 +5862,50 @@ function App() {
         `}</style>
 
         {/* Clean Logo Box */}
-        <div style={{
-          width: '88px',
-          height: '88px',
-          borderRadius: '1.25rem',
-          backgroundColor: themeStyles.logoBoxBg,
-          border: themeStyles.logoBoxBorder,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0.75rem',
-          boxShadow: themeStyles.logoBoxShadow,
-          marginBottom: '1.35rem'
-        }}>
-          <img 
-            src={displayLogo} 
-            alt={displayTitle} 
-            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }} 
-          />
-        </div>
+        {isPortalLanding ? (
+          <div style={{
+            width: '76px',
+            height: '76px',
+            borderRadius: '1.25rem',
+            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#ffffff',
+            boxShadow: '0 12px 30px rgba(37, 99, 235, 0.28)',
+            marginBottom: '1.25rem'
+          }}>
+            <Store size={36} />
+          </div>
+        ) : (
+          <div style={{
+            width: '88px',
+            height: '88px',
+            borderRadius: '1.25rem',
+            backgroundColor: themeStyles.logoBoxBg,
+            border: themeStyles.logoBoxBorder,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0.75rem',
+            boxShadow: themeStyles.logoBoxShadow,
+            marginBottom: '1.35rem'
+          }}>
+            <img 
+              src={displayLogo} 
+              alt={displayTitle} 
+              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }} 
+            />
+          </div>
+        )}
 
-        {/* Store Title */}
+        {/* Store / Platform Title */}
         <h3 style={{
           margin: '0 0 0.35rem 0',
-          fontSize: '1.25rem',
+          fontSize: '1.35rem',
           fontWeight: 800,
           color: themeStyles.titleColor,
-          letterSpacing: '-0.01em'
+          letterSpacing: '-0.02em'
         }}>
           {displayTitle}
         </h3>
@@ -5143,12 +5913,12 @@ function App() {
         {/* Subtitle */}
         <p style={{
           margin: 0,
-          fontSize: '0.82rem',
+          fontSize: '0.84rem',
           color: themeStyles.subtitleColor,
           fontWeight: 500,
           letterSpacing: '0.01em'
         }}>
-          Mempersiapkan Halaman...
+          {displaySubtitle}
         </p>
 
         {/* Minimalist Progress Line */}
@@ -5169,62 +5939,176 @@ function App() {
             animation: 'loaderSlide 1.1s infinite ease-in-out'
           }} />
         </div>
+
+        {isPortalLanding && (
+          <div style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.35rem', 
+            marginTop: '1.25rem', 
+            padding: '0.25rem 0.75rem', 
+            borderRadius: '999px', 
+            background: '#eff6ff', 
+            border: '1px solid #bfdbfe', 
+            color: '#1d4ed8', 
+            fontSize: '0.74rem', 
+            fontWeight: 700 
+          }}>
+            <Sparkles size={13} />
+            <span>Memuat Platform...</span>
+          </div>
+        )}
       </div>
     );
   }
 
   // Render Landing Portal Page
   if (!storeSlug && !error) {
+    const activeIndustryData = LANDING_INDUSTRIES.find(ind => ind.id === landingCategory) || LANDING_INDUSTRIES[0];
+    const filteredStores = featuredStores.filter(st => {
+      if (!searchStoreQuery.trim()) return true;
+      const q = searchStoreQuery.toLowerCase();
+      return (st.store_title && st.store_title.toLowerCase().includes(q)) || 
+             (st.slug && st.slug.toLowerCase().includes(q)) ||
+             (st.store_slogan && st.store_slogan.toLowerCase().includes(q));
+    });
+
     return (
-      <div className="portal-container ambient-glow-bg" style={{ minHeight: '100vh', color: 'var(--text-primary)', fontFamily: "var(--font-body)" }}>
-        {/* Header (Shown on Home and Policy Pages) */}
+      <div className="portal-container" style={{ minHeight: '100vh', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", position: 'relative' }}>
+        {/* Toast Notification for WhatsApp Simulator */}
+        {simulatedOrderToast && (
+          <div style={{ position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 99999, background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', padding: '1rem 1.4rem', borderRadius: '0.85rem', boxShadow: '0 20px 40px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '0.85rem', border: '1px solid rgba(255,255,255,0.25)', animation: 'slideUpBottomSheet 0.3s ease' }}>
+            <MessageCircle size={22} style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: '0.86rem', lineHeight: 1.4 }}>
+              <div style={{ fontWeight: 800, fontSize: '0.92rem', marginBottom: '0.15rem' }}>Simulasi Pesanan WhatsApp</div>
+              {simulatedOrderToast}
+            </div>
+            <button type="button" onClick={() => setSimulatedOrderToast(null)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', opacity: 0.85, padding: '0.2rem' }}>
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
+        {/* Product Detail & Order Simulation Modal */}
+        {previewProductModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }} onClick={() => setPreviewProductModal(null)}>
+            <div className="animate-fade-in" style={{ width: '100%', maxWidth: '540px', backgroundColor: '#ffffff', borderRadius: '1.25rem', padding: '2rem', border: '1px solid #e2e8f0', boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.25)', position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div style={{ padding: '0.35rem 0.85rem', borderRadius: '999px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '0.78rem', fontWeight: 800 }}>
+                  {previewProductModal.badge || 'Katalog Pilihan'}
+                </div>
+                <button type="button" onClick={() => setPreviewProductModal(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.25rem' }}>
+                  <X size={22} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                <img src={previewProductModal.image} alt={previewProductModal.title} style={{ width: '130px', height: '130px', objectFit: 'cover', borderRadius: '0.85rem', border: '1px solid #e2e8f0' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.25rem', fontWeight: 600 }}>{previewProductModal.category}</div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.45rem 0', color: '#0f172a' }}>{previewProductModal.title}</h3>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#2563eb', marginBottom: '0.35rem' }}>{previewProductModal.price}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#475569' }}>Penjual: <strong>{previewProductModal.merchant}</strong> ({previewProductModal.location})</div>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '0.86rem', color: '#475569', lineHeight: 1.6, marginBottom: '1.5rem', backgroundColor: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
+                {previewProductModal.description}
+              </p>
+
+              {/* Chat Format Preview Box */}
+              <div style={{ padding: '1rem', borderRadius: '0.85rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <MessageCircle size={15} /> Format Pesan WhatsApp Otomatis:
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#166534', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #dcfce7', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+{`Halo ${previewProductModal.merchant}, saya tertarik untuk memesan:
+• ${previewProductModal.title} (${previewProductModal.price})
+Mohon informasi ketersediaan stok & alur pengiriman ya!`}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.85rem' }}>
+                <button type="button" className="btn-portal-whatsapp" style={{ flex: 1, padding: '0.75rem', justifyContent: 'center', fontSize: '0.88rem' }} onClick={() => {
+                  setPreviewProductModal(null);
+                  setSimulatedOrderToast(`Format pesan untuk "${previewProductModal.title}" siap diteruskan ke WhatsApp!`);
+                  setTimeout(() => setSimulatedOrderToast(null), 5000);
+                }}>
+                  <MessageCircle size={18} />
+                  <span>Simulasi Order WhatsApp</span>
+                </button>
+                <button type="button" className="btn-portal-secondary" style={{ flex: 1, padding: '0.75rem', justifyContent: 'center', fontSize: '0.88rem' }} onClick={() => {
+                  setPreviewProductModal(null);
+                  setRegisterStep(1);
+                  setRegisterPlan('free');
+                  setPortalTab('register');
+                }}>
+                  Buat Katalog Saya
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Header Navigation */}
         {(portalTab === 'home' || ['terms', 'privacy', 'acceptable_use'].includes(portalTab)) && (
-          <header className="app-header">
-            <div className="container header-content">
+          <header style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+            <div className="container header-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.95rem 2rem', maxWidth: '1280px', margin: '0 auto' }}>
               {['terms', 'privacy', 'acceptable_use'].includes(portalTab) ? (
-                /* Specialized Policy Page Header: Back Button + Policy Page Title Only */
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <button
                     type="button"
                     onClick={() => setPortalTab('home')}
-                    className="btn-back-circle"
+                    className="btn-portal-secondary"
+                    style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
                     title="Kembali"
                   >
-                    <ChevronLeft size={20} />
-                  </button>                  <span style={{ 
-                    fontSize: '1.05rem', 
-                    fontWeight: 800, 
-                    color: '#ffffff', 
-                    letterSpacing: '-0.01em',
-                    fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
-                  }}>
-                    {portalTab === 'terms' ? 'Syarat & Ketentuan' : portalTab === 'privacy' ? 'Kebijakan Privasi' : portalTab === 'acceptable_use' ? 'Ketentuan Penggunaan' : 'Kebijakan Layanan'}
+                    <ChevronLeft size={18} />
+                    <span>Kembali ke Beranda</span>
+                  </button>
+                  <span style={{ color: '#cbd5e1' }}>|</span>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                    {portalTab === 'terms' ? 'Syarat & Ketentuan' : portalTab === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                   </span>
                 </div>
               ) : (
-                /* Standard Desktop Landing Page Header */
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setPortalTab('home')}>
-                    <span style={{ 
-                      fontSize: '1.45rem', 
-                      fontWeight: 800, 
-                      color: '#ffffff', 
-                      letterSpacing: '-0.01em',
-                      fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
-                    }}>
-                      Catavor
-                    </span>
+                  {/* Brand Logo */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }} onClick={() => setPortalTab('home')}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)' }}>
+                      <Store size={20} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        Catavor
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.15rem 0.45rem', borderRadius: '999px' }}>
+                          COMMERCE
+                        </span>
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Desktop Nav Links */}
+                  <nav className="portal-desktop-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <a href="#industries-section" className="portal-nav-link">Solusi Industri</a>
+                    <a href="#features-section" className="portal-nav-link">Fitur Unggulan</a>
+                    <a href="#stores-section" className="portal-nav-link">Katalog Bisnis</a>
+                    <a href="#pricing-desktop" className="portal-nav-link">Paket &amp; Harga</a>
+                    <a href="#faq-section" className="portal-nav-link">FAQ</a>
+                  </nav>
+
+                  {/* Header Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {token ? (
-                      <button className="btn-primary" style={{ padding: '0.6rem 1.4rem', fontSize: '0.85rem' }} onClick={() => {
+                      <button className="btn-portal-primary" onClick={() => {
                         const user = JSON.parse(localStorage.getItem('catavor_user') || '{}');
                         if (user.store_slug) {
                           setStoreSlug(user.store_slug);
                           setView('admin');
                         }
                       }}>
-                        <span>Masuk Dashboard</span>
+                        <LayoutGrid size={16} />
+                        <span>Buka Dashboard</span>
                         <ArrowRight size={16} />
                       </button>
                     ) : (
@@ -5232,31 +6116,18 @@ function App() {
                         <button 
                           type="button"
                           onClick={() => setPortalTab('login')} 
-                          style={{ 
-                            background: 'none', 
-                            border: 'none', 
-                            color: 'var(--text-secondary)', 
-                            fontSize: '0.85rem', 
-                            fontWeight: 600, 
-                            padding: '0.45rem 0.85rem', 
-                            cursor: 'pointer',
-                            transition: 'color 0.2s ease'
-                          }}
+                          className="portal-nav-link"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
                         >
                           Masuk
                         </button>
                         <button 
                           type="button"
-                          className="btn-primary" 
-                          onClick={() => { setRegisterStep(1); setPortalTab('register'); }} 
-                          style={{ 
-                            padding: '0.55rem 1.25rem', 
-                            fontSize: '0.85rem',
-                            fontWeight: 800,
-                            borderRadius: '0.6rem'
-                          }}
+                          className="btn-portal-primary" 
+                          onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }} 
                         >
-                          Buat Link Katalog
+                          <span>Buat Katalog — Gratis</span>
+                          <ArrowRight size={16} />
                         </button>
                       </>
                     )}
@@ -5269,194 +6140,565 @@ function App() {
 
         {portalTab === 'home' && (
           <>
-            <main style={{ padding: '4.5rem 2rem', maxWidth: '1200px', margin: '0 auto' }}>
-            {/* Multi-Genre Niche Badges Showcase */}
-            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '2rem' }}>
-              <span className="genre-tag-pill"><Utensils size={14} style={{ color: '#f97316' }} /> Kuliner</span>
-              <span className="genre-tag-pill"><ShoppingBag size={14} style={{ color: '#38bdf8' }} /> Barang (Fashion, Gadget &amp; Alat)</span>
-              <span className="genre-tag-pill"><PawPrint size={14} style={{ color: '#10b981' }} /> Hewan &amp; Fauna</span>
-              <span className="genre-tag-pill"><Scissors size={14} style={{ color: '#f59e0b' }} /> Jasa &amp; Layanan</span>
-            </div>
-
-            {/* Hero Section */}
-            <div style={{ textAlign: 'center', marginBottom: '5.5rem' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1.1rem', borderRadius: '9999px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '1.75rem', backdropFilter: 'blur(10px)' }}>
-                <Sparkles size={15} style={{ color: '#10b981' }} />
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#34d399', letterSpacing: '0.04em', textTransform: 'uppercase' }}>KATALOG &amp; BIOLINK MODERN UNTUK SEMUA JENIS USAHA</span>
-              </div>
-
-              <h1 style={{ fontSize: '3.6rem', fontWeight: 900, lineHeight: 1.12, letterSpacing: '-0.03em', maxWidth: '920px', margin: '0 auto 1.5rem auto' }} className="gradient-text-hero">
-                Satu Link Katalog Interaktif untuk <span className="gradient-text-emerald">Segala Jenis Usaha Anda</span>
-              </h1>
-
-              <p style={{ fontSize: '1.15rem', color: '#94a3b8', maxWidth: '700px', margin: '0 auto 2.5rem auto', lineHeight: 1.6, fontWeight: 400 }}>
-                Tampilkan katalog barang, menu makanan, satwa hias, layanan jasa, lokasi usaha, dan kontak WhatsApp langsung dalam satu biolink kustom modern. Sangat mudah &amp; serbaguna!
-              </p>
-
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '1.1rem' }}>
-                <button className="btn-primary" style={{ padding: '0.9rem 2.2rem', fontSize: '1rem' }} onClick={() => { setRegisterStep(1); setPortalTab('register'); }}>
-                  <span>Mulai Buat Katalog - Gratis</span>
-                  <ArrowRight size={18} />
-                </button>
-                <button className="btn-secondary" style={{ padding: '0.9rem 2.2rem', fontSize: '1rem' }} onClick={() => {
-                  const el = document.getElementById('pricing-desktop');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}>
-                  <span>Lihat Paket &amp; Harga</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Multi-Genre Feature Showcase Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '6rem' }}>
-              <div className="glass-panel" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.25)', color: '#f97316' }}>
-                  <Utensils size={22} />
-                </div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Kuliner</h3>
-                <p style={{ fontSize: '0.83rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                  Buku menu digital interaktif dengan foto hidangan lezat dan tombol pesan via WA.
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', color: '#38bdf8' }}>
-                  <ShoppingBag size={22} />
-                </div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Barang</h3>
-                <p style={{ fontSize: '0.83rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                  Katalog fashion, gadget, barang harian, dan aksesoris dengan varian &amp; harga jernih.
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#10b981' }}>
-                  <PawPrint size={22} />
-                </div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Hewan</h3>
-                <p style={{ fontSize: '0.83rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                  Galeri satwa &amp; hewan hias, taksonomi kelas, spesifikasi habitat, dan pengiriman aman.
-                </p>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div className="icon-badge-box" style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.25)', color: '#f59e0b' }}>
-                  <Scissors size={22} />
-                </div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>Jasa</h3>
-                <p style={{ fontSize: '0.83rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                  Portofolio layanan, tarif kustom, jam operasional, dan lokasi terhubung kontak WA.
-                </p>
-              </div>
-            </div>
-
-            {/* Pricing Section Desktop */}
-            <div id="pricing-desktop" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '5rem', marginBottom: '5rem' }}>
-              <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pilihan Paket Bisnis</span>
-                <h2 style={{ fontSize: '2.25rem', fontWeight: 900, marginTop: '0.5rem', color: '#fff' }}>Pilih Paket Katalog Anda</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '500px', margin: '0.5rem auto 0 auto' }}>Fitur transparan untuk mendukung pertumbuhan katalog usaha &amp; layanan Anda.</p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5rem', maxWidth: '900px', margin: '0 auto' }}>
-                {/* Free Card */}
-                <div className="glass-panel" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--border-light)' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Plan Gratis</span>
-                    <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#fff', margin: '0.5rem 0 1.25rem 0' }}>Rp 0 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/ selamanya</span></div>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                      <li>✅ Maksimal 10 postingan produk</li>
-                      <li>✅ Katalog interaktif &amp; WhatsApp</li>
-                      <li>✅ Watermark "Free by Catavor"</li>
-                    </ul>
+            <main style={{ padding: '3.5rem 2rem 5rem 2rem', maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '6.5rem' }}>
+              
+              {/* 1. HERO SECTION */}
+              <section className="hero-section-grid">
+                <div>
+                  <div className="hero-pill-badge-clean" style={{ marginBottom: '1.25rem' }}>
+                    <Sparkles size={14} />
+                    <span>Platform Katalog Digital &amp; Biolink Commerce Modern</span>
                   </div>
-                  <button className="btn-secondary btn-full" style={{ padding: '0.85rem', marginTop: '2rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
-                    Daftar Plan Gratis
-                  </button>
-                </div>
 
-                {/* Pro Card */}
-                <div className="glass-panel" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid var(--primary)', backgroundColor: 'rgba(16,185,129,0.03)' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>Plan Pro / Premium</span>
-                    <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#fff', margin: '0.5rem 0 1.25rem 0', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '1.25rem', color: '#9ca3af', textDecoration: 'line-through', fontWeight: 600 }}>Rp 50rb</span>
-                      <span style={{ color: '#f59e0b' }}>Rp 30rb</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/ bulan</span>
+                  <h1 style={{ fontSize: '3.4rem', fontWeight: 900, lineHeight: 1.15, letterSpacing: '-0.03em', color: '#0f172a', marginBottom: '1.35rem' }}>
+                    Katalog Produk Interaktif &amp; Biolink untuk <span style={{ color: '#2563eb' }}>Segala Jenis Usaha</span>
+                  </h1>
+
+                  <p style={{ fontSize: '1.12rem', color: '#475569', lineHeight: 1.65, marginBottom: '2rem', maxWidth: '620px' }}>
+                    Tinggalkan PDF kaku dan daftar harga manual. Hadirkan website katalog interaktif responsif yang terhubung langsung ke pesanan WhatsApp dengan <strong>0% biaya komisi</strong>.
+                  </p>
+
+                  {/* Value Pills */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem', marginBottom: '2.5rem' }}>
+                    <span className="hero-value-pill-clean"><Zap size={14} style={{ color: '#2563eb' }} /> 60 Detik Siap Pakai</span>
+                    <span className="hero-value-pill-clean"><MessageCircle size={14} style={{ color: '#16a34a' }} /> Direct WhatsApp Order</span>
+                    <span className="hero-value-pill-clean"><ShieldCheck size={14} style={{ color: '#2563eb' }} /> 0% Komisi Transaksi</span>
+                    <span className="hero-value-pill-clean"><QrCode size={14} style={{ color: '#2563eb' }} /> Subdomain &amp; QR Code Instan</span>
+                  </div>
+
+                  {/* Action CTA Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2.5rem' }}>
+                    <button className="btn-portal-primary" style={{ padding: '0.85rem 1.85rem', fontSize: '1rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                      <span>Mulai Buat Katalog — Gratis</span>
+                      <ArrowRight size={18} />
+                    </button>
+                    <a href="#industries-section" className="btn-portal-secondary" style={{ padding: '0.85rem 1.6rem', fontSize: '1rem', textDecoration: 'none' }}>
+                      <span>Eksplorasi Katalog</span>
+                    </a>
+                  </div>
+
+                  {/* Social Proof */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dbeafe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', border: '2px solid #ffffff' }}>☕</div>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', marginLeft: '-8px', border: '2px solid #ffffff' }}>🪴</div>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#fae8ff', color: '#86198f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', marginLeft: '-8px', border: '2px solid #ffffff' }}>✂️</div>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#fef3c7', color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', marginLeft: '-8px', border: '2px solid #ffffff' }}>🦎</div>
                     </div>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                      <li>✨ Postingan produk Unlimited</li>
-                      <li>✨ Halaman "Tentang Kami" kustom</li>
-                      <li>✨ Bebas watermark Catavor</li>
-                      <li>✨ Kontrol tombol beli</li>
-                    </ul>
+                    <div style={{ fontSize: '0.85rem', color: '#475569' }}>
+                      Dipercaya oleh <strong>1,200+ Pemilik Usaha</strong> di Indonesia
+                    </div>
                   </div>
-                  <button className="btn-primary btn-full" style={{ padding: '0.85rem', marginTop: '2rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro'); setPortalTab('register'); }}>
-                    Daftar Plan Pro
+                </div>
+
+                {/* Right Column: Clean Interactive Mockup */}
+                <div>
+                  <div className="mockup-device-wrapper-clean" style={{ padding: '1.5rem' }}>
+                    {/* Device Status Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid #f1f5f9', marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontWeight: 900, fontSize: '1.1rem' }}>
+                          M
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            Maison &amp; Boulangerie <CheckCircle2 size={16} style={{ color: '#2563eb' }} />
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>catavor.com/maison-boulangerie</div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: '#15803d', background: '#dcfce7', border: '1px solid #bbf7d0', padding: '0.25rem 0.65rem', borderRadius: '999px', fontWeight: 700 }}>
+                        🟢 Toko Buka
+                      </span>
+                    </div>
+
+                    {/* Mockup Store Card Items */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div style={{ display: 'flex', gap: '1rem', padding: '0.85rem', borderRadius: '0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', alignItems: 'center' }}>
+                        <img src="https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=160&auto=format&fit=crop&q=80" alt="Croissant" style={{ width: '64px', height: '64px', borderRadius: '0.6rem', objectFit: 'cover' }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Bakery &amp; Pastry</div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>French Butter Croissant</div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#2563eb' }}>Rp 24.000</div>
+                        </div>
+                        <button type="button" className="btn-portal-whatsapp" style={{ padding: '0.4rem 0.75rem', fontSize: '0.76rem' }} onClick={() => {
+                          setSimulatedOrderToast('Pesanan "French Butter Croissant" siap dikirim ke WhatsApp!');
+                          setTimeout(() => setSimulatedOrderToast(null), 4000);
+                        }}>
+                          Pesan
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '1rem', padding: '0.85rem', borderRadius: '0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', alignItems: 'center' }}>
+                        <img src="https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=160&auto=format&fit=crop&q=80" alt="Cold Brew" style={{ width: '64px', height: '64px', borderRadius: '0.6rem', objectFit: 'cover' }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Signature Coffee</div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Artisan Cold Brew Coffee</div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#2563eb' }}>Rp 28.000</div>
+                        </div>
+                        <button type="button" className="btn-portal-whatsapp" style={{ padding: '0.4rem 0.75rem', fontSize: '0.76rem' }} onClick={() => {
+                          setSimulatedOrderToast('Pesanan "Artisan Cold Brew" siap dikirim ke WhatsApp!');
+                          setTimeout(() => setSimulatedOrderToast(null), 4000);
+                        }}>
+                          Pesan
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mockup Quick Contact Bar */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', fontSize: '0.78rem', color: '#64748b' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><MapPin size={14} style={{ color: '#2563eb' }} /> Jakarta Selatan</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><Clock size={14} style={{ color: '#2563eb' }} /> 08:00 - 21:00</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><QrCode size={14} style={{ color: '#2563eb' }} /> QR Ready</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* 2. MULTI-INDUSTRY LIVE CATALOG EXPLORER */}
+              <section id="industries-section" style={{ scrollMarginTop: '6rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Katalog Multi-Sektor</span>
+                  <h2 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.35rem', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    Satu Platform untuk Segala Bidang Bisnis
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '1rem', maxWidth: '650px', margin: '0.5rem auto 0 auto' }}>
+                    Pilih kategori usaha di bawah ini untuk melihat simulasi tampilan katalog produk, tarif harga, dan alur pemesanan WhatsApp.
+                  </p>
+                </div>
+
+                {/* Category Selector Tabs */}
+                <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '2.5rem' }}>
+                  {LANDING_INDUSTRIES.map((ind) => {
+                    const IconCmp = ind.icon;
+                    const isActive = landingCategory === ind.id;
+                    return (
+                      <button
+                        key={ind.id}
+                        type="button"
+                        className={`industry-tab-clean ${isActive ? 'active' : ''}`}
+                        onClick={() => setLandingCategory(ind.id as any)}
+                      >
+                        <IconCmp size={18} style={{ color: ind.color }} />
+                        <span>{ind.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active Category Banner */}
+                <div style={{ padding: '1.25rem 1.75rem', borderRadius: '1rem', background: activeIndustryData.accentBg, border: `1px solid ${activeIndustryData.color}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.25rem' }}>
+                  <div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>{activeIndustryData.tagline}</div>
+                    <div style={{ fontSize: '0.88rem', color: '#475569' }}>{activeIndustryData.description}</div>
+                  </div>
+                  <div style={{ padding: '0.4rem 0.95rem', borderRadius: '999px', background: '#ffffff', color: activeIndustryData.color, fontWeight: 800, fontSize: '0.8rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
+                    {activeIndustryData.badge}
+                  </div>
+                </div>
+
+                {/* 3 Realistic Product Cards */}
+                <div className="catalog-cards-grid">
+                  {activeIndustryData.products.map((item) => (
+                    <div key={item.id} className="catalog-demo-card-clean">
+                      <div className="catalog-demo-img-box-clean">
+                        <img src={item.image} alt={item.title} />
+                        <div style={{ position: 'absolute', top: '0.75rem', left: '0.75rem', display: 'flex', gap: '0.45rem' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.25rem 0.65rem', borderRadius: '999px', background: 'rgba(15, 23, 42, 0.8)', color: '#ffffff', backdropFilter: 'blur(4px)' }}>
+                            {item.category}
+                          </span>
+                          {item.badge && (
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.25rem 0.65rem', borderRadius: '999px', background: '#2563eb', color: '#ffffff' }}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '1.35rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', flex: 1, justifyContent: 'space-between' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                            <span>{item.merchant} ({item.location})</span>
+                            <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
+                              <Star size={13} fill="#f59e0b" /> {item.rating} ({item.reviews})
+                            </span>
+                          </div>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0', lineHeight: 1.4 }}>{item.title}</h3>
+                          <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0, lineHeight: 1.5 }}>{item.description}</p>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', marginTop: '0.5rem' }}>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#2563eb' }}>{item.price}</div>
+                          <button 
+                            type="button" 
+                            onClick={() => setPreviewProductModal(item)}
+                            className="btn-portal-whatsapp" 
+                            style={{ padding: '0.45rem 0.95rem' }}
+                          >
+                            <MessageCircle size={15} />
+                            <span>Pesan via WA</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* 3. VALUE PILLARS & CORE CAPABILITIES */}
+              <section id="features-section" style={{ scrollMarginTop: '6rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keunggulan Utama</span>
+                  <h2 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.35rem', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    Mengapa Pemilik Usaha Memilih Catavor?
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '1rem', maxWidth: '600px', margin: '0.5rem auto 0 auto' }}>
+                    Solusi terpadu untuk digitalisasi etalase produk, efisiensi pemesanan, dan branding toko fisik maupun online.
+                  </p>
+                </div>
+
+                <div className="features-grid-3col">
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                      <Image size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>WebP &amp; Fast CDN Images</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Foto produk dikonversi otomatis ke WebP beresolusi tinggi dengan kompresi ringan agar katalog terbuka seketika tanpa lemot.
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                      <MessageCircle size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Structured WhatsApp Order</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Tombol pesan otomatis mengisi nama produk, harga, varian, dan catatan sehingga penjual dan pembeli tidak perlu mengetik manual.
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#fef3c7', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                      <Palette size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>5 Pilihan Tema Warna Toko</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Sesuaikan warna katalog Anda (Emerald, Sapphire Blue, Amethyst, Sunset Coral, atau Classic Slate) sesuai identitas brand usaha.
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#faf5ff', border: '1px solid #e9d5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed' }}>
+                      <QrCode size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>QR Code Meja Kasir Siap Cetak</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Unduh file QR Code berkualitas tinggi langsung dari Dashboard untuk dicetak pada akrilik meja kasir, stiker kemasan, atau kartu nama.
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#ecfeff', border: '1px solid #a5f3fc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0891b2' }}>
+                      <Globe size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Integrasi Multi-Marketplace</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Sertakan tautan resmi toko Shopee, Tokopedia, dan Instagram Anda dalam satu biolink katalog praktis.
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#fff1f2', border: '1px solid #fecdd3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e11d48' }}>
+                      <ShieldCheck size={24} />
+                    </div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>0% Potongan Komisi</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Seluruh hasil penjualan dari pelanggan 100% milik Anda seutuhnya. Tidak ada biaya tersembunyi per transaksi.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 4. FEATURED STORES DIRECTORY */}
+              {featuredStores && featuredStores.length > 0 && (
+                <section id="stores-section" style={{ scrollMarginTop: '6rem' }}>
+                  <div className="stores-header-flex">
+                    <div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Katalog Bisnis Aktif</span>
+                      <h2 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.35rem', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                        Jelajahi Toko &amp; Katalog Nyata
+                      </h2>
+                    </div>
+                    
+                    {/* Search Input for Stores */}
+                    <div className="search-wrapper" style={{ width: '320px', position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Cari nama toko / bidang usaha..." 
+                        value={searchStoreQuery}
+                        onChange={(e) => setSearchStoreQuery(e.target.value)}
+                        className="form-input"
+                        style={{ paddingLeft: '2.4rem' }}
+                      />
+                      <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    </div>
+                  </div>
+
+                  <div className="stores-grid-4col">
+                    {filteredStores.slice(0, 8).map((st: any) => (
+                      <div 
+                        key={st.id || st.slug} 
+                        className="portal-card" 
+                        style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer' }}
+                        onClick={() => {
+                          if (st.slug) {
+                            setStoreSlug(st.slug);
+                            setView('catalog');
+                          }
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                            {st.store_logo_url ? (
+                              <img src={st.store_logo_url} alt={st.store_title} style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                            ) : (
+                              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1rem', border: '1px solid #bfdbfe' }}>
+                                {(st.store_title || 'T')[0]}
+                              </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {st.store_title || 'Toko Bisnis'}
+                              </h4>
+                              <div style={{ fontSize: '0.74rem', color: '#64748b' }}>/{st.slug}</div>
+                            </div>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: '#475569', margin: '0 0 1rem 0', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {st.store_slogan || st.store_description || 'Katalog digital resmi terpercaya di platform Catavor.'}
+                          </p>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', fontSize: '0.78rem', color: '#2563eb', fontWeight: 700 }}>
+                          <span>Kunjungi Katalog</span>
+                          <ArrowRight size={14} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* 5. 3-STEP "CARA KERJA" */}
+              <section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '5.5rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kemudahan Operasional</span>
+                  <h2 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.35rem', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    Mulai dalam 3 Langkah Sederhana
+                  </h2>
+                </div>
+
+                <div className="steps-grid-3col">
+                  <div className="portal-card" style={{ padding: '2.25rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#2563eb', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)' }}>1</div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Klaim Tautan &amp; Daftarkan Akun</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Daftar gratis dalam 30 detik dan pilih slug nama toko Anda (contoh: <strong>catavor.com/usaha-anda</strong>).
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2.25rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#2563eb', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)' }}>2</div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Upload Produk &amp; Atur Tarif</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Unggah foto produk, isi harga promo, kategori, profil bisnis, nomor WhatsApp, dan jam operasional.
+                    </p>
+                  </div>
+
+                  <div className="portal-card" style={{ padding: '2.25rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#2563eb', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)' }}>3</div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Bagikan di Bio &amp; Meja Kasir</h3>
+                    <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                      Pasang link di bio Instagram/TikTok dan tempel QR Code di kasir toko fisik Anda untuk order cepat via WhatsApp.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 6. TRANSPARENT PRICING SECTION */}
+              <section id="pricing-desktop" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '5.5rem', scrollMarginTop: '6rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Investasi Terjangkau</span>
+                  <h2 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.35rem', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    Pilihan Paket Sesuai Skala Usaha
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '1rem', maxWidth: '550px', margin: '0.5rem auto 1.5rem auto' }}>
+                    Mulai gratis selamanya untuk pemula, atau upgrade ke Pro untuk fitur tanpa batas.
+                  </p>
+
+                  {/* Monthly vs Annual Switcher */}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem', borderRadius: '999px', background: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setPricingBillingCycle('monthly')}
+                      style={{ padding: '0.45rem 1.25rem', borderRadius: '999px', border: 'none', background: pricingBillingCycle === 'monthly' ? '#2563eb' : 'transparent', color: pricingBillingCycle === 'monthly' ? '#ffffff' : '#475569', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s ease' }}
+                    >
+                      Bulanan
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setPricingBillingCycle('yearly')}
+                      style={{ padding: '0.45rem 1.25rem', borderRadius: '999px', border: 'none', background: pricingBillingCycle === 'yearly' ? '#2563eb' : 'transparent', color: pricingBillingCycle === 'yearly' ? '#ffffff' : '#475569', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <span>Tahunan</span>
+                      <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.68rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '999px' }}>-20% Hemat</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pricing-grid-2col">
+                  {/* Free Plan Card */}
+                  <div className="portal-card" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan Starter</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '999px' }}>GRATIS</span>
+                      </div>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1.25rem 0' }}>
+                        Rp 0 <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 500 }}>/ selamanya</span>
+                      </div>
+                      <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                        Cocok untuk usaha rintisan atau warung yang baru memulai digitalisasi produk.
+                      </p>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.88rem', color: '#334155' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal 10 postingan produk</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Subdomain kustom (catavor.com/tokomu)</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> WhatsApp Direct Order 1-klik</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Download QR Code toko siap cetak</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark "Free by Catavor" aktif</li>
+                      </ul>
+                    </div>
+                    <button className="btn-portal-secondary" style={{ width: '100%', padding: '0.85rem', marginTop: '2.25rem', justifyContent: 'center' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                      Daftar Plan Gratis
+                    </button>
+                  </div>
+
+                  {/* Pro Plan Card */}
+                  <div className="portal-card" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #2563eb', background: '#ffffff', boxShadow: '0 20px 40px -10px rgba(37, 99, 235, 0.15)', position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: '-0.8rem', right: '2rem', background: '#2563eb', color: '#ffffff', fontSize: '0.72rem', fontWeight: 800, padding: '0.25rem 0.85rem', borderRadius: '999px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)' }}>
+                      PALING DIREKOMENDASIKAN
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan Pro Unlimited</span>
+                      </div>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1.25rem 0', display: 'flex', alignItems: 'baseline', gap: '0.65rem' }}>
+                        {pricingBillingCycle === 'yearly' && (
+                          <span style={{ fontSize: '1.35rem', color: '#94a3b8', textDecoration: 'line-through', fontWeight: 600 }}>Rp 30rb</span>
+                        )}
+                        <span style={{ color: '#2563eb' }}>{pricingBillingCycle === 'monthly' ? 'Rp 30.000' : 'Rp 24.000'}</span>
+                        <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
+                      </div>
+                      <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                        Untuk bisnis aktif, restoran, butik, dan profesional yang membutuhkan fitur tak terbatas.
+                      </p>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.88rem', color: '#0f172a' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> <strong>Unlimited</strong> postingan produk &amp; jasa</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> Halaman <strong>"Tentang Kami" kustom</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> <strong>100% Bebas Watermark</strong> Catavor</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> Multi-marketplace link (Shopee, Tokopedia)</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> Akses seluruh 5 palet tema warna toko</li>
+                      </ul>
+                    </div>
+                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.85rem', marginTop: '2.25rem', justifyContent: 'center', fontSize: '0.95rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro'); setPortalTab('register'); }}>
+                      <span>Daftar Plan Pro Sekarang</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* 7. FAQ ACCORDION SECTION */}
+              <section id="faq-section" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '5.5rem', scrollMarginTop: '6rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pusat Bantuan</span>
+                  <h2 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.35rem', color: '#0f172a', letterSpacing: '-0.02em' }}>
+                    Pertanyaan yang Sering Diajukan
+                  </h2>
+                </div>
+
+                <div style={{ maxWidth: '820px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {LANDING_FAQS.map((faq, idx) => {
+                    const isOpen = expandedFaq === idx;
+                    return (
+                      <div key={idx} className={`faq-accordion-clean ${isOpen ? 'active' : ''}`}>
+                        <div 
+                          onClick={() => setExpandedFaq(isOpen ? null : idx)}
+                          style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        >
+                          <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0f172a', margin: 0, flex: 1, paddingRight: '1rem' }}>
+                            {faq.q}
+                          </h4>
+                          <ChevronDown size={18} style={{ color: isOpen ? '#2563eb' : '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+                        </div>
+                        {isOpen && (
+                          <div style={{ padding: '0 1.5rem 1.35rem 1.5rem', fontSize: '0.88rem', color: '#475569', lineHeight: 1.65, borderTop: '1px solid #f1f5f9', paddingTop: '1rem' }}>
+                            {faq.a}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* 8. BOTTOM HERO CTA BANNER */}
+              <section style={{ padding: '3.5rem 3rem', borderRadius: '1.5rem', background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%)', color: '#ffffff', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(37, 99, 235, 0.35)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'relative', zIndex: 2, maxWidth: '720px', margin: '0 auto' }}>
+                  <h2 style={{ fontSize: '2.5rem', fontWeight: 900, marginBottom: '0.85rem', letterSpacing: '-0.02em', color: '#ffffff' }}>
+                    Siap Memulai Digitalisasi Katalog Bisnis Anda?
+                  </h2>
+                  <p style={{ fontSize: '1.05rem', color: '#dbeafe', marginBottom: '2rem', lineHeight: 1.6 }}>
+                    Daftar sekarang dan publikasikan katalog produk interaktif Anda dalam 60 detik. Gratis selamanya tanpa kartu kredit.
+                  </p>
+                  <button className="btn-portal-secondary" style={{ padding: '0.9rem 2.2rem', fontSize: '1rem', fontWeight: 800, color: '#1d4ed8' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                    <span>Buat Link Katalog Saya</span>
+                    <ArrowRight size={18} />
+                  </button>
+                </div>
+              </section>
+            </main>
+            
+            {/* Corporate Footer */}
+            <footer style={{ borderTop: '1px solid #e2e8f0', padding: '3rem 2rem', background: '#ffffff' }}>
+              <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                    <Store size={16} />
+                  </div>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Catavor</span>
+                  <span style={{ color: '#94a3b8', fontSize: '0.82rem', marginLeft: '0.5rem' }}>
+                    © 2026 PT Catavor Media Digital. Hak Cipta Dilindungi.
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', fontSize: '0.82rem' }}>
+                  <button type="button" onClick={() => setPortalTab('terms')} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+                    Syarat &amp; Ketentuan ({policies.terms?.version || 'v1.0.0'})
+                  </button>
+                  <span style={{ color: '#cbd5e1' }}>•</span>
+                  <button type="button" onClick={() => setPortalTab('privacy')} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+                    Kebijakan Privasi ({policies.privacy?.version || 'v1.0.0'})
+                  </button>
+                  <span style={{ color: '#cbd5e1' }}>•</span>
+                  <button type="button" onClick={() => setPortalTab('acceptable_use')} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+                    Ketentuan Penggunaan ({policies.acceptable_use?.version || 'v1.0.0'})
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Concept Section */}
-            <div id="concept-section" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '5rem', marginBottom: '3rem' }}>
-              <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bagaimana Ini Bekerja?</span>
-                <h2 style={{ fontSize: '2.25rem', fontWeight: 900, marginTop: '0.5rem', color: '#fff' }}>Konsep Sederhana Catavor</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '550px', margin: '0.5rem auto 0 auto' }}>Hanya perlu 3 langkah mudah untuk membawa katalog produk dan informasi bisnis Anda ke genggaman pelanggan.</p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
-                <div className="glass-panel" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>1</div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Daftarkan Nama Katalog</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                    Daftar instan dan klaim tautan unik Anda (misalnya <strong>catavor.com/katalog-anda</strong>).
-                  </p>
-                </div>
-
-                <div className="glass-panel" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>2</div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Kelola Katalog & Profil</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                    Masukkan item (barang, hidangan, jasa, atau satwa hias) beserta harga, deskripsi usaha, lokasi, dan sosial media.
-                  </p>
-                </div>
-
-                <div className="glass-panel" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>3</div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Bagikan & Terima Pesanan</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                    Pasang link Catavor di bio sosial media Anda. Pelanggan dapat langsung menjelajahi produk dan menghubungi WhatsApp Anda dalam satu klik.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </main>
-          
-          {/* Portal Footer with Dynamic Policy Links */}
-          <footer style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', padding: '2rem 0', background: 'rgba(8, 12, 20, 0.95)', marginTop: '4rem' }}>
-            <div className="container header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-                © 2026 <strong>Catavor</strong> Inc. All rights reserved. • Privasi &amp; Data Terlindungi
-              </div>
-              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', fontSize: '0.8rem' }}>
-                <button type="button" onClick={() => setPortalTab('terms')} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 600 }}>
-                  Syarat & Ketentuan ({policies.terms?.version || 'v1.0.0'})
-                </button>
-                <span style={{ color: '#475569' }}>•</span>
-                <button type="button" onClick={() => setPortalTab('privacy')} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 600 }}>
-                  Kebijakan Privasi ({policies.privacy?.version || 'v1.0.0'})
-                </button>
-                <span style={{ color: '#475569' }}>•</span>
-                <button type="button" onClick={() => setPortalTab('acceptable_use')} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 600 }}>
-                  Ketentuan Penggunaan ({policies.acceptable_use?.version || 'v1.0.0'})
-                </button>
-              </div>
-            </div>
-          </footer>
-        </>
-      )}
+            </footer>
+          </>
+        )}
 
         {portalTab === 'login' && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '6rem 2rem' }}>
@@ -7962,9 +9204,9 @@ function App() {
                   </button>
 
                   {adminTab === 'items' && (
-                    <button className="btn-primary" onClick={openCreateModal}>
+                    <button className="btn-primary" onClick={() => openCreateModal('physical')}>
                       <Plus size={18} />
-                      Tambah Postingan Baru
+                      Tambah Item Baru
                     </button>
                   )}
                   <button className="btn-danger" onClick={handleLogout} style={{ padding: '0.65rem 1rem' }}>
@@ -8164,7 +9406,7 @@ function App() {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
                   <PackageCheck size={16} />
-                  <span>Inventaris &amp; Postingan Hewan</span>
+                  <span>Daftar Item Katalog</span>
                 </button>
                 <button 
                   className={`admin-tab ${adminTab === 'notifications' ? 'active' : ''}`}
@@ -8256,18 +9498,18 @@ function App() {
                       <thead>
                         <tr>
                           <th>Foto</th>
-                          <th>Nama Hewan / Taksonomi</th>
-                          <th>Kelas / Habitat</th>
+                          <th>Nama Item &amp; Spesifikasi</th>
+                          <th>Kategori &amp; Opsi</th>
                           <th>Harga</th>
-                          <th>Pengiriman</th>
+                          <th>Pengiriman / Akses</th>
                           <th>Aksi</th>
                         </tr>
                       </thead>
                       <tbody>
                         {faunas.length === 0 ? (
                           <tr>
-                            <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                              Belum ada postingan hewan terdaftar.
+                            <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2.5rem' }}>
+                              Belum ada item katalog terdaftar. Klik "+ Tambah Item Baru" di atas untuk memulai.
                             </td>
                           </tr>
                         ) : (
@@ -9021,183 +10263,520 @@ function App() {
 
                   {/* Master Data Management Section */}
                   {settingsSubTab === 'master' && (
-                    <div style={{ marginTop: '1rem', paddingTop: '1rem' }} className="animate-fade-in">
-                      <h3 style={{ fontSize: '1.15rem', marginBottom: '0.5rem', fontWeight: 700 }}>
-                        Kelola Master Data Katalog
-                      </h3>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                        Kelola daftar pilihan dropdown bawaan. Klik tombol hapus (tanda silang) untuk menghapus atau mengganti pilihan secara massal.
-                      </p>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        {/* Kelas Category */}
-                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Kelas Hewan</h4>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                            {getUniqueClasses().map((c) => (
-                              <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                                {c}
-                                <span
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleDeleteMasterOption('class', c);
-                                  }}
-                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                                  title={`Hapus opsi ${c}`}
-                                >
-                                  <X size={12} />
-                                </span>
+                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
+                      {/* Top Header Banner with 1-Click Industry Presets */}
+                      <div style={{
+                        padding: '1.5rem',
+                        borderRadius: '1rem',
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)',
+                        border: '1px solid var(--border-light)',
+                        marginBottom: '1.75rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <span style={{ padding: '0.35rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', fontWeight: 800, fontSize: '0.75rem' }}>
+                                TWO-TIER MASTER DATA
                               </span>
-                            ))}
+                              <h3 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
+                                Kelola Master Data &amp; Kategori Toko
+                              </h3>
+                            </div>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0.35rem 0 0 0' }}>
+                              Atur daftar kategori, sub-klasifikasi, status ketersediaan, dan jangkauan layanan secara terisolasi untuk toko Anda.
+                            </p>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        </div>
+
+                        {/* Industry Presets Quick Selector */}
+                        <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                            <Sparkles size={16} style={{ color: 'var(--primary)' }} />
+                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Template Starter Industri (1-Click Apply):
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              Terapkan susunan master data instan sesuai model bisnis Anda:
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
+                            {[
+                              { key: 'physical', label: 'Retail & Barang Fisik', icon: Package, color: '#3b82f6', desc: 'Pakaian, Aksesoris, Elektronik, dll.' },
+                              { key: 'digital', label: 'File & Item Digital', icon: FileCode, color: '#8b5cf6', desc: 'E-Book, Script, Desain, Video, dll.' },
+                              { key: 'fauna', label: 'Petshop & Satwa Hias', icon: Compass, color: '#10b981', desc: 'Reptil, Ikan, Burung, Pakan, dll.' },
+                              { key: 'service', label: 'Jasa & Layanan', icon: Wrench, color: '#f59e0b', desc: 'Konsultasi, Servis, Desain, Kursus, dll.' },
+                              { key: 'food', label: 'Kuliner & F&B', icon: Utensils, color: '#ef4444', desc: 'Makanan, Minuman, Snack, Frozen, dll.' },
+                              { key: 'general', label: 'Universal / Umum', icon: Layers, color: '#06b6d4', desc: 'Template netral untuk semua bisnis' },
+                            ].map((preset) => {
+                              const IconComponent = preset.icon;
+                              return (
+                                <button
+                                  key={preset.key}
+                                  type="button"
+                                  onClick={() => {
+                                    setPresetModalData({
+                                      key: preset.key as any,
+                                      title: preset.label,
+                                      desc: preset.desc,
+                                      sampleCategories: preset.key === 'physical'
+                                        ? ['Pakaian & Busana', 'Aksesoris & Fashion', 'Gadget & Elektronik', 'Kebutuhan Rumah Tangga', 'Kerajinan Tangan']
+                                        : preset.key === 'digital'
+                                        ? ['E-Book & Panduan', 'Source Code & Script', 'Template Desain', 'Video & Audio Materi', 'Tools & Aset Digital']
+                                        : preset.key === 'fauna'
+                                        ? ['Reptil & Amfibi', 'Ikan Hias & Aquascape', 'Burung Kicau & Unggas', 'Mamalia Hias', 'Pakan & Perlengkapan']
+                                        : preset.key === 'service'
+                                        ? ['Konsultasi & Advice', 'Desain & Kreatif', 'Perbaikan & Servis', 'Kursus & Pelatihan', 'Pembuatan Web & Aplikasi']
+                                        : preset.key === 'food'
+                                        ? ['Makanan Utama / Berat', 'Camilan & Snack', 'Minuman Segar & Kopi', 'Frozen Food Siap Masak', 'Paket Katering']
+                                        : ['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial']
+                                    });
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                    border: '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.2s ease',
+                                    gap: '0.35rem'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = preset.color;
+                                    e.currentTarget.style.backgroundColor = `${preset.color}15`;
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '100%' }}>
+                                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: `${preset.color}25`, color: preset.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      <IconComponent size={14} />
+                                    </div>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {preset.label}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                                    {preset.desc}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4 Cards Grid for Master Data */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        {/* 1. Kategori Item (master_classes) */}
+                        <div className="glass-panel" style={{ padding: '1.35rem', borderRadius: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                            <div>
+                              <h4 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Package size={16} style={{ color: 'var(--primary)' }} /> Kategori Item Toko
+                              </h4>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                                Pengelompokan utama etalase item katalog Anda.
+                              </p>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                              {getUniqueClasses().length} Kategori
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem', minHeight: '60px' }}>
+                            {getUniqueClasses().map((c) => {
+                              const count = faunas.filter(f => f.class === c).length;
+                              return (
+                                <span 
+                                  key={c} 
+                                  className="badge" 
+                                  style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.45rem', 
+                                    backgroundColor: 'var(--bg-card)', 
+                                    border: '1px solid var(--border-light)', 
+                                    padding: '0.4rem 0.65rem', 
+                                    borderRadius: '0.55rem', 
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)'
+                                  }}
+                                >
+                                  <span>{c}</span>
+                                  <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                    {count} item
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setRenameMasterModalData({
+                                        field: 'class',
+                                        fieldLabel: 'Kategori Item Toko',
+                                        oldValue: c,
+                                        newValue: c
+                                      });
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Ubah nama kategori "${c}"`}
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDeleteMasterOption('class', c);
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Hapus kategori "${c}"`}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.45rem' }}>
                             <input 
                               type="text" 
-                              placeholder="Tambah kelas baru..." 
+                              placeholder="Ketik kategori baru..." 
                               className="form-input" 
-                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem', height: '36px' }}
                               value={newClassInput}
                               onChange={(e) => setNewClassInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddMasterOption('class', newClassInput, setNewClassInput);
+                                }
+                              }}
                             />
                             <button 
                               type="button" 
                               className="btn-primary" 
-                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              style={{ padding: '0 0.9rem', fontSize: '0.8rem', height: '36px', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
                               onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
                             >
-                              <Plus size={14} />
+                              <Plus size={14} /> Tambah
                             </button>
                           </div>
                         </div>
 
-                        {/* Habitat Category */}
-                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Habitat</h4>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                            {getUniqueHabitats().map((h) => (
-                              <span key={h} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                                {h}
-                                <span
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleDeleteMasterOption('habitat', h);
-                                  }}
-                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                                  title={`Hapus opsi ${h}`}
-                                >
-                                  <X size={12} />
-                                </span>
-                              </span>
-                            ))}
+                        {/* 2. Sub-Klasifikasi / Karakteristik Item (master_habitats) */}
+                        <div className="glass-panel" style={{ padding: '1.35rem', borderRadius: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                            <div>
+                              <h4 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Layers size={16} style={{ color: '#8b5cf6' }} /> Sub-Klasifikasi / Karakter
+                              </h4>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                                Varian, kondisi, lisensi, atau tipe penyajian item.
+                              </p>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa' }}>
+                              {getUniqueHabitats().length} Opsi
+                            </span>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem', minHeight: '60px' }}>
+                            {getUniqueHabitats().map((h) => {
+                              const count = faunas.filter(f => f.habitat === h).length;
+                              return (
+                                <span 
+                                  key={h} 
+                                  className="badge" 
+                                  style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.45rem', 
+                                    backgroundColor: 'var(--bg-card)', 
+                                    border: '1px solid var(--border-light)', 
+                                    padding: '0.4rem 0.65rem', 
+                                    borderRadius: '0.55rem', 
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)'
+                                  }}
+                                >
+                                  <span>{h}</span>
+                                  <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                    {count} item
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setRenameMasterModalData({
+                                        field: 'habitat',
+                                        fieldLabel: 'Sub-Klasifikasi / Karakter Item',
+                                        oldValue: h,
+                                        newValue: h
+                                      });
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Ubah nama "${h}"`}
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDeleteMasterOption('habitat', h);
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Hapus "${h}"`}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.45rem' }}>
                             <input 
                               type="text" 
-                              placeholder="Tambah habitat baru..." 
+                              placeholder="Ketik sub-klasifikasi baru..." 
                               className="form-input" 
-                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem', height: '36px' }}
                               value={newHabitatInput}
                               onChange={(e) => setNewHabitatInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput);
+                                }
+                              }}
                             />
                             <button 
                               type="button" 
                               className="btn-primary" 
-                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              style={{ padding: '0 0.9rem', fontSize: '0.8rem', height: '36px', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
                               onClick={() => handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput)}
                             >
-                              <Plus size={14} />
+                              <Plus size={14} /> Tambah
                             </button>
                           </div>
                         </div>
 
-                        {/* Status Konservasi Category */}
-                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Status Konservasi</h4>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                            {getUniqueConservationStatuses().map((s) => (
-                              <span key={s} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                                {s}
-                                <span
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleDeleteMasterOption('conservation_status', s);
-                                  }}
-                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                                  title={`Hapus opsi ${s}`}
-                                >
-                                  <X size={12} />
-                                </span>
-                              </span>
-                            ))}
+                        {/* 3. Status Ketersediaan Item (master_statuses) */}
+                        <div className="glass-panel" style={{ padding: '1.35rem', borderRadius: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                            <div>
+                              <h4 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <ShieldCheck size={16} style={{ color: '#10b981' }} /> Status Ketersediaan
+                              </h4>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                                Status stok, pemesanan, atau ketersediaan listing.
+                              </p>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
+                              {getUniqueConservationStatuses().length} Status
+                            </span>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem', minHeight: '60px' }}>
+                            {getUniqueConservationStatuses().map((s) => {
+                              const count = faunas.filter(f => f.conservation_status === s).length;
+                              return (
+                                <span 
+                                  key={s} 
+                                  className="badge" 
+                                  style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.45rem', 
+                                    backgroundColor: 'var(--bg-card)', 
+                                    border: '1px solid var(--border-light)', 
+                                    padding: '0.4rem 0.65rem', 
+                                    borderRadius: '0.55rem', 
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)'
+                                  }}
+                                >
+                                  <span>{s}</span>
+                                  <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                    {count} item
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setRenameMasterModalData({
+                                        field: 'conservation_status',
+                                        fieldLabel: 'Status Ketersediaan',
+                                        oldValue: s,
+                                        newValue: s
+                                      });
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Ubah nama "${s}"`}
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDeleteMasterOption('conservation_status', s);
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Hapus "${s}"`}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.45rem' }}>
                             <input 
                               type="text" 
-                              placeholder="Tambah status baru..." 
+                              placeholder="Ketik status ketersediaan baru..." 
                               className="form-input" 
-                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem', height: '36px' }}
                               value={newStatusInput}
                               onChange={(e) => setNewStatusInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput);
+                                }
+                              }}
                             />
                             <button 
                               type="button" 
                               className="btn-primary" 
-                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              style={{ padding: '0 0.9rem', fontSize: '0.8rem', height: '36px', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
                               onClick={() => handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput)}
                             >
-                              <Plus size={14} />
+                              <Plus size={14} /> Tambah
                             </button>
                           </div>
                         </div>
 
-                        {/* Jangkauan Pengiriman Category */}
-                        <div className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--primary-hover)' }}>Jangkauan Pengiriman</h4>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                            {getUniqueShippingCoverages().map((sc) => (
-                              <span key={sc} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.35rem 0.6rem', borderRadius: '0.50rem', fontSize: '0.8rem' }}>
-                                {sc}
-                                <span
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleDeleteMasterOption('shipping_coverage', sc);
-                                  }}
-                                  style={{ cursor: 'pointer', color: 'var(--danger)', marginLeft: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
-                                  title={`Hapus opsi ${sc}`}
-                                >
-                                  <X size={12} />
-                                </span>
-                              </span>
-                            ))}
+                        {/* 4. Jangkauan Pengiriman / Wilayah Layanan (master_shipping_coverages) */}
+                        <div className="glass-panel" style={{ padding: '1.35rem', borderRadius: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                            <div>
+                              <h4 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Truck size={16} style={{ color: '#3b82f6' }} /> Jangkauan Pengiriman &amp; Layanan
+                              </h4>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                                Opsi cakupan kurir, on-site, atau delivery toko.
+                              </p>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
+                              {getUniqueShippingCoverages().length} Jangkauan
+                            </span>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem', minHeight: '60px' }}>
+                            {getUniqueShippingCoverages().map((sc) => {
+                              const count = faunas.filter(f => f.detailed_info?.shipping_coverage === sc).length;
+                              return (
+                                <span 
+                                  key={sc} 
+                                  className="badge" 
+                                  style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.45rem', 
+                                    backgroundColor: 'var(--bg-card)', 
+                                    border: '1px solid var(--border-light)', 
+                                    padding: '0.4rem 0.65rem', 
+                                    borderRadius: '0.55rem', 
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)'
+                                  }}
+                                >
+                                  <span>{sc}</span>
+                                  <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                    {count} item
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setRenameMasterModalData({
+                                        field: 'shipping_coverage',
+                                        fieldLabel: 'Jangkauan Pengiriman & Layanan',
+                                        oldValue: sc,
+                                        newValue: sc
+                                      });
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Ubah nama "${sc}"`}
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDeleteMasterOption('shipping_coverage', sc);
+                                    }}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                    title={`Hapus "${sc}"`}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.45rem' }}>
                             <input 
                               type="text" 
-                              placeholder="Tambah jangkauan baru..." 
+                              placeholder="Ketik jangkauan baru..." 
                               className="form-input" 
-                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', height: '32px' }}
+                              style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem', height: '36px' }}
                               value={newShippingInput}
                               onChange={(e) => setNewShippingInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput);
+                                }
+                              }}
                             />
                             <button 
                               type="button" 
                               className="btn-primary" 
-                              style={{ padding: '0 0.75rem', fontSize: '0.8rem', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              style={{ padding: '0 0.9rem', fontSize: '0.8rem', height: '36px', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
                               onClick={() => handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput)}
                             >
-                              <Plus size={14} />
+                              <Plus size={14} /> Tambah
                             </button>
                           </div>
                         </div>
                       </div>
                     </div>
+                  )}
+                </>
               )}
-            </>
-          )}
 
               {adminTab === 'profile' && (
                 /* TAB 3: ADMIN PROFILE & PASSWORD SETTINGS */
@@ -11115,60 +12694,135 @@ function App() {
 
 
 
-      {/* ADMIN CRUD ADD/EDIT MODAL */}
-      {showCrudModal && (
-        <div className="modal-overlay" onClick={() => setShowCrudModal(false)}>
-          <div className="glass-panel modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
-            <button className="modal-close-btn" onClick={() => setShowCrudModal(false)}>
-              <X size={18} />
-            </button>
-            
-            <div className="modal-header-section">
-              <h2 style={{ fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800 }}>
-                <FileText style={{ color: 'var(--primary)' }} />
-                {crudMode === 'create' ? 'Tambah Postingan Hewan' : 'Edit Postingan Hewan'}
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                Lengkapi rincian formulir untuk memperbarui listing inventaris toko.
-              </p>
-            </div>
-
-            <div className="modal-body-scroll">
-              {crudError && (
-                <div className="alert-message alert-error" style={{ marginBottom: '1.5rem' }}>
-                  {crudError}
+      {/* ADMIN CRUD ADD/EDIT MODAL WITH UNIVERSAL MULTI-CATEGORY SUPPORT */}
+      {showCrudModal && (() => {
+        const typeConfig = getItemTypeFormConfig(crudForm.product_type);
+        const IconComponent = typeConfig.icon;
+        
+        return (
+          <div className="modal-overlay" onClick={() => setShowCrudModal(false)}>
+            <div className="glass-panel modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px' }}>
+              <button className="modal-close-btn" onClick={() => setShowCrudModal(false)}>
+                <X size={18} />
+              </button>
+              
+              {/* Category Selector Pill Bar */}
+              <div style={{ marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, display: 'block', marginBottom: '0.6rem' }}>
+                  Pilih Tipe Item Katalog:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.45rem' }}>
+                  {[
+                    { id: 'physical', name: 'Barang Fisik', icon: Package, color: '#2563eb' },
+                    { id: 'digital', name: 'Item Digital', icon: FileCode, color: '#8b5cf6' },
+                    { id: 'fauna', name: 'Satwa / Fauna', icon: PawPrint, color: '#059669' },
+                    { id: 'service', name: 'Jasa & Layanan', icon: Wrench, color: '#d97706' },
+                    { id: 'food', name: 'Menu Kuliner', icon: Utensils, color: '#dc2626' }
+                  ].map((cat) => {
+                    const CatIcon = cat.icon;
+                    const isSelected = crudForm.product_type === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          const newConfig = getItemTypeFormConfig(cat.id as ItemCategoryType);
+                          setCrudForm(prev => ({
+                            ...prev,
+                            product_type: cat.id as ItemCategoryType,
+                            class: prev.class === typeConfig.defaultCategory ? newConfig.defaultCategory : prev.class,
+                            shipping_coverage: prev.shipping_coverage === typeConfig.deliveryOptions[0] ? newConfig.deliveryOptions[0] : prev.shipping_coverage
+                          }));
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          padding: '0.6rem 0.35rem',
+                          borderRadius: '0.65rem',
+                          border: isSelected ? `2px solid ${cat.color}` : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? `${cat.color}18` : 'rgba(255, 255, 255, 0.02)',
+                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                          boxShadow: isSelected ? `0 4px 12px ${cat.color}25` : 'none'
+                        }}
+                      >
+                        <CatIcon size={18} style={{ color: isSelected ? cat.color : 'var(--text-muted)' }} />
+                        <span style={{ fontSize: '0.72rem', fontWeight: isSelected ? 800 : 600, textAlign: 'center', lineHeight: 1.2 }}>
+                          {cat.name}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
 
-              <form id="crud-form" onSubmit={handleFaunaSubmit}>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Nama Hewan *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: Arwana Super Red Joey..."
-                      required
-                      value={crudForm.name}
-                      onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Nama Ilmiah / Taksonomi *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: Scleropages formosus..."
-                      required
-                      value={crudForm.scientific_name}
-                      onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
-                    />
-                  </div>
+              {/* Modal Header */}
+              <div className="modal-header-section" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  backgroundColor: `${typeConfig.color}20`,
+                  border: `1px solid ${typeConfig.color}40`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: typeConfig.color,
+                  flexShrink: 0
+                }}>
+                  <IconComponent size={22} />
                 </div>
+                <div>
+                  <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {typeConfig.modalTitle(crudMode)}
+                  </h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0.2rem 0 0 0' }}>
+                    {typeConfig.modalSubtitle}
+                  </p>
+                </div>
+              </div>
 
-                <div className="form-row">
+              <div className="modal-body-scroll">
+                {crudError && (
+                  <div className="alert-message alert-error" style={{ marginBottom: '1.5rem' }}>
+                    {crudError}
+                  </div>
+                )}
+
+                <form id="crud-form" onSubmit={handleFaunaSubmit}>
+                  {/* Standar Fields: Nama & Harga */}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">{typeConfig.nameLabel}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder={typeConfig.namePlaceholder}
+                        required
+                        value={crudForm.name}
+                        onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{typeConfig.priceLabel}</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder={typeConfig.pricePlaceholder}
+                        required
+                        value={formatRupiahInput(crudForm.price)}
+                        onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Kategori / Klasifikasi */}
                   <div className="form-group">
-                    <label className="form-label">Kelas Hewan *</label>
+                    <label className="form-label">{typeConfig.categoryLabel}</label>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                       <select 
                         className="form-select"
@@ -11184,10 +12838,13 @@ function App() {
                           }
                         }}
                       >
-                        {getUniqueClasses().map((c) => (
+                        {typeConfig.categoryOptions.map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
+                        {getUniqueClasses().filter(c => !typeConfig.categoryOptions.includes(c)).map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                        <option value="__NEW__">+ Tambah Kategori Baru...</option>
                       </select>
                     </div>
                     {showCustomClassInput && (
@@ -11195,252 +12852,465 @@ function App() {
                         type="text" 
                         className="form-input" 
                         style={{ marginTop: '0.5rem' }} 
-                        placeholder="Ketik Kelas Hewan Baru..." 
+                        placeholder="Ketik Kategori / Jenis Baru..." 
                         value={customClass} 
                         onChange={(e) => setCustomClass(e.target.value)} 
                         required 
                       />
                     )}
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Habitat *</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1 }}
-                        value={showCustomHabitatInput ? '__NEW__' : crudForm.habitat}
-                        onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
-                            setShowCustomHabitatInput(true)
-                            setCustomHabitat('')
-                          } else {
-                            setShowCustomHabitatInput(false)
-                            setCrudForm({ ...crudForm, habitat: e.target.value })
-                          }
-                        }}
-                      >
-                        {getUniqueHabitats().map((h) => (
-                          <option key={h} value={h}>{h}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomHabitatInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.5rem' }} 
-                        placeholder="Ketik Habitat Baru..." 
-                        value={customHabitat} 
-                        onChange={(e) => setCustomHabitat(e.target.value)} 
-                        required 
-                      />
-                    )}
-                  </div>
-                </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Makanan / Diet *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: Pelet / Jangkrik..."
-                      required
-                      value={crudForm.diet}
-                      onChange={(e) => setCrudForm({ ...crudForm, diet: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Status Konservasi *</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1 }}
-                        value={showCustomConservationStatusInput ? '__NEW__' : crudForm.conservation_status}
-                        onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
-                            setShowCustomConservationStatusInput(true)
-                            setCustomConservationStatus('')
-                          } else {
-                            setShowCustomConservationStatusInput(false)
-                            setCrudForm({ ...crudForm, conservation_status: e.target.value })
-                          }
-                        }}
-                      >
-                        {getUniqueConservationStatuses().map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomConservationStatusInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.5rem' }} 
-                        placeholder="Ketik Status Konservasi Baru..." 
-                        value={customConservationStatus} 
-                        onChange={(e) => setCustomConservationStatus(e.target.value)} 
-                        required 
-                      />
-                    )}
-                  </div>
-                </div>
+                  {/* ============================================================
+                      DYNAMIC ATTRIBUTES SPECIFIC TO CATEGORY TYPE
+                      ============================================================ */}
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Harga Satuan (Rupiah) *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: 150.000..."
-                      required
-                      value={formatRupiahInput(crudForm.price)}
-                      onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
-                    />
+                  {/* 1. BARANG FISIK */}
+                  {crudForm.product_type === 'physical' && (
+                    <div style={{ background: 'rgba(37, 99, 235, 0.05)', border: '1px solid rgba(37, 99, 235, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        📦 Atribut Spesifik Barang Fisik
+                      </span>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Stok Barang (Unit) *</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Contoh: 25"
+                            required
+                            value={crudForm.attributes.stock}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, stock: parseInt(e.target.value) || 0 } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Kondisi Barang *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.condition}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
+                          >
+                            <option value="Baru">Baru (Brand New)</option>
+                            <option value="Bekas">Bekas (Second Mulus)</option>
+                            <option value="Refurbished">Refurbished / Rekondisi</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Berat Barang (Gram) *</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Contoh: 500"
+                            required
+                            value={crudForm.attributes.weight}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, weight: parseInt(e.target.value) || 0 } })}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Merek / Brand (Opsional)</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Catavor Apparel / Custom Handmade"
+                            value={crudForm.attributes.brand || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, brand: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Varian / Ukuran / Warna (Opsional)</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: S, M, L, XL / Hitam, Putih"
+                            value={crudForm.attributes.variant || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. ITEM DIGITAL */}
+                  {crudForm.product_type === 'digital' && (
+                    <div style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid rgba(139, 92, 246, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        💻 Atribut Spesifik Item Digital
+                      </span>
+                      <div className="form-group">
+                        <label className="form-label">Link Akses / Download File *</label>
+                        <input 
+                          type="url" 
+                          className="form-input" 
+                          placeholder="https://drive.google.com/file/d/... atau link cloud storage"
+                          required
+                          value={crudForm.attributes.download_url}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Format File *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: PDF / ZIP / MP4 / Figma"
+                            required
+                            value={crudForm.attributes.file_format}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Ukuran File *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 15 MB / 1.2 GB"
+                            required
+                            value={crudForm.attributes.file_size}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_size: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Tipe Lisensi *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.license_type || 'Lisensi Personal'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: e.target.value } })}
+                          >
+                            <option value="Lisensi Personal">Lisensi Personal (Penggunaan Pribadi)</option>
+                            <option value="Lisensi Komersial">Lisensi Komersial (Bisnis/Proyek)</option>
+                            <option value="Extended License">Extended License / Resell Rights</option>
+                            <option value="Open Source">Open Source / Bebas</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. SATWA & LIVING FAUNA */}
+                  {crudForm.product_type === 'fauna' && (
+                    <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        🦎 Atribut Spesifik Satwa &amp; Living Fauna
+                      </span>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Nama Ilmiah / Taksonomi *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Scleropages formosus..."
+                            required
+                            value={crudForm.scientific_name}
+                            onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Habitat Asli *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Air Tawar / Air Laut / Darat"
+                            required
+                            value={crudForm.habitat}
+                            onChange={(e) => setCrudForm({ ...crudForm, habitat: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Makanan / Diet *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Pelet / Jangkrik / Karnivora"
+                            required
+                            value={crudForm.diet}
+                            onChange={(e) => setCrudForm({ ...crudForm, diet: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Status Ketersediaan *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.conservation_status}
+                            onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
+                          >
+                            <option value="Tersedia">Tersedia (Ready Stock)</option>
+                            <option value="Pre-Order">Pre-Order (PO)</option>
+                            <option value="Koleksi / Display">Koleksi / Display Only</option>
+                            <option value="Habis Terjual">Habis Terjual (Sold Out)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Asal Wilayah</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Kalimantan Barat..."
+                            value={crudForm.native_region}
+                            onChange={(e) => setCrudForm({ ...crudForm, native_region: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Estimasi Usia / Masa Hidup</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 2 Bulan / 10-15 tahun..."
+                            value={crudForm.lifespan}
+                            onChange={(e) => setCrudForm({ ...crudForm, lifespan: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Ukuran / Berat Satwa</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Size 15 cm / 500 gram..."
+                            value={crudForm.weight}
+                            onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. JASA & LAYANAN */}
+                  {crudForm.product_type === 'service' && (
+                    <div style={{ background: 'rgba(217, 119, 6, 0.05)', border: '1px solid rgba(217, 119, 6, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        🔧 Atribut Spesifik Jasa &amp; Layanan
+                      </span>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Durasi / Estimasi Pengerjaan *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 1-2 Jam / 3 Hari Kerja / 1 Sesi"
+                            required
+                            value={crudForm.attributes.duration}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, duration: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Metode &amp; Lokasi Layanan *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.service_location}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
+                          >
+                            <option value="Datang ke Toko">Datang ke Lokasi Toko / Studio</option>
+                            <option value="Home Visit (Ke Rumah)">Panggilan ke Rumah (Home Service)</option>
+                            <option value="Online">Online / Jarak Jauh (Remote)</option>
+                            <option value="Fleksibel">Fleksibel (Toko / Home Visit)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Wilayah Jangkauan Operasional *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
+                            required
+                            value={crudForm.attributes.service_area}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Termasuk dalam Paket (Inclusions)</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Alat &amp; Bahan, Garansi 14 Hari, Free Konsultasi"
+                            value={crudForm.attributes.inclusions || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, inclusions: e.target.value } })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. MENU KULINER (F&B) */}
+                  {crudForm.product_type === 'food' && (
+                    <div style={{ background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        🍔 Atribut Spesifik Menu Kuliner (F&amp;B)
+                      </span>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Porsi / Takaran Bersih *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 1 Porsi (300 gr) / Botol 500 ml / Box isi 10 pcs"
+                            required
+                            value={crudForm.attributes.portion_size || '1 Porsi'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Ketahanan / Masa Simpan *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Fresh Daily / 3 Hari Chiller / 3 Bulan Freezer"
+                            required
+                            value={crudForm.attributes.expired_info}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Suhu Penyimpanan *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.storage_temp}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
+                          >
+                            <option value="Suhu Ruang">Suhu Ruang (Kering &amp; Sejuk)</option>
+                            <option value="Dingin (Chiller)">Dingin (Kulkas / Chiller 4°C)</option>
+                            <option value="Beku (Freezer)">Beku (Freezer -18°C)</option>
+                            <option value="Hangat / Langsung Santap">Langsung Disantap (Hangat)</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Sertifikasi &amp; Legalitas *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.certification}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
+                          >
+                            <option value="100% Halal">100% Halal</option>
+                            <option value="Sertifikat Halal Resmi">Sertifikat Halal Resmi (Kemenag/MUI)</option>
+                            <option value="BPOM / P-IRT">Izin BPOM / P-IRT</option>
+                            <option value="Homemade / Segar">Homemade / Olahan Segar</option>
+                            <option value="Non-Halal">Non-Halal</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Multi-image section */}
+                  <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          {typeConfig.photoLabel}
+                        </h3>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                          {typeConfig.photoHelper}
+                        </p>
+                      </div>
+                      {crudImages.length < 5 && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.35rem' }}
+                          onClick={() => setCrudImages([...crudImages, ''])}
+                        >
+                          + Tambah Foto
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {crudImages.map((imgUrl, index) => (
+                        <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                          {/* Preview Thumbnail */}
+                          <div style={{ width: '54px', height: '54px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                            {imgUrl ? (
+                              <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                <Image size={16} style={{ color: 'var(--primary)' }} />
+                                <span style={{ fontSize: '0.58rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                              </div>
+                            )}
+                            {uploadingIndex === index && (
+                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Loader className="animate-spin" size={14} style={{ color: 'var(--primary)' }} />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Input & Upload Controls */}
+                          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder={`Tautan Foto ${index === 0 ? 'Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
+                                value={imgUrl}
+                                onChange={(e) => {
+                                  const newImages = [...crudImages]
+                                  newImages[index] = e.target.value
+                                  setCrudImages(newImages)
+                                }}
+                                required={index === 0}
+                                style={{ height: '38px', fontSize: '0.85rem' }}
+                              />
+                              
+                              {/* Device File Upload Button */}
+                              <label className="btn-secondary" style={{ padding: '0.5rem 0.85rem', height: '38px', borderRadius: '0.35rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <Upload size={14} />
+                                Upload File
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  style={{ display: 'none' }}
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      handleImageUpload(index, e.target.files[0])
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Delete Row Button */}
+                          {crudImages.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-border)', height: '38px', borderRadius: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => {
+                                const newImages = crudImages.filter((_, i) => i !== index)
+                                setCrudImages(newImages)
+                              }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Video URL */}
                   <div className="form-group">
-                    <label className="form-label">URL Video YouTube (Opsional)</label>
+                    <label className="form-label">{typeConfig.videoLabel}</label>
                     <input 
                       type="url" 
                       className="form-input" 
-                      placeholder="Contoh: https://www.youtube.com/watch?v=..."
+                      placeholder={typeConfig.videoPlaceholder}
                       value={crudForm.video_url}
                       onChange={(e) => setCrudForm({ ...crudForm, video_url: e.target.value })}
                     />
                   </div>
-                </div>
 
-                {/* Multi-image section */}
-                <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
-                    <span>Foto Satwa (Minimal 1, Maksimal 5) *</span>
-                    {crudImages.length < 5 && (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', borderRadius: '0.35rem' }}
-                        onClick={() => setCrudImages([...crudImages, ''])}
-                      >
-                        + Tambah Foto
-                      </button>
-                    )}
-                  </h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {crudImages.map((imgUrl, index) => (
-                      <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
-                        {/* Preview Thumbnail */}
-                        <div style={{ width: '60px', height: '60px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                          {imgUrl ? (
-                            <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                              <Image size={16} style={{ color: 'var(--primary)' }} />
-                              <span style={{ fontSize: '0.6rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
-                            </div>
-                          )}
-                          {uploadingIndex === index && (
-                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Loader className="animate-spin" size={14} style={{ color: 'var(--primary)' }} />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Input & Upload Controls */}
-                        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <input
-                              type="text"
-                              className="form-input"
-                              placeholder={`URL Foto ${index === 0 ? 'Utama (Wajib)' : `${index + 1} (Opsional)`}`}
-                              value={imgUrl}
-                              onChange={(e) => {
-                                const newImages = [...crudImages]
-                                newImages[index] = e.target.value
-                                setCrudImages(newImages)
-                              }}
-                              required={index === 0}
-                              style={{ height: '38px', fontSize: '0.85rem' }}
-                            />
-                            
-                            {/* Device File Upload Button */}
-                            <label className="btn-secondary" style={{ padding: '0.5rem 1rem', height: '38px', borderRadius: '0.35rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              <Upload size={14} />
-                              Pilih File
-                              <input
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                onChange={(e) => {
-                                  if (e.target.files && e.target.files[0]) {
-                                    handleImageUpload(index, e.target.files[0])
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </div>
-
-                        {/* Delete Row Button */}
-                        {crudImages.length > 1 && (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-border)', height: '38px', borderRadius: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            onClick={() => {
-                              const newImages = crudImages.filter((_, i) => i !== index)
-                              setCrudImages(newImages)
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="form-row">
+                  {/* Jangkauan Pengiriman & Kebijakan */}
                   <div className="form-group">
-                    <label className="form-label">Asal Wilayah</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: Kalimantan Barat..."
-                      value={crudForm.native_region}
-                      onChange={(e) => setCrudForm({ ...crudForm, native_region: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Masa Hidup</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: 15-20 tahun..."
-                      value={crudForm.lifespan}
-                      onChange={(e) => setCrudForm({ ...crudForm, lifespan: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Berat Rata-rata</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="Contoh: 1-2 kg..."
-                      value={crudForm.weight}
-                      onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                 <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Jangkauan Pengiriman *</label>
+                    <label className="form-label">{typeConfig.deliveryLabel}</label>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                       <select 
                         className="form-select"
@@ -11456,10 +13326,13 @@ function App() {
                           }
                         }}
                       >
-                        {getUniqueShippingCoverages().map((c) => (
+                        {typeConfig.deliveryOptions.map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
-                        <option value="__NEW__">+ Tambah Baru...</option>
+                        {getUniqueShippingCoverages().filter(c => !typeConfig.deliveryOptions.includes(c)).map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                        <option value="__NEW__">+ Tambah Opsi Baru...</option>
                       </select>
                     </div>
                     {showCustomShippingCoverageInput && (
@@ -11467,186 +13340,188 @@ function App() {
                         type="text" 
                         className="form-input" 
                         style={{ marginTop: '0.5rem' }} 
-                        placeholder="Ketik Jangkauan Pengiriman Baru..." 
+                        placeholder="Ketik Jangkauan / Metode Baru..." 
                         value={customShippingCoverage} 
                         onChange={(e) => setCustomShippingCoverage(e.target.value)} 
                         required 
                       />
                     )}
                   </div>
-                </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Ketentuan Pengiriman</label>
-                    <textarea 
-                      rows={2} 
-                      className="form-textarea" 
-                      placeholder="Contoh: Pengiriman via ojek online / kereta api..."
-                      value={crudForm.shipping_terms}
-                      onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Ketentuan Garansi</label>
-                    <textarea 
-                      rows={2} 
-                      className="form-textarea" 
-                      placeholder="Contoh: Garansi hidup sampai tujuan dengan video unboxing..."
-                      value={crudForm.warranty_info}
-                      onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', letterSpacing: '0.03em', textTransform: 'uppercase', opacity: 0.8 }}>
-                      Link Pembelian (Opsional)
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newLinks = [...crudForm.purchase_links, { platform: '', url: '' }]
-                        setCrudForm({ ...crudForm, purchase_links: newLinks })
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.35rem 0.75rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        color: 'var(--primary)',
-                        border: '1px solid rgba(16, 185, 129, 0.2)',
-                        borderRadius: '0.25rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={12} /> Tambah Link
-                    </button>
-                  </div>
-
-                  {crudForm.purchase_links.length === 0 ? (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.5rem 0 1rem 0', fontStyle: 'italic' }}>
-                      Belum ada link marketplace. Klik "Tambah Link" untuk memasukkan link Shopee, Tokopedia, dll.
-                    </p>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                      {crudForm.purchase_links.map((link, index) => (
-                        <div 
-                          key={index} 
-                          style={{ 
-                            padding: '1rem', 
-                            border: '1px solid var(--border-light)', 
-                            borderRadius: '0.5rem', 
-                            backgroundColor: 'rgba(255,255,255,0.02)',
-                            position: 'relative'
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newLinks = crudForm.purchase_links.filter((_, idx) => idx !== index)
-                              setCrudForm({ ...crudForm, purchase_links: newLinks })
-                            }}
-                            style={{
-                              position: 'absolute',
-                              top: '0.5rem',
-                              right: '0.5rem',
-                              background: 'none',
-                              border: 'none',
-                              color: '#ef4444',
-                              cursor: 'pointer',
-                              padding: '0.25rem'
-                            }}
-                            title="Hapus Link"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                          
-                          <div className="form-group" style={{ marginBottom: '0.75rem', width: '90%' }}>
-                            <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>Nama Platform / Toko *</label>
-                            <input
-                              type="text"
-                              className="form-input"
-                              placeholder="Contoh: Shopee, Tokopedia, Toko Palen..."
-                              required
-                              value={link.platform}
-                              onChange={(e) => {
-                                const newLinks = [...crudForm.purchase_links]
-                                newLinks[index].platform = e.target.value
-                                setCrudForm({ ...crudForm, purchase_links: newLinks })
-                              }}
-                              style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                            />
-                          </div>
-
-                          <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>URL Link Pembelian *</label>
-                            <input
-                              type="url"
-                              className="form-input"
-                              placeholder="https://..."
-                              required
-                              value={link.url}
-                              onChange={(e) => {
-                                const newLinks = [...crudForm.purchase_links]
-                                newLinks[index].url = e.target.value
-                                setCrudForm({ ...crudForm, purchase_links: newLinks })
-                              }}
-                              style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">{typeConfig.deliveryTermsLabel}</label>
+                      <textarea 
+                        rows={2} 
+                        className="form-textarea" 
+                        placeholder={typeConfig.deliveryTermsPlaceholder}
+                        value={crudForm.shipping_terms}
+                        onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
+                      />
                     </div>
+                    <div className="form-group">
+                      <label className="form-label">{typeConfig.warrantyLabel}</label>
+                      <textarea 
+                        rows={2} 
+                        className="form-textarea" 
+                        placeholder={typeConfig.warrantyPlaceholder}
+                        value={crudForm.warranty_info}
+                        onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Link Pembelian Marketplace (Opsional) */}
+                  <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', letterSpacing: '0.03em', textTransform: 'uppercase', opacity: 0.85 }}>
+                        Link Marketplace / Alternatif Pesanan (Opsional)
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newLinks = [...crudForm.purchase_links, { platform: '', url: '' }]
+                          setCrudForm({ ...crudForm, purchase_links: newLinks })
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.35rem 0.75rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          color: 'var(--primary)',
+                          border: '1px solid rgba(16, 185, 129, 0.2)',
+                          borderRadius: '0.25rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={12} /> Tambah Link
+                      </button>
+                    </div>
+
+                    {crudForm.purchase_links.length === 0 ? (
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0.5rem 0', fontStyle: 'italic' }}>
+                        Belum ada link marketplace. Klik "Tambah Link" untuk menyertakan tautan Shopee, Tokopedia, dll.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.5rem' }}>
+                        {crudForm.purchase_links.map((link, index) => (
+                          <div 
+                            key={index} 
+                            style={{ 
+                              padding: '0.85rem', 
+                              border: '1px solid var(--border-light)', 
+                              borderRadius: '0.5rem', 
+                              backgroundColor: 'rgba(255,255,255,0.02)',
+                              position: 'relative'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newLinks = crudForm.purchase_links.filter((_, idx) => idx !== index)
+                                setCrudForm({ ...crudForm, purchase_links: newLinks })
+                              }}
+                              style={{
+                                position: 'absolute',
+                                top: '0.5rem',
+                                right: '0.5rem',
+                                background: 'none',
+                                border: 'none',
+                                color: '#ef4444',
+                                cursor: 'pointer',
+                                padding: '0.25rem'
+                              }}
+                              title="Hapus Link"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            
+                            <div className="form-group" style={{ marginBottom: '0.6rem', width: '85%' }}>
+                              <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>Platform / Toko *</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="Shopee / Tokopedia / Website"
+                                required
+                                value={link.platform}
+                                onChange={(e) => {
+                                  const newLinks = [...crudForm.purchase_links]
+                                  newLinks[index].platform = e.target.value
+                                  setCrudForm({ ...crudForm, purchase_links: newLinks })
+                                }}
+                                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+                              />
+                            </div>
+
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>URL Link Pembelian *</label>
+                              <input
+                                type="url"
+                                className="form-input"
+                                placeholder="https://..."
+                                required
+                                value={link.url}
+                                onChange={(e) => {
+                                  const newLinks = [...crudForm.purchase_links]
+                                  newLinks[index].url = e.target.value
+                                  setCrudForm({ ...crudForm, purchase_links: newLinks })
+                                }}
+                                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Deskripsi */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">{typeConfig.descLabel}</label>
+                    <textarea 
+                      rows={4} 
+                      className="form-textarea" 
+                      placeholder={typeConfig.descPlaceholder}
+                      required
+                      value={crudForm.description}
+                      onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
+                    />
+                  </div>
+                </form>
+              </div>
+
+              <div className="modal-cta-section" style={{ justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => setShowCrudModal(false)}
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  form="crud-form"
+                  className="btn-primary"
+                  disabled={crudLoading}
+                  style={{ minWidth: '150px', justifyContent: 'center' }}
+                >
+                  {crudLoading ? (
+                    <>
+                      <Loader className="animate-spin" size={18} />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    'Simpan Item'
                   )}
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Deskripsi Produk *</label>
-                  <textarea 
-                    rows={4} 
-                    className="form-textarea" 
-                    placeholder="Rincian mengenai kondisi hewan, warna, dll..."
-                    required
-                    value={crudForm.description}
-                    onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
-                  />
-                </div>
-              </form>
-            </div>
-
-            <div className="modal-cta-section" style={{ justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                onClick={() => setShowCrudModal(false)}
-              >
-                Batal
-              </button>
-              <button 
-                type="submit" 
-                form="crud-form"
-                className="btn-primary"
-                disabled={crudLoading}
-                style={{ minWidth: '150px', justifyContent: 'center' }}
-              >
-                {crudLoading ? (
-                  <>
-                    <Loader className="animate-spin" size={18} />
-                    Menyimpan...
-                  </>
-                ) : (
-                  'Simpan Postingan'
-                )}
-              </button>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* LIGHTBOX OVERLAY WITH ZOOM & PAN */}
       {showLightbox && selectedFauna && (
@@ -12056,6 +13931,129 @@ function App() {
             <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1.25rem', padding: '0.75rem', fontSize: '0.85rem', fontWeight: 800 }}>
               Saya Mengerti &amp; Tutup
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* RENAME MASTER OPTION MODAL */}
+      {renameMasterModalData && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setRenameMasterModalData(null)}>
+          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '480px', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit3 size={20} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>
+                  Ubah Nama {renameMasterModalData.fieldLabel}
+                </span>
+              </div>
+              <button type="button" onClick={() => setRenameMasterModalData(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.4rem' }}>
+                Nama Saat Ini:
+              </label>
+              <div style={{ padding: '0.5rem 0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontSize: '0.88rem', fontWeight: 600, marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                {renameMasterModalData.oldValue}
+              </div>
+
+              <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#ffffff', display: 'block', marginBottom: '0.4rem' }}>
+                Nama Baru:
+              </label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Masukkan nama baru..." 
+                value={renameMasterModalData.newValue} 
+                onChange={(e) => setRenameMasterModalData({ ...renameMasterModalData, newValue: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleRenameMasterOption(renameMasterModalData.field, renameMasterModalData.oldValue, renameMasterModalData.newValue);
+                  }
+                }}
+                autoFocus
+                style={{ width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.9rem', borderRadius: '0.6rem' }}
+              />
+            </div>
+
+            <div style={{ padding: '0.75rem', borderRadius: '0.6rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: '1.25rem', display: 'flex', gap: '0.5rem' }}>
+              <Info size={16} style={{ color: '#60a5fa', flexShrink: 0, marginTop: '2px' }} />
+              <span style={{ fontSize: '0.75rem', color: '#93c5fd', lineHeight: 1.4 }}>
+                Perubahan nama ini akan otomatis disinkronkan ke seluruh item katalog yang menggunakan opsi ini secara aman.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => setRenameMasterModalData(null)} style={{ padding: '0.55rem 1rem', fontSize: '0.82rem' }}>
+                Batal
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary" 
+                disabled={crudLoading || !renameMasterModalData.newValue.trim()} 
+                onClick={() => handleRenameMasterOption(renameMasterModalData.field, renameMasterModalData.oldValue, renameMasterModalData.newValue)}
+                style={{ padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: 800 }}
+              >
+                {crudLoading ? 'Menyimpan...' : 'Simpan Nama Baru'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRESET MASTER DATA CONFIRMATION MODAL */}
+      {presetModalData && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setPresetModalData(null)}>
+          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '520px', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Sparkles size={20} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>
+                  Terapkan Template {presetModalData.title}
+                </span>
+              </div>
+              <button type="button" onClick={() => setPresetModalData(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '1rem', lineHeight: 1.5 }}>
+              Template ini akan menyusun ulang opsi kategori toko bawaan sesuai dengan standar industri <strong>{presetModalData.title}</strong>:
+            </p>
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.4rem' }}>
+                Daftar Kategori yang Akan Dimuat:
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                {presetModalData.sampleCategories.map((cat, idx) => (
+                  <span key={idx} style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: '0.75rem', borderRadius: '0.6rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '1.25rem', display: 'flex', gap: '0.5rem' }}>
+              <CheckCircle2 size={16} style={{ color: '#34d399', flexShrink: 0, marginTop: '2px' }} />
+              <span style={{ fontSize: '0.75rem', color: '#6ee7b7', lineHeight: 1.4 }}>
+                Item katalog yang sudah ada di toko Anda tidak akan dihapus atau hilang. Anda tetap dapat menambah atau mengubah kategori kapan saja.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => setPresetModalData(null)} style={{ padding: '0.55rem 1rem', fontSize: '0.82rem' }}>
+                Batal
+              </button>
+              <button 
+                type="button" 
+                className="btn-primary" 
+                disabled={crudLoading} 
+                onClick={() => handleApplyPreset(presetModalData.key)}
+                style={{ padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: 800 }}
+              >
+                {crudLoading ? 'Menerapkan...' : 'Terapkan Template Ini'}
+              </button>
+            </div>
           </div>
         </div>
       )}

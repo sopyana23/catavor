@@ -77,23 +77,23 @@ class AuthController extends Controller
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang ' . $request->store_name,
-            'about_slogan' => 'Katalog Resmi Produk & Informasi Bisnis',
-            'about_description' => 'Selamat datang di ' . $request->store_name . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
+            'about_slogan' => 'Katalog Resmi & Informasi Bisnis',
+            'about_description' => 'Selamat datang di ' . $request->store_name . '. Kami adalah platform penyedia item dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh listing kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '', // Sensitive field empty by default
             'about_hours' => '', // Empty by default until set by user
             'show_hours' => false,
-            'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
+            'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
-                ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
+                ['title' => 'Garansi Kualitas', 'content' => 'Setiap item dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
                 ['title' => 'Layanan Responsif', 'content' => 'Tim kami siap membantu kebutuhan konsultasi dan pertanyaan Anda secara cepat dan ramah.', 'icon' => 'message'],
                 ['title' => 'Keamanan Transaksi', 'content' => 'Menjamin keamanan komunikasi dan kemudahan pesanan melalui saluran resmi terverifikasi.', 'icon' => 'lock']
             ],
             'social_links' => [], // Sensitive field empty by default
             'official_website' => '', // Sensitive field empty by default
-            'master_classes' => ['Elektronik', 'Pakaian & Aksesoris', 'Satwa Hias', 'Pakan & Perlengkapan', 'Produk General'],
-            'master_habitats' => ['Baru (New)', 'Bekas (Used)', 'General'],
-            'master_statuses' => ['Tersedia (Ready Stock)', 'Habis Terjual (Out of Stock)', 'Pre-Order'],
-            'master_shipping_coverages' => ['Bisa Kirim se-Indonesia', 'Pulau Jawa Saja', 'Ambil Sendiri di Toko (Pickup)']
+            'master_classes' => ['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial'],
+            'master_habitats' => ['Standar', 'Premium', 'Edisi Khusus', 'General'],
+            'master_statuses' => ['Tersedia (Ready Stock)', 'Pre-Order (PO)', 'Habis Terjual (Sold Out)'],
+            'master_shipping_coverages' => ['Bisa Kirim se-Indonesia', 'Area Terbatas', 'Ambil Sendiri di Toko (Pickup)']
         ]);
 
         // Log immutable Policy Agreement Audit Trail for Terms & Privacy
@@ -258,23 +258,23 @@ class AuthController extends Controller
             'enable_wa_direct' => true,
             'enable_wa_rekber' => true,
             'about_title' => 'Tentang ' . $storeName,
-            'about_slogan' => 'Katalog Resmi Produk & Informasi Bisnis',
-            'about_description' => 'Selamat datang di ' . $storeName . '. Kami adalah platform penyedia produk dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh produk kami dikelola dengan standar profesional dan jaminan kepuasan.',
+            'about_slogan' => 'Katalog Resmi & Informasi Bisnis',
+            'about_description' => 'Selamat datang di ' . $storeName . '. Kami adalah platform penyedia item dan layanan berkualitas tinggi yang berkomitmen memberikan pengalaman terbaik bagi pelanggan. Seluruh listing kami dikelola dengan standar profesional dan jaminan kepuasan.',
             'about_location' => '', // Sensitive field empty by default
             'about_hours' => '', // Empty by default until set by user
             'show_hours' => false,
-            'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi produk dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
+            'about_disclaimer' => 'Komitmen Jaminan Layanan: Seluruh transaksi dan informasi dikelola secara profesional dengan mengutamakan kepuasan pelanggan dan kejelasan data.',
             'about_cards' => [
-                ['title' => 'Garansi Kualitas', 'content' => 'Setiap produk dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
+                ['title' => 'Garansi Kualitas', 'content' => 'Setiap item dan layanan melewati standar kontrol kualitas profesional sebelum disampaikan kepada Anda.', 'icon' => 'shield'],
                 ['title' => 'Layanan Responsif', 'content' => 'Tim kami siap membantu kebutuhan konsultasi dan pertanyaan Anda secara cepat dan ramah.', 'icon' => 'message'],
                 ['title' => 'Keamanan Transaksi', 'content' => 'Menjamin keamanan komunikasi dan kemudahan pesanan melalui saluran resmi terverifikasi.', 'icon' => 'lock']
             ],
             'social_links' => [], // Sensitive field empty by default
             'official_website' => '', // Sensitive field empty by default
-            'master_classes' => ['Elektronik', 'Pakaian & Aksesoris', 'Satwa Hias', 'Pakan & Perlengkapan', 'Produk General'],
-            'master_habitats' => ['Baru (New)', 'Bekas (Used)', 'General'],
-            'master_statuses' => ['Tersedia (Ready Stock)', 'Habis Terjual (Out of Stock)', 'Pre-Order'],
-            'master_shipping_coverages' => ['Bisa Kirim se-Indonesia', 'Pulau Jawa Saja', 'Ambil Sendiri di Toko (Pickup)']
+            'master_classes' => ['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial'],
+            'master_habitats' => ['Standar', 'Premium', 'Edisi Khusus', 'General'],
+            'master_statuses' => ['Tersedia (Ready Stock)', 'Pre-Order (PO)', 'Habis Terjual (Sold Out)'],
+            'master_shipping_coverages' => ['Bisa Kirim se-Indonesia', 'Area Terbatas', 'Ambil Sendiri di Toko (Pickup)']
         ]);
 
         $token = $newUser->createToken('admin-token')->plainTextToken;
