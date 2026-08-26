@@ -640,6 +640,82 @@ export interface ItemTypeConfig {
   descPlaceholder: string;
 }
 
+export interface CulinarySmartPreset {
+  defaultStorageTemp: string;
+  defaultExpiredInfo: string;
+  defaultShipping: string;
+  portionPlaceholder: string;
+  badgeEmoji: string;
+  badgeLabel: string;
+}
+
+export const CULINARY_SMART_PRESETS: Record<string, CulinarySmartPreset> = {
+  'Makanan Siap Santap': {
+    defaultStorageTemp: 'Hangat / Langsung Santap',
+    defaultExpiredInfo: 'Fresh Daily (Hari Ini)',
+    defaultShipping: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+    portionPlaceholder: '1 Porsi / Paket Nasi Komplit',
+    badgeEmoji: '🍽️',
+    badgeLabel: 'Siap Santap'
+  },
+  'Makanan Beku & Olahan (Frozen)': {
+    defaultStorageTemp: 'Beku (Freezer -18°C)',
+    defaultExpiredInfo: '3 Bulan di Freezer',
+    defaultShipping: 'Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)',
+    portionPlaceholder: 'Pack 500 gr / Box isi 10 pcs',
+    badgeEmoji: '❄️',
+    badgeLabel: 'Frozen Food'
+  },
+  'Minuman & Olahan Kopi': {
+    defaultStorageTemp: 'Dingin (Chiller)',
+    defaultExpiredInfo: '3-7 Hari di Kulkas',
+    defaultShipping: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+    portionPlaceholder: 'Botol 250 ml / Literan 1000 ml / Cup 16oz',
+    badgeEmoji: '🧃',
+    badgeLabel: 'Minuman'
+  },
+  'Camilan, Snack & Kue Kering': {
+    defaultStorageTemp: 'Suhu Ruang',
+    defaultExpiredInfo: '3-6 Bulan (Kemasan Rapat)',
+    defaultShipping: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+    portionPlaceholder: 'Pouch 200 gr / Toples 250 gr / Pack 100 gr',
+    badgeEmoji: '🍪',
+    badgeLabel: 'Snack & Kering'
+  },
+  'Bakery, Roti & Pastry': {
+    defaultStorageTemp: 'Suhu Ruang',
+    defaultExpiredInfo: '3-4 Hari (Suhu Ruang)',
+    defaultShipping: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+    portionPlaceholder: '1 Loyang / Box isi 6 pcs / Loaf 400 gr',
+    badgeEmoji: '🥐',
+    badgeLabel: 'Bakery & Pastry'
+  },
+  'Bumbu & Bahan Masak': {
+    defaultStorageTemp: 'Suhu Ruang',
+    defaultExpiredInfo: '6-12 Bulan',
+    defaultShipping: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+    portionPlaceholder: 'Botol 250 gr / Pouch 500 gr / Pack 1 kg',
+    badgeEmoji: '🧂',
+    badgeLabel: 'Bumbu & Bahan'
+  },
+  'Katering & Paket Pesanan': {
+    defaultStorageTemp: 'Hangat / Langsung Santap',
+    defaultExpiredInfo: 'Fresh Daily (Hari Acara)',
+    defaultShipping: 'Pre-Order Khusus (Katering / Acara)',
+    portionPlaceholder: 'Paket 20 Box / Tampah 15 Porsi',
+    badgeEmoji: '🍱',
+    badgeLabel: 'Katering & PO'
+  },
+  'Lainnya': {
+    defaultStorageTemp: 'Fleksibel',
+    defaultExpiredInfo: 'Sesuai Kemasan',
+    defaultShipping: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+    portionPlaceholder: '1 Unit / Pack / Box',
+    badgeEmoji: '🍽️',
+    badgeLabel: 'Kuliner'
+  }
+};
+
 export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
   switch (type) {
     case 'physical':
@@ -5555,6 +5631,7 @@ function App() {
   const handleSelectProductType = (type: ItemCategoryType) => {
     setShowProductTypeSelector(false)
     const typeConfig = getItemTypeFormConfig(type);
+    const foodPreset = type === 'food' ? CULINARY_SMART_PRESETS['Makanan Siap Santap'] : null;
 
     // If changing type from within an active form, preserve common fields
     if (crudForm.name || crudForm.price > 0 || crudMode === 'edit') {
@@ -5562,7 +5639,7 @@ function App() {
         ...prev,
         product_type: type,
         class: prev.class === 'Umum' || prev.class === 'Reptil' ? typeConfig.defaultCategory : prev.class,
-        shipping_coverage: prev.shipping_coverage === 'Bisa Kirim se-Indonesia' ? typeConfig.deliveryOptions[0] : prev.shipping_coverage
+        shipping_coverage: prev.shipping_coverage === 'Bisa Kirim se-Indonesia' ? (foodPreset ? foodPreset.defaultShipping : typeConfig.deliveryOptions[0]) : prev.shipping_coverage
       }))
       setView('fauna-editor')
       return
@@ -5587,7 +5664,7 @@ function App() {
       weight: '',
       shipping_terms: '',
       warranty_info: '',
-      shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+      shipping_coverage: foodPreset ? foodPreset.defaultShipping : (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia'),
       purchase_links: [],
       product_type: type,
       attributes: {
@@ -5608,8 +5685,8 @@ function App() {
         service_area: 'Jabodetabek',
         inclusions: '',
         portion_size: '1 Porsi',
-        expired_info: '7 Hari',
-        storage_temp: 'Suhu Ruang',
+        expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
+        storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
         certification: '100% Halal'
       }
     })
@@ -8812,12 +8889,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       style={{ flex: 1, height: '42px', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
                       value={showCustomClassInput ? '__NEW__' : crudForm.class}
                       onChange={(e) => {
-                        if (e.target.value === '__NEW__') {
+                        const newClass = e.target.value;
+                        if (newClass === '__NEW__') {
                           setShowCustomClassInput(true);
                           setCustomClass('');
                         } else {
                           setShowCustomClassInput(false);
-                          setCrudForm({ ...crudForm, class: e.target.value });
+                          const preset = CULINARY_SMART_PRESETS[newClass];
+                          if (crudForm.product_type === 'food' && preset) {
+                            setCrudForm(prev => ({
+                              ...prev,
+                              class: newClass,
+                              shipping_coverage: preset.defaultShipping,
+                              attributes: {
+                                ...prev.attributes,
+                                storage_temp: preset.defaultStorageTemp,
+                                expired_info: preset.defaultExpiredInfo
+                              }
+                            }));
+                          } else {
+                            setCrudForm(prev => ({ ...prev, class: newClass }));
+                          }
                         }
                       }}
                     >
@@ -9075,7 +9167,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="1 Porsi / 500gr / 250ml"
+                          placeholder={CULINARY_SMART_PRESETS[showCustomClassInput ? customClass : crudForm.class]?.portionPlaceholder || "1 Porsi / 500gr / 250ml"}
                           required
                           value={crudForm.attributes.portion_size || '1 Porsi'}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}

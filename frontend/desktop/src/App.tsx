@@ -204,6 +204,82 @@ export interface ItemTypeConfig {
   descPlaceholder: string;
 }
 
+export interface CulinarySmartPreset {
+  defaultStorageTemp: string;
+  defaultExpiredInfo: string;
+  defaultShipping: string;
+  portionPlaceholder: string;
+  badgeEmoji: string;
+  badgeLabel: string;
+}
+
+export const CULINARY_SMART_PRESETS: Record<string, CulinarySmartPreset> = {
+  'Makanan Siap Santap': {
+    defaultStorageTemp: 'Hangat / Langsung Santap',
+    defaultExpiredInfo: 'Fresh Daily (Hari Ini)',
+    defaultShipping: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+    portionPlaceholder: 'Contoh: 1 Porsi / Paket Nasi Komplit',
+    badgeEmoji: '🍽️',
+    badgeLabel: 'Siap Santap'
+  },
+  'Makanan Beku & Olahan (Frozen)': {
+    defaultStorageTemp: 'Beku (Freezer -18°C)',
+    defaultExpiredInfo: '3 Bulan di Freezer',
+    defaultShipping: 'Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)',
+    portionPlaceholder: 'Contoh: Pack 500 gr / Box isi 10 pcs',
+    badgeEmoji: '❄️',
+    badgeLabel: 'Frozen Food'
+  },
+  'Minuman & Olahan Kopi': {
+    defaultStorageTemp: 'Dingin (Chiller)',
+    defaultExpiredInfo: '3-7 Hari di Kulkas',
+    defaultShipping: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+    portionPlaceholder: 'Contoh: Botol 250 ml / Literan 1000 ml / Cup 16oz',
+    badgeEmoji: '🧃',
+    badgeLabel: 'Minuman'
+  },
+  'Camilan, Snack & Kue Kering': {
+    defaultStorageTemp: 'Suhu Ruang',
+    defaultExpiredInfo: '3-6 Bulan (Kemasan Rapat)',
+    defaultShipping: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+    portionPlaceholder: 'Contoh: Pouch 200 gr / Toples 250 gr / Pack 100 gr',
+    badgeEmoji: '🍪',
+    badgeLabel: 'Snack & Kering'
+  },
+  'Bakery, Roti & Pastry': {
+    defaultStorageTemp: 'Suhu Ruang',
+    defaultExpiredInfo: '3-4 Hari (Suhu Ruang)',
+    defaultShipping: 'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
+    portionPlaceholder: 'Contoh: 1 Loyang / Box isi 6 pcs / Loaf 400 gr',
+    badgeEmoji: '🥐',
+    badgeLabel: 'Bakery & Pastry'
+  },
+  'Bumbu & Bahan Masak': {
+    defaultStorageTemp: 'Suhu Ruang',
+    defaultExpiredInfo: '6-12 Bulan',
+    defaultShipping: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+    portionPlaceholder: 'Contoh: Botol 250 gr / Pouch 500 gr / Pack 1 kg',
+    badgeEmoji: '🧂',
+    badgeLabel: 'Bumbu & Bahan'
+  },
+  'Katering & Paket Pesanan': {
+    defaultStorageTemp: 'Hangat / Langsung Santap',
+    defaultExpiredInfo: 'Fresh Daily (Hari Acara)',
+    defaultShipping: 'Pre-Order Khusus (Katering / Acara)',
+    portionPlaceholder: 'Contoh: Paket 20 Box / Tampah 15 Porsi',
+    badgeEmoji: '🍱',
+    badgeLabel: 'Katering & PO'
+  },
+  'Lainnya': {
+    defaultStorageTemp: 'Fleksibel',
+    defaultExpiredInfo: 'Sesuai Kemasan',
+    defaultShipping: 'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+    portionPlaceholder: 'Contoh: 1 Unit / Pack / Box',
+    badgeEmoji: '🍽️',
+    badgeLabel: 'Kuliner'
+  }
+};
+
 export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
   switch (type) {
     case 'physical':
@@ -5044,6 +5120,7 @@ function App() {
       return
     }
     const typeConfig = getItemTypeFormConfig(initialType);
+    const foodPreset = initialType === 'food' ? CULINARY_SMART_PRESETS['Makanan Siap Santap'] : null;
     setCrudMode('create')
     setEditId(null)
     setCrudForm({
@@ -5063,7 +5140,7 @@ function App() {
       weight: '',
       shipping_terms: '',
       warranty_info: '',
-      shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+      shipping_coverage: foodPreset ? foodPreset.defaultShipping : (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia'),
       purchase_links: [],
       product_type: initialType,
       attributes: {
@@ -5086,8 +5163,8 @@ function App() {
         inclusions: '',
         client_requirements: '',
         portion_size: '1 Porsi',
-        expired_info: 'Fresh Daily',
-        storage_temp: 'Suhu Ruang',
+        expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
+        storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
         certification: '100% Halal',
         taste_options: ''
       }
@@ -12856,12 +12933,27 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         style={{ flex: 1 }}
                         value={showCustomClassInput ? '__NEW__' : crudForm.class}
                         onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
+                          const newClass = e.target.value;
+                          if (newClass === '__NEW__') {
                             setShowCustomClassInput(true)
                             setCustomClass('')
                           } else {
                             setShowCustomClassInput(false)
-                            setCrudForm({ ...crudForm, class: e.target.value })
+                            const preset = CULINARY_SMART_PRESETS[newClass];
+                            if (crudForm.product_type === 'food' && preset) {
+                              setCrudForm(prev => ({
+                                ...prev,
+                                class: newClass,
+                                shipping_coverage: preset.defaultShipping,
+                                attributes: {
+                                  ...prev.attributes,
+                                  storage_temp: preset.defaultStorageTemp,
+                                  expired_info: preset.defaultExpiredInfo
+                                }
+                              }))
+                            } else {
+                              setCrudForm(prev => ({ ...prev, class: newClass }))
+                            }
                           }
                         }}
                       >
@@ -13165,7 +13257,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <input 
                             type="text" 
                             className="form-input" 
-                            placeholder="Contoh: 1 Porsi / Box 500 gr / Botol 250 ml / Pack 10 pcs"
+                            placeholder={CULINARY_SMART_PRESETS[showCustomClassInput ? customClass : crudForm.class]?.portionPlaceholder || "Contoh: 1 Porsi / Box 500 gr / Botol 250 ml / Pack 10 pcs"}
                             required
                             value={crudForm.attributes.portion_size || '1 Porsi'}
                             onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
