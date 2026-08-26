@@ -415,9 +415,76 @@ func parsePrice(val interface{}) float64 {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+type CulinaryTaxonomyItem struct {
+	CategoryName       string `json:"category_name"`
+	DefaultStorageTemp string `json:"default_storage_temp"`
+	DefaultExpiredInfo string `json:"default_expired_info"`
+	DefaultShipping    string `json:"default_shipping"`
+	PortionPlaceholder string `json:"portion_placeholder"`
+}
+
+func (h *FaunaHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
+	taxonomy := []CulinaryTaxonomyItem{
+		{
+			CategoryName:       "Makanan Siap Santap",
+			DefaultStorageTemp: "Hangat / Langsung Santap",
+			DefaultExpiredInfo: "Fresh Daily (Hari Ini)",
+			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
+			PortionPlaceholder: "Contoh: 1 Porsi / Paket Nasi Komplit",
+		},
+		{
+			CategoryName:       "Makanan Beku & Olahan (Frozen)",
+			DefaultStorageTemp: "Beku (Freezer -18°C)",
+			DefaultExpiredInfo: "3 Bulan di Freezer",
+			DefaultShipping:    "Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)",
+			PortionPlaceholder: "Contoh: Pack 500 gr / Box isi 10 pcs",
+		},
+		{
+			CategoryName:       "Minuman & Olahan Kopi",
+			DefaultStorageTemp: "Dingin (Chiller)",
+			DefaultExpiredInfo: "3-7 Hari di Kulkas",
+			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
+			PortionPlaceholder: "Contoh: Botol 250 ml / Literan 1000 ml / Cup 16oz",
+		},
+		{
+			CategoryName:       "Camilan, Snack & Kue Kering",
+			DefaultStorageTemp: "Suhu Ruang",
+			DefaultExpiredInfo: "3-6 Bulan (Kemasan Rapat)",
+			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
+			PortionPlaceholder: "Contoh: Pouch 200 gr / Toples 250 gr / Pack 100 gr",
+		},
+		{
+			CategoryName:       "Bakery, Roti & Pastry",
+			DefaultStorageTemp: "Suhu Ruang",
+			DefaultExpiredInfo: "3-4 Hari (Suhu Ruang)",
+			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
+			PortionPlaceholder: "Contoh: 1 Loyang / Box isi 6 pcs / Loaf 400 gr",
+		},
+		{
+			CategoryName:       "Bumbu & Bahan Masak",
+			DefaultStorageTemp: "Suhu Ruang",
+			DefaultExpiredInfo: "6-12 Bulan",
+			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
+			PortionPlaceholder: "Contoh: Botol 250 gr / Pouch 500 gr / Pack 1 kg",
+		},
+		{
+			CategoryName:       "Katering & Paket Pesanan",
+			DefaultStorageTemp: "Hangat / Langsung Santap",
+			DefaultExpiredInfo: "Fresh Daily (Hari Acara)",
+			DefaultShipping:    "Pre-Order Khusus (Katering / Acara)",
+			PortionPlaceholder: "Contoh: Paket 20 Box / Tampah 15 Porsi",
+		},
+		{
+			CategoryName:       "Lainnya",
+			DefaultStorageTemp: "Fleksibel",
+			DefaultExpiredInfo: "Sesuai Kemasan",
+			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
+			PortionPlaceholder: "Contoh: 1 Unit / Pack / Box",
+		},
 	}
-	return b
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    taxonomy,
+	})
 }
