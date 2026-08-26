@@ -416,70 +416,88 @@ func parsePrice(val interface{}) float64 {
 }
 
 type CulinaryTaxonomyItem struct {
-	CategoryName       string `json:"category_name"`
-	DefaultStorageTemp string `json:"default_storage_temp"`
-	DefaultExpiredInfo string `json:"default_expired_info"`
-	DefaultShipping    string `json:"default_shipping"`
-	PortionPlaceholder string `json:"portion_placeholder"`
+	CategoryName       string   `json:"category_name"`
+	Description        string   `json:"description"`
+	DefaultStorageTemp string   `json:"default_storage_temp"`
+	DefaultExpiredInfo string   `json:"default_expired_info"`
+	DefaultShipping    string   `json:"default_shipping"`
+	PortionPlaceholder string   `json:"portion_placeholder"`
+	SpecificFields     []string `json:"specific_fields"`
 }
 
 func (h *FaunaHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
 	taxonomy := []CulinaryTaxonomyItem{
 		{
 			CategoryName:       "Makanan Siap Santap",
+			Description:        "Makanan matang siap makan (dine-in, takeaway, atau kurir instan).",
 			DefaultStorageTemp: "Hangat / Langsung Santap",
 			DefaultExpiredInfo: "Fresh Daily (Hari Ini)",
 			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
 			PortionPlaceholder: "Contoh: 1 Porsi / Paket Nasi Komplit",
+			SpecificFields:     []string{"portion_size", "spicy_level", "prep_time", "serving_method", "certification"},
 		},
 		{
 			CategoryName:       "Makanan Beku & Olahan (Frozen)",
+			Description:        "Makanan beku atau olahan siap masak (dimsum, bakso, daging marinasi).",
 			DefaultStorageTemp: "Beku (Freezer -18°C)",
 			DefaultExpiredInfo: "3 Bulan di Freezer",
 			DefaultShipping:    "Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)",
 			PortionPlaceholder: "Contoh: Pack 500 gr / Box isi 10 pcs",
+			SpecificFields:     []string{"portion_size", "cooking_guide", "expired_info", "storage_temp", "certification"},
 		},
 		{
 			CategoryName:       "Minuman & Olahan Kopi",
+			Description:        "Minuman segar, kopi botolan, artisan tea, atau jus.",
 			DefaultStorageTemp: "Dingin (Chiller)",
 			DefaultExpiredInfo: "3-7 Hari di Kulkas",
 			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
 			PortionPlaceholder: "Contoh: Botol 250 ml / Literan 1000 ml / Cup 16oz",
+			SpecificFields:     []string{"portion_size", "sugar_ice_options", "storage_temp", "expired_info", "certification"},
 		},
 		{
 			CategoryName:       "Camilan, Snack & Kue Kering",
+			Description:        "Makanan ringan renyah, keripik, cookies, atau camilan kering tahan lama.",
 			DefaultStorageTemp: "Suhu Ruang",
 			DefaultExpiredInfo: "3-6 Bulan (Kemasan Rapat)",
 			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
 			PortionPlaceholder: "Contoh: Pouch 200 gr / Toples 250 gr / Pack 100 gr",
+			SpecificFields:     []string{"portion_size", "spicy_level", "expired_info", "storage_temp", "certification"},
 		},
 		{
 			CategoryName:       "Bakery, Roti & Pastry",
+			Description:        "Roti panggang segar, kue bolu, pastry, donat, atau cake harian.",
 			DefaultStorageTemp: "Suhu Ruang",
 			DefaultExpiredInfo: "3-4 Hari (Suhu Ruang)",
 			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
-			PortionPlaceholder: "Contoh: 1 Loyang / Box isi 6 pcs / Loaf 400 gr",
+			PortionPlaceholder: "Contoh: 1 Loyang (Diameter 20cm) / Box isi 6 pcs / Loaf 400 gr",
+			SpecificFields:     []string{"portion_size", "taste_options", "expired_info", "bake_status", "certification"},
 		},
 		{
 			CategoryName:       "Bumbu & Bahan Masak",
+			Description:        "Bumbu masakan siap pakai, saus botolan, rempah, atau minyak olahan.",
 			DefaultStorageTemp: "Suhu Ruang",
 			DefaultExpiredInfo: "6-12 Bulan",
 			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
 			PortionPlaceholder: "Contoh: Botol 250 gr / Pouch 500 gr / Pack 1 kg",
+			SpecificFields:     []string{"portion_size", "serving_capacity", "expired_info", "storage_temp", "certification"},
 		},
 		{
 			CategoryName:       "Katering & Paket Pesanan",
+			Description:        "Paket pesanan porsi banyak, tumpeng, nasi boks prasmanan, meal prep.",
 			DefaultStorageTemp: "Hangat / Langsung Santap",
 			DefaultExpiredInfo: "Fresh Daily (Hari Acara)",
 			DefaultShipping:    "Pre-Order Khusus (Katering / Acara)",
-			PortionPlaceholder: "Contoh: Paket 20 Box / Tampah 15 Porsi",
+			PortionPlaceholder: "Contoh: Minimal 20 Box / Tampah 15 Porsi",
+			SpecificFields:     []string{"min_order", "inclusions", "prep_time", "delivery_service", "certification"},
 		},
 		{
 			CategoryName:       "Lainnya",
+			Description:        "Produk kuliner khusus atau kombinasi lainnya.",
 			DefaultStorageTemp: "Fleksibel",
 			DefaultExpiredInfo: "Sesuai Kemasan",
 			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
 			PortionPlaceholder: "Contoh: 1 Unit / Pack / Box",
+			SpecificFields:     []string{"portion_size", "expired_info", "storage_temp", "certification"},
 		},
 	}
 

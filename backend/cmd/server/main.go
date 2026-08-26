@@ -76,6 +76,7 @@ func main() {
 	api.Get("/fauna", faunaHandler.Index)
 	api.Get("/fauna/:id", faunaHandler.Show)
 	api.Get("/taxonomy/culinary", faunaHandler.GetCulinaryTaxonomy)
+	api.Get("/culinary-taxonomy", faunaHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)
 	api.Get("/policies", settingHandler.GetPolicies)
 	api.Post("/policies/agree", settingHandler.RecordAgreement)
