@@ -1,0 +1,18 @@
+# GitHub Linguist Overrides
+# 1. Mark compiled production web bundles and assets as generated
+public/** linguist-generated=true
+
+# 2. Mark legacy Laravel PHP codebase as vendored so Golang and TypeScript take 100% priority
+legacy/** linguist-vendored=true
+
+# 3. Mark developer scripts as documentation
+scripts/** linguist-documentation=true
+
+# Line endings normalization
+* text=auto eol=lf
+*.go text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md text eol=lf

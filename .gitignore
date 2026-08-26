@@ -1,4 +1,4 @@
-# Root GitIgnore for Catavor (DFauna)
+# Root GitIgnore for Catavor Monorepo
 
 # Dependencies
 **/node_modules/
@@ -13,10 +13,14 @@
 **/.env.test.local
 **/.env.production.local
 
-# SQLite Databases & Local uploads
+# Databases & Dynamic Local uploads
 **/database/*.sqlite
-/backend/storage/app/public/fauna/*
-!/backend/storage/app/public/fauna/.gitkeep
+/public/storage/fauna/*
+!/public/storage/fauna/.gitkeep
+/backend/storage/uploads/*
+!/backend/storage/uploads/.gitkeep
+/legacy/laravel/storage/app/public/fauna/*
+!/legacy/laravel/storage/app/public/fauna/.gitkeep
 *.fiber.gz
 
 # Executables & Binaries
@@ -25,9 +29,10 @@
 *.dll
 *.so
 *.dylib
-backend-go/catavor-server.exe
+backend/catavor-server.exe
+backend/catavor-server
 
-# IDE, Browser & OS temp files
+# IDE, Browser & Temporary files
 **/.idea/
 **/.vscode/
 **/Thumbs.db

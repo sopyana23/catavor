@@ -10,7 +10,7 @@
 
 **Catavor** (sebelumnya DFauna) adalah platform katalog usaha digital interaktif berbasis web (*Multi-Tenant SaaS*) generasi baru. Dirancang dengan antarmuka modern, elegan, dan berfokus pada foto beresolusi tinggi layaknya *online shop* modern berstandar enterprise.
 
-Aplikasi ini ditenagai oleh backend berperforma tinggi **Golang 1.23+ (Go-Fiber v2)** dengan database **PostgreSQL 17** yang menerapkan arsitektur keamanan *Zero-Trust Isolation*, serta antarmuka reaktif **React 19 & TypeScript** dalam versi **Desktop & Mobile**.
+Aplikasi ini ditenagai oleh backend berperforma tinggi **Golang 1.23+ (Go-Fiber v2)** dengan database **PostgreSQL 17** yang menerapkan arsitektur keamanan *Zero-Trust Isolation*, serta antarmuka reaktif **React 19 & TypeScript** dalam versi **Desktop & Mobile** menggunakan struktur **Clean Monorepo Standar Industri**.
 
 ---
 
@@ -60,35 +60,51 @@ Aplikasi ini ditenagai oleh backend berperforma tinggi **Golang 1.23+ (Go-Fiber 
 | **Primary Backend** | **Golang 1.23+**, Fiber v2 | High-concurrency, low-latency, Zero-Trust architecture |
 | **ORM & Database** | **GORM**, **PostgreSQL 17** | Connection pooling (50 max open), Native JSONB |
 | **Auth & Security** | Golang JWT v5, Bcrypt (Cost 12), Google OAuth | Rate limiter, Magic-byte image sanitization |
-| **Legacy Backend** | Laravel 12, Laravel Sanctum, SQLite/MySQL | Kompatibilitas shared hosting cPanel PHP 8.2+ |
 | **Frontend (Desktop)** | React 19, TypeScript, Vite 8 | Lucide Icons, Executive Dark Slate CSS |
 | **Frontend (Mobile)** | React 19, TypeScript, Vite 8 | Lucide Icons, Touch-optimized UX |
+| **Legacy Archive** | Laravel 12, SQLite/MySQL | Diarsipkan di `legacy/laravel/` sebagai referensi |
 
 ---
 
-## 📁 Struktur Direktori Monorepo
+## 📁 Struktur Direktori Monorepo (Industry Standard Layout)
 
 ```text
-DFauna/
-├── backend-go/             # [UTAMA] Backend Golang 1.23+ (Go-Fiber v2 + GORM + PostgreSQL)
-│   ├── cmd/server/         # Entry point server (main.go)
-│   ├── config/             # Konfigurasi aplikasi & parsing .env
-│   ├── database/           # Koneksi DB, GORM migration & SQLite auto-importer
-│   ├── handlers/           # Controller/handler API (Auth, Store, Fauna, Setting, SPA)
-│   ├── middleware/         # Security, JWT Auth, Tenant isolation, Rate limiting
-│   ├── models/             # GORM struct models & JSONB data types
-│   └── build.ps1           # Script kompilasi binary Go untuk produksi
-├── backend/                # [LEGACY] Backend Laravel 12 (PHP 8.2+) untuk shared hosting
-│   ├── app/                # Controllers, Models, Middleware Laravel
-│   ├── public/             # Public directory (penyimpanan bundle frontend & storage)
-│   │   ├── desktop/        # Hasil build Frontend Desktop
-│   │   ├── mobile/         # Hasil build Frontend Mobile
-│   │   └── storage/        # File upload gambar katalog
-│   └── routes/             # Rute API & Web Laravel
-├── frontend-desktop/       # Frontend Web Desktop (React 19 + TypeScript + Vite)
-├── frontend-mobile/        # Frontend Web Mobile (React 19 + TypeScript + Vite)
-├── build-all.ps1           # Script otomatis kompilasi Frontend Desktop & Mobile
-└── README.md               # Dokumentasi proyek
+catavor/
+├── backend/                      # [UTAMA] Backend Golang 1.23+ (Go-Fiber v2 + GORM + PostgreSQL)
+│   ├── cmd/
+│   │   └── server/               # Entrypoint aplikasi server (main.go)
+│   ├── internal/                 # Package private aplikasi (Standard Go Layout)
+│   │   ├── config/               # Parsing environment & konfigurasi
+│   │   ├── database/             # Koneksi DB PostgreSQL, GORM migration & auto-importer
+│   │   ├── handlers/             # REST API Handlers (Auth, Store, Fauna, Setting, SPA)
+│   │   ├── middleware/           # Security headers, JWT Auth, Tenant isolation, Rate limiter
+│   │   └── models/               # GORM struct models & JSONB data types
+│   ├── storage/                  # Direktori penyimpanan mandiri file uploads
+│   │   └── uploads/
+│   ├── .env.example              # Template environment backend
+│   ├── go.mod
+│   └── go.sum
+├── frontend/                     # Monorepo Aplikasi Web Frontend (React 19 + TypeScript + Vite)
+│   ├── desktop/                  # Web App Frontend Desktop
+│   │   ├── src/
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   └── mobile/                   # Web App Frontend Mobile
+│       ├── src/
+│       ├── package.json
+│       └── vite.config.ts
+├── public/                       # Direktori aset statis & hasil kompilasi frontend terpusat
+│   ├── desktop/                  # Bundle statis frontend desktop
+│   ├── mobile/                   # Bundle statis frontend mobile
+│   └── storage/                  # File gambar produk & logo katalog
+├── scripts/                      # Script otomatisasi DevOps & Build
+│   ├── build-all.ps1             # Kompilasi frontend desktop & mobile ke public/
+│   └── build-backend.ps1         # Kompilasi binary Go standalone untuk produksi
+├── legacy/                       # Arsip cadangan (Diabaikan oleh GitHub Linguist)
+│   └── laravel/                  # Backend Laravel 12 versi terdahulu
+├── .gitattributes                # Konfigurasi Linguist (100% Go & TypeScript)
+├── .gitignore                    # Standard ignore file
+└── README.md                     # Dokumentasi resmi repositori
 ```
 
 ---
@@ -120,12 +136,12 @@ CREATE DATABASE catavor;
 ---
 
 ### 4. Konfigurasi Environment Backend Go
-Masuk ke folder `backend-go` dan salin file `.env.example`:
+Masuk ke folder `backend` dan salin file `.env.example`:
 ```bash
-cd backend-go
+cd backend
 cp .env.example .env
 ```
-Sesuaikan konfigurasi pada file `backend-go/.env`:
+Sesuaikan konfigurasi pada file `backend/.env`:
 ```env
 APP_ENV=local
 PORT=8000
@@ -141,9 +157,9 @@ DB_SSLMODE=disable
 
 JWT_SECRET=catavor_super_secret_jwt_key_2026_enterprise_saas
 
-STORAGE_DIR=../backend/public/storage
-DESKTOP_DIST_DIR=../backend/public/desktop
-MOBILE_DIST_DIR=../backend/public/mobile
+STORAGE_DIR=../public/storage
+DESKTOP_DIST_DIR=../public/desktop
+MOBILE_DIST_DIR=../public/mobile
 
 GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here
@@ -152,26 +168,26 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 ---
 
 ### 5. Kompilasi Bundle Frontend (Desktop & Mobile)
-Jalankan script kompilasi dari root folder proyek:
+Jalankan script otomatis dari root folder proyek:
 ```powershell
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -File .\build-all.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-all.ps1
 ```
-*Script ini akan mem-build `frontend-desktop` dan `frontend-mobile`, lalu menempatkan file statisnya di folder `backend/public/desktop` dan `backend/public/mobile`.*
+*Script ini akan mem-build `frontend/desktop` dan `frontend/mobile`, lalu menempatkan bundle statisnya ke dalam folder `public/desktop` dan `public/mobile`.*
 
 ---
 
-### 6. Jalankan Backend Golang
-Masuk ke folder `backend-go` dan jalankan:
+### 6. Jalankan Server Backend Golang
+Masuk ke folder `backend` dan jalankan:
 ```bash
-cd backend-go
+cd backend
 go run ./cmd/server/main.go
 ```
 
 > [!NOTE]
 > **Otomatisasi Database**: Saat pertama kali server Golang dijalankan:
 > 1. GORM akan otomatis melakukan **Auto-Migration** untuk seluruh tabel PostgreSQL.
-> 2. Jika terdapat file database SQLite lama di `backend/database/database.sqlite`, sistem akan **mengimpor data secara otomatis** ke PostgreSQL.
+> 2. Jika terdapat file database SQLite lama di `legacy/laravel/database/database.sqlite`, sistem akan **mengimpor data secara otomatis** ke PostgreSQL.
 > 3. Jika database kosong, sistem akan menginisialisasi akun admin & toko contoh (*Adidas Store*) secara otomatis.
 
 ---
@@ -193,18 +209,18 @@ Jika Anda ingin melakukan pengembangan antarmuka secara langsung dengan fitur Vi
 
 1. **Jalankan Backend Go**:
    ```bash
-   cd backend-go
+   cd backend
    go run ./cmd/server/main.go
    ```
 2. **Jalankan Frontend Desktop**:
    ```bash
-   cd frontend-desktop
+   cd frontend/desktop
    npm install
    npm run dev
    ```
 3. **Jalankan Frontend Mobile**:
    ```bash
-   cd frontend-mobile
+   cd frontend/mobile
    npm install
    npm run dev
    ```
@@ -216,31 +232,17 @@ Jika Anda ingin melakukan pengembangan antarmuka secara langsung dengan fitur Vi
 Untuk mengompilasi server Go menjadi satu file *binary standalone* berperforma tinggi:
 
 ```powershell
-cd backend-go
-powershell -ExecutionPolicy Bypass -File .\build.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-backend.ps1
 ```
-Hasil kompilasi berupa file `catavor-server.exe` (atau binary Linux untuk server target) yang siap dijalankan dengan konsumsi memori sangat hemat (< 30 MB RAM).
+Hasil kompilasi berupa file `backend/catavor-server.exe` (atau binary Linux untuk server target) yang siap dijalankan dengan konsumsi memori sangat hemat (< 30 MB RAM).
 
 ---
 
-## 🌐 Panduan Deployment
-
-### Opsi A: Deployment Server VPS / Cloud (Rekomendasi - Golang)
-1. Build binary untuk OS target (misal Linux: `GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o catavor-server ./cmd/server/main.go`).
-2. Build frontend dengan `.\build-all.ps1`.
-3. Upload binary `catavor-server`, folder `backend/public`, dan file `.env` ke server VPS.
+## 🌐 Panduan Deployment Server (VPS / Docker)
+1. Build binary untuk OS target (misal Linux: `cd backend && GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o catavor-server ./cmd/server/main.go`).
+2. Build frontend dengan `.\scripts\build-all.ps1`.
+3. Upload binary `catavor-server`, folder `public/`, dan file `.env` ke server VPS.
 4. Pasang `systemd` service atau Docker container untuk menjalankan `catavor-server` di belakang reverse proxy **Nginx / Caddy** (dengan SSL HTTPS).
-
-### Opsi B: Deployment Shared Hosting cPanel (Legacy Laravel)
-Aplikasi tetap menyediakan kompatibilitas untuk shared hosting cPanel murah via Laravel 12:
-1. Unggah seluruh folder proyek ke folder di luar `public_html` (misalnya `/home/user/catavor_core`).
-2. Pindahkan seluruh isi folder `backend/public/` ke dalam `public_html/`.
-3. Edit `public_html/index.php` untuk mengarah ke autoloader `catavor_core`:
-   ```php
-   require __DIR__.'/../catavor_core/backend/vendor/autoload.php';
-   $app = require_once __DIR__.'/../catavor_core/backend/bootstrap/app.php';
-   ```
-4. Konfigurasikan file `.env` database MySQL cPanel dan jalankan migrasi via SSH/Terminal atau impor `.sql` dari phpMyAdmin.
 
 ---
 
