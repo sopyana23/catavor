@@ -5227,7 +5227,10 @@ function App() {
       description: crudForm.description,
       image_url: filteredImages[0],
       product_type: crudForm.product_type,
-      attributes: crudForm.attributes,
+      attributes: {
+        ...crudForm.attributes,
+        file_format: crudForm.product_type === 'digital' ? selectedClass : (crudForm.attributes.file_format || selectedClass)
+      },
       detailed_info: {
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
@@ -12948,18 +12951,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
                         />
                       </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">Format File *</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: PDF / ZIP / MP4 / Figma"
-                            required
-                            value={crudForm.attributes.file_format}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
-                          />
-                        </div>
+                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                         <div className="form-group">
                           <label className="form-label">Ukuran File *</label>
                           <input 
