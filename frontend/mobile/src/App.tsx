@@ -657,7 +657,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryLabel: 'Kategori / Jenis Barang *',
         defaultCategory: 'Pakaian & Fashion',
         categoryOptions: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
-        priceLabel: 'Harga Jual Satuan (IDR) *',
+        priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 150.000',
         photoLabel: 'Foto Barang (1-5 Foto) *',
         photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
@@ -687,7 +687,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryLabel: 'Format & Kategori Digital *',
         defaultCategory: 'E-Book & PDF',
         categoryOptions: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software'],
-        priceLabel: 'Harga Akses / Lisensi (IDR) *',
+        priceLabel: 'Harga Lisensi (IDR) *',
         pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
         photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
         photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
@@ -717,7 +717,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryLabel: 'Kelas / Kategori Fauna *',
         defaultCategory: 'Ikan Hias',
         categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
-        priceLabel: 'Harga Satuan Hewan (IDR) *',
+        priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 350.000',
         photoLabel: 'Foto Satwa & Kondisi Nyata (1-5 Foto) *',
         photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
@@ -747,7 +747,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryLabel: 'Kategori Bidang Jasa *',
         defaultCategory: 'Perawatan & Grooming',
         categoryOptions: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance'],
-        priceLabel: 'Biaya / Tarif Layanan (IDR) *',
+        priceLabel: 'Tarif Layanan (IDR) *',
         pricePlaceholder: 'Contoh: 120.000 / Mulai dari Rp 100.000',
         photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-5 Foto) *',
         photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
@@ -777,7 +777,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryLabel: 'Kategori Menu Kuliner *',
         defaultCategory: 'Makanan Utama',
         categoryOptions: ['Makanan Utama', 'Minuman Olahan & Kopi', 'Camilan & Snack', 'Frozen Food & Olahan', 'Bakery & Pastry', 'Katering & Paket Nasi Boks', 'Bumbu & Frozen Ready-to-Cook'],
-        priceLabel: 'Harga Porsi / Menu (IDR) *',
+        priceLabel: 'Harga Porsi (IDR) *',
         pricePlaceholder: 'Contoh: 35.000',
         photoLabel: 'Foto Menu / Penyajian Makanan (1-5 Foto) *',
         photoHelper: 'Unggah foto hidangan yang menggugah selera, kemasan makanan, atau komposisi menu.',
@@ -8760,9 +8760,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
               <form onSubmit={handleFaunaSubmit}>
                 {/* Standar Fields: Nama & Harga */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">{typeConfig.nameLabel}</label>
+                <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '0.6rem', alignItems: 'end' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>{typeConfig.nameLabel}</label>
                     <input 
                       type="text" 
                       className="form-input" 
@@ -8772,8 +8772,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">{typeConfig.priceLabel}</label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>{typeConfig.priceLabel}</label>
                     <input 
                       type="text" 
                       className="form-input" 
@@ -8786,12 +8786,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
 
                 {/* Kategori Field */}
-                <div className="form-group" style={{ marginTop: '0.25rem' }}>
+                <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
                   <label className="form-label">{typeConfig.categoryLabel}</label>
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                     <select
                       className="form-select"
-                      style={{ flex: 1, height: '38px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                      style={{ flex: 1, height: '42px', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
                       value={showCustomClassInput ? '__NEW__' : crudForm.class}
                       onChange={(e) => {
                         if (e.target.value === '__NEW__') {
@@ -8825,10 +8825,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 {/* DYNAMIC FIELDS SPECIFIC TO PRODUCT TYPE */}
                 {/* 1. BARANG FISIK */}
                 {crudForm.product_type === 'physical' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Stok (Unit) *</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Stok (Unit) *</label>
                         <input 
                           type="number" 
                           className="form-input" 
@@ -8838,10 +8838,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, stock: parseInt(e.target.value) || 0 } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Kondisi *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi *</label>
                         <select 
                           className="form-select"
+                          style={{ height: '42px' }}
                           value={crudForm.attributes.condition}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
                         >
@@ -8849,8 +8850,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <option value="Bekas">Bekas / Second</option>
                         </select>
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Berat (Gram) *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Berat (Gram) *</label>
                         <input 
                           type="number" 
                           className="form-input" 
@@ -8861,9 +8862,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Merek / Brand</label>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Merek / Brand</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8872,8 +8873,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, brand: e.target.value } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Varian / Opsi Ukuran</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Varian / Ukuran</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8888,8 +8889,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                 {/* 2. ITEM DIGITAL */}
                 {crudForm.product_type === 'digital' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <div className="form-group">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Link Akses / Download File *</label>
                       <input 
                         type="url" 
@@ -8900,9 +8901,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
                       />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Format File *</label>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Format File *</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8912,8 +8913,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Ukuran File *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Ukuran File *</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8923,10 +8924,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_size: e.target.value } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Tipe Lisensi *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Tipe Lisensi *</label>
                         <select 
                           className="form-select"
+                          style={{ height: '42px' }}
                           value={crudForm.attributes.license_type || 'Lisensi Personal'}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: e.target.value } })}
                         >
@@ -8942,8 +8944,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                 {/* 3. SATWA & LIVING FAUNA */}
                 {crudForm.product_type === 'fauna' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <div className="form-group">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Nama Ilmiah / Taksonomi *</label>
                       <input 
                         type="text" 
@@ -8954,9 +8956,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
                       />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.25rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Asal Wilayah</label>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Asal Wilayah</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8965,8 +8967,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, native_region: e.target.value })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Masa Hidup</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Hidup</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8975,8 +8977,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, lifespan: e.target.value })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Bobot</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Bobot</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -8986,10 +8988,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         />
                       </div>
                     </div>
-                    <div className="form-group">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Status Ketersediaan *</label>
                       <select 
                         className="form-select"
+                        style={{ height: '42px' }}
                         value={crudForm.conservation_status}
                         onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
                       >
@@ -9003,10 +9006,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                 {/* 4. JASA & LAYANAN */}
                 {crudForm.product_type === 'service' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Durasi Layanan *</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Durasi Layanan *</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -9016,10 +9019,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, duration: e.target.value } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Metode Layanan *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Metode Layanan *</label>
                         <select 
                           className="form-select"
+                          style={{ height: '42px' }}
                           value={crudForm.attributes.service_location}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
                         >
@@ -9029,24 +9033,24 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </select>
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Area Jangkauan Operasional *</label>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Area Jangkauan *</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: Jabodetabek / Bandung / Online"
+                          placeholder="Contoh: Jabodetabek / Bandung"
                           required
                           value={crudForm.attributes.service_area}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Inklusi / Fasilitas Paket</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Inklusi / Fasilitas</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: Full Alat + Shampo Medicated"
+                          placeholder="Contoh: Full Alat + Bahan"
                           value={crudForm.attributes.inclusions || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, inclusions: e.target.value } })}
                         />
@@ -9057,35 +9061,36 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                 {/* 5. MAKANAN & MINUMAN (F&B) */}
                 {crudForm.product_type === 'food' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Porsi / Isi Bersih</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Porsi / Takaran</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: 1 Porsi / Box 500gr / 250ml"
+                          placeholder="Contoh: 1 Porsi / 500gr"
                           value={crudForm.attributes.portion_size || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, portion_size: e.target.value } })}
                         />
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Ketahanan / Expired Date *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Masa Simpan / Exp *</label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: 7 Hari / 3 Bulan / Fresh Daily"
+                          placeholder="Contoh: 7 Hari / Fresh Daily"
                           required
                           value={crudForm.attributes.expired_info}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, expired_info: e.target.value } })}
                         />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Suhu Penyimpanan *</label>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Suhu Simpan *</label>
                         <select 
                           className="form-select"
+                          style={{ height: '42px' }}
                           value={crudForm.attributes.storage_temp}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, storage_temp: e.target.value } })}
                         >
@@ -9094,18 +9099,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <option value="Beku (Freezer)">Beku (Freezer)</option>
                         </select>
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Sertifikasi / Label *</label>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Sertifikasi *</label>
                         <select 
                           className="form-select"
+                          style={{ height: '42px' }}
                           value={crudForm.attributes.certification}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certification: e.target.value } })}
                         >
                           <option value="100% Halal">100% Halal</option>
                           <option value="BPOM">Izin BPOM</option>
                           <option value="PIRT">Dinkes P-IRT</option>
-                          <option value="Home-made">Home-made / Buatan Sendiri</option>
-                          <option value="Fresh / Tanpa Pengawet">Fresh / Tanpa Pengawet</option>
+                          <option value="Home-made">Home-made</option>
+                          <option value="Fresh / Tanpa Pengawet">Fresh / Non-Pengawet</option>
                         </select>
                       </div>
                     </div>
