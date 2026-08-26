@@ -876,8 +876,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         deliveryTermsLabel: 'Ketentuan Pemesanan & Pengiriman',
         deliveryTermsPlaceholder: 'Contoh: Dibuat fresh saat pesanan masuk (Made by order), batas jam checkout kurir, atau syarat kemasan luar kota...',
-        descLabel: 'Deskripsi, Bahan & Komposisi Kuliner *',
-        descPlaceholder: 'Jelaskan bahan-bahan utama, cita rasa, informasi alergen (kacang/seafood/gluten), cara penyajian/penghangatan (jika ada)...'
+        descLabel: 'Deskripsi Produk (Opsional)',
+        descPlaceholder: 'Tuliskan deskripsi produk, cerita racikan, keunggulan rasa, atau catatan lainnya (opsional)...'
       };
   }
 }
@@ -8149,12 +8149,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
 
             {/* Description */}
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Deskripsi</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-                {selectedFauna.description}
-              </p>
-            </div>
+            {selectedFauna.description && (
+              <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Deskripsi</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                  {selectedFauna.description}
+                </p>
+              </div>
+            )}
 
             {/* Shipping & Warranty Information */}
             {(selectedFauna.detailed_info?.shipping_terms || selectedFauna.detailed_info?.warranty_info) && (
@@ -10018,7 +10020,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     rows={4} 
                     className="form-textarea" 
                     placeholder={typeConfig.descPlaceholder}
-                    required
+                    required={crudForm.product_type !== 'food'}
                     value={crudForm.description}
                     onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
                   />
