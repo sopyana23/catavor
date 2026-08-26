@@ -47,7 +47,9 @@ Route::middleware(['auth:sanctum', 'store.owner'])->group(function () {
     Route::post('/stores/update', [StoreController::class, 'update']);
     Route::post('/stores/upgrade-plan', [StoreController::class, 'upgradePlan']);
     Route::post('/stores/add-master-option', [StoreController::class, 'addMasterOption']);
+    Route::post('/stores/rename-master-option', [StoreController::class, 'renameMasterOption']);
     Route::post('/stores/delete-master-option', [StoreController::class, 'deleteMasterOption']);
+    Route::post('/stores/apply-master-preset', [StoreController::class, 'applyMasterPreset']);
     
     // Legacy global settings write (kept for safety)
     Route::post('/settings', [SettingController::class, 'store']);

@@ -1,4 +1,4 @@
-# Root GitIgnore for DFauna
+# Root GitIgnore for Catavor (DFauna)
 
 # Dependencies
 **/node_modules/
@@ -17,12 +17,45 @@
 **/database/*.sqlite
 /backend/storage/app/public/fauna/*
 !/backend/storage/app/public/fauna/.gitkeep
+*.fiber.gz
 
-# IDE and OS files
+# Executables & Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+backend-go/catavor-server.exe
+
+# IDE, Browser & OS temp files
 **/.idea/
 **/.vscode/
 **/Thumbs.db
 **/.DS_Store
 *.log
 brain/
-
+scratch/
+Backups/
+Cache/
+CachedConfigurations/
+CachedData/
+CachedProfilesData/
+Code Cache/
+Crashpad/
+DIPS*
+Dawn*
+GPUCache/
+Local State
+Local Storage/
+Network/
+Preferences
+Service Worker/
+Session Storage/
+Shared Dictionary/
+SharedStorage*
+User/
+WebStorage/
+blob_storage/
+code.lock
+languagepacks.json
+machineid

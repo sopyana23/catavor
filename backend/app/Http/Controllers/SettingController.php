@@ -15,10 +15,10 @@ class SettingController extends Controller
         $settings = Setting::all()->pluck('value', 'key')->toArray();
 
         $defaults = [
-            'master_classes' => json_encode(['Ikan Hias', 'Mamalia', 'Mamalia Kecil', 'Reptil']),
-            'master_habitats' => json_encode(['Air Tawar', 'Air Laut', 'Darat']),
-            'master_statuses' => json_encode(['Tersedia (For Sale)', 'Habis Terjual (Sold Out)', 'Terbatas (Limited)']),
-            'master_shipping_coverages' => json_encode(['Bisa Kirim se-Indonesia', 'Pulau Jawa Saja', 'Ambil Sendiri di Toko (No Shipping)']),
+            'master_classes' => json_encode(['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial']),
+            'master_habitats' => json_encode(['Standar', 'Premium', 'Edisi Khusus', 'General']),
+            'master_statuses' => json_encode(['Tersedia (Ready Stock)', 'Pre-Order (PO)', 'Habis Terjual (Sold Out)']),
+            'master_shipping_coverages' => json_encode(['Bisa Kirim se-Indonesia', 'Area Terbatas', 'Ambil Sendiri di Toko (Pickup)']),
             'about_title' => 'Tentang Catavor',
             'about_slogan' => 'Platform Katalog Digital & Biolink Bisnis Modern',
             'about_description' => 'Catavor adalah platform katalog digital serba guna yang dirancang khusus untuk membantu para UMKM dan pemilik bisnis memajang produk, mengelola pesanan WhatsApp, serta memperluas jangkauan pasar secara profesional.',
