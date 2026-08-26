@@ -198,8 +198,8 @@ export interface ItemTypeConfig {
   deliveryOptions: string[];
   deliveryTermsLabel: string;
   deliveryTermsPlaceholder: string;
-  warrantyLabel: string;
-  warrantyPlaceholder: string;
+  warrantyLabel?: string;
+  warrantyPlaceholder?: string;
   descLabel: string;
   descPlaceholder: string;
 }
@@ -319,12 +319,10 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
         deliveryLabel: 'Sistem Pemesanan & Reservasi *',
         deliveryOptions: ['Booking Jadwal via WhatsApp', 'Datang Langsung ke Toko (Walk-in)', 'Reservasi DP 50% di Awal', 'Konsultasi Online Terlebih Dahulu'],
-        deliveryTermsLabel: 'Ketentuan & Jadwal Pelaksanaan',
+        deliveryTermsLabel: 'Ketentuan & Jadwal Pelaksanaan Layanan',
         deliveryTermsPlaceholder: 'Contoh: Harap booking minimal H-1 sebelum jadwal pengerjaan. Layanan beroperasi Selasa - Minggu pukul 09.00 - 18.00 WIB...',
-        warrantyLabel: 'Kebijakan Garansi Servis / Revisi Hasil',
-        warrantyPlaceholder: 'Contoh: Garansi servis 30 hari untuk kerusakan yang sama. Free revisi desain hingga 3 kali...',
         descLabel: 'Deskripsi Cakupan Layanan *',
-        descPlaceholder: 'Jelaskan tahapan pengerjaan, keahlian teknisi/ahli, apa saja yang termasuk dalam paket, dan keuntungan yang didapat klien...'
+        descPlaceholder: 'Jelaskan tahapan pengerjaan, apa saja yang termasuk dalam layanan, dan ketentuan lainnya...'
       };
     case 'food':
       return {
@@ -5236,7 +5234,7 @@ function App() {
         lifespan: crudForm.lifespan,
         weight: crudForm.weight,
         shipping_terms: crudForm.shipping_terms,
-        warranty_info: crudForm.warranty_info,
+        warranty_info: crudForm.product_type === 'service' ? '' : crudForm.warranty_info,
         shipping_coverage: selectedShippingCoverage,
         images: filteredImages,
         purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== '')
@@ -8085,10 +8083,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                 {/* Shipping & Warranty */}
                 {(selectedFauna.detailed_info?.shipping_terms || selectedFauna.detailed_info?.warranty_info) && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', backgroundColor: 'rgba(255,255,255,0.01)', padding: '1.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', marginBottom: '1.5rem' }}>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: (selectedFauna.detailed_info?.shipping_terms && selectedFauna.detailed_info?.warranty_info) ? '1fr 1fr' : '1fr', 
+                    gap: '1.5rem', 
+                    backgroundColor: 'rgba(255,255,255,0.01)', 
+                    padding: '1.25rem', 
+                    borderRadius: '0.5rem', 
+                    border: '1px solid var(--border-light)', 
+                    marginBottom: '1.5rem' 
+                  }}>
                     {selectedFauna.detailed_info?.shipping_terms && (
                       <div>
-                        <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-hover)', fontWeight: 700, marginBottom: '0.35rem' }}>Ketentuan Pengiriman</h4>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-hover)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                          {selectedFauna.product_type === 'service' ? 'Ketentuan & Jadwal Layanan' : (selectedFauna.product_type === 'digital' ? 'Panduan Akses File' : (selectedFauna.product_type === 'food' ? 'Ketentuan Pemesanan & Penyajian' : 'Ketentuan Pengiriman'))}
+                        </h4>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
                           {selectedFauna.detailed_info.shipping_terms}
                         </p>
@@ -8096,7 +8105,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     )}
                     {selectedFauna.detailed_info?.warranty_info && (
                       <div>
-                        <h4 style={{ fontSize: '0.85rem', color: 'var(--secondary)', fontWeight: 700, marginBottom: '0.35rem' }}>Ketentuan Garansi</h4>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--secondary)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                          {selectedFauna.product_type === 'digital' ? 'Ketentuan Lisensi' : (selectedFauna.product_type === 'fauna' ? 'Garansi Live Arrival (D.O.A)' : (selectedFauna.product_type === 'food' ? 'Petunjuk Penyimpanan' : 'Kebijakan Garansi'))}
+                        </h4>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
                           {selectedFauna.detailed_info.warranty_info}
                         </p>
@@ -13340,8 +13351,31 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     )}
                   </div>
 
-                  <div className="form-row">
-                    <div className="form-group">
+                  {typeConfig.warrantyLabel ? (
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">{typeConfig.deliveryTermsLabel}</label>
+                        <textarea 
+                          rows={2} 
+                          className="form-textarea" 
+                          placeholder={typeConfig.deliveryTermsPlaceholder}
+                          value={crudForm.shipping_terms}
+                          onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{typeConfig.warrantyLabel}</label>
+                        <textarea 
+                          rows={2} 
+                          className="form-textarea" 
+                          placeholder={typeConfig.warrantyPlaceholder}
+                          value={crudForm.warranty_info}
+                          onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
                       <label className="form-label">{typeConfig.deliveryTermsLabel}</label>
                       <textarea 
                         rows={2} 
@@ -13351,17 +13385,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
                       />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">{typeConfig.warrantyLabel}</label>
-                      <textarea 
-                        rows={2} 
-                        className="form-textarea" 
-                        placeholder={typeConfig.warrantyPlaceholder}
-                        value={crudForm.warranty_info}
-                        onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Link Pembelian Marketplace (Opsional) */}
                   <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
