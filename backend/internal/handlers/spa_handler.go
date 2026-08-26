@@ -40,22 +40,23 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 		viewQuery == "mobile" ||
 		secCHMobile == "?1"
 
-	var indexPath string
+	var targetDist string
+	var fallbackDist string
+
 	if isMobile {
-		indexPath = filepath.Join(h.cfg.MobileDistDir, "index.html")
-		if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-			// Fallback to desktop if mobile not built
-			indexPath = filepath.Join(h.cfg.DesktopDistDir, "index.html")
-		}
+		targetDist = h.cfg.MobileDistDir
+		fallbackDist = h.cfg.DesktopDistDir
 	} else {
-		indexPath = filepath.Join(h.cfg.DesktopDistDir, "index.html")
-		if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-			// Fallback to mobile if desktop not built
-			indexPath = filepath.Join(h.cfg.MobileDistDir, "index.html")
-		}
+		targetDist = h.cfg.DesktopDistDir
+		fallbackDist = h.cfg.MobileDistDir
 	}
 
-	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+	indexPath := resolveIndexHTML(targetDist)
+	if indexPath == "" {
+		indexPath = resolveIndexHTML(fallbackDist)
+	}
+
+	if indexPath == "" {
 		return c.Status(fiber.StatusOK).SendString("Frontend belum di-build. Silakan jalankan `.\\build-all.ps1` pada root direktori.")
 	}
 
@@ -65,4 +66,29 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	c.Set("Expires", "0")
 
 	return c.SendFile(indexPath)
+}
+
+func resolveIndexHTML(distDir string) string {
+	candidates := []string{
+		filepath.Join(distDir, "index.html"),
+		filepath.Join(distDir, "..", "desktop", "index.html"),
+		filepath.Join(distDir, "..", "mobile", "index.html"),
+		filepath.Join("public", "desktop", "index.html"),
+		filepath.Join("public", "mobile", "index.html"),
+		filepath.Join(".", "public", "desktop", "index.html"),
+		filepath.Join(".", "public", "mobile", "index.html"),
+		filepath.Join("..", "public", "desktop", "index.html"),
+		filepath.Join("..", "public", "mobile", "index.html"),
+	}
+
+	for _, p := range candidates {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			abs, err := filepath.Abs(p)
+			if err == nil {
+				return abs
+			}
+			return p
+		}
+	}
+	return ""
 }
