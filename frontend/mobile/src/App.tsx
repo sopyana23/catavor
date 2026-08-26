@@ -5736,7 +5736,10 @@ function App() {
       description: crudForm.description,
       image_url: filteredImages[0],
       product_type: crudForm.product_type,
-      attributes: crudForm.attributes,
+      attributes: {
+        ...crudForm.attributes,
+        file_format: crudForm.product_type === 'digital' ? (selectedClass || 'PDF') : (crudForm.attributes.file_format || selectedClass || 'PDF')
+      },
       detailed_info: {
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
@@ -8901,18 +8904,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
                       />
                     </div>
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Format File *</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
-                          placeholder="PDF / ZIP / MP3"
-                          required
-                          value={crudForm.attributes.file_format}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
-                        />
-                      </div>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Ukuran File *</label>
                         <input 
@@ -10912,7 +10904,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </h3>
                             <div style={{ fontStyle: 'italic', fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.5rem' }}>
                               {item.product_type === 'digital' 
-                                ? `Format: ${item.attributes?.file_format || 'PDF'} • ${item.attributes?.file_size || 'File'}`
+                                ? `${item.class || item.attributes?.file_format || 'Digital'} • ${item.attributes?.file_size || 'File'}`
                                 : item.product_type === 'physical'
                                 ? `Stok: ${item.attributes?.stock ?? 1} • ${item.attributes?.weight ?? 100}g`
                                 : item.product_type === 'service'
