@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -68,9 +69,9 @@ func LoadConfig() *Config {
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GoogleRedirectURI:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:"+port),
 		SQLiteSourcePath:   getEnv("SQLITE_SOURCE_PATH", "../legacy/laravel/database/database.sqlite"),
-		StorageDir:         getEnv("STORAGE_DIR", "../public/storage"),
-		DesktopDistDir:     getEnv("DESKTOP_DIST_DIR", "../public/desktop"),
-		MobileDistDir:      getEnv("MOBILE_DIST_DIR", "../public/mobile"),
+		StorageDir:         resolveDir("STORAGE_DIR", "public/storage"),
+		DesktopDistDir:     resolveDir("DESKTOP_DIST_DIR", "public/desktop"),
+		MobileDistDir:      resolveDir("MOBILE_DIST_DIR", "public/mobile"),
 		AllowedOrigins:     origins,
 	}
 
@@ -84,6 +85,29 @@ func (c *Config) GetPostgresDSN() string {
 	}
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
+}
+
+func resolveDir(key, fallbackPath string) string {
+	raw := getEnv(key, fallbackPath)
+	candidates := []string{
+		raw,
+		strings.TrimPrefix(raw, "../"),
+		filepath.Join(".", strings.TrimPrefix(raw, "../")),
+		filepath.Join("..", raw),
+		fallbackPath,
+		filepath.Join("..", fallbackPath),
+	}
+
+	for _, cand := range candidates {
+		if fi, err := os.Stat(cand); err == nil && fi.IsDir() {
+			abs, err := filepath.Abs(cand)
+			if err == nil {
+				return abs
+			}
+			return cand
+		}
+	}
+	return raw
 }
 
 func getEnv(key, fallback string) string {
