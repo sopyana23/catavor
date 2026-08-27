@@ -727,7 +727,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         color: '#2563eb',
         gradientBg: 'radial-gradient(circle at top left, rgba(37, 99, 235, 0.15) 0%, transparent 70%)',
         modalTitle: (mode) => mode === 'create' ? 'Tambah Barang Fisik' : 'Edit Barang Fisik',
-        modalSubtitle: 'Lengkapi spesifikasi barang fisik, stok inventaris, dan opsi pengiriman.',
+        modalSubtitle: 'Lengkapi spesifikasi barang fisik, merek, varian, dan opsi pengiriman.',
         nameLabel: 'Nama Barang *',
         namePlaceholder: 'Contoh: Kaos Oversize Cotton Combed 24s / Keyboard Mechanical...',
         categoryLabel: 'Kategori / Jenis Barang *',
@@ -917,6 +917,8 @@ interface Fauna {
     expired_info?: string
     storage_temp?: string
     certification?: string
+    min_purchase?: string
+    max_purchase?: string
     [key: string]: any
   }
   detailed_info?: {
@@ -3624,7 +3626,9 @@ function App() {
       portion_size: '1 Porsi',
       expired_info: '7 Hari',
       storage_temp: 'Suhu Ruang',
-      certification: 'Halal'
+      certification: 'Halal',
+      min_purchase: '1 Pcs',
+      max_purchase: ''
     } as Record<string, any>
   })
 
@@ -5697,7 +5701,9 @@ function App() {
         serving_capacity: '',
         min_order: '',
         delivery_service: 'Mobil Antar Toko / Kurir Khusus',
-        taste_options: ''
+        taste_options: '',
+        min_purchase: '1 Pcs',
+        max_purchase: ''
       }
     })
     setCustomClass('')
@@ -5777,7 +5783,9 @@ function App() {
         serving_capacity: item.attributes?.serving_capacity || '',
         min_order: item.attributes?.min_order || '',
         delivery_service: item.attributes?.delivery_service || 'Mobil Antar Toko / Kurir Khusus',
-        taste_options: item.attributes?.taste_options || ''
+        taste_options: item.attributes?.taste_options || '',
+        min_purchase: item.attributes?.min_purchase ?? '1 Pcs',
+        max_purchase: item.attributes?.max_purchase ?? ''
       }
     })
     setCustomClass('')
@@ -8042,10 +8050,49 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             {/* Product Specifications */}
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-                {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : 'Spesifikasi'))}
+                {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Barang Fisik' : 'Spesifikasi')))}
               </h3>
               
-              {selectedFauna.product_type === 'food' ? (
+              {selectedFauna.product_type === 'physical' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Kondisi</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.condition || 'Baru'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Berat Produk</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.weight ? `${selectedFauna.attributes.weight} Gram` : '100 Gram'}</span>
+                  </div>
+                  {selectedFauna.attributes?.brand && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Merek / Brand</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.brand}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.variant && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Varian / Pilihan</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.variant}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.min_purchase && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Min. Pembelian</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.min_purchase}</span>
+                    </div>
+                  )}
+                  {selectedFauna.attributes?.max_purchase && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Maks. Pembelian</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.max_purchase}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Pengiriman</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim' : 'Ambil Sendiri')}</span>
+                  </div>
+                </div>
+              ) : selectedFauna.product_type === 'food' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {selectedFauna.attributes?.portion_size && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
@@ -9038,20 +9085,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 {/* 1. BARANG FISIK */}
                 {crudForm.product_type === 'physical' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Stok (Unit) *</label>
-                        <input 
-                          type="number" 
-                          className="form-input" 
-                          placeholder="Stok..."
-                          required
-                          value={crudForm.attributes.stock}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, stock: parseInt(e.target.value) || 0 } })}
-                        />
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi *</label>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi Barang *</label>
                         <select 
                           className="form-select"
                           style={{ height: '42px' }}
@@ -9060,6 +9096,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         >
                           <option value="Baru">Baru</option>
                           <option value="Bekas">Bekas / Second</option>
+                          <option value="Refurbished">Refurbished</option>
                         </select>
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9067,7 +9104,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <input 
                           type="number" 
                           className="form-input" 
-                          placeholder="Gram..."
+                          placeholder="Contoh: 500"
                           required
                           value={crudForm.attributes.weight}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, weight: parseInt(e.target.value) || 0 } })}
@@ -9076,7 +9113,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                     <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Merek / Brand</label>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Merek / Brand (Opsional)</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -9086,13 +9123,35 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Varian / Ukuran</label>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Varian / Ukuran (Opsional)</label>
                         <input 
                           type="text" 
                           className="form-input" 
                           placeholder="Contoh: Hitam, Putih / S, M, L"
                           value={crudForm.attributes.variant || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
+                        />
+                      </div>
+                    </div>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Min. Pembelian (Opsional)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 1 Pcs"
+                          value={crudForm.attributes.min_purchase || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, min_purchase: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Maks. Pembelian (Opsional)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: 10 Pcs / Bebas"
+                          value={crudForm.attributes.max_purchase || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, max_purchase: e.target.value } })}
                         />
                       </div>
                     </div>
@@ -11620,7 +11679,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               {item.product_type === 'digital' 
                                 ? `${item.class || item.attributes?.file_format || 'Digital'} • ${item.attributes?.file_size || 'File'}`
                                 : item.product_type === 'physical'
-                                ? `Stok: ${item.attributes?.stock ?? 1} • ${item.attributes?.weight ?? 100}g`
+                                ? `${item.attributes?.brand ? item.attributes.brand + ' • ' : ''}${item.attributes?.condition || 'Baru'}${item.attributes?.weight ? ' • ' + item.attributes.weight + 'g' : ''}`
                                 : item.product_type === 'service'
                                 ? `Durasi: ${item.attributes?.duration || '1 Sesi'} • ${item.attributes?.service_location || 'Toko'}`
                                 : item.product_type === 'food'
