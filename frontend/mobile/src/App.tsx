@@ -1464,109 +1464,46 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', width: '100%', ...style }}>
       {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
       
-      {/* Formatting Helper Toolbar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0.35rem 0.55rem',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        border: '1px solid var(--border-light)',
-        borderBottom: 'none',
-        borderTopLeftRadius: '0.5rem',
-        borderTopRightRadius: '0.5rem',
-        gap: '0.3rem',
-        flexWrap: 'wrap'
-      }}>
+      {/* Inline Formatting Helper Toolbar */}
+      <div className="rich-toolbar-wrapper">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
           <button
             type="button"
+            className="rich-btn-format"
             title="Teks Tebal (Bold)"
             onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
-            style={{
-              padding: '0.22rem 0.55rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              color: 'var(--text-primary)',
-              fontSize: '0.8rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              lineHeight: 1.2
-            }}
           >
             <strong>B</strong>
           </button>
           <button
             type="button"
+            className="rich-btn-format"
             title="Teks Miring (Italic)"
             onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
-            style={{
-              padding: '0.22rem 0.55rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              color: 'var(--text-primary)',
-              fontSize: '0.8rem',
-              fontStyle: 'italic',
-              fontWeight: 600,
-              cursor: 'pointer',
-              lineHeight: 1.2
-            }}
           >
             <em>I</em>
           </button>
           <button
             type="button"
+            className="rich-btn-format"
             title="Daftar Poin (Bullet List)"
             onClick={() => applyFormatToRef(textareaRef, '- ', '', 'Poin list')}
-            style={{
-              padding: '0.22rem 0.55rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              color: 'var(--text-primary)',
-              fontSize: '0.76rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              lineHeight: 1.2
-            }}
           >
             • List
           </button>
           <button
             type="button"
+            className="rich-btn-format"
             title="Daftar Angka (Numbered List)"
             onClick={() => applyFormatToRef(textareaRef, '1. ', '', 'Langkah')}
-            style={{
-              padding: '0.22rem 0.55rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              color: 'var(--text-primary)',
-              fontSize: '0.76rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              lineHeight: 1.2
-            }}
           >
             1. List
           </button>
           <button
             type="button"
+            className="rich-btn-format"
             title="Judul Bagian (Heading H3)"
             onClick={() => applyFormatToRef(textareaRef, '\n### ', '\n', 'Judul Bagian')}
-            style={{
-              padding: '0.22rem 0.55rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              color: 'var(--text-primary)',
-              fontSize: '0.76rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              lineHeight: 1.2
-            }}
           >
             H3
           </button>
@@ -1575,22 +1512,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         {/* Fullscreen Button */}
         <button
           type="button"
+          className="rich-btn-fullscreen"
           title="Buka Layar Penuh (Fullscreen Zen Mode)"
           onClick={() => setIsFullscreen(true)}
-          style={{
-            padding: '0.22rem 0.55rem',
-            borderRadius: '4px',
-            border: '1px solid var(--border-light)',
-            backgroundColor: 'var(--primary-glow)',
-            color: 'var(--primary)',
-            fontSize: '0.73rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            lineHeight: 1.2
-          }}
         >
           <Maximize2 size={12} /> Fullscreen
         </button>
@@ -1625,52 +1549,16 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Terbaik)
           ========================================================== */}
       {isFullscreen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 999999,
-          backgroundColor: 'var(--bg-card, #0f172a)',
-          display: 'flex',
-          flexDirection: 'column',
-          color: 'var(--text-primary)',
-          boxSizing: 'border-box',
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
+        <div className="zen-fullscreen-overlay">
           {/* Fullscreen Header Bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.65rem 1rem',
-            backgroundColor: 'rgba(15, 23, 42, 0.95)',
-            borderBottom: '1px solid var(--border-light)',
-            gap: '0.75rem',
-            flexWrap: 'wrap'
-          }}>
+          <div className="zen-fullscreen-header">
             {/* Title & Stats */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                fontWeight: 800,
-                fontSize: '0.88rem',
-                color: 'var(--text-primary)'
-              }}>
-                <FileText size={15} color="var(--primary)" />
+              <div className="zen-header-title">
+                <FileText size={16} color="var(--primary)" />
                 <span>{label || 'Editor Teks'}</span>
               </div>
-              <span style={{
-                fontSize: '0.7rem',
-                color: 'var(--text-secondary)',
-                backgroundColor: 'rgba(255,255,255,0.05)',
-                padding: '0.12rem 0.45rem',
-                borderRadius: '10px',
-                border: '1px solid var(--border-light)'
-              }}>
+              <span className="zen-header-badge">
                 {wordCount} kata · {charCount} karakter
               </span>
             </div>
@@ -1679,87 +1567,41 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
+                className="zen-btn-format"
                 title="Teks Tebal (Bold)"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
-                style={{
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.8rem',
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
               >
                 <strong>B</strong>
               </button>
               <button
                 type="button"
+                className="zen-btn-format"
                 title="Teks Miring (Italic)"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
-                style={{
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.8rem',
-                  fontStyle: 'italic',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
               >
                 <em>I</em>
               </button>
               <button
                 type="button"
+                className="zen-btn-format"
                 title="Daftar Poin (Bullet List)"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list')}
-                style={{
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
               >
                 • List
               </button>
               <button
                 type="button"
+                className="zen-btn-format"
                 title="Daftar Angka (Numbered List)"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah')}
-                style={{
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
               >
                 1. List
               </button>
               <button
                 type="button"
+                className="zen-btn-format"
                 title="Judul Bab H3"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Judul Bagian')}
-                style={{
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.76rem',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
               >
                 H3
               </button>
@@ -1768,19 +1610,26 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             {/* Right Action Buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               {/* Mobile Tab Selector */}
-              <div style={{ display: 'flex', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border-light)' }}>
+              <div style={{
+                display: 'flex',
+                backgroundColor: 'var(--bg-card-hover)',
+                borderRadius: '6px',
+                padding: '2px',
+                border: '1px solid var(--border-light)'
+              }}>
                 <button
                   type="button"
                   onClick={() => setMobileTab('editor')}
                   style={{
-                    padding: '0.25rem 0.55rem',
+                    padding: '0.25rem 0.6rem',
                     borderRadius: '4px',
                     border: 'none',
                     backgroundColor: mobileTab === 'editor' ? 'var(--primary)' : 'transparent',
-                    color: mobileTab === 'editor' ? '#fff' : 'var(--text-secondary)',
+                    color: mobileTab === 'editor' ? '#ffffff' : 'var(--text-primary)',
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    opacity: mobileTab === 'editor' ? 1 : 0.8
                   }}
                 >
                   Editor
@@ -1789,17 +1638,18 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   type="button"
                   onClick={() => setMobileTab('preview')}
                   style={{
-                    padding: '0.25rem 0.55rem',
+                    padding: '0.25rem 0.6rem',
                     borderRadius: '4px',
                     border: 'none',
                     backgroundColor: mobileTab === 'preview' ? 'var(--primary)' : 'transparent',
-                    color: mobileTab === 'preview' ? '#fff' : 'var(--text-secondary)',
+                    color: mobileTab === 'preview' ? '#ffffff' : 'var(--text-primary)',
                     fontSize: '0.75rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '3px'
+                    gap: '3px',
+                    opacity: mobileTab === 'preview' ? 1 : 0.8
                   }}
                 >
                   <Eye size={12} /> Preview
@@ -1814,10 +1664,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.3rem',
-                  padding: '0.3rem 0.65rem',
-                  borderRadius: '0.4rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  padding: '0.32rem 0.65rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
                   color: '#ef4444',
                   fontSize: '0.75rem',
                   fontWeight: 800,
@@ -1831,37 +1681,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           </div>
 
           {/* Fullscreen Body */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            overflow: 'hidden',
-            backgroundColor: 'var(--bg-primary, #090d16)'
-          }}>
+          <div className="zen-fullscreen-body">
             {mobileTab === 'editor' ? (
-              <div style={{
-                flex: 1,
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                padding: '1rem',
-                boxSizing: 'border-box'
-              }}>
+              <div className="zen-textarea-container">
                 <textarea
                   ref={fullscreenTextareaRef}
-                  style={{
-                    flex: 1,
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: 'transparent',
-                    color: 'var(--text-primary)',
-                    border: 'none',
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                    fontSize: '0.95rem',
-                    lineHeight: 1.65,
-                    resize: 'none',
-                    boxSizing: 'border-box'
-                  }}
+                  className="zen-textarea"
                   placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
                   value={value || ''}
                   onChange={(e) => onChange(e.target.value)}
@@ -1869,14 +1694,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 />
               </div>
             ) : (
-              <div style={{
-                flex: 1,
-                height: '100%',
-                overflowY: 'auto',
-                padding: '1rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.015)',
-                boxSizing: 'border-box'
-              }}>
+              <div className="zen-preview-pane">
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1897,11 +1715,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 {(value || '').trim() ? (
                   <FormattedText
                     text={value}
-                    style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: '1.65' }}
+                    style={{ fontSize: '0.92rem', color: 'var(--text-primary)', lineHeight: '1.7' }}
                   />
                 ) : (
-                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.82rem' }}>
-                    Belum ada teks yang ditulis. Ketik sesuatu di tab Editor untuk melihat hasil pratinjaunya.
+                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                    Belum ada teks yang ditulis. Ketik sesuatu di tab Editor untuk melihat hasil pratinjaunya secara rapi.
                   </div>
                 )}
               </div>
@@ -1909,17 +1727,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           </div>
 
           {/* Fullscreen Footer Tips */}
-          <div style={{
-            padding: '0.4rem 1rem',
-            backgroundColor: 'rgba(15, 23, 42, 0.95)',
-            borderTop: '1px solid var(--border-light)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: '0.68rem',
-            color: 'var(--text-secondary)'
-          }}>
-            <span>💡 <strong>Tips:</strong> Enter untuk baris baru list, Enter 2x untuk keluar dari list.</span>
+          <div className="zen-fullscreen-footer">
+            <span>💡 <strong>Tips:</strong> Enter untuk baris baru list, Enter 2x untuk keluar dari mode list.</span>
             <span>Tekan <code>ESC</code> untuk minimize</span>
           </div>
         </div>
