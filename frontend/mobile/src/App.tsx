@@ -13115,9 +13115,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
                                 }}
                               />
-                              <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '0.12rem' }}>
+                              <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                 <h4 style={{ 
-                                  fontSize: '0.86rem', 
+                                  fontSize: '0.88rem', 
                                   fontWeight: 800, 
                                   color: 'var(--text-primary)', 
                                   margin: 0, 
@@ -13129,23 +13129,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   {item.name}
                                 </h4>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden' }}>
-                                  <span style={{
-                                    fontSize: '0.63rem',
-                                    fontWeight: 700,
-                                    padding: '0.1rem 0.38rem',
-                                    borderRadius: '4px',
-                                    backgroundColor: 'rgba(125, 125, 125, 0.12)',
-                                    color: 'var(--text-secondary)',
-                                    border: '1px solid var(--border-light)',
-                                    whiteSpace: 'nowrap'
-                                  }}>
-                                    {item.class}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span style={{ fontSize: '0.84rem', color: '#ef4444', fontWeight: 800 }}>
+                                    {formatRupiah(item.price)}
                                   </span>
                                   {item.attributes?.stock !== undefined ? (
                                     <span style={{
-                                      fontSize: '0.65rem',
-                                      fontWeight: 700,
+                                      fontSize: '0.68rem',
+                                      fontWeight: 600,
                                       color: item.attributes.stock > 0 ? '#10b981' : '#ef4444',
                                       whiteSpace: 'nowrap'
                                     }}>
@@ -13153,20 +13144,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     </span>
                                   ) : (
                                     <span style={{
-                                      fontSize: '0.65rem',
-                                      fontWeight: 700,
+                                      fontSize: '0.68rem',
+                                      fontWeight: 600,
                                       color: '#10b981',
                                       whiteSpace: 'nowrap'
                                     }}>
                                       • {item.conservation_status || 'Ready'}
                                     </span>
                                   )}
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                  <span style={{ fontSize: '0.82rem', color: '#ef4444', fontWeight: 800 }}>
-                                    {formatRupiah(item.price)}
-                                  </span>
                                 </div>
                               </div>
                             </div>
