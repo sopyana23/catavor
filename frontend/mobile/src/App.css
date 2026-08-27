@@ -1136,7 +1136,7 @@ select option {
 }
 
 /* ==========================================================
-   ZEN FULLSCREEN TEXT EDITOR THEME STYLES (Adaptive & High Contrast)
+   ZEN FULLSCREEN TEXT EDITOR (Mobile-Optimized Native Layout)
    ========================================================== */
 .zen-fullscreen-overlay {
   position: fixed;
@@ -1153,75 +1153,158 @@ select option {
   animation: fadeIn 0.18s ease-out;
 }
 
-.zen-fullscreen-header {
+/* Mobile App Bar Header - 1 Single Clean Row */
+.zen-fullscreen-header-mobile {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.65rem 1rem;
+  padding: 0.65rem 0.85rem;
   background-color: var(--bg-card) !important;
   border-bottom: 1px solid var(--border-light);
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
   box-sizing: border-box;
+  min-height: 52px;
 }
 
-.zen-header-title {
+.zen-mobile-back-btn {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 4px;
+  background: var(--bg-card-hover) !important;
+  border: 1px solid var(--border-light) !important;
+  color: var(--text-primary) !important;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.zen-mobile-back-btn:active {
+  transform: scale(0.96);
+}
+
+.zen-mobile-title-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  padding: 0 0.25rem;
+}
+
+.zen-mobile-title {
+  font-size: 0.85rem;
   font-weight: 800;
-  font-size: 0.92rem;
   color: var(--text-primary) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-.zen-header-badge {
-  font-size: 0.72rem;
-  color: var(--text-secondary) !important;
-  background-color: var(--bg-card-hover) !important;
-  padding: 0.15rem 0.55rem;
-  border-radius: 12px;
-  border: 1px solid var(--border-light);
+.zen-mobile-subtitle {
+  font-size: 0.68rem;
+  color: var(--text-muted) !important;
   font-weight: 600;
+  margin-top: 1px;
 }
 
-.zen-btn-format {
-  padding: 0.28rem 0.6rem;
+.zen-mobile-tab-switch {
+  display: flex;
+  background: var(--bg-card-hover) !important;
+  border-radius: 0.5rem;
+  padding: 2px;
+  border: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.zen-mobile-tab-btn {
+  padding: 0.3rem 0.55rem;
   border-radius: 0.375rem;
-  border: 1px solid var(--border-hover) !important;
-  background-color: var(--bg-card-hover) !important;
-  color: var(--text-primary) !important;
-  font-size: 0.8rem;
+  border: none;
+  font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.zen-mobile-tab-btn.active {
+  background-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.zen-mobile-tab-btn.inactive {
+  background-color: transparent !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Horizontal Scrollable Action Toolbar */
+.zen-mobile-toolbar-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  background-color: var(--bg-card) !important;
+  border-bottom: 1px solid var(--border-light);
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  box-sizing: border-box;
+}
+
+.zen-mobile-toolbar-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.zen-mobile-toolbar-btn {
+  padding: 0.32rem 0.65rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border-light) !important;
+  background-color: var(--bg-card-hover) !important;
+  color: var(--text-primary) !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 32px;
 }
 
-.zen-btn-format:hover {
-  border-color: var(--primary) !important;
+.zen-mobile-toolbar-btn:active {
   background-color: var(--primary-glow) !important;
+  border-color: var(--primary) !important;
   color: var(--primary) !important;
+  transform: scale(0.95);
 }
 
-.zen-fullscreen-body {
+.zen-fullscreen-body-mobile {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   background-color: var(--bg-deep) !important;
 }
 
-.zen-textarea-container {
+.zen-mobile-textarea-wrap {
   flex: 1;
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  padding: 0.85rem 1rem;
   box-sizing: border-box;
 }
 
-.zen-textarea {
+.zen-mobile-textarea {
   flex: 1;
   width: 100%;
   height: 100%;
@@ -1230,37 +1313,63 @@ select option {
   border: none !important;
   outline: none !important;
   font-family: inherit;
-  font-size: 0.98rem;
+  font-size: 1rem;
   line-height: 1.7;
   resize: none;
   box-sizing: border-box;
+  padding: 0;
 }
 
-.zen-textarea::placeholder {
+.zen-mobile-textarea::placeholder {
   color: var(--text-muted) !important;
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
-.zen-preview-pane {
+.zen-mobile-preview-wrap {
   flex: 1;
   height: 100%;
   overflow-y: auto;
   padding: 1rem;
-  background-color: var(--bg-card) !important;
-  border-left: 1px solid var(--border-light);
   box-sizing: border-box;
+  background-color: var(--bg-deep) !important;
 }
 
-.zen-fullscreen-footer {
-  padding: 0.45rem 1rem;
-  background-color: var(--bg-card) !important;
-  border-top: 1px solid var(--border-light);
+.zen-mobile-footer-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.72rem;
-  color: var(--text-secondary) !important;
+  padding: 0.5rem 0.85rem;
+  background-color: var(--bg-card) !important;
+  border-top: 1px solid var(--border-light);
+  gap: 0.5rem;
   box-sizing: border-box;
+}
+
+.zen-mobile-tip-text {
+  font-size: 0.68rem;
+  color: var(--text-muted) !important;
+  flex: 1;
+  line-height: 1.3;
+}
+
+.zen-mobile-done-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.45rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  background-color: var(--primary) !important;
+  color: #ffffff !important;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px var(--primary-glow);
+}
+
+.zen-mobile-done-btn:active {
+  transform: scale(0.96);
 }
 
 .rich-toolbar-wrapper {
