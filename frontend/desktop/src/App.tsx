@@ -311,10 +311,10 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
         videoLabel: 'Video Review / Unboxing (YouTube URL - Opsional)',
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
-        deliveryLabel: 'Jangkauan Pengiriman Ekspedisi *',
+        deliveryLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
         deliveryOptions: ['Bisa Kirim se-Indonesia', 'Khusus Pulau Jawa / Satu Wilayah', 'Ambil Sendiri di Toko (No Shipping)', 'Kurir Instan / Sameday Only'],
-        deliveryTermsLabel: 'Ketentuan Ekspedisi & Packing',
-        deliveryTermsPlaceholder: 'Contoh: Pengiriman via JNE / J&T / SiCepat setiap hari kerja. Packing aman bubble wrap tebal + kardus gratis...',
+        deliveryTermsLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
+        deliveryTermsPlaceholder: 'Contoh: Bisa kirim ke seluruh Indonesia via JNE / J&T / SiCepat atau Kurir Instan (Jabodetabek). Packing aman bubble wrap tebal + kardus gratis...',
         warrantyLabel: 'Kebijakan Garansi / Retur Barang',
         warrantyPlaceholder: 'Contoh: Garansi tukar baru 7 hari jika barang cacat produksi dengan melampirkan video unboxing...',
         descLabel: 'Deskripsi Lengkap Barang *',
@@ -341,10 +341,10 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
         videoLabel: 'Video Preview / Demo Item Digital (YouTube URL - Opsional)',
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
-        deliveryLabel: 'Metode Pengiriman File Digital *',
+        deliveryLabel: 'Pengiriman & Panduan Akses File Digital',
         deliveryOptions: ['Akses Instan Otomatis (Link Cloud)', 'Kirim via Email Pembeli', 'Kirim via WhatsApp Admin', 'Akses Member Area'],
-        deliveryTermsLabel: 'Panduan Akses & Unduhan File',
-        deliveryTermsPlaceholder: 'Contoh: Setelah pembayaran diverifikasi, link akses Google Drive / Dropbox akan otomatis dikirimkan dan aktif selamanya...',
+        deliveryTermsLabel: 'Pengiriman & Panduan Akses File Digital',
+        deliveryTermsPlaceholder: 'Contoh: Link akses Google Drive / Dropbox otomatis dikirim via WhatsApp & Email setelah transaksi berhasil diverifikasi...',
         warrantyLabel: 'Ketentuan Lisensi & Hak Cipta',
         warrantyPlaceholder: 'Contoh: Pembelian mencakup lisensi personal. Dilarang keras membagikan ulang, menjual kembali, atau mendistribusikan tanpa izin...',
         descLabel: 'Deskripsi & Isi Materi Digital *',
@@ -371,10 +371,10 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
         videoLabel: 'Video Satwa / Feeding Video (YouTube URL - Opsional)',
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
-        deliveryLabel: 'Jangkauan Pengiriman Satwa Hidup *',
+        deliveryLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
         deliveryOptions: ['Bisa Kirim se-Indonesia (Legal & Berizin)', 'Khusus Pulau Jawa / Jalur Kereta', 'Ambil Sendiri di Toko (Pickup Only)', 'Kurir Instan Hewan (Gojek/Grab)'],
-        deliveryTermsLabel: 'Ketentuan Pengiriman (Live Arrival)',
-        deliveryTermsPlaceholder: 'Contoh: Pengiriman via Kereta Api Express (KIB/KI8/Herona) atau Bus. Packing menggunakan boks styrofoam beroksigen khusus...',
+        deliveryTermsLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
+        deliveryTermsPlaceholder: 'Contoh: Pengiriman via Kereta Api Express (KIB/Herona) atau Bus se-Pulau Jawa. Packing boks styrofoam beroksigen, garansi D.O.A 100% dengan video unboxing full...',
         warrantyLabel: 'Ketentuan Garansi D.O.A (Dead On Arrival)',
         warrantyPlaceholder: 'Contoh: Garansi hidup sampai tujuan (D.O.A 100%) berlaku dengan menyertakan video unboxing full tanpa jeda/cut maksimal 2 jam setelah paket diterima...',
         descLabel: 'Deskripsi & Kondisi Satwa *',
@@ -401,10 +401,10 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
         videoLabel: 'Video Dokumentasi / Hasil Kerja (YouTube URL - Opsional)',
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
-        deliveryLabel: 'Sistem Pemesanan & Reservasi *',
+        deliveryLabel: 'Area Layanan, Reservasi & Ketentuan Pengerjaan',
         deliveryOptions: ['Booking Jadwal via WhatsApp', 'Datang Langsung ke Toko (Walk-in)', 'Reservasi DP 50% di Awal', 'Konsultasi Online Terlebih Dahulu'],
-        deliveryTermsLabel: 'Ketentuan & Jadwal Pelaksanaan Layanan',
-        deliveryTermsPlaceholder: 'Contoh: Harap booking minimal H-1 sebelum jadwal pengerjaan. Layanan beroperasi Selasa - Minggu pukul 09.00 - 18.00 WIB...',
+        deliveryTermsLabel: 'Area Layanan, Reservasi & Ketentuan Pengerjaan',
+        deliveryTermsPlaceholder: 'Contoh: Melayani area Jabodetabek (visit) atau seluruh Indonesia (online). Harap booking minimal H-1 sebelum jadwal pengerjaan...',
         descLabel: 'Deskripsi Cakupan Layanan *',
         descPlaceholder: 'Jelaskan tahapan pengerjaan, apa saja yang termasuk dalam layanan, dan ketentuan lainnya...'
       };
@@ -438,7 +438,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         photoHelper: 'Unggah 1 hingga 5 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
         videoLabel: 'Video Produk / Penyajian (YouTube URL - Opsional)',
         videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
-        deliveryLabel: 'Jangkauan & Metode Pengiriman *',
+        deliveryLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
         deliveryOptions: [
           'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
           'Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)',
@@ -446,8 +446,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
           'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)',
           'Pre-Order Khusus (Katering / Acara)'
         ],
-        deliveryTermsLabel: 'Ketentuan Pemesanan & Pengiriman',
-        deliveryTermsPlaceholder: 'Contoh: Dibuat fresh saat pesanan masuk (Made by order), batas jam checkout kurir, atau syarat kemasan luar kota...',
+        deliveryTermsLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
+        deliveryTermsPlaceholder: 'Contoh: Khusus kurir Instan / Sameday (Jabodetabek) atau Paxel Next Day. Dibuat fresh saat pesanan masuk, kemasan vacuum sealed food-grade + ice gel aman...',
         descLabel: 'Deskripsi Produk (Opsional)',
         descPlaceholder: 'Tuliskan deskripsi produk, cerita racikan, keunggulan rasa, atau catatan lainnya (opsional)...'
       };
@@ -5400,7 +5400,8 @@ function App() {
     const selectedClass = showCustomClassInput ? customClass.trim() : crudForm.class
     const selectedHabitat = showCustomHabitatInput ? customHabitat.trim() : crudForm.habitat
     const selectedConservationStatus = showCustomConservationStatusInput ? customConservationStatus.trim() : crudForm.conservation_status
-    const selectedShippingCoverage = showCustomShippingCoverageInput ? customShippingCoverage.trim() : crudForm.shipping_coverage
+    const termsVal = (crudForm.shipping_terms || '').trim()
+    const isNoShipping = termsVal.toLowerCase().includes('ambil sendiri') || termsVal.toLowerCase().includes('pickup only') || termsVal.toLowerCase().includes('dine-in') || termsVal.toLowerCase().includes('no shipping')
 
     if (!selectedClass) {
       setCrudError(`${typeConfig.categoryLabel.replace('*', '').trim()} wajib diisi.`)
@@ -5417,11 +5418,6 @@ function App() {
       setCrudLoading(false)
       return
     }
-    if (!selectedShippingCoverage) {
-      setCrudError(`${typeConfig.deliveryLabel.replace('*', '').trim()} wajib dipilih.`)
-      setCrudLoading(false)
-      return
-    }
 
     const payload = {
       name: crudForm.name,
@@ -5432,7 +5428,7 @@ function App() {
       conservation_status: crudForm.product_type === 'fauna' ? selectedConservationStatus : 'Tersedia',
       price: crudForm.price,
       video_url: crudForm.video_url || null,
-      is_shipping_available: !selectedShippingCoverage.toLowerCase().includes('ambil sendiri') && !selectedShippingCoverage.toLowerCase().includes('pickup only') && !selectedShippingCoverage.toLowerCase().includes('dine-in'),
+      is_shipping_available: !isNoShipping,
       description: crudForm.description,
       image_url: filteredImages[0],
       product_type: crudForm.product_type,
@@ -5444,9 +5440,9 @@ function App() {
         native_region: crudForm.native_region,
         lifespan: crudForm.lifespan,
         weight: crudForm.weight,
-        shipping_terms: crudForm.shipping_terms,
+        shipping_terms: termsVal,
         warranty_info: crudForm.product_type === 'service' ? '' : crudForm.warranty_info,
-        shipping_coverage: selectedShippingCoverage,
+        shipping_coverage: termsVal || 'Bisa Kirim se-Indonesia',
         images: filteredImages,
         purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== '')
       }
@@ -14694,46 +14690,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     />
                   </div>
 
-                  {/* Jangkauan Pengiriman & Kebijakan */}
-                  <div className="form-group">
-                    <label className="form-label">{typeConfig.deliveryLabel}</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1 }}
-                        value={showCustomShippingCoverageInput ? '__NEW__' : crudForm.shipping_coverage}
-                        onChange={(e) => {
-                          if (e.target.value === '__NEW__') {
-                            setShowCustomShippingCoverageInput(true)
-                            setCustomShippingCoverage('')
-                          } else {
-                            setShowCustomShippingCoverageInput(false)
-                            setCrudForm({ ...crudForm, shipping_coverage: e.target.value })
-                          }
-                        }}
-                      >
-                        {typeConfig.deliveryOptions.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                        {getUniqueShippingCoverages().filter(c => !typeConfig.deliveryOptions.includes(c)).map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Opsi Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomShippingCoverageInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.5rem' }} 
-                        placeholder="Ketik Jangkauan / Metode Baru..." 
-                        value={customShippingCoverage} 
-                        onChange={(e) => setCustomShippingCoverage(e.target.value)} 
-                        required 
-                      />
-                    )}
-                  </div>
-
+                  {/* Unified Pengiriman & Ketentuan Packing */}
                   {typeConfig.warrantyLabel ? (
                     <div className="form-row">
                       <div className="form-group">
