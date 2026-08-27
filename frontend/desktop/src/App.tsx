@@ -1412,7 +1412,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   value,
   onChange,
   placeholder,
-  rows = 3,
+  rows = 4,
   required = false,
   className = "form-textarea",
   style,
@@ -1423,15 +1423,46 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
   const applyFormat = (prefix: string, suffix: string, defaultText: string) => {
     const el = textareaRef.current;
+    const currentVal = value || '';
     if (!el) {
-      onChange((value || '') + `${prefix}${defaultText}${suffix}`);
+      onChange(currentVal + `${prefix}${defaultText}${suffix}`);
       return;
     }
     const start = el.selectionStart;
     const end = el.selectionEnd;
-    const selected = (value || '').substring(start, end);
+    const selected = currentVal.substring(start, end);
+
+    // If it's a list insertion (e.g. prefix is "- " or "1. ")
+    if (prefix === '- ' || prefix === '1. ') {
+      const textBefore = currentVal.substring(0, start);
+      const lastNewlineIdx = textBefore.lastIndexOf('\n');
+      const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
+      const lineText = currentVal.substring(lineStart, start);
+
+      if (lineText.trim() === '') {
+        const newText = currentVal.substring(0, lineStart) + prefix + currentVal.substring(start);
+        onChange(newText);
+        setTimeout(() => {
+          el.focus();
+          const newPos = lineStart + prefix.length;
+          el.setSelectionRange(newPos, newPos);
+        }, 0);
+        return;
+      } else {
+        const insertText = '\n' + prefix;
+        const newText = currentVal.substring(0, start) + insertText + currentVal.substring(end);
+        onChange(newText);
+        setTimeout(() => {
+          el.focus();
+          const newPos = start + insertText.length;
+          el.setSelectionRange(newPos, newPos);
+        }, 0);
+        return;
+      }
+    }
+
     const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${defaultText}${suffix}`;
-    const newValue = (value || '').substring(0, start) + replacement + (value || '').substring(end);
+    const newValue = currentVal.substring(0, start) + replacement + currentVal.substring(end);
     onChange(newValue);
     setTimeout(() => {
       el.focus();
@@ -1440,8 +1471,83 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     }, 0);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      const el = textareaRef.current;
+      if (!el) return;
+
+      const currentVal = value || '';
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const textBefore = currentVal.substring(0, start);
+      const textAfter = currentVal.substring(end);
+
+      // Find current line text before cursor
+      const lastNewlineIdx = textBefore.lastIndexOf('\n');
+      const currentLine = textBefore.substring(lastNewlineIdx + 1);
+
+      // Match bullet list: "- ", "* ", "• "
+      const bulletMatch = currentLine.match(/^([-*•]\s+)(.*)$/);
+      // Match numbered list: "1. ", "2. ", etc.
+      const numberMatch = currentLine.match(/^(\d+)(\.\s+)(.*)$/);
+
+      if (bulletMatch) {
+        e.preventDefault();
+        const prefix = bulletMatch[1];
+        const content = bulletMatch[2];
+
+        if (content.trim() === '') {
+          // Empty bullet item: clear bullet marker and leave blank newline (exit list mode)
+          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
+          const newText = currentVal.substring(0, lineStart) + textAfter;
+          onChange(newText);
+          setTimeout(() => {
+            el.focus();
+            el.setSelectionRange(lineStart, lineStart);
+          }, 0);
+        } else {
+          // Continue bullet list on next line
+          const nextBullet = '\n' + prefix;
+          const newText = textBefore + nextBullet + textAfter;
+          onChange(newText);
+          setTimeout(() => {
+            el.focus();
+            const newPos = start + nextBullet.length;
+            el.setSelectionRange(newPos, newPos);
+          }, 0);
+        }
+      } else if (numberMatch) {
+        e.preventDefault();
+        const num = parseInt(numberMatch[1], 10);
+        const dotSpace = numberMatch[2];
+        const content = numberMatch[3];
+
+        if (content.trim() === '') {
+          // Empty numbered item: clear number marker and exit list mode
+          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
+          const newText = currentVal.substring(0, lineStart) + textAfter;
+          onChange(newText);
+          setTimeout(() => {
+            el.focus();
+            el.setSelectionRange(lineStart, lineStart);
+          }, 0);
+        } else {
+          // Continue numbered list with incremented number
+          const nextPrefix = `\n${num + 1}${dotSpace}`;
+          const newText = textBefore + nextPrefix + textAfter;
+          onChange(newText);
+          setTimeout(() => {
+            el.focus();
+            const newPos = start + nextPrefix.length;
+            el.setSelectionRange(newPos, newPos);
+          }, 0);
+        }
+      }
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', ...style }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
       {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
       
       {/* Formatting Helper Toolbar */}
@@ -1499,7 +1605,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Daftar Poin (Bullet List)"
-            onClick={() => applyFormat('\n- ', '', 'Poin list')}
+            onClick={() => applyFormat('- ', '', 'Poin list')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1517,7 +1623,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Daftar Angka (Numbered List)"
-            onClick={() => applyFormat('\n1. ', '', 'Langkah')}
+            onClick={() => applyFormat('1. ', '', 'Langkah')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1571,7 +1677,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               lineHeight: 1.2
             }}
           >
-            <Eye size={13} /> {showPreview ? 'Sembunyikan Preview' : 'Preview Tampilan'}
+            <Eye size={13} /> {showPreview ? 'Tutup Preview' : 'Preview Tampilan'}
           </button>
         )}
       </div>
@@ -1587,12 +1693,18 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           marginTop: 0,
           fontFamily: 'inherit',
           lineHeight: 1.6,
-          fontSize: '0.88rem'
+          fontSize: '0.88rem',
+          resize: 'vertical',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          minHeight: `${Math.max(rows * 28 + 20, 105)}px`
         }}
         placeholder={placeholder}
         required={required}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
       />
 
       {/* Live Preview Pane */}
@@ -14467,14 +14579,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     <div className="form-row">
                       <RichTextarea 
                         label={typeConfig.deliveryTermsLabel}
-                        rows={2} 
+                        rows={3} 
                         placeholder={typeConfig.deliveryTermsPlaceholder}
                         value={crudForm.shipping_terms}
                         onChange={(val) => setCrudForm({ ...crudForm, shipping_terms: val })}
                       />
                       <RichTextarea 
                         label={typeConfig.warrantyLabel}
-                        rows={2} 
+                        rows={3} 
                         placeholder={typeConfig.warrantyPlaceholder}
                         value={crudForm.warranty_info}
                         onChange={(val) => setCrudForm({ ...crudForm, warranty_info: val })}
@@ -14483,7 +14595,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   ) : (
                     <RichTextarea 
                       label={typeConfig.deliveryTermsLabel}
-                      rows={2} 
+                      rows={3} 
                       placeholder={typeConfig.deliveryTermsPlaceholder}
                       value={crudForm.shipping_terms}
                       onChange={(val) => setCrudForm({ ...crudForm, shipping_terms: val })}
@@ -14601,7 +14713,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {/* Deskripsi */}
                   <RichTextarea 
                     label={typeConfig.descLabel}
-                    rows={4} 
+                    rows={6} 
                     placeholder={typeConfig.descPlaceholder}
                     required={crudForm.product_type !== 'food'}
                     value={crudForm.description}
