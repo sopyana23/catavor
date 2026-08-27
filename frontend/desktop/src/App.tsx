@@ -10260,32 +10260,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     )}
                                   </td>
                                   <td>
-                                    <div className="action-buttons" style={{ display: 'flex', gap: '0.35rem' }}>
+                                    <div className="action-buttons">
                                       <button 
                                         className="btn-secondary btn-small"
                                         onClick={() => fetchDetails(item.id)}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', padding: '0.3rem 0.55rem', fontSize: '0.74rem' }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.65rem', fontSize: '0.74rem' }}
                                         title="Lihat Detail"
                                       >
                                         <Eye size={12} />
                                         Detail
-                                      </button>
-                                      <button 
-                                        className="btn-primary btn-small"
-                                        onClick={() => openEditModal(item)}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', padding: '0.3rem 0.55rem', fontSize: '0.74rem' }}
-                                        title="Edit Item"
-                                      >
-                                        <Edit3 size={12} />
-                                        Edit
-                                      </button>
-                                      <button 
-                                        className="btn-danger btn-small"
-                                        onClick={() => handleFaunaDelete(item.id)}
-                                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.3rem 0.5rem', fontSize: '0.74rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171' }}
-                                        title="Hapus Item"
-                                      >
-                                        <Trash2 size={12} />
                                       </button>
                                     </div>
                                   </td>
