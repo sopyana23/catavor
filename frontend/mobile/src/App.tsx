@@ -13075,124 +13075,121 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </button>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                       {paginatedAdminItems.map((item) => {
-                        const itemType = (item.product_type || 'physical') as ItemCategoryType;
-                        const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? '#10b981' : '#3b82f6';
-                        const typeEmoji = itemType === 'food' ? '🍔' : itemType === 'service' ? '💼' : itemType === 'digital' ? '💾' : itemType === 'fauna' ? '🐾' : '📦';
-
                         return (
                           <div 
                             key={item.id} 
-                            className="glass-panel admin-item-card"
+                            className="glass-panel"
                             style={{
-                              padding: '0.85rem',
-                              borderRadius: '0.85rem',
+                              padding: '0.75rem 0.85rem',
+                              borderRadius: '0.75rem',
                               border: '1px solid var(--border-light)',
                               background: 'var(--card-bg-gradient)',
                               display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.65rem',
-                              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)'
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.75rem',
+                              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)',
+                              transition: 'all 0.2s ease'
                             }}
                           >
-                            {/* Card Main Info Row */}
-                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                              {/* Thumbnail with overlay badge */}
-                              <div style={{ position: 'relative', width: '56px', height: '56px', flexShrink: 0, borderRadius: '0.5rem', overflow: 'hidden', backgroundColor: '#131916', border: '1px solid var(--border-light)' }}>
-                                <img 
-                                  src={item.image_url} 
-                                  alt={item.name} 
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                  onError={(e) => {
-                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
-                                  }}
-                                />
-                                <span style={{
-                                  position: 'absolute',
-                                  bottom: '2px',
-                                  right: '2px',
-                                  padding: '0.05rem 0.25rem',
-                                  borderRadius: '4px',
-                                  backgroundColor: 'rgba(0,0,0,0.75)',
-                                  fontSize: '0.55rem',
-                                  lineHeight: 1.2
+                            {/* Left: Thumbnail & Details */}
+                            <div 
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1, cursor: 'pointer' }}
+                              onClick={() => openDetailsSheet(item.id)}
+                            >
+                              <img 
+                                src={item.image_url} 
+                                alt={item.name} 
+                                style={{ 
+                                  width: '46px', 
+                                  height: '46px', 
+                                  objectFit: 'cover', 
+                                  borderRadius: '0.55rem', 
+                                  border: '1px solid var(--border-light)',
+                                  flexShrink: 0,
+                                  backgroundColor: 'rgba(0,0,0,0.05)'
+                                }} 
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                }}
+                              />
+                              <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '0.12rem' }}>
+                                <h4 style={{ 
+                                  fontSize: '0.86rem', 
+                                  fontWeight: 800, 
+                                  color: 'var(--text-primary)', 
+                                  margin: 0, 
+                                  whiteSpace: 'nowrap', 
+                                  overflow: 'hidden', 
+                                  textOverflow: 'ellipsis',
+                                  lineHeight: 1.25
                                 }}>
-                                  {typeEmoji}
-                                </span>
-                              </div>
-
-                              {/* Details text */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
-                                  <span style={{
-                                    fontSize: '0.6rem',
-                                    fontWeight: 800,
-                                    padding: '0.1rem 0.4rem',
-                                    borderRadius: '4px',
-                                    backgroundColor: `${typeBadgeBg}20`,
-                                    color: typeBadgeBg === '#ef4444' ? '#f87171' : typeBadgeBg === '#f59e0b' ? '#fbbf24' : typeBadgeBg === '#8b5cf6' ? '#c084fc' : typeBadgeBg === '#10b981' ? '#34d399' : '#60a5fa',
-                                    border: `1px solid ${typeBadgeBg}40`
-                                  }}>
-                                    {item.class}
-                                  </span>
-                                  {item.conservation_status && (
-                                    <span style={{
-                                      fontSize: '0.58rem',
-                                      fontWeight: 700,
-                                      padding: '0.1rem 0.35rem',
-                                      borderRadius: '4px',
-                                      backgroundColor: item.conservation_status.includes('Habis') ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                                      color: item.conservation_status.includes('Habis') ? '#f87171' : '#34d399'
-                                    }}>
-                                      {item.conservation_status.includes('Habis') ? '● Habis' : '● Ready'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.2rem 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {item.name}
                                 </h4>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                  <span style={{ fontSize: '0.82rem', color: '#ef4444', fontWeight: 800 }}>
-                                    {formatRupiah(item.price)}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden' }}>
+                                  <span style={{
+                                    fontSize: '0.63rem',
+                                    fontWeight: 700,
+                                    padding: '0.1rem 0.38rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(125, 125, 125, 0.12)',
+                                    color: 'var(--text-secondary)',
+                                    border: '1px solid var(--border-light)',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {item.class}
                                   </span>
-                                  {item.attributes?.stock !== undefined && (
-                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                  {item.attributes?.stock !== undefined ? (
+                                    <span style={{
+                                      fontSize: '0.65rem',
+                                      fontWeight: 700,
+                                      color: item.attributes.stock > 0 ? '#10b981' : '#ef4444',
+                                      whiteSpace: 'nowrap'
+                                    }}>
                                       • Stok: {item.attributes.stock}
+                                    </span>
+                                  ) : (
+                                    <span style={{
+                                      fontSize: '0.65rem',
+                                      fontWeight: 700,
+                                      color: '#10b981',
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                      • {item.conservation_status || 'Ready'}
                                     </span>
                                   )}
                                 </div>
 
-                                {/* Dynamic snippet */}
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {itemType === 'food' && (
-                                    <span>{item.attributes?.portion_size ? `Porsi: ${item.attributes.portion_size}` : 'Fresh Daily'}{item.attributes?.prep_time ? ` • PO/Saji: ${item.attributes.prep_time}` : ''}</span>
-                                  )}
-                                  {itemType === 'physical' && (
-                                    <span>{item.attributes?.condition || 'Baru'}{item.attributes?.weight ? ` • ${item.attributes.weight}g` : ''}{item.attributes?.brand ? ` • ${item.attributes.brand}` : ''}</span>
-                                  )}
-                                  {itemType === 'service' && (
-                                    <span>{item.attributes?.duration || '1 Sesi'}{item.attributes?.service_area ? ` • Area: ${item.attributes.service_area}` : ''}</span>
-                                  )}
-                                  {itemType === 'digital' && (
-                                    <span>{item.attributes?.file_format || 'File'}{item.attributes?.file_size ? ` • ${item.attributes.file_size}` : ''}</span>
-                                  )}
-                                  {itemType === 'fauna' && (
-                                    <span>{item.habitat || 'General'}{item.detailed_info?.native_region ? ` • ${item.detailed_info.native_region}` : ''}</span>
-                                  )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span style={{ fontSize: '0.82rem', color: '#ef4444', fontWeight: 800 }}>
+                                    {formatRupiah(item.price)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Card Actions Bottom Row */}
-                            <div style={{ display: 'flex', gap: '0.4rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                            {/* Right: Actions */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
                               <button 
                                 type="button"
-                                className="btn-secondary" 
-                                style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '0.4rem', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
                                 onClick={() => openDetailsSheet(item.id)}
+                                style={{
+                                  padding: '0.32rem 0.5rem',
+                                  borderRadius: '0.4rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  cursor: 'pointer'
+                                }}
+                                title="Detail Item"
                               >
                                 <Eye size={12} />
                                 <span>Detail</span>
@@ -13200,9 +13197,21 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                               <button 
                                 type="button"
-                                className="btn-primary" 
-                                style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '0.4rem', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
                                 onClick={() => openEditSheet(item)}
+                                style={{
+                                  padding: '0.32rem 0.5rem',
+                                  borderRadius: '0.4rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                                  color: '#3b82f6',
+                                  cursor: 'pointer'
+                                }}
+                                title="Edit Item"
                               >
                                 <Edit3 size={12} />
                                 <span>Edit</span>
@@ -13210,9 +13219,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                               <button 
                                 type="button"
-                                className="btn-danger" 
-                                style={{ padding: '0.35rem 0.65rem', borderRadius: '0.4rem', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171' }}
                                 onClick={() => setFaunaToDelete(item)}
+                                style={{
+                                  padding: '0.32rem 0.45rem',
+                                  borderRadius: '0.4rem',
+                                  fontSize: '0.72rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                                  color: '#ef4444',
+                                  cursor: 'pointer'
+                                }}
                                 title="Hapus Item"
                               >
                                 <Trash2 size={12} />
