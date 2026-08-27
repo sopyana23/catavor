@@ -105,7 +105,10 @@ import {
   ChevronUp,
   CheckCheck,
   RefreshCw,
-  LayoutGrid
+  LayoutGrid,
+  Maximize2,
+  Minimize2,
+  Columns
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -1404,7 +1407,6 @@ export interface RichTextareaProps {
   required?: boolean;
   className?: string;
   style?: React.CSSProperties;
-  showPreviewToggle?: boolean;
 }
 
 export const RichTextarea: React.FC<RichTextareaProps> = ({
@@ -1415,14 +1417,46 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   rows = 4,
   required = false,
   className = "form-textarea",
-  style,
-  showPreviewToggle = true
+  style
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  const fullscreenTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenPreview, setShowFullscreenPreview] = useState(true);
 
-  const applyFormat = (prefix: string, suffix: string, defaultText: string) => {
-    const el = textareaRef.current;
+  // Lock body scroll when Fullscreen is active
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => {
+        fullscreenTextareaRef.current?.focus();
+      }, 50);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isFullscreen]);
+
+  // Handle ESC key to exit fullscreen
+  useEffect(() => {
+    const handleKeyDownGlobal = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDownGlobal);
+    return () => window.removeEventListener('keydown', handleKeyDownGlobal);
+  }, [isFullscreen]);
+
+  const applyFormatToRef = (
+    targetRef: React.RefObject<HTMLTextAreaElement | null>,
+    prefix: string,
+    suffix: string,
+    defaultText: string
+  ) => {
+    const el = targetRef.current;
     const currentVal = value || '';
     if (!el) {
       onChange(currentVal + `${prefix}${defaultText}${suffix}`);
@@ -1432,7 +1466,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     const end = el.selectionEnd;
     const selected = currentVal.substring(start, end);
 
-    // If it's a list insertion (e.g. prefix is "- " or "1. ")
+    // List insertion logic
     if (prefix === '- ' || prefix === '1. ') {
       const textBefore = currentVal.substring(0, start);
       const lastNewlineIdx = textBefore.lastIndexOf('\n');
@@ -1471,9 +1505,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     }, 0);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDownSmartList = (
+    targetRef: React.RefObject<HTMLTextAreaElement | null>,
+    e: React.KeyboardEvent<HTMLTextAreaElement>
+  ) => {
     if (e.key === 'Enter') {
-      const el = textareaRef.current;
+      const el = targetRef.current;
       if (!el) return;
 
       const currentVal = value || '';
@@ -1482,13 +1519,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       const textBefore = currentVal.substring(0, start);
       const textAfter = currentVal.substring(end);
 
-      // Find current line text before cursor
       const lastNewlineIdx = textBefore.lastIndexOf('\n');
       const currentLine = textBefore.substring(lastNewlineIdx + 1);
 
-      // Match bullet list: "- ", "* ", "• "
       const bulletMatch = currentLine.match(/^([-*•]\s+)(.*)$/);
-      // Match numbered list: "1. ", "2. ", etc.
       const numberMatch = currentLine.match(/^(\d+)(\.\s+)(.*)$/);
 
       if (bulletMatch) {
@@ -1497,7 +1531,6 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         const content = bulletMatch[2];
 
         if (content.trim() === '') {
-          // Empty bullet item: clear bullet marker and leave blank newline (exit list mode)
           const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
           const newText = currentVal.substring(0, lineStart) + textAfter;
           onChange(newText);
@@ -1506,7 +1539,6 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             el.setSelectionRange(lineStart, lineStart);
           }, 0);
         } else {
-          // Continue bullet list on next line
           const nextBullet = '\n' + prefix;
           const newText = textBefore + nextBullet + textAfter;
           onChange(newText);
@@ -1523,7 +1555,6 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         const content = numberMatch[3];
 
         if (content.trim() === '') {
-          // Empty numbered item: clear number marker and exit list mode
           const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
           const newText = currentVal.substring(0, lineStart) + textAfter;
           onChange(newText);
@@ -1532,7 +1563,6 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             el.setSelectionRange(lineStart, lineStart);
           }, 0);
         } else {
-          // Continue numbered list with incremented number
           const nextPrefix = `\n${num + 1}${dotSpace}`;
           const newText = textBefore + nextPrefix + textAfter;
           onChange(newText);
@@ -1545,6 +1575,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       }
     }
   };
+
+  const wordCount = (value || '').trim() ? (value || '').trim().split(/\s+/).length : 0;
+  const charCount = (value || '').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
@@ -1568,7 +1601,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Teks Tebal (Bold)"
-            onClick={() => applyFormat('**', '**', 'teks tebal')}
+            onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1586,7 +1619,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Teks Miring (Italic)"
-            onClick={() => applyFormat('*', '*', 'teks miring')}
+            onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1605,7 +1638,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Daftar Poin (Bullet List)"
-            onClick={() => applyFormat('- ', '', 'Poin list')}
+            onClick={() => applyFormatToRef(textareaRef, '- ', '', 'Poin list')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1623,7 +1656,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Daftar Angka (Numbered List)"
-            onClick={() => applyFormat('1. ', '', 'Langkah')}
+            onClick={() => applyFormatToRef(textareaRef, '1. ', '', 'Langkah')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1641,7 +1674,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <button
             type="button"
             title="Judul Bagian (Heading H3)"
-            onClick={() => applyFormat('\n### ', '\n', 'Judul Bagian')}
+            onClick={() => applyFormatToRef(textareaRef, '\n### ', '\n', 'Judul Bagian')}
             style={{
               padding: '0.25rem 0.55rem',
               borderRadius: '4px',
@@ -1658,28 +1691,28 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           </button>
         </div>
 
-        {showPreviewToggle && (
-          <button
-            type="button"
-            onClick={() => setShowPreview(!showPreview)}
-            style={{
-              padding: '0.25rem 0.65rem',
-              borderRadius: '4px',
-              border: showPreview ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-              backgroundColor: showPreview ? 'var(--primary-glow)' : 'transparent',
-              color: showPreview ? 'var(--primary)' : 'var(--text-secondary)',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              lineHeight: 1.2
-            }}
-          >
-            <Eye size={13} /> {showPreview ? 'Tutup Preview' : 'Preview Tampilan'}
-          </button>
-        )}
+        {/* Fullscreen Button */}
+        <button
+          type="button"
+          title="Buka Layar Penuh (Fullscreen Zen Mode)"
+          onClick={() => setIsFullscreen(true)}
+          style={{
+            padding: '0.25rem 0.65rem',
+            borderRadius: '4px',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--primary-glow)',
+            color: 'var(--primary)',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            lineHeight: 1.2
+          }}
+        >
+          <Maximize2 size={13} /> Fullscreen
+        </button>
       </div>
 
       {/* Actual Textarea */}
@@ -1704,30 +1737,298 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         required={required}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
+        onKeyDown={(e) => handleKeyDownSmartList(textareaRef, e)}
       />
 
-      {/* Live Preview Pane */}
-      {showPreview && (
+      {/* ==========================================================
+          FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Terbaik)
+          ========================================================== */}
+      {isFullscreen && (
         <div style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.25)',
-          border: '1px dashed var(--primary)',
-          borderRadius: '0.5rem',
-          padding: '0.85rem',
-          marginTop: '0.25rem',
-          fontSize: '0.88rem',
-          color: 'var(--text-primary)'
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 999999,
+          backgroundColor: 'var(--bg-card, #0f172a)',
+          display: 'flex',
+          flexDirection: 'column',
+          color: 'var(--text-primary)',
+          boxSizing: 'border-box',
+          animation: 'fadeIn 0.2s ease-out'
         }}>
-          <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '0.04em' }}>
-            🔍 Pratinjau Tampilan Konsumen:
+          {/* Fullscreen Header Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1.5rem',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            borderBottom: '1px solid var(--border-light)',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            {/* Title & Stats */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontWeight: 800,
+                fontSize: '0.95rem',
+                color: 'var(--text-primary)'
+              }}>
+                <FileText size={16} color="var(--primary)" />
+                <span>{label || 'Editor Teks'}</span>
+              </div>
+              <span style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)',
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                padding: '0.15rem 0.55rem',
+                borderRadius: '12px',
+                border: '1px solid var(--border-light)'
+              }}>
+                {wordCount} kata · {charCount} karakter
+              </span>
+            </div>
+
+            {/* Middle Formatting Tools */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                title="Teks Tebal (Bold)"
+                onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                <strong>B</strong>
+              </button>
+              <button
+                type="button"
+                title="Teks Miring (Italic)"
+                onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  fontStyle: 'italic',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <em>I</em>
+              </button>
+              <button
+                type="button"
+                title="Daftar Poin (Bullet List)"
+                onClick={() => applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list')}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                • List
+              </button>
+              <button
+                type="button"
+                title="Daftar Angka (Numbered List)"
+                onClick={() => applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah')}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                1. List
+              </button>
+              <button
+                type="button"
+                title="Judul Bab H3"
+                onClick={() => applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Judul Bagian')}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                H3
+              </button>
+            </div>
+
+            {/* Right Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              {/* Split Preview Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setShowFullscreenPreview(!showFullscreenPreview)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.5rem',
+                  border: showFullscreenPreview ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  backgroundColor: showFullscreenPreview ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
+                  color: showFullscreenPreview ? 'var(--primary)' : 'var(--text-secondary)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <Columns size={14} />
+                <span>{showFullscreenPreview ? 'Split Preview: Aktif' : 'Tampilkan Preview'}</span>
+              </button>
+
+              {/* Minimize / Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.45rem 0.95rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                <Minimize2 size={14} />
+                <span>Minimize (Selesai)</span>
+              </button>
+            </div>
           </div>
-          {(value || '').trim() ? (
-            <FormattedText text={value} />
-          ) : (
-            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.8rem' }}>
-              Belum ada teks yang ditulis. Ketik sesuatu atau gunakan tombol format di atas.
-            </span>
-          )}
+
+          {/* Fullscreen Body */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            overflow: 'hidden',
+            backgroundColor: 'var(--bg-primary, #090d16)'
+          }}>
+            {/* Left: Fullscreen Textarea */}
+            <div style={{
+              flex: showFullscreenPreview ? 1 : 1,
+              maxWidth: showFullscreenPreview ? '50%' : '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRight: showFullscreenPreview ? '1px solid var(--border-light)' : 'none',
+              padding: '1.5rem',
+              boxSizing: 'border-box'
+            }}>
+              <textarea
+                ref={fullscreenTextareaRef}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-primary)',
+                  border: 'none',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  fontSize: '1rem',
+                  lineHeight: 1.7,
+                  resize: 'none',
+                  boxSizing: 'border-box'
+                }}
+                placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
+                value={value || ''}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={(e) => handleKeyDownSmartList(fullscreenTextareaRef, e)}
+              />
+            </div>
+
+            {/* Right: Fullscreen Live Preview Pane */}
+            {showFullscreenPreview && (
+              <div style={{
+                flex: 1,
+                maxWidth: '50%',
+                height: '100%',
+                overflowY: 'auto',
+                padding: '1.5rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.015)',
+                boxSizing: 'border-box'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: 'var(--primary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '1rem',
+                  paddingBottom: '0.5rem',
+                  borderBottom: '1px solid var(--border-light)'
+                }}>
+                  <Eye size={14} />
+                  <span>Pratinjau Tampilan Konsumen (Live Preview)</span>
+                </div>
+
+                {(value || '').trim() ? (
+                  <FormattedText
+                    text={value}
+                    style={{ fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: '1.7' }}
+                  />
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                    Belum ada teks yang ditulis. Ketik sesuatu di panel editor sebelah kiri untuk melihat hasil pratinjaunya secara real-time.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Fullscreen Footer Tips */}
+          <div style={{
+            padding: '0.5rem 1.5rem',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            borderTop: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.75rem',
+            color: 'var(--text-secondary)'
+          }}>
+            <span>💡 <strong>Tips Menulis:</strong> Tekan <code>Enter</code> pada list untuk poin baru otomatis, atau tekan <code>Enter</code> 2x untuk keluar dari mode list.</span>
+            <span>Tekan <code>ESC</code> untuk menutup layar penuh</span>
+          </div>
         </div>
       )}
     </div>
