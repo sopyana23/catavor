@@ -1546,147 +1546,109 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       />
 
       {/* ==========================================================
-          FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Terbaik)
+          FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Mobile)
           ========================================================== */}
       {isFullscreen && (
         <div className="zen-fullscreen-overlay">
-          {/* Fullscreen Header Bar */}
-          <div className="zen-fullscreen-header">
-            {/* Title & Stats */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div className="zen-header-title">
-                <FileText size={16} color="var(--primary)" />
-                <span>{label || 'Editor Teks'}</span>
-              </div>
-              <span className="zen-header-badge">
-                {wordCount} kata · {charCount} karakter
-              </span>
+          {/* Mobile App Bar Header: 1 Single Clean Row */}
+          <div className="zen-fullscreen-header-mobile">
+            {/* Left: Back / Close Button */}
+            <button
+              type="button"
+              className="zen-mobile-back-btn"
+              onClick={() => setIsFullscreen(false)}
+              title="Tutup / Kembali ke Form"
+            >
+              <ChevronLeft size={16} />
+              <span>Kembali</span>
+            </button>
+
+            {/* Center: Title & Word Count */}
+            <div className="zen-mobile-title-col">
+              <span className="zen-mobile-title">{label || 'Editor Teks'}</span>
+              <span className="zen-mobile-subtitle">{wordCount} kata · {charCount} karakter</span>
             </div>
 
-            {/* Middle Formatting Tools */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+            {/* Right: Tab Switcher */}
+            <div className="zen-mobile-tab-switch">
               <button
                 type="button"
-                className="zen-btn-format"
-                title="Teks Tebal (Bold)"
+                className={`zen-mobile-tab-btn ${mobileTab === 'editor' ? 'active' : 'inactive'}`}
+                onClick={() => setMobileTab('editor')}
+              >
+                <Edit3 size={11} /> Edit
+              </button>
+              <button
+                type="button"
+                className={`zen-mobile-tab-btn ${mobileTab === 'preview' ? 'active' : 'inactive'}`}
+                onClick={() => setMobileTab('preview')}
+              >
+                <Eye size={11} /> Preview
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Formatting Toolbar: Horizontal Scrolling Bar (Only shown in Editor tab) */}
+          {mobileTab === 'editor' && (
+            <div className="zen-mobile-toolbar-bar">
+              <button
+                type="button"
+                className="zen-mobile-toolbar-btn"
+                title="Teks Tebal"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
               >
                 <strong>B</strong>
               </button>
               <button
                 type="button"
-                className="zen-btn-format"
-                title="Teks Miring (Italic)"
+                className="zen-mobile-toolbar-btn"
+                title="Teks Miring"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
               >
                 <em>I</em>
               </button>
               <button
                 type="button"
-                className="zen-btn-format"
-                title="Daftar Poin (Bullet List)"
+                className="zen-mobile-toolbar-btn"
+                title="Daftar Poin"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list')}
               >
                 • List
               </button>
               <button
                 type="button"
-                className="zen-btn-format"
-                title="Daftar Angka (Numbered List)"
+                className="zen-mobile-toolbar-btn"
+                title="Daftar Angka"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah')}
               >
                 1. List
               </button>
               <button
                 type="button"
-                className="zen-btn-format"
-                title="Judul Bab H3"
+                className="zen-mobile-toolbar-btn"
+                title="Sub-Judul H3"
                 onClick={() => applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Judul Bagian')}
               >
                 H3
               </button>
-            </div>
-
-            {/* Right Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {/* Mobile Tab Selector */}
-              <div style={{
-                display: 'flex',
-                backgroundColor: 'var(--bg-card-hover)',
-                borderRadius: '6px',
-                padding: '2px',
-                border: '1px solid var(--border-light)'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('editor')}
-                  style={{
-                    padding: '0.25rem 0.6rem',
-                    borderRadius: '4px',
-                    border: 'none',
-                    backgroundColor: mobileTab === 'editor' ? 'var(--primary)' : 'transparent',
-                    color: mobileTab === 'editor' ? '#ffffff' : 'var(--text-primary)',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    opacity: mobileTab === 'editor' ? 1 : 0.8
-                  }}
-                >
-                  Editor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('preview')}
-                  style={{
-                    padding: '0.25rem 0.6rem',
-                    borderRadius: '4px',
-                    border: 'none',
-                    backgroundColor: mobileTab === 'preview' ? 'var(--primary)' : 'transparent',
-                    color: mobileTab === 'preview' ? '#ffffff' : 'var(--text-primary)',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    opacity: mobileTab === 'preview' ? 1 : 0.8
-                  }}
-                >
-                  <Eye size={12} /> Preview
-                </button>
-              </div>
-
-              {/* Minimize / Close Button */}
               <button
                 type="button"
-                onClick={() => setIsFullscreen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.32rem 0.65rem',
-                  borderRadius: '0.375rem',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  color: '#ef4444',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
+                className="zen-mobile-toolbar-btn"
+                title="Judul Bab H2"
+                onClick={() => applyFormatToRef(fullscreenTextareaRef, '\n## ', '\n', 'Bab Utama')}
               >
-                <Minimize2 size={13} />
-                <span>Minimize</span>
+                H2
               </button>
             </div>
-          </div>
+          )}
 
-          {/* Fullscreen Body */}
-          <div className="zen-fullscreen-body">
+          {/* Mobile Fullscreen Body */}
+          <div className="zen-fullscreen-body-mobile">
             {mobileTab === 'editor' ? (
-              <div className="zen-textarea-container">
+              <div className="zen-mobile-textarea-wrap">
                 <textarea
                   ref={fullscreenTextareaRef}
-                  className="zen-textarea"
+                  className="zen-mobile-textarea"
                   placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
                   value={value || ''}
                   onChange={(e) => onChange(e.target.value)}
@@ -1694,7 +1656,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 />
               </div>
             ) : (
-              <div className="zen-preview-pane">
+              <div className="zen-mobile-preview-wrap">
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1719,17 +1681,25 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   />
                 ) : (
                   <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                    Belum ada teks yang ditulis. Ketik sesuatu di tab Editor untuk melihat hasil pratinjaunya secara rapi.
+                    Belum ada teks yang ditulis. Ketik sesuatu di tab Edit untuk melihat hasil pratinjaunya secara rapi.
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Fullscreen Footer Tips */}
-          <div className="zen-fullscreen-footer">
-            <span>💡 <strong>Tips:</strong> Enter untuk baris baru list, Enter 2x untuk keluar dari mode list.</span>
-            <span>Tekan <code>ESC</code> untuk minimize</span>
+          {/* Mobile Footer Action Bar */}
+          <div className="zen-mobile-footer-bar">
+            <span className="zen-mobile-tip-text">
+              💡 <strong>Tips:</strong> Enter lanjut list, Enter 2x keluar mode list.
+            </span>
+            <button
+              type="button"
+              className="zen-mobile-done-btn"
+              onClick={() => setIsFullscreen(false)}
+            >
+              <Check size={14} /> Selesai
+            </button>
           </div>
         </div>
       )}
