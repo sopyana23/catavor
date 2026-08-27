@@ -716,6 +716,14 @@ export const CULINARY_SMART_PRESETS: Record<string, CulinarySmartPreset> = {
   }
 };
 
+export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
+  physical: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
+  food: ['Makanan Utama (Main Course)', 'Dessert & Manisan', 'Minuman & Olahan Kopi', 'Camilan & Kudapan (Appetizer)', 'Bakery, Roti & Pastry', 'Makanan Beku (Frozen)', 'Paket Hemat & Bundling', 'Lainnya'],
+  service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
+  digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
+  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
+};
+
 export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
   switch (type) {
     case 'physical':
@@ -3599,6 +3607,8 @@ function App() {
     )
   );
 
+  const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
+  const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')
   const [masterClasses, setMasterClasses] = useState<string[]>(['Ikan Hias', 'Mamalia', 'Mamalia Kecil', 'Reptil'])
   const [masterHabitats, setMasterHabitats] = useState<string[]>(['Air Tawar', 'Air Laut', 'Darat'])
   const [masterStatuses, setMasterStatuses] = useState<string[]>(['Tersedia (For Sale)', 'Habis Terjual (Sold Out)', 'Terbatas (Limited)'])
@@ -4400,6 +4410,12 @@ function App() {
             setSettingsForm(fetchedSettings);
           }
           
+          if (store.master_categories) {
+            setMasterCategories(prev => ({
+              ...DEFAULT_MASTER_CATEGORIES,
+              ...store.master_categories
+            }));
+          }
           if (store.master_classes) setMasterClasses(store.master_classes);
           if (store.master_habitats) setMasterHabitats(store.master_habitats);
           if (store.master_statuses) setMasterStatuses(store.master_statuses);
@@ -6020,9 +6036,20 @@ function App() {
     return parseInt(clean) || 0
   }
 
-  // Get unique options from existing faunas list
+  // Context-isolated Category Options per Product Type & User Master
+  const getCategoryOptionsForType = (productType: ItemCategoryType = 'physical'): string[] => {
+    const baseDefaults = masterCategories[productType] || DEFAULT_MASTER_CATEGORIES[productType] || [];
+    const customUsed = faunas
+      .filter(f => (f.product_type || 'physical') === productType && f.class)
+      .map(f => f.class);
+    
+    const merged = Array.from(new Set([...baseDefaults, ...customUsed])).filter(Boolean);
+    return merged.length > 0 ? merged : ['Lainnya'];
+  };
+
+  // Get unique options for active master context
   const getUniqueClasses = () => {
-    return Array.isArray(masterClasses) ? masterClasses : []
+    return getCategoryOptionsForType(masterCategoryContextTab);
   }
 
   const getUniqueHabitats = () => {
@@ -9112,11 +9139,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         }
                       }}
                     >
-                      {typeConfig.categoryOptions.map((opt) => (
+                      {getCategoryOptionsForType(crudForm.product_type).map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                      {getUniqueClasses().filter(c => !typeConfig.categoryOptions.includes(c)).map((c) => (
-                        <option key={c} value={c}>{c}</option>
                       ))}
                       <option value="__NEW__">+ Tambah Kategori Baru...</option>
                     </select>
@@ -14035,16 +14059,46 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
                               <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <Package size={14} /> Kategori Item Toko
+                                <Package size={14} /> Master Kategori Item
                               </h4>
                               <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
-                                {getUniqueClasses().length} Opsi
+                                {getCategoryOptionsForType(masterCategoryContextTab).length} Opsi
                               </span>
                             </div>
 
+                            {/* Context Switcher Tabs */}
+                            <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
+                              {[
+                                { id: 'physical', label: '📦 Barang Fisik' },
+                                { id: 'food', label: '🍔 Kuliner' },
+                                { id: 'service', label: '💼 Jasa' },
+                                { id: 'digital', label: '💾 Digital' },
+                                { id: 'fauna', label: '🐾 Fauna' }
+                              ].map(tab => (
+                                <button
+                                  key={tab.id}
+                                  type="button"
+                                  onClick={() => setMasterCategoryContextTab(tab.id as ItemCategoryType)}
+                                  style={{
+                                    padding: '0.3rem 0.6rem',
+                                    borderRadius: '0.45rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    whiteSpace: 'nowrap',
+                                    border: masterCategoryContextTab === tab.id ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                    backgroundColor: masterCategoryContextTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                                    color: masterCategoryContextTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {tab.label}
+                                </button>
+                              ))}
+                            </div>
+
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                              {getUniqueClasses().map((c) => {
-                                const count = faunas.filter(f => f.class === c).length;
+                              {getCategoryOptionsForType(masterCategoryContextTab).map((c) => {
+                                const count = faunas.filter(f => (f.product_type || 'physical') === masterCategoryContextTab && f.class === c).length;
                                 return (
                                   <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
                                     <span>{c}</span>
@@ -14058,7 +14112,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                         e.stopPropagation();
                                         setRenameMasterModalData({
                                           field: 'class',
-                                          fieldLabel: 'Kategori Item Toko',
+                                          fieldLabel: `Kategori (${masterCategoryContextTab})`,
                                           oldValue: c,
                                           newValue: c
                                         });
@@ -14088,7 +14142,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <div style={{ display: 'flex', gap: '0.35rem' }}>
                               <input 
                                 type="text" 
-                                placeholder="Ketik kategori baru..." 
+                                placeholder={`Ketik kategori ${masterCategoryContextTab} baru...`} 
                                 className="form-input" 
                                 style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
                                 value={newClassInput}

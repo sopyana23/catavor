@@ -335,8 +335,9 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
-		Field string `json:"field"`
-		Value string `json:"value"`
+		Field       string `json:"field"`
+		Value       string `json:"value"`
+		ProductType string `json:"product_type"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Value == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -347,7 +348,10 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 
 	val := strings.TrimSpace(req.Value)
 	switch req.Field {
-	case "class", "master_classes":
+	case "class", "master_classes", "category", "master_categories":
+		if req.ProductType != "" {
+			store.MasterCategories = appendMasterCategory(store.MasterCategories, req.ProductType, val)
+		}
 		store.MasterClasses = appendJSONString(store.MasterClasses, val)
 	case "habitat", "master_habitats":
 		store.MasterHabitats = appendJSONString(store.MasterHabitats, val)
@@ -375,9 +379,10 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 	store := c.Locals("store").(*models.Store)
 
 	var req struct {
-		Field    string `json:"field"`
-		OldValue string `json:"old_value"`
-		NewValue string `json:"new_value"`
+		Field       string `json:"field"`
+		OldValue    string `json:"old_value"`
+		NewValue    string `json:"new_value"`
+		ProductType string `json:"product_type"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.OldValue == "" || req.NewValue == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -390,7 +395,10 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 	newVal := strings.TrimSpace(req.NewValue)
 
 	switch req.Field {
-	case "class", "master_classes":
+	case "class", "master_classes", "category", "master_categories":
+		if req.ProductType != "" {
+			store.MasterCategories = replaceMasterCategory(store.MasterCategories, req.ProductType, oldVal, newVal)
+		}
 		store.MasterClasses = replaceJSONString(store.MasterClasses, oldVal, newVal)
 		database.DB.Model(&models.Fauna{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
 	case "habitat", "master_habitats":
@@ -419,6 +427,7 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 		Field             string `json:"field"`
 		Value             string `json:"value"`
 		ReplacementOption string `json:"replacement_option"`
+		ProductType       string `json:"product_type"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Value == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -431,7 +440,10 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 	replacement := strings.TrimSpace(req.ReplacementOption)
 
 	switch req.Field {
-	case "class", "master_classes":
+	case "class", "master_classes", "category", "master_categories":
+		if req.ProductType != "" {
+			store.MasterCategories = removeMasterCategory(store.MasterCategories, req.ProductType, val)
+		}
 		store.MasterClasses = removeJSONString(store.MasterClasses, val)
 		if replacement != "" {
 			database.DB.Model(&models.Fauna{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement)
@@ -476,27 +488,27 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 
 	switch strings.ToLower(req.Preset) {
 	case "physical":
-		classes = []string{"Pakaian & Busana", "Aksesoris & Fashion", "Gadget & Elektronik", "Kebutuhan Rumah Tangga", "Kerajinan Tangan"}
+		classes = []string{"Pakaian & Fashion", "Aksesoris & Gadget", "Elektronik & Komputer", "Perlengkapan Rumah", "Kerajinan & Kriya", "Koleksi & Hobi", "Lainnya"}
 		habitats = []string{"Item Baru (Ready Stock)", "Pre-Order (PO)", "Varian Koleksi Khusus"}
 		statuses = []string{"Tersedia (Ready Stock)", "Habis (Sold Out)", "Stok Terbatas (Limited)"}
 		shipping = []string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"}
 	case "digital":
-		classes = []string{"E-Book & Panduan", "Source Code & Script", "Template Desain", "Video & Audio Materi", "Tools & Aset Digital"}
+		classes = []string{"E-Book & Dokumen", "Template Desain", "Preset & Audio", "Source Code & Software", "Video Kursus", "Foto & Ilustrasi", "Lainnya"}
 		habitats = []string{"Instant Download", "Akses Cloud / Web", "Lisensi Sekali Beli"}
 		statuses = []string{"Tersedia (Aktif)", "Maintenance / Update", "Arsip (Tidak Dijual)"}
 		shipping = []string{"Kirim via Email & Link Download", "Akses Portal Anggota"}
 	case "fauna":
-		classes = []string{"Reptil & Amfibi", "Ikan Hias & Aquascape", "Burung Kicau & Unggas", "Mamalia Hias", "Pakan & Perlengkapan"}
+		classes = []string{"Ikan Hias", "Reptil & Amphibi", "Burung & Unggas", "Mamalia Kecil", "Kucing & Anjing", "Serangga & Arthropoda", "Pakan & Perlengkapan", "Lainnya"}
 		habitats = []string{"Air Tawar", "Air Laut", "Darat (Terestrial)", "Arboreal (Pohon)"}
 		statuses = []string{"Tersedia (For Sale)", "Terpesan (Booked)", "Habis Terjual (Sold Out)"}
 		shipping = []string{"Bisa Kirim se-Indonesia (Garansi DoA)", "Pulau Jawa Saja", "Ambil Sendiri di Toko (No Shipping)"}
 	case "service":
-		classes = []string{"Konsultasi & Advice", "Desain & Kreatif", "Perbaikan & Servis", "Kursus & Pelatihan", "Pembuatan Web & Aplikasi"}
+		classes = []string{"Jasa Desain & Kreatif", "Konsultasi & Bisnis", "Reparasi & Servis", "Fotografi & Video", "Pendidikan & Les", "Kecantikan & Perawatan", "Lainnya"}
 		habitats = []string{"Layanan Online / Remote", "Datang ke Lokasi Klien", "Datang ke Workshop / Kantor"}
 		statuses = []string{"Jadwal Tersedia", "Jadwal Penuh (Booked)", "Libur / Tutup Sementara"}
 		shipping = []string{"Layanan Digital / Online", "Area Jabodetabek", "Area Seluruh Indonesia"}
 	case "food":
-		classes = []string{"Makanan Utama / Berat", "Camilan & Snack", "Minuman Segar & Kopi", "Frozen Food Siap Masak", "Paket Katering"}
+		classes = []string{"Makanan Siap Santap", "Minuman & Kopi", "Snack & Makanan Kering", "Bakery, Roti & Pastry", "Bumbu & Bahan Masak", "Katering & Paket Pesanan", "Lainnya"}
 		habitats = []string{"Freshly Cooked", "Frozen Food", "Kemasan Tahan Lama"}
 		statuses = []string{"Menu Tersedia", "Habis untuk Hari Ini", "Menu Spesial Musiman"}
 		shipping = []string{"Kurir Instan / Sameday", "Dine-In & Take Away", "Bisa Kirim Luar Kota (Frozen)"}
@@ -524,6 +536,78 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 		"message": "Template Master Data berhasil diterapkan.",
 		"data":    store,
 	})
+}
+
+// Helper MasterCategories JSON map functions
+func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON {
+	pType = strings.ToLower(strings.TrimSpace(pType))
+	if pType == "" {
+		pType = "physical"
+	}
+	catMap := make(map[string][]string)
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &catMap)
+	}
+	if catMap == nil {
+		catMap = make(map[string][]string)
+	}
+	list := catMap[pType]
+	for _, item := range list {
+		if strings.EqualFold(item, val) {
+			b, _ := json.Marshal(catMap)
+			return datatypes.JSON(b)
+		}
+	}
+	catMap[pType] = append(list, val)
+	b, _ := json.Marshal(catMap)
+	return datatypes.JSON(b)
+}
+
+func replaceMasterCategory(raw datatypes.JSON, pType, oldVal, newVal string) datatypes.JSON {
+	pType = strings.ToLower(strings.TrimSpace(pType))
+	if pType == "" {
+		pType = "physical"
+	}
+	catMap := make(map[string][]string)
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &catMap)
+	}
+	if catMap == nil {
+		return raw
+	}
+	list := catMap[pType]
+	for i, item := range list {
+		if strings.EqualFold(item, oldVal) {
+			list[i] = newVal
+		}
+	}
+	catMap[pType] = list
+	b, _ := json.Marshal(catMap)
+	return datatypes.JSON(b)
+}
+
+func removeMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON {
+	pType = strings.ToLower(strings.TrimSpace(pType))
+	if pType == "" {
+		pType = "physical"
+	}
+	catMap := make(map[string][]string)
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &catMap)
+	}
+	if catMap == nil {
+		return raw
+	}
+	list := catMap[pType]
+	var updated []string
+	for _, item := range list {
+		if !strings.EqualFold(item, val) {
+			updated = append(updated, item)
+		}
+	}
+	catMap[pType] = updated
+	b, _ := json.Marshal(catMap)
+	return datatypes.JSON(b)
 }
 
 // Helper JSON string array functions

@@ -31,6 +31,7 @@ type Store struct {
 	EnableWADirect           bool           `gorm:"default:true" json:"enable_wa_direct"`
 	EnableWARekber           bool           `gorm:"default:true" json:"enable_wa_rekber"`
 	RegistrationTimezone     string         `gorm:"size:50;default:'Asia/Jakarta'" json:"registration_timezone"`
+	MasterCategories         datatypes.JSON `gorm:"type:jsonb" json:"master_categories"`
 	MasterClasses            datatypes.JSON `gorm:"type:jsonb" json:"master_classes"`
 	MasterHabitats           datatypes.JSON `gorm:"type:jsonb" json:"master_habitats"`
 	MasterStatuses           datatypes.JSON `gorm:"type:jsonb" json:"master_statuses"`
