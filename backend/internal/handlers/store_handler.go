@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"catavor-backend/internal/database"
@@ -58,6 +59,14 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		query = query.Where("LOWER(name) LIKE ? OR LOWER(scientific_name) LIKE ? OR LOWER(description) LIKE ?", searchPattern, searchPattern, searchPattern)
 	}
 
+	productType := strings.TrimSpace(c.Query("product_type"))
+	if productType == "" {
+		productType = strings.TrimSpace(c.Query("type"))
+	}
+	if productType != "" && productType != "all" {
+		query = query.Where("product_type = ?", productType)
+	}
+
 	classFilter := strings.TrimSpace(c.Query("class"))
 	if classFilter != "" && classFilter != "all" {
 		query = query.Where("class = ?", classFilter)
@@ -68,17 +77,96 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		query = query.Where("habitat LIKE ?", "%"+habitatFilter+"%")
 	}
 
+	statusFilter := strings.TrimSpace(c.Query("status"))
+	if statusFilter != "" && statusFilter != "all" {
+		query = query.Where("conservation_status LIKE ?", "%"+statusFilter+"%")
+	}
+
+	// Count total records matching criteria
+	var totalItems int64
+	if err := query.Count(&totalItems).Error; err != nil {
+		totalItems = 0
+	}
+
+	// Sorting
+	sortBy := strings.TrimSpace(c.Query("sort"))
+	switch sortBy {
+	case "oldest":
+		query = query.Order("id asc")
+	case "name_asc":
+		query = query.Order("name asc")
+	case "name_desc":
+		query = query.Order("name desc")
+	case "price_asc":
+		query = query.Order("price asc")
+	case "price_desc":
+		query = query.Order("price desc")
+	default:
+		// Default: newest first
+		query = query.Order("id desc")
+	}
+
+	// Server-Side Pagination
+	pageStr := strings.TrimSpace(c.Query("page"))
+	limitStr := strings.TrimSpace(c.Query("limit"))
+	if limitStr == "" {
+		limitStr = strings.TrimSpace(c.Query("per_page"))
+	}
+
+	page := 1
+	limit := 0
+
+	if pageStr != "" || limitStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+			if limit > 100 {
+				limit = 100
+			}
+		} else {
+			limit = 10 // Default per page when page is requested
+		}
+
+		offset := (page - 1) * limit
+		query = query.Offset(offset).Limit(limit)
+	}
+
 	var faunas []models.Fauna
-	if err := query.Order("id asc").Find(&faunas).Error; err != nil {
+	if err := query.Find(&faunas).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memuat katalog item.",
 		})
 	}
 
+	totalPages := 1
+	if limit > 0 && totalItems > 0 {
+		totalPages = int((totalItems + int64(limit) - 1) / int64(limit))
+		if totalPages < 1 {
+			totalPages = 1
+		}
+	} else if totalItems > 0 {
+		totalPages = 1
+	}
+
+	perPageResponse := limit
+	if perPageResponse == 0 {
+		perPageResponse = int(totalItems)
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    faunas,
+		"pagination": fiber.Map{
+			"current_page": page,
+			"per_page":     perPageResponse,
+			"total_items":  totalItems,
+			"total_pages":  totalPages,
+			"has_next":     limit > 0 && page < totalPages,
+			"has_prev":     page > 1,
+		},
 	})
 }
 

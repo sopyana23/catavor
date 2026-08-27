@@ -3319,6 +3319,56 @@ function App() {
   const [displayLimit, setDisplayLimit] = useState<number>(8)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
 
+  // Desktop Admin Inventory States & Filters
+  const [adminSearch, setAdminSearch] = useState<string>('')
+  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna'>('all')
+  const [adminClassFilter, setAdminClassFilter] = useState<string>('all')
+  const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
+  const [adminPage, setAdminPage] = useState<number>(1)
+  const [adminPerPage, setAdminPerPage] = useState<number>(10)
+
+  // Available categories for desktop admin inventory scoped to active product type
+  const availableAdminCategories = useMemo(() => {
+    const list = faunas
+      .filter(f => adminProductTypeFilter === 'all' || (f.product_type || 'physical') === adminProductTypeFilter)
+      .map(f => f.class)
+      .filter(Boolean);
+    return Array.from(new Set(list));
+  }, [faunas, adminProductTypeFilter]);
+
+  // Filtered & Sorted Desktop Admin Inventory Items
+  const filteredAdminItems = useMemo(() => {
+    let result = faunas.filter((item) => {
+      const itemType = (item.product_type || 'physical') as ItemCategoryType;
+      const matchesSearch = !adminSearch.trim() ||
+        item.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
+        (item.scientific_name && item.scientific_name.toLowerCase().includes(adminSearch.toLowerCase())) ||
+        (item.class && item.class.toLowerCase().includes(adminSearch.toLowerCase())) ||
+        (item.description && item.description.toLowerCase().includes(adminSearch.toLowerCase()));
+
+      const matchesType = adminProductTypeFilter === 'all' || itemType === adminProductTypeFilter;
+      const matchesClass = adminClassFilter === 'all' || item.class === adminClassFilter;
+
+      return matchesSearch && matchesType && matchesClass;
+    });
+
+    // Sorting
+    result = [...result].sort((a, b) => {
+      if (adminSortBy === 'oldest') return a.id - b.id;
+      if (adminSortBy === 'name_asc') return a.name.localeCompare(b.name);
+      if (adminSortBy === 'price_asc') return a.price - b.price;
+      if (adminSortBy === 'price_desc') return b.price - a.price;
+      return b.id - a.id; // newest first default
+    });
+
+    return result;
+  }, [faunas, adminSearch, adminProductTypeFilter, adminClassFilter, adminSortBy]);
+
+  const totalAdminPages = Math.max(1, Math.ceil(filteredAdminItems.length / adminPerPage));
+  const paginatedAdminItems = useMemo(() => {
+    return filteredAdminItems.slice((adminPage - 1) * adminPerPage, adminPage * adminPerPage);
+  }, [filteredAdminItems, adminPage, adminPerPage]);
+
   // Authentication State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
   const isPopStateRef = useRef<boolean>(false)
@@ -9919,78 +9969,425 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               {/* Admin Tabs Content */}
               {adminTab === 'items' && (
-                /* TAB 1: CRUD LIST */
+                /* TAB 1: CRUD LIST & ADMIN INVENTORY CONTROLS */
                 loading ? (
                   <div style={{ padding: '3rem', textAlign: 'center' }}>
                     <Loader className="animate-spin" style={{ color: 'var(--primary)' }} />
                   </div>
                 ) : (
-                  <div className="admin-table-container">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Foto</th>
-                          <th>Nama Item &amp; Spesifikasi</th>
-                          <th>Kategori &amp; Opsi</th>
-                          <th>Harga</th>
-                          <th>Pengiriman / Akses</th>
-                          <th>Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {faunas.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} className="animate-fade-in">
+                    
+                    {/* Top Control Bar: Search & Level-1 Type Pills */}
+                    <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      
+                      {/* Search Bar + Secondary Dropdowns */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                        
+                        {/* Search Input */}
+                        <div style={{ position: 'relative' }}>
+                          <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                          <input 
+                            type="text"
+                            className="form-input"
+                            placeholder="Cari nama item, ilmiah, kategori, atau deskripsi..."
+                            value={adminSearch}
+                            onChange={(e) => { setAdminSearch(e.target.value); setAdminPage(1); }}
+                            style={{ paddingLeft: '2.4rem', paddingRight: adminSearch ? '2.2rem' : '0.85rem', height: '40px', fontSize: '0.84rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)' }}
+                          />
+                          {adminSearch && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminSearch(''); setAdminPage(1); }}
+                              style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Category Dropdown */}
+                        <select
+                          className="form-select"
+                          value={adminClassFilter}
+                          onChange={(e) => { setAdminClassFilter(e.target.value); setAdminPage(1); }}
+                          style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)' }}
+                        >
+                          <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
+                          {availableAdminCategories.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+
+                        {/* Sort Dropdown */}
+                        <select
+                          className="form-select"
+                          value={adminSortBy}
+                          onChange={(e) => { setAdminSortBy(e.target.value as any); setAdminPage(1); }}
+                          style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)' }}
+                        >
+                          <option value="newest">Terbaru</option>
+                          <option value="oldest">Terlama</option>
+                          <option value="name_asc">Nama (A-Z)</option>
+                          <option value="price_asc">Harga Terendah</option>
+                          <option value="price_desc">Harga Tertinggi</option>
+                        </select>
+                      </div>
+
+                      {/* Level-1 Type Pills */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setAdminPage(1); }}
+                            style={{
+                              padding: '0.35rem 0.8rem',
+                              borderRadius: '20px',
+                              fontSize: '0.76rem',
+                              fontWeight: 800,
+                              border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              cursor: 'pointer',
+                              backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                              color: adminProductTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
+                            }}
+                          >
+                            ✨ Semua ({faunas.length})
+                          </button>
+                          {availableProductTypes.includes('physical') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setAdminPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.8rem',
+                                borderRadius: '20px',
+                                fontSize: '0.76rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.04)',
+                                color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              📦 Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('food') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setAdminPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.8rem',
+                                borderRadius: '20px',
+                                fontSize: '0.76rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.04)',
+                                color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              🍔 Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('service') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setAdminPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.8rem',
+                                borderRadius: '20px',
+                                fontSize: '0.76rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.04)',
+                                color: adminProductTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
+                              }}
+                            >
+                              💼 Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('digital') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setAdminPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.8rem',
+                                borderRadius: '20px',
+                                fontSize: '0.76rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.04)',
+                                color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              💾 Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('fauna') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setAdminPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.8rem',
+                                borderRadius: '20px',
+                                fontSize: '0.76rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.04)',
+                                color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              🐾 Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Reset filter button */}
+                        {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminSearch('');
+                              setAdminProductTypeFilter('all');
+                              setAdminClassFilter('all');
+                              setAdminSortBy('newest');
+                              setAdminPage(1);
+                            }}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer' }}
+                          >
+                            Reset Filter
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Table Container */}
+                    <div className="admin-table-container">
+                      <table className="admin-table">
+                        <thead>
                           <tr>
-                            <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2.5rem' }}>
-                              Belum ada item katalog terdaftar. Klik "+ Tambah Item Baru" di atas untuk memulai.
-                            </td>
+                            <th style={{ width: '70px' }}>Foto</th>
+                            <th>Nama Item &amp; Spesifikasi</th>
+                            <th>Kategori &amp; Tipe</th>
+                            <th>Harga &amp; Stok</th>
+                            <th>Pengiriman / Akses</th>
+                            <th style={{ width: '170px' }}>Aksi</th>
                           </tr>
-                        ) : (
-                          faunas.map((item) => (
-                            <tr key={item.id}>
-                              <td>
-                                <img 
-                                  src={item.image_url} 
-                                  alt={item.name} 
-                                  style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} 
-                                />
-                              </td>
-                              <td>
-                                <div style={{ fontWeight: 600 }}>{item.name}</div>
-                                <div style={{ fontStyle: 'italic', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                  {item.scientific_name}
-                                </div>
-                              </td>
-                              <td>
-                                <div>{item.class}</div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.habitat}</div>
-                              </td>
-                              <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>
-                                {formatRupiah(item.price)}
-                              </td>
-                              <td>
-                                {item.is_shipping_available ? (
-                                  <span className="badge badge-least-concern" style={{ fontSize: '0.7rem' }}>Bisa Dikirim</span>
-                                ) : (
-                                  <span className="badge badge-vulnerable" style={{ fontSize: '0.7rem' }}>Lokal / Pickup</span>
-                                )}
-                              </td>
-                              <td>
-                                 <div className="action-buttons">
-                                  <button 
-                                    className="btn-secondary btn-small"
-                                    onClick={() => fetchDetails(item.id)}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                  >
-                                    <Eye size={12} />
-                                    Detail
-                                  </button>
-                                </div>
+                        </thead>
+                        <tbody>
+                          {faunas.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2.5rem' }}>
+                                Belum ada item katalog terdaftar. Klik "+ Tambah Item Baru" di atas untuk memulai.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : filteredAdminItems.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2.5rem' }}>
+                                Tidak ada item yang sesuai dengan filter atau pencarian Anda.
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedAdminItems.map((item) => {
+                              const itemType = (item.product_type || 'physical') as ItemCategoryType;
+                              const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? '#10b981' : '#3b82f6';
+                              const typeEmoji = itemType === 'food' ? '🍔' : itemType === 'service' ? '💼' : itemType === 'digital' ? '💾' : itemType === 'fauna' ? '🐾' : '📦';
+
+                              return (
+                                <tr key={item.id}>
+                                  <td>
+                                    <div style={{ position: 'relative', width: '54px', height: '42px', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                      <img 
+                                        src={item.image_url} 
+                                        alt={item.name} 
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                        onError={(e) => {
+                                          e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                        }}
+                                      />
+                                      <span style={{ position: 'absolute', bottom: '1px', right: '1px', fontSize: '0.6rem', padding: '0 2px', background: 'rgba(0,0,0,0.7)', borderRadius: '2px' }}>
+                                        {typeEmoji}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>{item.name}</div>
+                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                      {itemType === 'food' && (
+                                        <span>{item.attributes?.portion_size ? `Porsi: ${item.attributes.portion_size}` : 'Fresh Daily'}{item.attributes?.prep_time ? ` • PO: ${item.attributes.prep_time}` : ''}</span>
+                                      )}
+                                      {itemType === 'physical' && (
+                                        <span>{item.attributes?.condition || 'Baru'}{item.attributes?.weight ? ` • ${item.attributes.weight}g` : ''}{item.attributes?.brand ? ` • ${item.attributes.brand}` : ''}</span>
+                                      )}
+                                      {itemType === 'service' && (
+                                        <span>{item.attributes?.duration || '1 Sesi'}{item.attributes?.service_area ? ` • Area: ${item.attributes.service_area}` : ''}</span>
+                                      )}
+                                      {itemType === 'digital' && (
+                                        <span>{item.attributes?.file_format || 'File'}{item.attributes?.file_size ? ` • ${item.attributes.file_size}` : ''}</span>
+                                      )}
+                                      {itemType === 'fauna' && (
+                                        <span>{item.scientific_name ? <i>{item.scientific_name}</i> : (item.habitat || 'General')}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                      <span style={{
+                                        fontSize: '0.68rem',
+                                        fontWeight: 800,
+                                        padding: '0.15rem 0.5rem',
+                                        borderRadius: '4px',
+                                        backgroundColor: `${typeBadgeBg}20`,
+                                        color: typeBadgeBg === '#ef4444' ? '#f87171' : typeBadgeBg === '#f59e0b' ? '#fbbf24' : typeBadgeBg === '#8b5cf6' ? '#c084fc' : typeBadgeBg === '#10b981' ? '#34d399' : '#60a5fa',
+                                        border: `1px solid ${typeBadgeBg}40`
+                                      }}>
+                                        {item.class}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 800, color: '#ef4444', fontSize: '0.88rem' }}>
+                                      {formatRupiah(item.price)}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                                      {item.attributes?.stock !== undefined ? `Stok: ${item.attributes.stock}` : (item.conservation_status || 'Tersedia')}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {item.is_shipping_available ? (
+                                      <span className="badge badge-least-concern" style={{ fontSize: '0.7rem' }}>Bisa Dikirim</span>
+                                    ) : (
+                                      <span className="badge badge-vulnerable" style={{ fontSize: '0.7rem' }}>Lokal / Pickup</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div className="action-buttons" style={{ display: 'flex', gap: '0.35rem' }}>
+                                      <button 
+                                        className="btn-secondary btn-small"
+                                        onClick={() => fetchDetails(item.id)}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', padding: '0.3rem 0.55rem', fontSize: '0.74rem' }}
+                                        title="Lihat Detail"
+                                      >
+                                        <Eye size={12} />
+                                        Detail
+                                      </button>
+                                      <button 
+                                        className="btn-primary btn-small"
+                                        onClick={() => openEditModal(item)}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', padding: '0.3rem 0.55rem', fontSize: '0.74rem' }}
+                                        title="Edit Item"
+                                      >
+                                        <Edit3 size={12} />
+                                        Edit
+                                      </button>
+                                      <button 
+                                        className="btn-danger btn-small"
+                                        onClick={() => handleFaunaDelete(item.id)}
+                                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.3rem 0.5rem', fontSize: '0.74rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171' }}
+                                        title="Hapus Item"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Desktop Pagination Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      <div>
+                        Menampilkan <strong style={{ color: '#fff' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: '#fff' }}>{filteredAdminItems.length}</strong> total item
+                      </div>
+
+                      {totalAdminPages > 1 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <button 
+                            type="button"
+                            disabled={adminPage === 1}
+                            onClick={() => setAdminPage(prev => Math.max(prev - 1, 1))}
+                            style={{
+                              background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid var(--border-light)',
+                              color: adminPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                              borderRadius: '0.4rem',
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: adminPage === 1 ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            &larr; Prev
+                          </button>
+
+                          {Array.from({ length: totalAdminPages }).map((_, idx) => {
+                            const pageNum = idx + 1;
+                            if (
+                              totalAdminPages > 7 &&
+                              pageNum !== 1 &&
+                              pageNum !== totalAdminPages &&
+                              Math.abs(pageNum - adminPage) > 2
+                            ) {
+                              if (pageNum === 2 && adminPage > 4) {
+                                return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                              }
+                              if (pageNum === totalAdminPages - 1 && adminPage < totalAdminPages - 3) {
+                                return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                              }
+                              return null;
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                key={pageNum}
+                                onClick={() => setAdminPage(pageNum)}
+                                style={{
+                                  border: pageNum === adminPage ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                  backgroundColor: pageNum === adminPage ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
+                                  color: pageNum === adminPage ? '#000000' : 'var(--text-primary)',
+                                  borderRadius: '0.4rem',
+                                  width: '34px',
+                                  height: '34px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  fontSize: '0.78rem',
+                                  fontWeight: pageNum === adminPage ? 800 : 600
+                                }}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+
+                          <button 
+                            type="button"
+                            disabled={adminPage === totalAdminPages}
+                            onClick={() => setAdminPage(prev => Math.min(prev + 1, totalAdminPages))}
+                            style={{
+                              background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid var(--border-light)',
+                              color: adminPage === totalAdminPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                              borderRadius: '0.4rem',
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: adminPage === totalAdminPages ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            Next &rarr;
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               )}
