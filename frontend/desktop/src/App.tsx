@@ -1270,6 +1270,358 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
   );
 }
 
+export const FormattedText: React.FC<{ text?: string; style?: React.CSSProperties; className?: string }> = ({ text, style, className }) => {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
+
+  const renderInlineMarkdown = (str: string): React.ReactNode => {
+    const parts: React.ReactNode[] = [];
+    let idx = 0;
+    const regex = /(\*\*(.*?)\*\*|\*(.*?)\*|__(.*?)__|_(.*?)_|`(.*?)`)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(str)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(str.substring(lastIndex, match.index));
+      }
+      if (match[2] !== undefined) {
+        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[2]}</strong>);
+      } else if (match[4] !== undefined) {
+        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[4]}</strong>);
+      } else if (match[3] !== undefined) {
+        parts.push(<em key={`i-${idx++}`}>{match[3]}</em>);
+      } else if (match[5] !== undefined) {
+        parts.push(<em key={`i2-${idx++}`}>{match[5]}</em>);
+      } else if (match[6] !== undefined) {
+        parts.push(
+          <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(255,255,255,0.08)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary)' }}>
+            {match[6]}
+          </code>
+        );
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < str.length) {
+      parts.push(str.substring(lastIndex));
+    }
+    return parts.length > 0 ? parts : str;
+  };
+
+  const flushList = (key: number) => {
+    if (!currentList) return null;
+    const isUl = currentList.type === 'ul';
+    const listNode = isUl ? (
+      <ul key={`list-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.4rem 0 0.6rem 0', listStyleType: 'disc' }}>
+        {currentList.items.map((item, i) => (
+          <li key={i} style={{ marginBottom: '0.25rem' }}>{renderInlineMarkdown(item)}</li>
+        ))}
+      </ul>
+    ) : (
+      <ol key={`list-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.4rem 0 0.6rem 0' }}>
+        {currentList.items.map((item, i) => (
+          <li key={i} style={{ marginBottom: '0.25rem' }}>{renderInlineMarkdown(item)}</li>
+        ))}
+      </ol>
+    );
+    currentList = null;
+    return listNode;
+  };
+
+  lines.forEach((line, lineIdx) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
+      const itemText = trimmed.replace(/^[-*•]\s+/, '');
+      if (!currentList || currentList.type !== 'ul') {
+        const flushed = flushList(lineIdx);
+        if (flushed) elements.push(flushed);
+        currentList = { type: 'ul', items: [itemText] };
+      } else {
+        currentList.items.push(itemText);
+      }
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      const itemText = trimmed.replace(/^\d+\.\s+/, '');
+      if (!currentList || currentList.type !== 'ol') {
+        const flushed = flushList(lineIdx);
+        if (flushed) elements.push(flushed);
+        currentList = { type: 'ol', items: [itemText] };
+      } else {
+        currentList.items.push(itemText);
+      }
+    } else {
+      const flushed = flushList(lineIdx);
+      if (flushed) elements.push(flushed);
+
+      if (!trimmed) {
+        elements.push(<div key={`empty-${lineIdx}`} style={{ height: '0.5rem' }} />);
+      } else if (trimmed.startsWith('### ')) {
+        elements.push(
+          <h4 key={`h3-${lineIdx}`} style={{ fontSize: '0.98rem', fontWeight: 800, margin: '0.7rem 0 0.3rem 0', color: 'var(--text-primary)' }}>
+            {renderInlineMarkdown(trimmed.replace(/^###\s+/, ''))}
+          </h4>
+        );
+      } else if (trimmed.startsWith('## ')) {
+        elements.push(
+          <h3 key={`h2-${lineIdx}`} style={{ fontSize: '1.08rem', fontWeight: 800, margin: '0.85rem 0 0.35rem 0', color: 'var(--text-primary)' }}>
+            {renderInlineMarkdown(trimmed.replace(/^##\s+/, ''))}
+          </h3>
+        );
+      } else if (trimmed.startsWith('# ')) {
+        elements.push(
+          <h2 key={`h1-${lineIdx}`} style={{ fontSize: '1.2rem', fontWeight: 800, margin: '1rem 0 0.4rem 0', color: 'var(--text-primary)' }}>
+            {renderInlineMarkdown(trimmed.replace(/^#\s+/, ''))}
+          </h2>
+        );
+      } else {
+        elements.push(
+          <div key={`p-${lineIdx}`} style={{ lineHeight: '1.6', marginBottom: '0.2rem' }}>
+            {renderInlineMarkdown(line)}
+          </div>
+        );
+      }
+    }
+  });
+
+  const finalFlush = flushList(lines.length);
+  if (finalFlush) elements.push(finalFlush);
+
+  return (
+    <div style={{ wordBreak: 'break-word', ...style }} className={className}>
+      {elements}
+    </div>
+  );
+};
+
+export interface RichTextareaProps {
+  label?: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  rows?: number;
+  required?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+  showPreviewToggle?: boolean;
+}
+
+export const RichTextarea: React.FC<RichTextareaProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  rows = 3,
+  required = false,
+  className = "form-textarea",
+  style,
+  showPreviewToggle = true
+}) => {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const applyFormat = (prefix: string, suffix: string, defaultText: string) => {
+    const el = textareaRef.current;
+    if (!el) {
+      onChange((value || '') + `${prefix}${defaultText}${suffix}`);
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = (value || '').substring(start, end);
+    const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${defaultText}${suffix}`;
+    const newValue = (value || '').substring(0, start) + replacement + (value || '').substring(end);
+    onChange(newValue);
+    setTimeout(() => {
+      el.focus();
+      const newCursor = selected ? start + prefix.length + selected.length + suffix.length : start + prefix.length;
+      el.setSelectionRange(newCursor, newCursor + (selected ? 0 : defaultText.length));
+    }, 0);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', ...style }}>
+      {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
+      
+      {/* Formatting Helper Toolbar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0.35rem 0.65rem',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        border: '1px solid var(--border-light)',
+        borderBottom: 'none',
+        borderTopLeftRadius: '0.5rem',
+        borderTopRightRadius: '0.5rem',
+        gap: '0.35rem',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            title="Teks Tebal (Bold)"
+            onClick={() => applyFormat('**', '**', 'teks tebal')}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '4px',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              color: 'var(--text-primary)',
+              fontSize: '0.8rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              lineHeight: 1.2
+            }}
+          >
+            <strong>B</strong>
+          </button>
+          <button
+            type="button"
+            title="Teks Miring (Italic)"
+            onClick={() => applyFormat('*', '*', 'teks miring')}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '4px',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              color: 'var(--text-primary)',
+              fontSize: '0.8rem',
+              fontStyle: 'italic',
+              fontWeight: 600,
+              cursor: 'pointer',
+              lineHeight: 1.2
+            }}
+          >
+            <em>I</em>
+          </button>
+          <button
+            type="button"
+            title="Daftar Poin (Bullet List)"
+            onClick={() => applyFormat('\n- ', '', 'Poin list')}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '4px',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              color: 'var(--text-primary)',
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              lineHeight: 1.2
+            }}
+          >
+            • List
+          </button>
+          <button
+            type="button"
+            title="Daftar Angka (Numbered List)"
+            onClick={() => applyFormat('\n1. ', '', 'Langkah')}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '4px',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              color: 'var(--text-primary)',
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              lineHeight: 1.2
+            }}
+          >
+            1. List
+          </button>
+          <button
+            type="button"
+            title="Judul Bagian (Heading H3)"
+            onClick={() => applyFormat('\n### ', '\n', 'Judul Bagian')}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '4px',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              color: 'var(--text-primary)',
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              lineHeight: 1.2
+            }}
+          >
+            H3
+          </button>
+        </div>
+
+        {showPreviewToggle && (
+          <button
+            type="button"
+            onClick={() => setShowPreview(!showPreview)}
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '4px',
+              border: showPreview ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+              backgroundColor: showPreview ? 'var(--primary-glow)' : 'transparent',
+              color: showPreview ? 'var(--primary)' : 'var(--text-secondary)',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              lineHeight: 1.2
+            }}
+          >
+            <Eye size={13} /> {showPreview ? 'Sembunyikan Preview' : 'Preview Tampilan'}
+          </button>
+        )}
+      </div>
+
+      {/* Actual Textarea */}
+      <textarea
+        ref={textareaRef}
+        rows={rows}
+        className={className}
+        style={{
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          marginTop: 0,
+          fontFamily: 'inherit',
+          lineHeight: 1.6,
+          fontSize: '0.88rem'
+        }}
+        placeholder={placeholder}
+        required={required}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+      />
+
+      {/* Live Preview Pane */}
+      {showPreview && (
+        <div style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.25)',
+          border: '1px dashed var(--primary)',
+          borderRadius: '0.5rem',
+          padding: '0.85rem',
+          marginTop: '0.25rem',
+          fontSize: '0.88rem',
+          color: 'var(--text-primary)'
+        }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: '0.4rem', letterSpacing: '0.04em' }}>
+            🔍 Pratinjau Tampilan Konsumen:
+          </div>
+          {(value || '').trim() ? (
+            <FormattedText text={value} />
+          ) : (
+            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.8rem' }}>
+              Belum ada teks yang ditulis. Ketik sesuatu atau gunakan tombol format di atas.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const renderStoreLogo = (logoUrl: string | undefined, className = '', size = 24, style = {}) => {
   const mergedStyle = { ...style, flexShrink: 0 };
   if (logoUrl) {
@@ -8412,9 +8764,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {selectedFauna.description && (
                   <div style={{ marginBottom: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Deskripsi</h3>
-                    <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                      {selectedFauna.description}
-                    </p>
+                    <FormattedText 
+                      text={selectedFauna.description} 
+                      style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: '1.6' }} 
+                    />
                   </div>
                 )}
 
@@ -8435,9 +8788,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-hover)', fontWeight: 700, marginBottom: '0.35rem' }}>
                           {selectedFauna.product_type === 'service' ? 'Ketentuan & Jadwal Layanan' : (selectedFauna.product_type === 'digital' ? 'Panduan Akses File' : (selectedFauna.product_type === 'food' ? 'Ketentuan Pemesanan & Penyajian' : 'Ketentuan Pengiriman'))}
                         </h4>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-                          {selectedFauna.detailed_info.shipping_terms}
-                        </p>
+                        <FormattedText 
+                          text={selectedFauna.detailed_info.shipping_terms} 
+                          style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.55' }} 
+                        />
                       </div>
                     )}
                     {selectedFauna.detailed_info?.warranty_info && (
@@ -8445,9 +8799,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <h4 style={{ fontSize: '0.85rem', color: 'var(--secondary)', fontWeight: 700, marginBottom: '0.35rem' }}>
                           {selectedFauna.product_type === 'digital' ? 'Ketentuan Lisensi' : (selectedFauna.product_type === 'fauna' ? 'Garansi Live Arrival (D.O.A)' : (selectedFauna.product_type === 'food' ? 'Petunjuk Penyimpanan' : 'Kebijakan Garansi'))}
                         </h4>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-                          {selectedFauna.detailed_info.warranty_info}
-                        </p>
+                        <FormattedText 
+                          text={selectedFauna.detailed_info.warranty_info} 
+                          style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.55' }} 
+                        />
                       </div>
                     )}
                   </div>
@@ -14110,38 +14465,30 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {/* Unified Pengiriman & Ketentuan Packing */}
                   {typeConfig.warrantyLabel ? (
                     <div className="form-row">
-                      <div className="form-group">
-                        <label className="form-label">{typeConfig.deliveryTermsLabel}</label>
-                        <textarea 
-                          rows={2} 
-                          className="form-textarea" 
-                          placeholder={typeConfig.deliveryTermsPlaceholder}
-                          value={crudForm.shipping_terms}
-                          onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{typeConfig.warrantyLabel}</label>
-                        <textarea 
-                          rows={2} 
-                          className="form-textarea" 
-                          placeholder={typeConfig.warrantyPlaceholder}
-                          value={crudForm.warranty_info}
-                          onChange={(e) => setCrudForm({ ...crudForm, warranty_info: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="form-group" style={{ marginBottom: '1rem' }}>
-                      <label className="form-label">{typeConfig.deliveryTermsLabel}</label>
-                      <textarea 
+                      <RichTextarea 
+                        label={typeConfig.deliveryTermsLabel}
                         rows={2} 
-                        className="form-textarea" 
                         placeholder={typeConfig.deliveryTermsPlaceholder}
                         value={crudForm.shipping_terms}
-                        onChange={(e) => setCrudForm({ ...crudForm, shipping_terms: e.target.value })}
+                        onChange={(val) => setCrudForm({ ...crudForm, shipping_terms: val })}
+                      />
+                      <RichTextarea 
+                        label={typeConfig.warrantyLabel}
+                        rows={2} 
+                        placeholder={typeConfig.warrantyPlaceholder}
+                        value={crudForm.warranty_info}
+                        onChange={(val) => setCrudForm({ ...crudForm, warranty_info: val })}
                       />
                     </div>
+                  ) : (
+                    <RichTextarea 
+                      label={typeConfig.deliveryTermsLabel}
+                      rows={2} 
+                      placeholder={typeConfig.deliveryTermsPlaceholder}
+                      value={crudForm.shipping_terms}
+                      onChange={(val) => setCrudForm({ ...crudForm, shipping_terms: val })}
+                      style={{ marginBottom: '1rem' }}
+                    />
                   )}
 
                   {/* Link Pembelian Marketplace (Opsional) */}
@@ -14252,17 +14599,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
 
                   {/* Deskripsi */}
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">{typeConfig.descLabel}</label>
-                    <textarea 
-                      rows={4} 
-                      className="form-textarea" 
-                      placeholder={typeConfig.descPlaceholder}
-                      required={crudForm.product_type !== 'food'}
-                      value={crudForm.description}
-                      onChange={(e) => setCrudForm({ ...crudForm, description: e.target.value })}
-                    />
-                  </div>
+                  <RichTextarea 
+                    label={typeConfig.descLabel}
+                    rows={4} 
+                    placeholder={typeConfig.descPlaceholder}
+                    required={crudForm.product_type !== 'food'}
+                    value={crudForm.description}
+                    onChange={(val) => setCrudForm({ ...crudForm, description: val })}
+                  />
                 </form>
               </div>
 
