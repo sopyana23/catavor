@@ -848,16 +848,16 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         modalSubtitle: 'Lengkapi takaran porsi/kemasan, masa simpan, suhu penyimpanan, dan metode pengiriman.',
         nameLabel: 'Nama Produk Kuliner / Menu *',
         namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Cold Brew Coffee / Frozen Dimsum 20pcs / Bumbu Rendang...',
-        categoryLabel: 'Kategori Produk Kuliner *',
-        defaultCategory: 'Makanan Siap Santap',
+        categoryLabel: 'Kategori Menu / Toko *',
+        defaultCategory: 'Makanan Utama (Main Course)',
         categoryOptions: [
-          'Makanan Siap Santap',
+          'Makanan Utama (Main Course)',
+          'Dessert & Manisan',
           'Minuman & Olahan Kopi',
-          'Makanan Beku & Olahan (Frozen)',
-          'Camilan, Snack & Kue Kering',
+          'Camilan & Kudapan (Appetizer)',
           'Bakery, Roti & Pastry',
-          'Bumbu & Bahan Masak',
-          'Katering & Paket Pesanan',
+          'Makanan Beku (Frozen)',
+          'Paket Hemat & Bundling',
           'Lainnya'
         ],
         priceLabel: 'Harga Satuan (IDR) *',
@@ -3469,7 +3469,7 @@ function App() {
   })
   const [editorTab, setEditorTab] = useState<'compose' | 'html' | 'preview'>('compose')
 
-  // Search & Filters
+  // Search & Filters (Multi-Type Hybrid Catalog Support)
   const [search, setSearch] = useState<string>('')
   const [classFilter, setClassFilter] = useState<string>('all')
   const [habitatFilter, setHabitatFilter] = useState<string>('all')
@@ -3477,19 +3477,34 @@ function App() {
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
   const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
 
-  // Dynamically derived filter options & filtered items strictly from store items
-  const availableCategories = useMemo(() => {
-    const cats = faunas.map(f => f.class).filter(Boolean);
-    return Array.from(new Set(cats));
-  }, [faunas]);
-
-  const availableSubTypes = useMemo(() => {
-    const types = faunas.map(f => f.habitat).filter(Boolean);
+  // Available Product Types in this store
+  const availableProductTypes = useMemo(() => {
+    const types = faunas.map(f => (f.product_type || 'physical') as ItemCategoryType).filter(Boolean);
     return Array.from(new Set(types));
   }, [faunas]);
 
+  const isHybridStore = availableProductTypes.length > 1;
+
+  // Dynamically derived filter options & filtered items strictly from store items (filtered by active product type)
+  const availableCategories = useMemo(() => {
+    const scopedFaunas = productTypeFilter === 'all' 
+      ? faunas 
+      : faunas.filter(f => (f.product_type || 'physical') === productTypeFilter);
+    const cats = scopedFaunas.map(f => f.class).filter(Boolean);
+    return Array.from(new Set(cats));
+  }, [faunas, productTypeFilter]);
+
+  const availableSubTypes = useMemo(() => {
+    const scopedFaunas = productTypeFilter === 'all' 
+      ? faunas 
+      : faunas.filter(f => (f.product_type || 'physical') === productTypeFilter);
+    const types = scopedFaunas.map(f => f.habitat).filter(Boolean);
+    return Array.from(new Set(types));
+  }, [faunas, productTypeFilter]);
+
   const filteredFaunas = useMemo(() => {
     return faunas.filter(item => {
+      const itemType = item.product_type || 'physical';
       const matchesSearch = !search.trim() || 
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         (item.scientific_name && item.scientific_name.toLowerCase().includes(search.toLowerCase())) ||
@@ -3497,7 +3512,7 @@ function App() {
       
       const matchesClass = classFilter === 'all' || item.class === classFilter;
       const matchesHabitat = habitatFilter === 'all' || item.habitat === habitatFilter;
-      const matchesProductType = productTypeFilter === 'all' || (item.product_type || 'physical') === productTypeFilter;
+      const matchesProductType = productTypeFilter === 'all' || itemType === productTypeFilter;
 
       return matchesSearch && matchesClass && matchesHabitat && matchesProductType;
     });
@@ -3627,6 +3642,7 @@ function App() {
       expired_info: '7 Hari',
       storage_temp: 'Suhu Ruang',
       certification: 'Halal',
+      culinary_type: 'Makanan Siap Santap',
       min_purchase: '1 Pcs',
       max_purchase: ''
     } as Record<string, any>
@@ -5702,6 +5718,7 @@ function App() {
         min_order: '',
         delivery_service: 'Mobil Antar Toko / Kurir Khusus',
         taste_options: '',
+        culinary_type: 'Makanan Siap Santap',
         min_purchase: '1 Pcs',
         max_purchase: ''
       }
@@ -5784,6 +5801,7 @@ function App() {
         min_order: item.attributes?.min_order || '',
         delivery_service: item.attributes?.delivery_service || 'Mobil Antar Toko / Kurir Khusus',
         taste_options: item.attributes?.taste_options || '',
+        culinary_type: item.attributes?.culinary_type || (CULINARY_SMART_PRESETS[item.class] ? item.class : 'Makanan Siap Santap'),
         min_purchase: item.attributes?.min_purchase ?? '1 Pcs',
         max_purchase: item.attributes?.max_purchase ?? ''
       }
@@ -9042,33 +9060,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           setCustomClass('');
                         } else {
                           setShowCustomClassInput(false);
-                          const preset = CULINARY_SMART_PRESETS[newClass];
-                          if (crudForm.product_type === 'food' && preset) {
-                            setCrudForm(prev => ({
-                              ...prev,
-                              class: newClass,
-                              shipping_coverage: preset.defaultShipping,
-                              attributes: {
-                                ...prev.attributes,
-                                storage_temp: preset.defaultStorageTemp,
-                                expired_info: preset.defaultExpiredInfo
-                              }
-                            }));
-                          } else {
-                            setCrudForm(prev => ({ ...prev, class: newClass }));
-                          }
+                          setCrudForm(prev => ({ ...prev, class: newClass }));
                         }
                       }}
                     >
                       {typeConfig.categoryOptions.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
-                      {crudForm.product_type !== 'food' && (
-                        <option value="__NEW__">+ Tambah Kategori Baru...</option>
-                      )}
+                      {getUniqueClasses().filter(c => !typeConfig.categoryOptions.includes(c)).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="__NEW__">+ Tambah Kategori Baru...</option>
                     </select>
                   </div>
-                  {crudForm.product_type !== 'food' && showCustomClassInput && (
+                  {showCustomClassInput && (
                     <input
                       type="text"
                       className="form-input"
@@ -9320,19 +9325,51 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 )}
 
                 {/* 5. PRODUK KULINER (F&B) - DYNAMIC CONTEXT-AWARE SUB-FORMS */}
-                {crudForm.product_type === 'food' && (
+                {crudForm.product_type === 'food' && (() => {
+                  const activeCulinaryType = crudForm.attributes.culinary_type || (CULINARY_SMART_PRESETS[crudForm.class] ? crudForm.class : 'Makanan Siap Santap');
+                  return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'rgba(220, 38, 38, 0.05)', border: '1px solid rgba(220, 38, 38, 0.2)', padding: '0.75rem', borderRadius: '0.75rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem', borderBottom: '1px solid rgba(220, 38, 38, 0.15)', paddingBottom: '0.35rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                        🍔 {crudForm.class}
+                        🍔 Karakteristik &amp; Spesifikasi Kuliner
                       </span>
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                        Form Adaptif
+                        Menu: <strong style={{ color: '#fff' }}>{crudForm.class}</strong>
                       </span>
                     </div>
 
+                    {/* Dropdown Pemilihan Karakteristik Kuliner */}
+                    <div className="form-group" style={{ marginBottom: '0.35rem' }}>
+                      <label className="form-label" style={{ marginBottom: '0.25rem' }}>Tipe Karakteristik Kuliner *</label>
+                      <select
+                        className="form-select"
+                        style={{ height: '42px', fontSize: '0.85rem' }}
+                        value={activeCulinaryType}
+                        onChange={(e) => {
+                          const newType = e.target.value;
+                          const preset = CULINARY_SMART_PRESETS[newType];
+                          setCrudForm(prev => ({
+                            ...prev,
+                            shipping_coverage: preset ? preset.defaultShipping : prev.shipping_coverage,
+                            attributes: {
+                              ...prev.attributes,
+                              culinary_type: newType,
+                              storage_temp: preset ? preset.defaultStorageTemp : prev.attributes.storage_temp,
+                              expired_info: preset ? preset.defaultExpiredInfo : prev.attributes.expired_info
+                            }
+                          }));
+                        }}
+                      >
+                        {Object.keys(CULINARY_SMART_PRESETS).map(typeKey => (
+                          <option key={typeKey} value={typeKey}>
+                            {CULINARY_SMART_PRESETS[typeKey].badgeEmoji} {typeKey}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     {/* SUB-FORM 1: Makanan Siap Santap */}
-                    {crudForm.class === 'Makanan Siap Santap' && (
+                    {activeCulinaryType === 'Makanan Siap Santap' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9402,7 +9439,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 2: Makanan Beku & Olahan (Frozen) */}
-                    {crudForm.class === 'Makanan Beku & Olahan (Frozen)' && (
+                    {activeCulinaryType === 'Makanan Beku & Olahan (Frozen)' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9472,7 +9509,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 3: Minuman & Olahan Kopi */}
-                    {crudForm.class === 'Minuman & Olahan Kopi' && (
+                    {activeCulinaryType === 'Minuman & Olahan Kopi' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9542,7 +9579,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 4: Camilan, Snack & Kue Kering */}
-                    {crudForm.class === 'Camilan, Snack & Kue Kering' && (
+                    {activeCulinaryType === 'Camilan, Snack & Kue Kering' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9611,7 +9648,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 5: Bakery, Roti & Pastry */}
-                    {crudForm.class === 'Bakery, Roti & Pastry' && (
+                    {activeCulinaryType === 'Bakery, Roti & Pastry' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9681,7 +9718,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 6: Bumbu & Bahan Masak */}
-                    {crudForm.class === 'Bumbu & Bahan Masak' && (
+                    {activeCulinaryType === 'Bumbu & Bahan Masak' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9751,7 +9788,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 7: Katering & Paket Pesanan */}
-                    {crudForm.class === 'Katering & Paket Pesanan' && (
+                    {activeCulinaryType === 'Katering & Paket Pesanan' && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9820,7 +9857,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
 
                     {/* SUB-FORM 8: Lainnya */}
-                    {(crudForm.class === 'Lainnya' || !['Makanan Siap Santap', 'Makanan Beku & Olahan (Frozen)', 'Minuman & Olahan Kopi', 'Camilan, Snack & Kue Kering', 'Bakery, Roti & Pastry', 'Bumbu & Bahan Masak', 'Katering & Paket Pesanan'].includes(crudForm.class)) && (
+                    {(activeCulinaryType === 'Lainnya' || !['Makanan Siap Santap', 'Makanan Beku & Olahan (Frozen)', 'Minuman & Olahan Kopi', 'Camilan, Snack & Kue Kering', 'Bakery, Roti & Pastry', 'Bumbu & Bahan Masak', 'Katering & Paket Pesanan'].includes(activeCulinaryType)) && (
                       <>
                         <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -9879,7 +9916,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </>
                     )}
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Multi-image upload section */}
                 <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
@@ -11442,111 +11480,123 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           onChange={(e) => setSearch(e.target.value)}
                         />
                       </div>
-                      {/* Product Type Filter Tabs */}
-                      <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.4rem', marginBottom: '0.65rem', WebkitOverflowScrolling: 'touch' }}>
-                        <button
-                          type="button"
-                          onClick={() => setProductTypeFilter('all')}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                            color: productTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
-                          }}
-                        >
-                          Semua Produk
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProductTypeFilter('physical')}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: productTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-                            color: productTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          📦 Barang
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProductTypeFilter('digital')}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: productTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
-                            color: productTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          💾 Digital
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProductTypeFilter('fauna')}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: productTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
-                            color: productTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          🐾 Hewan
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProductTypeFilter('service')}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: productTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
-                            color: productTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
-                          }}
-                        >
-                          🛠️ Jasa
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProductTypeFilter('food')}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: productTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
-                            color: productTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          🍱 Makanan
-                        </button>
-                      </div>
+                      {/* Product Type Filter Tabs (Only shown if store has multiple types) */}
+                      {isHybridStore && (
+                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.4rem', marginBottom: '0.65rem', WebkitOverflowScrolling: 'touch' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); }}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '20px',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                              color: productTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
+                            }}
+                          >
+                            ✨ Semua ({faunas.length})
+                          </button>
+                          {availableProductTypes.includes('physical') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: productTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+                                color: productTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              📦 Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('food') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: productTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
+                                color: productTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              🍔 Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('service') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: productTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
+                                color: productTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
+                              }}
+                            >
+                              💼 Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('digital') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: productTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
+                                color: productTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              💾 Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('fauna') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: productTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
+                                color: productTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              🐾 Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       <div className="filters-row">
                         <select 
@@ -11554,7 +11604,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           value={classFilter}
                           onChange={(e) => setClassFilter(e.target.value)}
                         >
-                          <option value="all">Semua Kategori</option>
+                          <option value="all">Semua Kategori ({availableCategories.length})</option>
                           {availableCategories.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
                           ))}
@@ -11576,11 +11626,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       /* SEARCH NO RESULTS EMPTY STATE */
                       <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem' }}>
                         <Search size={36} style={{ marginBottom: '0.65rem', color: 'var(--text-muted)' }} />
-                        <h3 style={{ color: '#fff', fontSize: '1rem', fontWeight: 800, marginBottom: '0.25rem' }}>Produk Tidak Ditemukan</h3>
-                        <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Tidak ada item yang sesuai dengan kata kunci "{search}".</p>
+                        <h3 style={{ color: '#fff', fontSize: '1rem', fontWeight: 800, marginBottom: '0.25rem' }}>Item Tidak Ditemukan</h3>
+                        <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Tidak ada item yang sesuai dengan kriteria pencarian atau filter katalog Anda.</p>
                         <button 
                           className="btn-secondary" 
-                          onClick={() => { setSearch(''); setClassFilter('all'); setHabitatFilter('all'); }}
+                          onClick={() => { setSearch(''); setClassFilter('all'); setHabitatFilter('all'); setProductTypeFilter('all'); }}
                           style={{ marginTop: '1rem', padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 700, borderRadius: '0.45rem' }}
                         >
                           Reset Filter Pencarian
@@ -11668,7 +11718,18 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                              <span style={{ fontSize: '0.6rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                padding: '0.12rem 0.45rem',
+                                borderRadius: '5px',
+                                backgroundColor: (item.product_type === 'food' ? '#ef4444' : item.product_type === 'service' ? '#f59e0b' : item.product_type === 'digital' ? '#8b5cf6' : item.product_type === 'fauna' ? '#10b981' : '#3b82f6') + '22',
+                                color: item.product_type === 'food' ? '#f87171' : item.product_type === 'service' ? '#fbbf24' : item.product_type === 'digital' ? '#c084fc' : item.product_type === 'fauna' ? '#34d399' : '#60a5fa',
+                                border: `1px solid ${(item.product_type === 'food' ? '#ef4444' : item.product_type === 'service' ? '#f59e0b' : item.product_type === 'digital' ? '#8b5cf6' : item.product_type === 'fauna' ? '#10b981' : '#3b82f6')}40`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}>
                                 {item.class}
                               </span>
                             </div>
