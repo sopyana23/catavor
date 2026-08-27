@@ -341,7 +341,7 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 	}
 
 	// Auto-append master values to store if new
-	h.autoUpdateStoreMaster(store, class, habitat, status)
+	h.autoUpdateStoreMaster(store, productType, class, habitat, status)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -424,7 +424,7 @@ func (h *FaunaHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	h.autoUpdateStoreMaster(store, fauna.Class, fauna.Habitat, fauna.ConservationStatus)
+	h.autoUpdateStoreMaster(store, fauna.ProductType, fauna.Class, fauna.Habitat, fauna.ConservationStatus)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -459,9 +459,14 @@ func (h *FaunaHandler) Destroy(c *fiber.Ctx) error {
 	})
 }
 
-func (h *FaunaHandler) autoUpdateStoreMaster(store *models.Store, class, habitat, status string) {
+func (h *FaunaHandler) autoUpdateStoreMaster(store *models.Store, productType, class, habitat, status string) {
 	updated := false
 	if class != "" {
+		pType := strings.ToLower(strings.TrimSpace(productType))
+		if pType == "" {
+			pType = "physical"
+		}
+		store.MasterCategories = appendMasterCategory(store.MasterCategories, pType, class)
 		store.MasterClasses = appendJSONString(store.MasterClasses, class)
 		updated = true
 	}
