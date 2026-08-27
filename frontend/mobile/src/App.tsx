@@ -13137,70 +13137,26 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               </div>
                             </div>
 
-                            {/* Right: Actions */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                            {/* Right: Action */}
+                            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                               <button 
                                 type="button"
+                                className="btn-secondary"
                                 onClick={() => openDetailsSheet(item.id)}
                                 style={{
-                                  padding: '0.32rem 0.5rem',
-                                  borderRadius: '0.4rem',
-                                  fontSize: '0.72rem',
+                                  padding: '0.35rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  fontSize: '0.74rem',
                                   fontWeight: 700,
                                   display: 'flex',
                                   alignItems: 'center',
-                                  gap: '0.2rem',
-                                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                                  border: '1px solid var(--border-light)',
-                                  color: 'var(--text-primary)',
+                                  gap: '0.25rem',
                                   cursor: 'pointer'
                                 }}
                                 title="Detail Item"
                               >
-                                <Eye size={12} />
+                                <Eye size={13} />
                                 <span>Detail</span>
-                              </button>
-
-                              <button 
-                                type="button"
-                                onClick={() => openEditSheet(item)}
-                                style={{
-                                  padding: '0.32rem 0.5rem',
-                                  borderRadius: '0.4rem',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.2rem',
-                                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                                  color: '#3b82f6',
-                                  cursor: 'pointer'
-                                }}
-                                title="Edit Item"
-                              >
-                                <Edit3 size={12} />
-                                <span>Edit</span>
-                              </button>
-
-                              <button 
-                                type="button"
-                                onClick={() => setFaunaToDelete(item)}
-                                style={{
-                                  padding: '0.32rem 0.45rem',
-                                  borderRadius: '0.4rem',
-                                  fontSize: '0.72rem',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                                  color: '#ef4444',
-                                  cursor: 'pointer'
-                                }}
-                                title="Hapus Item"
-                              >
-                                <Trash2 size={12} />
                               </button>
                             </div>
                           </div>
