@@ -13133,25 +13133,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   <span style={{ fontSize: '0.84rem', color: '#ef4444', fontWeight: 800 }}>
                                     {formatRupiah(item.price)}
                                   </span>
-                                  {item.attributes?.stock !== undefined ? (
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      fontWeight: 600,
-                                      color: item.attributes.stock > 0 ? '#10b981' : '#ef4444',
-                                      whiteSpace: 'nowrap'
-                                    }}>
-                                      • Stok: {item.attributes.stock}
-                                    </span>
-                                  ) : (
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      fontWeight: 600,
-                                      color: '#10b981',
-                                      whiteSpace: 'nowrap'
-                                    }}>
-                                      • {item.conservation_status || 'Ready'}
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </div>

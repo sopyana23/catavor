@@ -10171,7 +10171,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <th style={{ width: '70px' }}>Foto</th>
                             <th>Nama Item &amp; Spesifikasi</th>
                             <th>Kategori &amp; Tipe</th>
-                            <th>Harga &amp; Stok</th>
+                            <th>Harga</th>
                             <th>Pengiriman / Akses</th>
                             <th style={{ width: '170px' }}>Aksi</th>
                           </tr>
@@ -10250,9 +10250,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   <td>
                                     <div style={{ fontWeight: 800, color: '#ef4444', fontSize: '0.88rem' }}>
                                       {formatRupiah(item.price)}
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                                      {item.attributes?.stock !== undefined ? `Stok: ${item.attributes.stock}` : (item.conservation_status || 'Tersedia')}
                                     </div>
                                   </td>
                                   <td>
