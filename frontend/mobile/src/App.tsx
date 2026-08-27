@@ -3523,9 +3523,57 @@ function App() {
   const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
   const [displayLimit, setDisplayLimit] = useState<number>(6)
 
-  const ITEMS_PER_PAGE = 5
-  const totalItemsPages = Math.ceil(faunas.length / ITEMS_PER_PAGE)
-  const paginatedItems = faunas.slice((itemsPage - 1) * ITEMS_PER_PAGE, itemsPage * ITEMS_PER_PAGE)
+  // Admin Inventory State & Server/Client-Side Filtering
+  const [adminSearch, setAdminSearch] = useState<string>('')
+  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna'>('all')
+  const [adminClassFilter, setAdminClassFilter] = useState<string>('all')
+  const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
+  const [adminItemsPerPage, setAdminItemsPerPage] = useState<number>(10)
+
+  // Available categories for admin inventory scoped to active product type
+  const availableAdminCategories = useMemo(() => {
+    const list = faunas
+      .filter(f => adminProductTypeFilter === 'all' || (f.product_type || 'physical') === adminProductTypeFilter)
+      .map(f => f.class)
+      .filter(Boolean);
+    return Array.from(new Set(list));
+  }, [faunas, adminProductTypeFilter]);
+
+  // Filtered & Sorted Admin Inventory Items
+  const filteredAdminItems = useMemo(() => {
+    let result = faunas.filter((item) => {
+      const itemType = (item.product_type || 'physical') as ItemCategoryType;
+      const matchesSearch = !adminSearch.trim() ||
+        item.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
+        (item.scientific_name && item.scientific_name.toLowerCase().includes(adminSearch.toLowerCase())) ||
+        (item.class && item.class.toLowerCase().includes(adminSearch.toLowerCase())) ||
+        (item.description && item.description.toLowerCase().includes(adminSearch.toLowerCase()));
+
+      const matchesType = adminProductTypeFilter === 'all' || itemType === adminProductTypeFilter;
+      const matchesClass = adminClassFilter === 'all' || item.class === adminClassFilter;
+
+      return matchesSearch && matchesType && matchesClass;
+    });
+
+    // Sorting
+    result = [...result].sort((a, b) => {
+      if (adminSortBy === 'oldest') return a.id - b.id;
+      if (adminSortBy === 'name_asc') return a.name.localeCompare(b.name);
+      if (adminSortBy === 'price_asc') return a.price - b.price;
+      if (adminSortBy === 'price_desc') return b.price - a.price;
+      return b.id - a.id; // newest first default
+    });
+
+    return result;
+  }, [faunas, adminSearch, adminProductTypeFilter, adminClassFilter, adminSortBy]);
+
+  const totalAdminPages = Math.max(1, Math.ceil(filteredAdminItems.length / adminItemsPerPage));
+  const paginatedAdminItems = useMemo(() => {
+    return filteredAdminItems.slice((itemsPage - 1) * adminItemsPerPage, itemsPage * adminItemsPerPage);
+  }, [filteredAdminItems, itemsPage, adminItemsPerPage]);
+
+  const totalItemsPages = totalAdminPages;
+  const paginatedItems = paginatedAdminItems;
 
   const ARTICLES_PER_PAGE = 5
   const totalArticlesPages = Math.ceil(articles.length / ARTICLES_PER_PAGE)
@@ -12773,113 +12821,503 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               )}
 
               {adminSubTab === 'items' && (
-                /* TAB 1: LISTING */
-                <div style={{ paddingTop: '0.25rem' }}>
+                /* TAB 1: ADMIN INVENTORY MANAGEMENT (SEARCH, MULTI-TYPE PILLS, RICH CARDS, SERVER-SIDE PAGINATION) */
+                <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  
+                  {/* 1. TOP SEARCH BAR */}
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input 
+                      type="text"
+                      className="form-input"
+                      placeholder="Cari nama item, kategori, atau deskripsi..."
+                      value={adminSearch}
+                      onChange={(e) => {
+                        setAdminSearch(e.target.value);
+                        setItemsPage(1);
+                      }}
+                      style={{
+                        paddingLeft: '2.35rem',
+                        paddingRight: adminSearch ? '2.2rem' : '0.85rem',
+                        height: '40px',
+                        fontSize: '0.82rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--card-bg-gradient)',
+                        border: '1px solid var(--border-light)'
+                      }}
+                    />
+                    {adminSearch && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdminSearch(''); setItemsPage(1); }}
+                        style={{
+                          position: 'absolute',
+                          right: '0.65rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 2. LEVEL-1 QUICK-PILLS: TIPE PRODUK */}
+                  <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', WebkitOverflowScrolling: 'touch' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '20px',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                        color: adminProductTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
+                      }}
+                    >
+                      ✨ Semua ({faunas.length})
+                    </button>
+                    {availableProductTypes.includes('physical') && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setItemsPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+                          color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                        }}
+                      >
+                        📦 Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                      </button>
+                    )}
+                    {availableProductTypes.includes('food') && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setItemsPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
+                          color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                        }}
+                      >
+                        🍔 Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                      </button>
+                    )}
+                    {availableProductTypes.includes('service') && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setItemsPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
+                          color: adminProductTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
+                        }}
+                      >
+                        💼 Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                      </button>
+                    )}
+                    {availableProductTypes.includes('digital') && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setItemsPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
+                          color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                        }}
+                      >
+                        💾 Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                      </button>
+                    )}
+                    {availableProductTypes.includes('fauna') && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setItemsPage(1); }}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
+                          color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                        }}
+                      >
+                        🐾 Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 3. LEVEL-2 SECONDARY FILTER & SORT ROW */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
+                    <select
+                      className="form-select"
+                      value={adminClassFilter}
+                      onChange={(e) => { setAdminClassFilter(e.target.value); setItemsPage(1); }}
+                      style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)' }}
+                    >
+                      <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
+                      {availableAdminCategories.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="form-select"
+                      value={adminSortBy}
+                      onChange={(e) => { setAdminSortBy(e.target.value as any); setItemsPage(1); }}
+                      style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)' }}
+                    >
+                      <option value="newest">Terbaru</option>
+                      <option value="oldest">Terlama</option>
+                      <option value="name_asc">Nama (A-Z)</option>
+                      <option value="price_asc">Harga Terendah</option>
+                      <option value="price_desc">Harga Tertinggi</option>
+                    </select>
+                  </div>
+
+                  {/* 4. SUMMARY BAR */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.1rem 0.2rem' }}>
+                    <span>
+                      Menampilkan <strong style={{ color: '#fff' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: '#fff' }}>{filteredAdminItems.length}</strong> item
+                    </span>
+                    {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSearch('');
+                          setAdminProductTypeFilter('all');
+                          setAdminClassFilter('all');
+                          setAdminSortBy('newest');
+                          setItemsPage(1);
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
+                      >
+                        Reset Filter
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 5. ITEM CARDS LIST */}
                   {faunas.length === 0 ? (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textAlign: 'center', padding: '2rem' }}>Belum ada hewan terdaftar.</p>
+                    <div className="glass-panel" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem' }}>
+                      <Database size={36} style={{ marginBottom: '0.65rem', color: 'var(--text-muted)' }} />
+                      <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Belum Ada Item Terdaftar</h4>
+                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '0 0 1rem 0' }}>Mulai tambahkan produk, menu, jasa, atau file digital pertama Anda.</p>
+                      <button 
+                        type="button"
+                        className="btn-primary" 
+                        onClick={openCreateSheet}
+                        style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', borderRadius: '0.5rem', fontWeight: 700 }}
+                      >
+                        + Tambah Item Pertama
+                      </button>
+                    </div>
+                  ) : filteredAdminItems.length === 0 ? (
+                    <div className="glass-panel" style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem' }}>
+                      <Search size={32} style={{ marginBottom: '0.5rem', color: 'var(--text-muted)' }} />
+                      <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Item Tidak Ditemukan</h4>
+                      <p style={{ fontSize: '0.73rem', color: '#9ca3af', margin: '0 0 0.85rem 0' }}>Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.</p>
+                      <button 
+                        type="button"
+                        className="btn-secondary" 
+                        onClick={() => {
+                          setAdminSearch('');
+                          setAdminProductTypeFilter('all');
+                          setAdminClassFilter('all');
+                          setAdminSortBy('newest');
+                          setItemsPage(1);
+                        }}
+                        style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem', borderRadius: '0.45rem' }}
+                      >
+                        Reset Filter
+                      </button>
+                    </div>
                   ) : (
-                    <>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {paginatedItems.map(item => (
-                          <div key={item.id} className="glass-panel admin-item-card">
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', minWidth: 0 }}>
-                              <img 
-                                src={item.image_url} 
-                                alt={item.name} 
-                                style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} 
-                                onError={(e) => {
-                                  e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=100&q=80';
-                                }}
-                              />
-                              <div style={{ minWidth: 0 }}>
-                                <h4 style={{ fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</h4>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--secondary)', fontWeight: 'bold' }}>
-                                  {formatRupiah(item.price)}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {paginatedAdminItems.map((item) => {
+                        const itemType = (item.product_type || 'physical') as ItemCategoryType;
+                        const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? '#10b981' : '#3b82f6';
+                        const typeEmoji = itemType === 'food' ? '🍔' : itemType === 'service' ? '💼' : itemType === 'digital' ? '💾' : itemType === 'fauna' ? '🐾' : '📦';
+
+                        return (
+                          <div 
+                            key={item.id} 
+                            className="glass-panel admin-item-card"
+                            style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.85rem',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--card-bg-gradient)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.65rem',
+                              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)'
+                            }}
+                          >
+                            {/* Card Main Info Row */}
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                              {/* Thumbnail with overlay badge */}
+                              <div style={{ position: 'relative', width: '56px', height: '56px', flexShrink: 0, borderRadius: '0.5rem', overflow: 'hidden', backgroundColor: '#131916', border: '1px solid var(--border-light)' }}>
+                                <img 
+                                  src={item.image_url} 
+                                  alt={item.name} 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                  onError={(e) => {
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
+                                  }}
+                                />
+                                <span style={{
+                                  position: 'absolute',
+                                  bottom: '2px',
+                                  right: '2px',
+                                  padding: '0.05rem 0.25rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: 'rgba(0,0,0,0.75)',
+                                  fontSize: '0.55rem',
+                                  lineHeight: 1.2
+                                }}>
+                                  {typeEmoji}
                                 </span>
                               </div>
+
+                              {/* Details text */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                                  <span style={{
+                                    fontSize: '0.6rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: `${typeBadgeBg}20`,
+                                    color: typeBadgeBg === '#ef4444' ? '#f87171' : typeBadgeBg === '#f59e0b' ? '#fbbf24' : typeBadgeBg === '#8b5cf6' ? '#c084fc' : typeBadgeBg === '#10b981' ? '#34d399' : '#60a5fa',
+                                    border: `1px solid ${typeBadgeBg}40`
+                                  }}>
+                                    {item.class}
+                                  </span>
+                                  {item.conservation_status && (
+                                    <span style={{
+                                      fontSize: '0.58rem',
+                                      fontWeight: 700,
+                                      padding: '0.1rem 0.35rem',
+                                      borderRadius: '4px',
+                                      backgroundColor: item.conservation_status.includes('Habis') ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                      color: item.conservation_status.includes('Habis') ? '#f87171' : '#34d399'
+                                    }}>
+                                      {item.conservation_status.includes('Habis') ? '● Habis' : '● Ready'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.2rem 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.name}
+                                </h4>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <span style={{ fontSize: '0.82rem', color: '#ef4444', fontWeight: 800 }}>
+                                    {formatRupiah(item.price)}
+                                  </span>
+                                  {item.attributes?.stock !== undefined && (
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                      • Stok: {item.attributes.stock}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Dynamic snippet */}
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {itemType === 'food' && (
+                                    <span>{item.attributes?.portion_size ? `Porsi: ${item.attributes.portion_size}` : 'Fresh Daily'}{item.attributes?.prep_time ? ` • PO/Saji: ${item.attributes.prep_time}` : ''}</span>
+                                  )}
+                                  {itemType === 'physical' && (
+                                    <span>{item.attributes?.condition || 'Baru'}{item.attributes?.weight ? ` • ${item.attributes.weight}g` : ''}{item.attributes?.brand ? ` • ${item.attributes.brand}` : ''}</span>
+                                  )}
+                                  {itemType === 'service' && (
+                                    <span>{item.attributes?.duration || '1 Sesi'}{item.attributes?.service_area ? ` • Area: ${item.attributes.service_area}` : ''}</span>
+                                  )}
+                                  {itemType === 'digital' && (
+                                    <span>{item.attributes?.file_format || 'File'}{item.attributes?.file_size ? ` • ${item.attributes.file_size}` : ''}</span>
+                                  )}
+                                  {itemType === 'fauna' && (
+                                    <span>{item.habitat || 'General'}{item.detailed_info?.native_region ? ` • ${item.detailed_info.native_region}` : ''}</span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+
+                            {/* Card Actions Bottom Row */}
+                            <div style={{ display: 'flex', gap: '0.4rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                               <button 
+                                type="button"
                                 className="btn-secondary" 
-                                style={{ padding: '0.35rem 0.6rem', borderRadius: '0.35rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                                style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '0.4rem', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
                                 onClick={() => openDetailsSheet(item.id)}
                               >
                                 <Eye size={12} />
-                                Detail
+                                <span>Detail</span>
+                              </button>
+
+                              <button 
+                                type="button"
+                                className="btn-primary" 
+                                style={{ flex: 1, padding: '0.35rem 0.5rem', borderRadius: '0.4rem', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                                onClick={() => openEditSheet(item)}
+                              >
+                                <Edit3 size={12} />
+                                <span>Edit</span>
+                              </button>
+
+                              <button 
+                                type="button"
+                                className="btn-danger" 
+                                style={{ padding: '0.35rem 0.65rem', borderRadius: '0.4rem', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171' }}
+                                onClick={() => setFaunaToDelete(item)}
+                                title="Hapus Item"
+                              >
+                                <Trash2 size={12} />
                               </button>
                             </div>
                           </div>
-                        ))}
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* 6. PAGINATION CONTROLS */}
+                  {totalAdminPages > 1 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', marginTop: '1rem', paddingBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <button 
+                          type="button"
+                          disabled={itemsPage === 1}
+                          onClick={() => setItemsPage(prev => Math.max(prev - 1, 1))}
+                          style={{
+                            background: 'var(--card-bg-gradient)',
+                            border: '1px solid var(--border-light)',
+                            color: itemsPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                            borderRadius: '0.4rem',
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            cursor: itemsPage === 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          &larr; Prev
+                        </button>
+
+                        {/* Page Numbers */}
+                        {Array.from({ length: totalAdminPages }).map((_, idx) => {
+                          const pageNum = idx + 1;
+                          if (
+                            totalAdminPages > 5 &&
+                            pageNum !== 1 &&
+                            pageNum !== totalAdminPages &&
+                            Math.abs(pageNum - itemsPage) > 1
+                          ) {
+                            if (pageNum === 2 && itemsPage > 3) {
+                              return <span key={pageNum} style={{ color: 'var(--text-muted)', fontSize: '0.75rem', padding: '0 0.2rem' }}>...</span>;
+                            }
+                            if (pageNum === totalAdminPages - 1 && itemsPage < totalAdminPages - 2) {
+                              return <span key={pageNum} style={{ color: 'var(--text-muted)', fontSize: '0.75rem', padding: '0 0.2rem' }}>...</span>;
+                            }
+                            return null;
+                          }
+
+                          return (
+                            <button
+                              type="button"
+                              key={pageNum}
+                              onClick={() => setItemsPage(pageNum)}
+                              style={{
+                                border: pageNum === itemsPage ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: pageNum === itemsPage ? 'var(--primary)' : 'var(--card-bg-gradient)',
+                                color: pageNum === itemsPage ? '#000000' : 'var(--text-primary)',
+                                borderRadius: '0.4rem',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: pageNum === itemsPage ? 800 : 600
+                              }}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        <button 
+                          type="button"
+                          disabled={itemsPage === totalAdminPages}
+                          onClick={() => setItemsPage(prev => Math.min(prev + 1, totalAdminPages))}
+                          style={{
+                            background: 'var(--card-bg-gradient)',
+                            border: '1px solid var(--border-light)',
+                            color: itemsPage === totalAdminPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                            borderRadius: '0.4rem',
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            cursor: itemsPage === totalAdminPages ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Next &rarr;
+                        </button>
                       </div>
 
-                      {/* Pagination Controls */}
-                      {totalItemsPages > 1 && (
-                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.35rem', marginTop: '1.25rem', paddingBottom: '1rem' }}>
-                          <button 
-                            disabled={itemsPage === 1}
-                            onClick={() => setItemsPage(prev => Math.max(prev - 1, 1))}
-                            style={{
-                              background: 'none',
-                              border: '1px solid var(--border-light)',
-                              color: itemsPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                              borderRadius: '0.35rem',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: itemsPage === 1 ? 'not-allowed' : 'pointer',
-                              backgroundColor: itemsPage === 1 ? 'transparent' : 'rgba(255,255,255,0.02)'
-                            }}
-                          >
-                            &larr;
-                          </button>
-                          {Array.from({ length: totalItemsPages }).map((_, idx) => {
-                            const pageNum = idx + 1;
-                            return (
-                              <button
-                                key={pageNum}
-                                onClick={() => setItemsPage(pageNum)}
-                                style={{
-                                  border: pageNum === itemsPage ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                  backgroundColor: pageNum === itemsPage ? 'var(--primary)' : 'transparent',
-                                  color: pageNum === itemsPage ? '#fff' : 'var(--text-primary)',
-                                  borderRadius: '0.35rem',
-                                  width: '32px',
-                                  height: '32px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'pointer',
-                                  fontWeight: pageNum === itemsPage ? 'bold' : 'normal'
-                                }}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-                          <button 
-                            disabled={itemsPage === totalItemsPages}
-                            onClick={() => setItemsPage(prev => Math.min(prev + 1, totalItemsPages))}
-                            style={{
-                              background: 'none',
-                              border: '1px solid var(--border-light)',
-                              color: itemsPage === totalItemsPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                              borderRadius: '0.35rem',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: itemsPage === totalItemsPages ? 'not-allowed' : 'pointer',
-                              backgroundColor: itemsPage === totalItemsPages ? 'transparent' : 'rgba(255,255,255,0.02)'
-                            }}
-                          >
-                            &rarr;
-                          </button>
-                        </div>
-                      )}
-                    </>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        Halaman {itemsPage} dari {totalAdminPages}
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
