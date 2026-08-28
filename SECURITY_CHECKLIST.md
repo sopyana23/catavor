@@ -55,106 +55,98 @@ graph TD
 
 ---
 
-## 2. Fase 1: Keamanan Tingkat Aplikasi & Kode Lokal (Sekarang)
+## 2. Fase 1: Keamanan Tingkat Aplikasi & Kode Lokal (Sekarang) - ✅ SELESAI DITERAPKAN
 
-*Bagian ini dapat dieksekusi dan dipastikan langsung di dalam basis kode Go Backend dan React Frontend tanpa memerlukan infrastruktur server eksternal.*
+*Status: **100% Selesai & Terverifikasi** pada 28 Agustus 2026.*
 
 ### 2.1 Validasi & Sanitasi Seluruh Isian Form (Input Defense)
-Setiap data yang masuk dari pengguna (*untrusted user input*) harus disanitasi sebelum disimpan ke database:
+Setiap data yang masuk dari pengguna (*untrusted user input*) disanitasi secara otomatis menggunakan modul terpusat [`backend/internal/security/sanitizer.go`](file:///c:/MyProject/DFauna/backend/internal/security/sanitizer.go):
 
-- [ ] **Sanitasi Teks Polos (*Plain Text Fields*)**:
+- [x] **Sanitasi Teks Polos (*Plain Text Fields*)**:
   - Hapus semua tag HTML (`<...>` dan tag tak tertutup).
   - Hapus karakter kontrol biner dan null-bytes (`\x00`).
   - Lakukan pembatasan panjang karakter (*string length clamp*) untuk mencegah *buffer overflow* atau *database payload bloating*.
-  - *Target Form*: Nama pengguna, judul artikel, nama fauna/produk, nama toko, slogan, lokasi penampakan, nama pengamat, catatan.
-- [ ] **Sanitasi Rich Text / Markdown (*Rich Content Fields*)**:
+  - *Penerapan*: `SanitizePlainText(input, maxLen)` pada nama user, judul artikel, nama produk/fauna, profil toko, lokasi penampakan, dan catatan.
+- [x] **Sanitasi Rich Text / Markdown (*Rich Content Fields*)**:
   - Hapus tag skrip dan elemen eksekusi berbahaya: `<script>`, `<iframe>`, `<object>`, `<embed>`, `<style>`, `<form>`, `<input>`.
   - Hapus semua atribut inline JavaScript / Event Handlers (`onload`, `onerror`, `onclick`, `onmouseover`, `onfocus`, dsb.).
   - Pertahankan struktur markdown murni (`#`, `##`, `*`, `**`, `-`, `1.`, `>`) yang aman.
-  - *Target Form*: Deskripsi artikel, deskripsi fauna/produk, *About Us* toko, konten kebijakan (*privacy/terms*).
-- [ ] **Validasi & Whitelist Protokol URL (*URL Protocol Whitelist*)**:
+  - *Penerapan*: `SanitizeRichText(input, maxLen)` pada deskripsi artikel, konten artikel, deskripsi katalog, *About Us*, dan teks kebijakan (*privacy/terms*).
+- [x] **Validasi & Whitelist Protokol URL (*URL Protocol Whitelist*)**:
   - Pastikan setiap input URL hanya menggunakan skema protokol resmi yang aman: `https://`, `http://`, `mailto:`, dan `tel:`.
   - Blokir secara mutlak skema berbahaya: `javascript:`, `data:`, `vbscript:`, `file:`.
   - Khusus URL Video: Batasi hanya pada domain video resmi terpercaya (`youtube.com`, `youtu.be`).
-  - *Target Form*: Link media sosial toko (Instagram, Facebook, TikTok, WhatsApp, Tokopedia, Shopee), Website resmi, Video URL fauna.
-- [ ] **Validasi Nomor Telepon & WhatsApp**:
+  - *Penerapan*: `SanitizeURL(rawURL)` dan `SanitizeVideoURL(rawURL)` pada tautan sosial media toko, website resmi, dan URL video fauna.
+- [x] **Validasi Nomor Telepon & WhatsApp**:
   - Hanya izinkan karakter numerik (`0-9`), tanda plus (`+`), tanda minus (`-`), dan spasi.
   - Hapus karakter alfabetis dan simbol manipulasi URL.
-  - *Target Form*: Nomor WhatsApp toko, nomor kontak aduan, kontak observer.
-- [ ] **Validasi Numerik & Batasan Nilai (*Numeric Bounds*)**:
+  - *Penerapan*: `SanitizePhone(phone)` pada nomor WhatsApp toko, nomor kontak aduan, dan kontak observer.
+- [x] **Validasi Numerik & Batasan Nilai (*Numeric Bounds*)**:
   - Validasi harga produk (`price >= 0` dan tidak `NaN` / `+Inf`).
   - Validasi koordinat peta (`-90 <= latitude <= 90`, `-180 <= longitude <= 180`).
-  - *Target Form*: Harga fauna/produk, koordinat penampakan fauna.
+  - *Penerapan*: `ValidatePrice(price)` pada katalog fauna dan batasan latitude/longitude di `setting_handler.go`.
 
 ---
 
 ### 2.2 Keamanan Render & Frontend React (Anti-XSS)
-- [ ] **Eliminasi Penggunaan `dangerouslySetInnerHTML`**:
-  - Ganti seluruh injeksi HTML mentah pada halaman artikel, preview artikel, dan deskripsi toko dengan komponen AST parser yang aman (`FormattedText`).
-  - Komponen `FormattedText` merender teks menjadi elemen React JSX (`<strong>`, `<em>`, `<h3>`, `<ul>`) sehingga otomatis terlindungi oleh proteksi *React DOM Auto-Escaping*.
-- [ ] **Sanitasi Link Eksternal (*Safe Link Protocol Handler*)**:
-  - Bungkus semua tautan dinamis `<a>` dengan helper `safeHref()`.
-  - Jika pengguna memasukkan link `javascript:alert(1)`, otomatis dinetralisir menjadi `#` atau `about:blank`.
-  - Tambahkan atribut `rel="noopener noreferrer"` dan `target="_blank"` pada semua link keluar.
+- [x] **Eliminasi Penggunaan `dangerouslySetInnerHTML`**:
+  - 100% injeksi HTML mentah telah dihapus dari seluruh aplikasi Desktop dan Mobile.
+  - Menggunakan komponen AST parser yang aman ([`FormattedText`](file:///c:/MyProject/DFauna/frontend/mobile/src/App.tsx)) yang merender virtual DOM React JSX (`<strong>`, `<em>`, `<h3>`, `<ul>`) dengan proteksi *React DOM Auto-Escaping*.
+- [x] **Sanitasi Link Eksternal (*Safe Link Protocol Handler*)**:
+  - Utilitas [`safeHref(url)`](file:///c:/MyProject/DFauna/frontend/mobile/src/App.tsx) diterapkan pada seluruh tombol tautan dinamis `<a>`.
+  - Link `javascript:` atau `data:` dinetralisir menjadi `#` atau `about:blank`.
+  - Semua link keluar dilengkapi atribut `rel="noopener noreferrer"` dan `target="_blank"`.
 
 ---
 
 ### 2.3 Keamanan Database & Parameterized Query (Anti-SQLi)
-- [ ] **100% Parameterized Query via GORM**:
-  - Pastikan tidak ada penggabungan string langsung (*string concatenation*) dalam klausa query SQL (`db.Where("name = '" + input + "'")` ❌).
-  - Selalu gunakan placeholder terparameter (`db.Where("LOWER(name) LIKE ?", "%"+input+"%")` ✅).
-- [ ] **Pemberian Indeks & Sanitasi Pengurutan (*Safe Order By Clause*)**:
-  - Whitelist parameter `sort` (hanya terima opsi valid: `id asc`, `id desc`, `name_asc`, `price_asc`, dsb.).
-  - Cegah *SQL Injection* via parameter query `sort` atau `order`.
+- [x] **100% Parameterized Query via GORM**:
+  - Seluruh query database menggunakan placeholder terparameter (`db.Where("LOWER(name) LIKE ?", "%"+input+"%")`).
+  - Zero SQL string concatenation.
+- [x] **Pemberian Indeks & Sanitasi Pengurutan (*Safe Order By Clause*)**:
+  - Parameter `sort` divalidasi dengan whitelist eksplisit (`oldest`, `name_asc`, `name_desc`, `price_asc`, `price_desc`).
 
 ---
 
 ### 2.4 Keamanan Unggah Berkas & Gambar (File Upload Hardening)
-- [ ] **Pemeriksaan Magic-Byte (*Anti-MIME Spoofing*)**:
-  - Gunakan `http.DetectContentType` pada header biner file (512 byte pertama) untuk memastikan file benar-benar berformat gambar (`image/jpeg`, `image/png`, `image/webp`), bukan file `.exe` atau skrip `.php` yang diganti ekstensinya.
-- [ ] **Rekonstruksi & Pembersihan Metadata EXIF (*EXIF Stripping*)**:
-  - Lakukan *decode* dan *re-encode* gambar secara penuh menggunakan library pemroses gambar (`imaging.Fit`).
-  - Menghilangkan data metadata lokasi GPS sensitif dan skrip tersembunyi (*polyglot payload*).
-- [ ] **Penamaan Acak UUID (*Anti-Path Traversal*)**:
-  - Jangan gunakan nama file asli dari pengguna.
-  - Buat nama file acak menggunakan UUID v4 (`uuid.New().String() + ".jpg"`).
-- [ ] **Pembatasan Ukuran Maksimal (*Payload Size Limit*)**:
-  - Batasi ukuran file unggahan maksimal 10MB per gambar.
-  - Batasi body request global server Fiber maksimal 12MB.
+- [x] **Pemeriksaan Magic-Byte (*Anti-MIME Spoofing*)**:
+  - Header biner (512 byte) diperiksa menggunakan `http.DetectContentType`.
+- [x] **Rekonstruksi & Pembersihan Metadata EXIF (*EXIF Stripping*)**:
+  - Gambar di-decode dan di-re-encode ulang dengan library `imaging` dan `jpeg.Encode` untuk menghapus seluruh payload metadata GPS & EXIF.
+- [x] **Penamaan Acak UUID (*Anti-Path Traversal*)**:
+  - Nama berkas di-generate menggunakan UUID v4 (`uuid.New().String() + ".jpg"`).
+- [x] **Pembatasan Ukuran Maksimal (*Payload Size Limit*)**:
+  - File upload dibatasi 10MB; Fiber global BodyLimit 12MB.
 
 ---
 
 ### 2.5 Keamanan Autentikasi, Password & Sesi (Auth Hardening)
-- [ ] **Algoritma Hashing Password Standar Industri**:
-  - Gunakan **Bcrypt** dengan *cost factor* 12 untuk hashing password pengguna.
-  - Terapkan validasi panjang password:
-    - Minimum: 8 karakter (mencegah password lemah).
-    - Maksimum: 72 karakter (mencegah *Bcrypt Length Truncation Vulnerability* & *CPU DoS Attack*).
-- [ ] **Validasi Email Standar RFC 5322**:
-  - Periksa format email dengan ekspresi reguler standar sebelum disimpan.
-  - Konversi semua email ke huruf kecil (*lowercase normalization*) untuk mencegah duplikasi akun atau bypass filter.
-- [ ] **Keamanan Token JWT**:
-  - Simpan secret JWT dalam environment variable, bukan di *hardcode* pada file source code.
-  - Berikan masa berlaku token yang wajar (*expiry time*, misal 7 hari).
-  - Terapkan pengecekan `StoreOwnerRequired` pada rute admin untuk mencegah eskalasi hak akses (*Horizontal Privilege Escalation / IDOR*).
-- [ ] **Pencegahan Timing Attack**:
-  - Gunakan `crypto/subtle.ConstantTimeCompare` pada perbandingan string sensitif (token/password).
+- [x] **Algoritma Hashing Password Standar Industri**:
+  - Hashing **Bcrypt** dengan cost factor 12.
+  - Validasi panjang password: Min 8 karakter, Max 72 karakter (mencegah *Bcrypt Truncation & CPU DoS*).
+- [x] **Validasi Email Standar RFC 5322**:
+  - Validasi regex RFC dan normalisasi lowercase.
+- [x] **Keamanan Token JWT**:
+  - Secret JWT dari Environment Variable dengan expiry 7 hari.
+  - Middleware `StoreOwnerRequired` pada rute admin untuk mencegah *Horizontal Privilege Escalation (IDOR)*.
+- [x] **Pencegahan Timing Attack**:
+  - Constant-time string comparison `crypto/subtle.ConstantTimeCompare`.
 
 ---
 
 ### 2.6 Middleware Keamanan HTTP & Rate Limiting
-- [ ] **HTTP Security Headers Standar SaaS**:
-  - `X-Content-Type-Options: nosniff` (Mencegah *MIME-sniffing*).
-  - `X-Frame-Options: SAMEORIGIN` (Mencegah serangan *Clickjacking*).
-  - `X-XSS-Protection: 1; mode=block` (Proteksi XSS browser warisan).
-  - `Referrer-Policy: strict-origin-when-cross-origin` (Melindungi privasi referer).
-  - `Permissions-Policy: geolocation=(), camera=(), microphone=()` (Menonaktifkan akses hardware tanpa izin).
-  - `Content-Security-Policy (CSP)` (Membatasi domain sumber pemuatan skrip, gambar, font, dan iframe).
-- [ ] **Rate Limiting Anti-Brute Force & Anti-Spam**:
-  - **Auth Rate Limiter**: Maksimal 20 percobaan per menit pada `/api/login`, `/api/register`, `/api/auth/google`.
-  - **Public Form Rate Limiter**: Maksimal 15 pengiriman per menit pada form posting komentar (`/api/articles/:id/comments`) dan pelaporan penampakan (`/api/sightings`).
-- [ ] **Panic Recovery Middleware**:
-  - Aktifkan `recover.New()` pada Fiber untuk mencegah server *crash* akibat request malformed yang tidak terduga.
+- [x] **HTTP Security Headers Standar SaaS**:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: SAMEORIGIN`
+  - `X-XSS-Protection: 1; mode=block`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: geolocation=(), camera=(), microphone=()`
+  - `Content-Security-Policy (CSP)` aktif di [`backend/internal/middleware/security.go`](file:///c:/MyProject/DFauna/backend/internal/middleware/security.go).
+- [x] **Rate Limiting Anti-Brute Force & Anti-Spam**:
+  - **Auth Rate Limiter**: Maksimal 20 req/menit pada login & register.
+  - **Public Form Rate Limiter**: Maksimal 15 req/menit pada komentar artikel (`/api/articles/:id/comments`), pelaporan penampakan (`/api/sightings`), dan persetujuan kebijakan (`/api/policies/agree`).
+- [x] **Panic Recovery Middleware**:
+  - `recover.New()` aktif di Fiber.
 
 ---
 
