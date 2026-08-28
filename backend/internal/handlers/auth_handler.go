@@ -13,6 +13,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -23,14 +24,14 @@ import (
 var validate = validator.New()
 
 type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+	Email    string `json:"email" validate:"required,email,max=254"`
+	Password string `json:"password" validate:"required,max=72"`
 }
 
 type RegisterRequest struct {
 	Name                 string `json:"name" validate:"required,min=2,max=100"`
-	Email                string `json:"email" validate:"required,email"`
-	Password             string `json:"password" validate:"required,min=6"`
+	Email                string `json:"email" validate:"required,email,max=254"`
+	Password             string `json:"password" validate:"required,min=8,max=72"`
 	StoreSlug            string `json:"store_slug" validate:"required,min=3,max=50"`
 	StoreTitle           string `json:"store_title"`
 	Plan                 string `json:"plan"`
@@ -147,7 +148,26 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	slug := cleanSlug(req.StoreSlug)
+	req.Name = security.SanitizePlainText(req.Name, 100)
+	req.StoreTitle = security.SanitizePlainText(req.StoreTitle, 100)
+	req.StoreSlug = security.SanitizeSlug(req.StoreSlug)
+	req.WhatsappNumber = security.SanitizePhone(req.WhatsappNumber)
+
+	if !security.ValidateEmail(req.Email) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Format email tidak valid.",
+		})
+	}
+
+	if err := security.ValidatePassword(req.Password); err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	slug := req.StoreSlug
 	if len(slug) < 3 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
@@ -202,7 +222,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	storeTitle := strings.TrimSpace(req.StoreTitle)
+	storeTitle := req.StoreTitle
 	if storeTitle == "" {
 		storeTitle = req.Name + " Store"
 	}
@@ -553,26 +573,33 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	}
 
 	if req.Name != "" {
-		user.Name = strings.TrimSpace(req.Name)
+		user.Name = security.SanitizePlainText(req.Name, 100)
 	}
 
 	if req.Email != "" && strings.ToLower(req.Email) != strings.ToLower(user.Email) {
+		reqEmail := strings.ToLower(strings.TrimSpace(req.Email))
+		if !security.ValidateEmail(reqEmail) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Format email tidak valid.",
+			})
+		}
 		var cnt int64
-		database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND id != ?", strings.ToLower(req.Email), user.ID).Count(&cnt)
+		database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND id != ?", reqEmail, user.ID).Count(&cnt)
 		if cnt > 0 {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
 				"message": "Email sudah digunakan oleh pengguna lain.",
 			})
 		}
-		user.Email = strings.ToLower(strings.TrimSpace(req.Email))
+		user.Email = reqEmail
 	}
 
 	if req.Password != "" {
-		if len(req.Password) < 6 {
+		if err := security.ValidatePassword(req.Password); err != nil {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": "Kata sandi baru minimal 6 karakter.",
+				"message": err.Error(),
 			})
 		}
 		if req.ConfirmPassword != "" && req.Password != req.ConfirmPassword {

@@ -5,6 +5,7 @@ import (
 
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -48,11 +49,17 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 	}
 
 	for k, v := range payload {
+		sanitizedKey := security.SanitizePlainText(k, 100)
+		if sanitizedKey == "" {
+			continue
+		}
+		sanitizedVal := security.SanitizeRichText(v, 10000)
+
 		var s models.Setting
-		if err := database.DB.Where("key = ?", k).First(&s).Error; err != nil {
-			database.DB.Create(&models.Setting{Key: k, Value: v})
+		if err := database.DB.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
+			database.DB.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal})
 		} else {
-			s.Value = v
+			s.Value = sanitizedVal
 			database.DB.Save(&s)
 		}
 	}
@@ -97,16 +104,26 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 		})
 	}
 
+	policyType := security.SanitizePlainText(req.Type, 50)
+	title := security.SanitizePlainText(req.Title, 255)
+	version := security.SanitizePlainText(req.Version, 50)
+	content := security.SanitizeRichText(req.Content, 100000)
+	summary := security.SanitizeRichText(req.SummaryOfChanges, 2000)
+	changeType := security.SanitizePlainText(req.ChangeType, 50)
+	if changeType == "" {
+		changeType = "minor"
+	}
+
 	// Deactivate previous
-	database.DB.Model(&models.PolicyVersion{}).Where("type = ?", req.Type).Update("is_active", false)
+	database.DB.Model(&models.PolicyVersion{}).Where("type = ?", policyType).Update("is_active", false)
 
 	newVersion := models.PolicyVersion{
-		Type:             req.Type,
-		Title:            req.Title,
-		Version:          req.Version,
-		Content:          req.Content,
-		SummaryOfChanges: req.SummaryOfChanges,
-		ChangeType:       req.ChangeType,
+		Type:             policyType,
+		Title:            title,
+		Version:          version,
+		Content:          content,
+		SummaryOfChanges: summary,
+		ChangeType:       changeType,
 		EffectiveDate:    time.Now(),
 		IsActive:         true,
 		CreatedBy:        user.ID,
@@ -116,10 +133,10 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 
 	// SOC 2 Audit Trail
 	auditLog := models.PolicyAuditLog{
-		PolicyType:    req.Type,
+		PolicyType:    policyType,
 		Action:        "update",
-		NewVersion:    req.Version,
-		ChangeSummary: req.SummaryOfChanges,
+		NewVersion:    version,
+		ChangeSummary: summary,
 		AdminEmail:    user.Email,
 		AdminIP:       c.IP(),
 		CreatedAt:     time.Now(),
@@ -152,6 +169,23 @@ func (h *SettingHandler) StoreSighting(c *fiber.Ctx) error {
 		})
 	}
 
+	sighting.Location = security.SanitizePlainText(sighting.Location, 255)
+	sighting.Notes = security.SanitizePlainText(sighting.Notes, 2000)
+	if sighting.Location == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Lokasi penampakan wajib diisi.",
+		})
+	}
+
+	// Clamp coordinates
+	if sighting.Latitude < -90 || sighting.Latitude > 90 {
+		sighting.Latitude = 0
+	}
+	if sighting.Longitude < -180 || sighting.Longitude > 180 {
+		sighting.Longitude = 0
+	}
+
 	now := time.Now()
 	if sighting.SightedAt == nil {
 		sighting.SightedAt = &now
@@ -178,12 +212,12 @@ func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
 
 	agreement := models.UserPolicyAgreement{
 		StoreID:         req.StoreID,
-		PolicyType:      req.PolicyType,
-		PolicyVersion:   req.PolicyVersion,
+		PolicyType:      security.SanitizePlainText(req.PolicyType, 50),
+		PolicyVersion:   security.SanitizePlainText(req.PolicyVersion, 50),
 		IPAddress:       c.IP(),
-		UserAgent:       c.Get("User-Agent"),
-		AgreedContext:   req.AgreedContext,
-		CustomerContact: req.CustomerContact,
+		UserAgent:       security.SanitizePlainText(c.Get("User-Agent"), 500),
+		AgreedContext:   security.SanitizePlainText(req.AgreedContext, 50),
+		CustomerContact: security.SanitizePlainText(req.CustomerContact, 255),
 		AgreedAt:        time.Now(),
 	}
 	database.DB.Create(&agreement)

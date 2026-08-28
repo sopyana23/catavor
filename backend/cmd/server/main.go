@@ -79,12 +79,12 @@ func main() {
 	api.Get("/culinary-taxonomy", faunaHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)
 	api.Get("/policies", settingHandler.GetPolicies)
-	api.Post("/policies/agree", settingHandler.RecordAgreement)
+	api.Post("/policies/agree", middleware.PublicSubmissionRateLimiter(), settingHandler.RecordAgreement)
 	api.Get("/articles", articleHandler.Index)
 	api.Get("/articles/:id", articleHandler.Show)
 	api.Get("/articles/:id/comments", articleHandler.GetArticleComments)
-	api.Post("/articles/:id/comments", articleHandler.StoreComment)
-	api.Post("/sightings", settingHandler.StoreSighting)
+	api.Post("/articles/:id/comments", middleware.PublicSubmissionRateLimiter(), articleHandler.StoreComment)
+	api.Post("/sightings", middleware.PublicSubmissionRateLimiter(), settingHandler.StoreSighting)
 
 	// Multi-Tenant Public Store Endpoints
 	api.Get("/stores/featured", storeHandler.FeaturedStores)

@@ -1336,7 +1336,35 @@ export const FormattedText: React.FC<{ text?: string; style?: React.CSSPropertie
 
   lines.forEach((line, lineIdx) => {
     const trimmed = line.trim();
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
+    if (trimmed.startsWith('- [x] ') || trimmed.startsWith('- [ ] ') || trimmed.startsWith('[x] ') || trimmed.startsWith('[ ] ')) {
+      const isChecked = trimmed.includes('[x]') || trimmed.includes('[X]');
+      const itemText = trimmed.replace(/^[-*•]?\s*\[[ xX]\]\s+/, '');
+      const flushed = flushList(lineIdx);
+      if (flushed) elements.push(flushed);
+      elements.push(
+        <div key={`check-${lineIdx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.2rem 0', paddingLeft: '0.2rem' }}>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '15px',
+            height: '15px',
+            borderRadius: '3px',
+            border: isChecked ? 'none' : '1.5px solid var(--border-hover, #64748b)',
+            backgroundColor: isChecked ? 'var(--primary)' : 'transparent',
+            color: '#ffffff',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            flexShrink: 0
+          }}>
+            {isChecked ? '✓' : ''}
+          </span>
+          <span style={{ textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--text-muted)' : 'var(--text-primary)', fontSize: '0.92rem' }}>
+            {renderInlineMarkdown(itemText)}
+          </span>
+        </div>
+      );
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
       const itemText = trimmed.replace(/^[-*•]\s+/, '');
       if (!currentList || currentList.type !== 'ul') {
         const flushed = flushList(lineIdx);
@@ -1360,21 +1388,28 @@ export const FormattedText: React.FC<{ text?: string; style?: React.CSSPropertie
 
       if (!trimmed) {
         elements.push(<div key={`empty-${lineIdx}`} style={{ height: '0.5rem' }} />);
+      } else if (trimmed.startsWith('#### ')) {
+        elements.push(
+          <h5 key={`h4-${lineIdx}`} style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0.65rem 0 0.2rem 0', color: 'var(--text-muted, #94a3b8)' }}>
+            {renderInlineMarkdown(trimmed.replace(/^####\s+/, ''))}
+          </h5>
+        );
       } else if (trimmed.startsWith('### ')) {
         elements.push(
-          <h4 key={`h3-${lineIdx}`} style={{ fontSize: '0.98rem', fontWeight: 800, margin: '0.7rem 0 0.3rem 0', color: 'var(--text-primary)' }}>
+          <h4 key={`h3-${lineIdx}`} style={{ fontSize: '1.02rem', fontWeight: 700, margin: '0.8rem 0 0.25rem 0', color: 'var(--primary-hover, #60a5fa)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             {renderInlineMarkdown(trimmed.replace(/^###\s+/, ''))}
           </h4>
         );
       } else if (trimmed.startsWith('## ')) {
         elements.push(
-          <h3 key={`h2-${lineIdx}`} style={{ fontSize: '1.08rem', fontWeight: 800, margin: '0.85rem 0 0.35rem 0', color: 'var(--text-primary)' }}>
-            {renderInlineMarkdown(trimmed.replace(/^##\s+/, ''))}
+          <h3 key={`h2-${lineIdx}`} style={{ fontSize: '1.2rem', fontWeight: 800, margin: '1.05rem 0 0.35rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem', letterSpacing: '-0.01em' }}>
+            <span style={{ width: '3px', height: '14px', borderRadius: '2px', background: 'var(--primary)', flexShrink: 0, display: 'inline-block' }} />
+            <span>{renderInlineMarkdown(trimmed.replace(/^##\s+/, ''))}</span>
           </h3>
         );
       } else if (trimmed.startsWith('# ')) {
         elements.push(
-          <h2 key={`h1-${lineIdx}`} style={{ fontSize: '1.2rem', fontWeight: 800, margin: '1rem 0 0.4rem 0', color: 'var(--text-primary)' }}>
+          <h2 key={`h1-${lineIdx}`} style={{ fontSize: '1.35rem', fontWeight: 800, margin: '1.25rem 0 0.45rem 0', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.35rem', letterSpacing: '-0.01em' }}>
             {renderInlineMarkdown(trimmed.replace(/^#\s+/, ''))}
           </h2>
         );
@@ -1394,6 +1429,331 @@ export const FormattedText: React.FC<{ text?: string; style?: React.CSSPropertie
   return (
     <div style={{ wordBreak: 'break-word', ...style }} className={className}>
       {elements}
+    </div>
+  );
+};
+
+export const HeadingDropdown: React.FC<{
+  onSelect: (level: 1 | 2 | 3) => void;
+  btnClassName?: string;
+  isZen?: boolean;
+}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const menuWidth = isZen ? 210 : 195;
+      const spaceRight = window.innerWidth - rect.left;
+      if (spaceRight < menuWidth + 16) {
+        setAlignDirection('right');
+      } else {
+        setAlignDirection('left');
+      }
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, isZen]);
+
+  const handleSelect = (level: 1 | 2 | 3) => {
+    onSelect(level);
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
+      <button
+        type="button"
+        className={btnClassName}
+        title="Pilih Ukuran Judul (Heading H1, H2, H3)"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
+          borderColor: isOpen ? 'var(--primary)' : undefined,
+          color: isOpen ? 'var(--primary)' : undefined
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>Judul</span>
+        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 5px)',
+            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
+            zIndex: 999999,
+            minWidth: isZen ? '210px' : '195px',
+            maxWidth: 'calc(100vw - 24px)',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '0.6rem',
+            boxShadow: '0 14px 35px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.2)',
+            padding: '0.45rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.25rem',
+            boxSizing: 'border-box'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleSelect(1)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.4rem',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+              e.currentTarget.style.color = 'var(--primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--primary)', width: '22px' }}>H1</span>
+              <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Judul Utama</span>
+            </div>
+            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>#</code>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelect(2)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.4rem',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+              e.currentTarget.style.color = 'var(--primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--primary)', width: '22px' }}>H2</span>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Judul Bab</span>
+            </div>
+            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>##</code>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelect(3)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.4rem',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+              e.currentTarget.style.color = 'var(--primary-hover, #60a5fa)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.86rem', color: 'var(--primary-hover, #60a5fa)', width: '22px' }}>H3</span>
+              <span style={{ fontSize: '0.84rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Sub-Judul</span>
+            </div>
+            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>###</code>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const ListDropdown: React.FC<{
+  onSelect: (type: 'bullet' | 'number') => void;
+  btnClassName?: string;
+  isZen?: boolean;
+}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const menuWidth = isZen ? 205 : 190;
+      const spaceRight = window.innerWidth - rect.left;
+      if (spaceRight < menuWidth + 16) {
+        setAlignDirection('right');
+      } else {
+        setAlignDirection('left');
+      }
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, isZen]);
+
+  const handleSelect = (type: 'bullet' | 'number') => {
+    onSelect(type);
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
+      <button
+        type="button"
+        className={btnClassName}
+        title="Pilih Format Daftar (Daftar Poin, Nomor)"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
+          borderColor: isOpen ? 'var(--primary)' : undefined,
+          color: isOpen ? 'var(--primary)' : undefined
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>List</span>
+        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 5px)',
+            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
+            zIndex: 999999,
+            minWidth: isZen ? '205px' : '190px',
+            maxWidth: 'calc(100vw - 24px)',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '0.6rem',
+            boxShadow: '0 14px 35px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.2)',
+            padding: '0.45rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.25rem',
+            boxSizing: 'border-box'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleSelect('bullet')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.4rem',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+              e.currentTarget.style.color = 'var(--primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)', width: '22px', textAlign: 'center', lineHeight: 1 }}>•</span>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Daftar Poin</span>
+            </div>
+            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>-</code>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelect('number')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '0.4rem',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+              e.currentTarget.style.color = 'var(--primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary)', width: '22px', textAlign: 'center' }}>1.</span>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Daftar Nomor</span>
+            </div>
+            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>1.</code>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -1466,8 +1826,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     const end = el.selectionEnd;
     const selected = currentVal.substring(start, end);
 
-    // List insertion logic
-    if (prefix === '- ' || prefix === '1. ') {
+    // List & Checklist insertion logic
+    if (prefix === '- ' || prefix === '1. ' || prefix === '- [ ] ') {
       const textBefore = currentVal.substring(0, start);
       const lastNewlineIdx = textBefore.lastIndexOf('\n');
       const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
@@ -1522,10 +1882,32 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       const lastNewlineIdx = textBefore.lastIndexOf('\n');
       const currentLine = textBefore.substring(lastNewlineIdx + 1);
 
-      const bulletMatch = currentLine.match(/^([-*•]\s+)(.*)$/);
+      const checklistMatch = currentLine.match(/^([-*•]?\s*\[[ xX]?\]\s+)(.*)$/);
+      const bulletMatch = !checklistMatch ? currentLine.match(/^([-*•]\s+)(.*)$/) : null;
       const numberMatch = currentLine.match(/^(\d+)(\.\s+)(.*)$/);
 
-      if (bulletMatch) {
+      if (checklistMatch) {
+        e.preventDefault();
+        const content = checklistMatch[2];
+        if (content.trim() === '') {
+          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
+          const newText = currentVal.substring(0, lineStart) + textAfter;
+          onChange(newText);
+          setTimeout(() => {
+            el.focus();
+            el.setSelectionRange(lineStart, lineStart);
+          }, 0);
+        } else {
+          const nextChecklist = '\n- [ ] ';
+          const newText = textBefore + nextChecklist + textAfter;
+          onChange(newText);
+          setTimeout(() => {
+            el.focus();
+            const newPos = start + nextChecklist.length;
+            el.setSelectionRange(newPos, newPos);
+          }, 0);
+        }
+      } else if (bulletMatch) {
         e.preventDefault();
         const prefix = bulletMatch[1];
         const content = bulletMatch[2];
@@ -1602,30 +1984,21 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           >
             <em>I</em>
           </button>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Daftar Poin (Bullet List)"
-            onClick={() => applyFormatToRef(textareaRef, '- ', '', 'Poin list')}
-          >
-            • List
-          </button>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Daftar Angka (Numbered List)"
-            onClick={() => applyFormatToRef(textareaRef, '1. ', '', 'Langkah')}
-          >
-            1. List
-          </button>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Judul Bagian (Heading H3)"
-            onClick={() => applyFormatToRef(textareaRef, '\n### ', '\n', 'Judul Bagian')}
-          >
-            H3
-          </button>
+          <HeadingDropdown
+            onSelect={(level) => {
+              if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
+              else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
+              else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
+            }}
+            btnClassName="rich-btn-format"
+          />
+          <ListDropdown
+            onSelect={(type) => {
+              if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
+              else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
+            }}
+            btnClassName="rich-btn-format"
+          />
         </div>
 
         {/* Fullscreen Button */}
@@ -1700,30 +2073,23 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               >
                 <em>I</em>
               </button>
-              <button
-                type="button"
-                className="zen-btn-format"
-                title="Daftar Poin (Bullet List)"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list')}
-              >
-                • List
-              </button>
-              <button
-                type="button"
-                className="zen-btn-format"
-                title="Daftar Angka (Numbered List)"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah')}
-              >
-                1. List
-              </button>
-              <button
-                type="button"
-                className="zen-btn-format"
-                title="Judul Bab H3"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Judul Bagian')}
-              >
-                H3
-              </button>
+              <HeadingDropdown
+                onSelect={(level) => {
+                  if (level === 1) applyFormatToRef(fullscreenTextareaRef, '\n# ', '\n', 'Judul Utama H1');
+                  else if (level === 2) applyFormatToRef(fullscreenTextareaRef, '\n## ', '\n', 'Judul Bab H2');
+                  else if (level === 3) applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Sub Judul H3');
+                }}
+                btnClassName="zen-btn-format"
+                isZen
+              />
+              <ListDropdown
+                onSelect={(type) => {
+                  if (type === 'bullet') applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list');
+                  else if (type === 'number') applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah');
+                }}
+                btnClassName="zen-btn-format"
+                isZen
+              />
             </div>
 
             {/* Right Action Buttons */}
@@ -1841,6 +2207,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       )}
     </div>
   );
+};
+
+export const safeHref = (url?: string): string => {
+  if (!url || typeof url !== 'string') return '#';
+  const trimmed = url.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    return '#';
+  }
+  if (!trimmed.includes('://') && !lower.startsWith('mailto:') && !lower.startsWith('tel:') && !trimmed.startsWith('/') && !trimmed.startsWith('#')) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
 };
 
 export const renderStoreLogo = (logoUrl: string | undefined, className = '', size = 24, style = {}) => {
@@ -13881,7 +14260,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <span>&bull;</span>
                         <span>{articleForm.read_time}</span>
                       </div>
-                      <div dangerouslySetInnerHTML={{ __html: articleForm.content || '<p style="color:var(--text-muted)">Belum ada konten...</p>' }} />
+                      {articleForm.content ? (
+                        <FormattedText text={articleForm.content} style={{ fontSize: '0.95rem', lineHeight: '1.7', color: 'var(--text-primary)' }} />
+                      ) : (
+                        <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Belum ada konten...</p>
+                      )}
                     </div>
                   </div>
                 )}

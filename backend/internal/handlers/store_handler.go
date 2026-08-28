@@ -7,6 +7,7 @@ import (
 
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
@@ -31,7 +32,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
-			"message": "Katalog / Store tidak ditemukan.",
+			"message": "Toko tidak ditemukan.",
 		})
 	}
 
@@ -47,7 +48,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
-			"message": "Katalog / Store tidak ditemukan.",
+			"message": "Toko tidak ditemukan.",
 		})
 	}
 
@@ -137,16 +138,13 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 	if err := query.Find(&faunas).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal memuat katalog item.",
+			"message": "Gagal memuat katalog toko.",
 		})
 	}
 
-	totalPages := 1
+	totalPages := 0
 	if limit > 0 && totalItems > 0 {
 		totalPages = int((totalItems + int64(limit) - 1) / int64(limit))
-		if totalPages < 1 {
-			totalPages = 1
-		}
 	} else if totalItems > 0 {
 		totalPages = 1
 	}
@@ -159,6 +157,13 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    faunas,
+		"store": fiber.Map{
+			"id":             store.ID,
+			"slug":           store.Slug,
+			"store_title":    store.StoreTitle,
+			"store_theme":    store.StoreTheme,
+			"store_logo_url": store.StoreLogoURL,
+		},
 		"pagination": fiber.Map{
 			"current_page": page,
 			"per_page":     perPageResponse,
@@ -175,8 +180,18 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 	if len(slug) < 3 {
 		return c.JSON(fiber.Map{
 			"available": false,
-			"message":   "Slug minimal 3 karakter.",
+			"message":   "Nama pengguna minimal 3 karakter.",
 		})
+	}
+
+	reservedWords := []string{"admin", "api", "sanctum", "desktop", "mobile", "assets", "login", "register", "terms", "privacy", "acceptable-use", "settings"}
+	for _, r := range reservedWords {
+		if slug == r {
+			return c.JSON(fiber.Map{
+				"available": false,
+				"message":   "Nama pengguna ini telah digunakan oleh sistem.",
+			})
+		}
 	}
 
 	var count int64
@@ -185,41 +200,46 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"available": count == 0,
 		"slug":      slug,
+		"message":   map[bool]string{true: "Nama pengguna tersedia!", false: "Nama pengguna sudah terpakai."}[count == 0],
 	})
 }
 
 func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
 	var stores []models.Store
-	database.DB.Order("id asc").Limit(12).Find(&stores)
+	database.DB.Order("created_at desc").Limit(12).Find(&stores)
 
-	type FeaturedStoreResult struct {
-		ID           uint   `json:"id"`
-		Slug         string `json:"slug"`
-		StoreTitle   string `json:"store_title"`
-		StoreSlogan  string `json:"store_slogan"`
-		StoreLogoURL string `json:"store_logo_url"`
-		StoreTheme   string `json:"store_theme"`
-		ItemCount    int64  `json:"item_count"`
+	type StoreCard struct {
+		ID             uint   `json:"id"`
+		Slug           string `json:"slug"`
+		StoreTitle     string `json:"store_title"`
+		StoreSlogan    string `json:"store_slogan"`
+		StoreLogoURL   string `json:"store_logo_url"`
+		StoreTheme     string `json:"store_theme"`
+		Plan           string `json:"plan"`
+		ItemCount      int64  `json:"item_count"`
+		WhatsappNumber string `json:"whatsapp_number"`
 	}
 
-	var results []FeaturedStoreResult
+	var result []StoreCard
 	for _, s := range stores {
 		var cnt int64
 		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&cnt)
-		results = append(results, FeaturedStoreResult{
-			ID:           s.ID,
-			Slug:         s.Slug,
-			StoreTitle:   s.StoreTitle,
-			StoreSlogan:  s.StoreSlogan,
-			StoreLogoURL: s.StoreLogoURL,
-			StoreTheme:   s.StoreTheme,
-			ItemCount:    cnt,
+		result = append(result, StoreCard{
+			ID:             s.ID,
+			Slug:           s.Slug,
+			StoreTitle:     s.StoreTitle,
+			StoreSlogan:    s.StoreSlogan,
+			StoreLogoURL:   s.StoreLogoURL,
+			StoreTheme:     s.StoreTheme,
+			Plan:           s.Plan,
+			ItemCount:      cnt,
+			WhatsappNumber: s.WhatsappNumber,
 		})
 	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"data":    results,
+		"data":    result,
 	})
 }
 
@@ -235,46 +255,46 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	}
 
 	if val, ok := payload["store_title"].(string); ok {
-		store.StoreTitle = strings.TrimSpace(val)
+		store.StoreTitle = security.SanitizePlainText(val, 255)
 	}
 	if val, ok := payload["store_slogan"].(string); ok {
-		store.StoreSlogan = strings.TrimSpace(val)
+		store.StoreSlogan = security.SanitizePlainText(val, 500)
 	}
 	if val, ok := payload["promo_banner"].(string); ok {
-		store.PromoBanner = strings.TrimSpace(val)
+		store.PromoBanner = security.SanitizeRichText(val, 2000)
 	}
 	if val, ok := payload["whatsapp_number"].(string); ok {
-		store.WhatsappNumber = strings.TrimSpace(val)
+		store.WhatsappNumber = security.SanitizePhone(val)
 	}
 	if val, ok := payload["official_website"].(string); ok {
-		store.OfficialWebsite = strings.TrimSpace(val)
+		store.OfficialWebsite = security.SanitizeURL(val)
 	}
 	if val, ok := payload["store_logo_url"].(string); ok {
-		store.StoreLogoURL = strings.TrimSpace(val)
+		store.StoreLogoURL = security.SanitizeURL(val)
 	}
 	if val, ok := payload["store_theme"].(string); ok && val != "" {
-		store.StoreTheme = strings.TrimSpace(val)
+		store.StoreTheme = security.SanitizePlainText(val, 50)
 	}
 	if val, ok := payload["about_title"].(string); ok {
-		store.AboutTitle = strings.TrimSpace(val)
+		store.AboutTitle = security.SanitizePlainText(val, 255)
 	}
 	if val, ok := payload["about_slogan"].(string); ok {
-		store.AboutSlogan = strings.TrimSpace(val)
+		store.AboutSlogan = security.SanitizePlainText(val, 500)
 	}
 	if val, ok := payload["about_description"].(string); ok {
-		store.AboutDescription = strings.TrimSpace(val)
+		store.AboutDescription = security.SanitizeRichText(val, 50000)
 	}
 	if val, ok := payload["about_location"].(string); ok {
-		store.AboutLocation = strings.TrimSpace(val)
+		store.AboutLocation = security.SanitizePlainText(val, 500)
 	}
 	if val, ok := payload["about_hours"].(string); ok {
-		store.AboutHours = strings.TrimSpace(val)
+		store.AboutHours = security.SanitizePlainText(val, 500)
 	}
 	if val, ok := payload["show_hours"].(bool); ok {
 		store.ShowHours = val
 	}
 	if val, ok := payload["about_disclaimer"].(string); ok {
-		store.AboutDisclaimer = strings.TrimSpace(val)
+		store.AboutDisclaimer = security.SanitizeRichText(val, 10000)
 	}
 	if val, ok := payload["enable_wa_direct"].(bool); ok {
 		store.EnableWADirect = val
@@ -286,11 +306,11 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	// JSON fields
 	if cards, ok := payload["about_cards"]; ok {
 		b, _ := json.Marshal(cards)
-		store.AboutCards = datatypes.JSON(b)
+		store.AboutCards = datatypes.JSON([]byte(security.SanitizeSocialLinks(string(b))))
 	}
 	if links, ok := payload["social_links"]; ok {
 		b, _ := json.Marshal(links)
-		store.SocialLinks = datatypes.JSON(b)
+		store.SocialLinks = datatypes.JSON([]byte(security.SanitizeSocialLinks(string(b))))
 	}
 
 	if err := database.DB.Save(store).Error; err != nil {
@@ -346,11 +366,17 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 		})
 	}
 
-	val := strings.TrimSpace(req.Value)
+	val := security.SanitizePlainText(req.Value, 100)
+	if val == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Value tidak boleh kosong.",
+		})
+	}
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
 		if req.ProductType != "" {
-			store.MasterCategories = appendMasterCategory(store.MasterCategories, req.ProductType, val)
+			store.MasterCategories = appendMasterCategory(store.MasterCategories, security.SanitizePlainText(req.ProductType, 50), val)
 		}
 		store.MasterClasses = appendJSONString(store.MasterClasses, val)
 	case "habitat", "master_habitats":
@@ -391,13 +417,14 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 		})
 	}
 
-	oldVal := strings.TrimSpace(req.OldValue)
-	newVal := strings.TrimSpace(req.NewValue)
+	oldVal := security.SanitizePlainText(req.OldValue, 100)
+	newVal := security.SanitizePlainText(req.NewValue, 100)
+	prodType := security.SanitizePlainText(req.ProductType, 50)
 
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
-		if req.ProductType != "" {
-			store.MasterCategories = replaceMasterCategory(store.MasterCategories, req.ProductType, oldVal, newVal)
+		if prodType != "" {
+			store.MasterCategories = replaceMasterCategory(store.MasterCategories, prodType, oldVal, newVal)
 		}
 		store.MasterClasses = replaceJSONString(store.MasterClasses, oldVal, newVal)
 		database.DB.Model(&models.Fauna{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
