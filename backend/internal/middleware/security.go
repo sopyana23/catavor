@@ -32,6 +32,7 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		c.Set("X-XSS-Protection", "1; mode=block")
 		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
+		c.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; frame-src 'self' https://www.youtube.com https://accounts.google.com; connect-src 'self' https: http:; object-src 'none'; base-uri 'self';")
 		
 		// Set HSTS only if in production/secure
 		if c.Secure() {
@@ -89,6 +90,23 @@ func AuthRateLimiter() fiber.Handler {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"success": false,
 				"message": "Terlalu banyak percobaan. Harap tunggu 1 menit sebelum mencoba kembali.",
+			})
+		},
+	})
+}
+
+// PublicSubmissionRateLimiter limits spam on comments and sighting submissions
+func PublicSubmissionRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        15,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP() + "_pub_submit"
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"message": "Terlalu banyak pengiriman dalam waktu singkat. Harap tunggu sebentar.",
 			})
 		},
 	})

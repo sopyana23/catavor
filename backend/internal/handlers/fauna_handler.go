@@ -18,6 +18,7 @@ import (
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/disintegration/imaging"
 	"github.com/gofiber/fiber/v2"
@@ -275,7 +276,8 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 	}
 
 	name, _ := payload["name"].(string)
-	if strings.TrimSpace(name) == "" {
+	name = security.SanitizePlainText(name, 255)
+	if name == "" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Nama item wajib diisi.",
@@ -283,20 +285,37 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 	}
 
 	scientificName, _ := payload["scientific_name"].(string)
+	scientificName = security.SanitizePlainText(scientificName, 255)
+
 	class, _ := payload["class"].(string)
+	class = security.SanitizePlainText(class, 100)
+
 	habitat, _ := payload["habitat"].(string)
+	habitat = security.SanitizePlainText(habitat, 100)
+
 	diet, _ := payload["diet"].(string)
+	diet = security.SanitizePlainText(diet, 100)
+
 	status, _ := payload["conservation_status"].(string)
+	status = security.SanitizePlainText(status, 100)
+
 	priceVal, _ := payload["price"]
+	price := security.ValidatePrice(parsePrice(priceVal))
+
 	videoURL, _ := payload["video_url"].(string)
+	videoURL = security.SanitizeVideoURL(videoURL)
+
 	desc, _ := payload["description"].(string)
+	desc = security.SanitizeRichText(desc, 50000)
+
 	imageURL, _ := payload["image_url"].(string)
+	imageURL = security.SanitizeURL(imageURL)
+
 	productType, _ := payload["product_type"].(string)
+	productType = security.SanitizePlainText(productType, 50)
 	if productType == "" {
 		productType = "physical"
 	}
-
-	price := parsePrice(priceVal)
 
 	isShipping := true
 	if val, ok := payload["is_shipping_available"].(bool); ok {
@@ -317,17 +336,17 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 
 	fauna := models.Fauna{
 		StoreID:             store.ID,
-		Name:                strings.TrimSpace(name),
-		ScientificName:      strings.TrimSpace(scientificName),
-		Class:               strings.TrimSpace(class),
-		Habitat:             strings.TrimSpace(habitat),
-		Diet:                strings.TrimSpace(diet),
-		ConservationStatus:  strings.TrimSpace(status),
+		Name:                name,
+		ScientificName:      scientificName,
+		Class:               class,
+		Habitat:             habitat,
+		Diet:                diet,
+		ConservationStatus:  status,
 		Price:               price,
-		VideoURL:            strings.TrimSpace(videoURL),
+		VideoURL:            videoURL,
 		IsShippingAvailable: isShipping,
-		Description:         strings.TrimSpace(desc),
-		ImageURL:            strings.TrimSpace(imageURL),
+		Description:         desc,
+		ImageURL:            imageURL,
 		DetailedInfo:        detailedInfoJSON,
 		ProductType:         productType,
 		Attributes:          attributesJSON,
@@ -371,41 +390,44 @@ func (h *FaunaHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	if val, ok := payload["name"].(string); ok && strings.TrimSpace(val) != "" {
-		fauna.Name = strings.TrimSpace(val)
+	if val, ok := payload["name"].(string); ok {
+		sanitizedName := security.SanitizePlainText(val, 255)
+		if sanitizedName != "" {
+			fauna.Name = sanitizedName
+		}
 	}
 	if val, ok := payload["scientific_name"].(string); ok {
-		fauna.ScientificName = strings.TrimSpace(val)
+		fauna.ScientificName = security.SanitizePlainText(val, 255)
 	}
 	if val, ok := payload["class"].(string); ok {
-		fauna.Class = strings.TrimSpace(val)
+		fauna.Class = security.SanitizePlainText(val, 100)
 	}
 	if val, ok := payload["habitat"].(string); ok {
-		fauna.Habitat = strings.TrimSpace(val)
+		fauna.Habitat = security.SanitizePlainText(val, 100)
 	}
 	if val, ok := payload["diet"].(string); ok {
-		fauna.Diet = strings.TrimSpace(val)
+		fauna.Diet = security.SanitizePlainText(val, 100)
 	}
 	if val, ok := payload["conservation_status"].(string); ok {
-		fauna.ConservationStatus = strings.TrimSpace(val)
+		fauna.ConservationStatus = security.SanitizePlainText(val, 100)
 	}
 	if val, ok := payload["price"]; ok {
-		fauna.Price = parsePrice(val)
+		fauna.Price = security.ValidatePrice(parsePrice(val))
 	}
 	if val, ok := payload["video_url"].(string); ok {
-		fauna.VideoURL = strings.TrimSpace(val)
+		fauna.VideoURL = security.SanitizeVideoURL(val)
 	}
 	if val, ok := payload["is_shipping_available"].(bool); ok {
 		fauna.IsShippingAvailable = val
 	}
 	if val, ok := payload["description"].(string); ok {
-		fauna.Description = strings.TrimSpace(val)
+		fauna.Description = security.SanitizeRichText(val, 50000)
 	}
 	if val, ok := payload["image_url"].(string); ok {
-		fauna.ImageURL = strings.TrimSpace(val)
+		fauna.ImageURL = security.SanitizeURL(val)
 	}
 	if val, ok := payload["product_type"].(string); ok && val != "" {
-		fauna.ProductType = strings.TrimSpace(val)
+		fauna.ProductType = security.SanitizePlainText(val, 50)
 	}
 
 	if dInfo, ok := payload["detailed_info"]; ok {

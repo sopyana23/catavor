@@ -1297,6 +1297,8 @@
 }
 
 .zen-fullscreen-header {
+  position: relative;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1349,6 +1351,8 @@
 }
 
 .zen-fullscreen-body {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -1407,6 +1411,8 @@
 }
 
 .rich-toolbar-wrapper {
+  position: relative;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;

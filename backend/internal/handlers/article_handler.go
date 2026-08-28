@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"strings"
 	"time"
 
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -51,15 +51,31 @@ func (h *ArticleHandler) Show(c *fiber.Ctx) error {
 
 func (h *ArticleHandler) Store(c *fiber.Ctx) error {
 	var payload models.Article
-	if err := c.BodyParser(&payload); err != nil || strings.TrimSpace(payload.Title) == "" {
+	if err := c.BodyParser(&payload); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	payload.Title = security.SanitizePlainText(payload.Title, 255)
+	payload.Content = security.SanitizeRichText(payload.Content, 100000)
+	payload.ImageURL = security.SanitizeURL(payload.ImageURL)
+	payload.Author = security.SanitizePlainText(payload.Author, 100)
+	payload.ReadTime = security.SanitizePlainText(payload.ReadTime, 50)
+	payload.MetaDescription = security.SanitizePlainText(payload.MetaDescription, 500)
+
+	if payload.Title == "" || payload.Content == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Judul dan konten artikel wajib diisi.",
 		})
 	}
 
 	if payload.Slug == "" {
-		payload.Slug = cleanSlug(payload.Title)
+		payload.Slug = security.SanitizeSlug(payload.Title)
+	} else {
+		payload.Slug = security.SanitizeSlug(payload.Slug)
 	}
 
 	if err := database.DB.Create(&payload).Error; err != nil {
@@ -86,14 +102,46 @@ func (h *ArticleHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := c.BodyParser(&article); err != nil {
+	var payload models.Article
+	if err := c.BodyParser(&payload); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Format data tidak valid.",
 		})
 	}
 
-	database.DB.Save(&article)
+	if payload.Title != "" {
+		article.Title = security.SanitizePlainText(payload.Title, 255)
+	}
+	if payload.Content != "" {
+		article.Content = security.SanitizeRichText(payload.Content, 100000)
+	}
+	if payload.Slug != "" {
+		article.Slug = security.SanitizeSlug(payload.Slug)
+	}
+	if payload.ImageURL != "" {
+		article.ImageURL = security.SanitizeURL(payload.ImageURL)
+	}
+	if payload.Author != "" {
+		article.Author = security.SanitizePlainText(payload.Author, 100)
+	}
+	if payload.ReadTime != "" {
+		article.ReadTime = security.SanitizePlainText(payload.ReadTime, 50)
+	}
+	if payload.MetaDescription != "" {
+		article.MetaDescription = security.SanitizePlainText(payload.MetaDescription, 500)
+	}
+	article.IsCommentsEnabled = payload.IsCommentsEnabled
+	article.RequireCommentApproval = payload.RequireCommentApproval
+	article.RequireCommentEmail = payload.RequireCommentEmail
+	article.VerifyCommentEmailDomain = payload.VerifyCommentEmailDomain
+
+	if err := database.DB.Save(&article).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui artikel.",
+		})
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -143,10 +191,29 @@ func (h *ArticleHandler) StoreComment(c *fiber.Ctx) error {
 		ReplyToName string `json:"reply_to_name"`
 	}
 
-	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Content) == "" || strings.TrimSpace(req.AuthorName) == "" {
+	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
+			"message": "Format data komentar tidak valid.",
+		})
+	}
+
+	authorName := security.SanitizePlainText(req.AuthorName, 100)
+	authorEmail := security.SanitizePlainText(req.AuthorEmail, 254)
+	content := security.SanitizePlainText(req.Content, 2000)
+	replyToName := security.SanitizePlainText(req.ReplyToName, 100)
+
+	if authorName == "" || content == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
 			"message": "Nama dan isi komentar wajib diisi.",
+		})
+	}
+
+	if article.RequireCommentEmail && !security.ValidateEmail(authorEmail) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Email yang valid wajib diisi untuk berkomentar pada artikel ini.",
 		})
 	}
 
@@ -158,11 +225,11 @@ func (h *ArticleHandler) StoreComment(c *fiber.Ctx) error {
 	comment := models.Comment{
 		ArticleID:   article.ID,
 		ParentID:    req.ParentID,
-		AuthorName:  strings.TrimSpace(req.AuthorName),
-		AuthorEmail: strings.TrimSpace(req.AuthorEmail),
-		Content:     strings.TrimSpace(req.Content),
+		AuthorName:  authorName,
+		AuthorEmail: authorEmail,
+		Content:     content,
 		IsApproved:  isApproved,
-		ReplyToName: strings.TrimSpace(req.ReplyToName),
+		ReplyToName: replyToName,
 		CreatedAt:   time.Now(),
 	}
 

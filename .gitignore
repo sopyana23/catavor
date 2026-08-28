@@ -44,7 +44,9 @@ Backups/
 Cache/
 CachedConfigurations/
 CachedData/
+CachedExtensionVSIXs/
 CachedProfilesData/
+*.vsix
 Code Cache/
 Crashpad/
 DIPS*
