@@ -1,17 +1,7 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"image"
-	_ "image/gif"
-	"image/jpeg"
-	"image/png"
-	"io"
-	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -20,9 +10,7 @@ import (
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
-	"github.com/disintegration/imaging"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
 
@@ -166,94 +154,6 @@ func (h *FaunaHandler) Show(c *fiber.Ctx) error {
 	})
 }
 
-func (h *FaunaHandler) UploadImage(c *fiber.Ctx) error {
-	file, err := c.FormFile("image")
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "File gambar wajib diunggah.",
-		})
-	}
-
-	// Max 10MB upload limit
-	if file.Size > 10*1024*1024 {
-		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
-			"success": false,
-			"message": "Ukuran gambar maksimal 10MB.",
-		})
-	}
-
-	src, err := file.Open()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal membuka file unggahan.",
-		})
-	}
-	defer src.Close()
-
-	fileBytes, err := io.ReadAll(src)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal membaca konten file.",
-		})
-	}
-
-	// 1. Magic Number Content-Type Validation (Anti-MIME Spoofing)
-	mimeType := http.DetectContentType(fileBytes[:min(512, len(fileBytes))])
-	if !strings.HasPrefix(mimeType, "image/") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Format file tidak valid. Hanya gambar yang diperbolehkan.",
-		})
-	}
-
-	// 2. EXIF Stripping & Re-encoding via imaging library
-	img, _, err := image.Decode(bytes.NewReader(fileBytes))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal mendekode gambar.",
-		})
-	}
-
-	// Resize max dimension to 1200px
-	bounds := img.Bounds()
-	if bounds.Dx() > 1200 || bounds.Dy() > 1200 {
-		img = imaging.Fit(img, 1200, 1200, imaging.Lanczos)
-	}
-
-	// Prepare storage destination
-	storageDir := filepath.Join(h.cfg.StorageDir, "fauna")
-	_ = os.MkdirAll(storageDir, 0755)
-
-	safeFilename := uuid.New().String() + ".jpg"
-	targetFilePath := filepath.Join(storageDir, safeFilename)
-
-	out, err := os.Create(targetFilePath)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menyimpan file ke penyimpanan.",
-		})
-	}
-	defer out.Close()
-
-	// Re-encode JPEG with 85 quality (clean of any EXIF payload)
-	if err := jpeg.Encode(out, img, &jpeg.Options{Quality: 85}); err != nil {
-		// Fallback to PNG if JPEG encode fails
-		_ = png.Encode(out, img)
-	}
-
-	fileURL := fmt.Sprintf("%s/storage/fauna/%s", h.cfg.AppURL, safeFilename)
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"url":     fileURL,
-	})
-}
-
 func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 	store := c.Locals("store").(*models.Store)
 
@@ -302,6 +202,8 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 	priceVal, _ := payload["price"]
 	price := security.ValidatePrice(parsePrice(priceVal))
 
+	minOrder, maxOrder := security.ValidateOrderLimits(payload["min_order"], payload["max_order"])
+
 	videoURL, _ := payload["video_url"].(string)
 	videoURL = security.SanitizeVideoURL(videoURL)
 
@@ -343,6 +245,8 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 		Diet:                diet,
 		ConservationStatus:  status,
 		Price:               price,
+		MinOrder:            minOrder,
+		MaxOrder:            maxOrder,
 		VideoURL:            videoURL,
 		IsShippingAvailable: isShipping,
 		Description:         desc,
@@ -414,6 +318,21 @@ func (h *FaunaHandler) Update(c *fiber.Ctx) error {
 	if val, ok := payload["price"]; ok {
 		fauna.Price = security.ValidatePrice(parsePrice(val))
 	}
+
+	if _, hasMin := payload["min_order"]; hasMin || payload["max_order"] != nil {
+		minVal := payload["min_order"]
+		if minVal == nil {
+			minVal = fauna.MinOrder
+		}
+		maxVal := payload["max_order"]
+		if _, exists := payload["max_order"]; !exists {
+			maxVal = fauna.MaxOrder
+		}
+		minOrder, maxOrder := security.ValidateOrderLimits(minVal, maxVal)
+		fauna.MinOrder = minOrder
+		fauna.MaxOrder = maxOrder
+	}
+
 	if val, ok := payload["video_url"].(string); ok {
 		fauna.VideoURL = security.SanitizeVideoURL(val)
 	}

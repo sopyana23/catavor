@@ -205,6 +205,10 @@ export interface ItemTypeConfig {
   warrantyPlaceholder?: string;
   descLabel: string;
   descPlaceholder: string;
+  minOrderLabel?: string;
+  minOrderPlaceholder?: string;
+  maxOrderLabel?: string;
+  maxOrderPlaceholder?: string;
 }
 
 export interface CulinarySmartPreset {
@@ -321,7 +325,11 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         warrantyLabel: 'Kebijakan Garansi / Retur Barang',
         warrantyPlaceholder: 'Contoh: Garansi tukar baru 7 hari jika barang cacat produksi dengan melampirkan video unboxing...',
         descLabel: 'Deskripsi Lengkap Barang *',
-        descPlaceholder: 'Jelaskan detail spesifikasi bahan/material, dimensi ukuran, kelengkapan isi kemasan, dan fitur unggulan barang ini...'
+        descPlaceholder: 'Jelaskan detail spesifikasi bahan/material, dimensi ukuran, kelengkapan isi kemasan, dan fitur unggulan barang ini...',
+        minOrderLabel: 'Minimal Beli (Pcs) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Beli per Transaksi (Opsional)',
+        maxOrderPlaceholder: 'Kosongkan jika tanpa batas'
       };
     case 'digital':
       return {
@@ -351,7 +359,11 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         warrantyLabel: 'Ketentuan Lisensi & Hak Cipta',
         warrantyPlaceholder: 'Contoh: Pembelian mencakup lisensi personal. Dilarang keras membagikan ulang, menjual kembali, atau mendistribusikan tanpa izin...',
         descLabel: 'Deskripsi & Isi Materi Digital *',
-        descPlaceholder: 'Jelaskan daftar isi bab/file yang didapat, software yang dibutuhkan untuk membuka file, dan manfaat materi digital ini...'
+        descPlaceholder: 'Jelaskan daftar isi bab/file yang didapat, software yang dibutuhkan untuk membuka file, dan manfaat materi digital ini...',
+        minOrderLabel: 'Minimal Beli (Lisensi/Seat) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Beli per Akun (Opsional)',
+        maxOrderPlaceholder: 'Kosongkan jika tanpa batas'
       };
     case 'fauna':
       return {
@@ -381,7 +393,11 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         warrantyLabel: 'Ketentuan Garansi D.O.A (Dead On Arrival)',
         warrantyPlaceholder: 'Contoh: Garansi hidup sampai tujuan (D.O.A 100%) berlaku dengan menyertakan video unboxing full tanpa jeda/cut maksimal 2 jam setelah paket diterima...',
         descLabel: 'Deskripsi & Kondisi Satwa *',
-        descPlaceholder: 'Jelaskan riwayat kesehatan, pola makan, keaktifan, minus (jika ada), umur/size, dan petunjuk perawatan harian...'
+        descPlaceholder: 'Jelaskan riwayat kesehatan, pola makan, keaktifan, minus (jika ada), umur/size, dan petunjuk perawatan harian...',
+        minOrderLabel: 'Minimal Beli (Ekor/Pack) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Beli per Kiriman (Opsional)',
+        maxOrderPlaceholder: 'Contoh: 10 (Batas aman packing)'
       };
     case 'service':
       return {
@@ -452,10 +468,81 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         deliveryTermsLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
         deliveryTermsPlaceholder: 'Contoh: Khusus kurir Instan / Sameday (Jabodetabek) atau Paxel Next Day. Dibuat fresh saat pesanan masuk, kemasan vacuum sealed food-grade + ice gel aman...',
         descLabel: 'Deskripsi & Detail Menu Kuliner *',
-        descPlaceholder: 'Jelaskan porsi/takaran, varian rasa/level pedas, masa simpan, petunjuk penyajian/penyimpanan, dan detail lainnya...'
+        descPlaceholder: 'Jelaskan porsi/takaran, varian rasa/level pedas, masa simpan, petunjuk penyajian/penyimpanan, dan detail lainnya...',
+        minOrderLabel: 'Minimal Pesanan (Porsi/Pack) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Pesanan per Order (Opsional)',
+        maxOrderPlaceholder: 'Contoh: 50 (Batas kapasitas dapur)'
       };
   }
 }
+
+export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
+  const typeConfig = getItemTypeFormConfig(type);
+  const foodPreset = type === 'food' ? CULINARY_SMART_PRESETS['Makanan Siap Santap'] : null;
+
+  return {
+    name: '',
+    scientific_name: '',
+    class: typeConfig.defaultCategory,
+    habitat: 'General',
+    diet: '',
+    conservation_status: 'Tersedia',
+    price: 0,
+    min_order: 1,
+    max_order: '' as string | number,
+    video_url: '',
+    is_shipping_available: true,
+    description: '',
+    image_url: '',
+    native_region: '',
+    lifespan: '',
+    weight: '',
+    shipping_terms: '',
+    warranty_info: '',
+    shipping_coverage: foodPreset ? foodPreset.defaultShipping : (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia'),
+    purchase_links: [] as { platform: string, url: string }[],
+    product_type: type,
+    attributes: {
+      stock: 1,
+      min_order: 1,
+      max_order: '' as string | number,
+      condition: 'Baru' as 'Baru' | 'Bekas' | 'Refurbished',
+      weight: 100,
+      brand: '',
+      variant: '',
+      download_url: '',
+      file_format: 'PDF',
+      file_size: '10 MB',
+      license_type: 'Lisensi Personal',
+      version: 'v1.0',
+      scientific_name: '',
+      fauna_class: 'Ikan Hias',
+      fauna_status: 'Tersedia',
+      duration: '1 Sesi / 1 Jam',
+      service_location: 'Datang ke Toko',
+      service_area: 'Jabodetabek',
+      inclusions: '',
+      client_requirements: '',
+      portion_size: '1 Porsi',
+      expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
+      storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
+      certification: '100% Halal',
+      taste_options: '',
+      spicy_level: '',
+      prep_time: '',
+      serving_method: 'Dine-in, Takeaway & Kurir Instan',
+      cooking_guide: '',
+      sugar_ice_options: '',
+      bake_status: 'Freshly Baked Daily',
+      serving_capacity: '',
+      delivery_service: 'Mobil Antar Toko / Kurir Khusus',
+      culinary_type: 'Makanan Siap Santap',
+      min_purchase: '1 Pcs',
+      max_purchase: ''
+    }
+  };
+};
 
 interface Fauna {
   id: number
@@ -466,6 +553,8 @@ interface Fauna {
   diet: string
   conservation_status: string
   price: number
+  min_order?: number
+  max_order?: number | null
   video_url: string | null
   is_shipping_available: boolean
   description: string
@@ -477,6 +566,8 @@ interface Fauna {
     weight?: number
     brand?: string
     variant?: string
+    min_order?: number
+    max_order?: number | null
     download_url?: string
     file_format?: string
     file_size?: string
@@ -4275,6 +4366,7 @@ function App() {
   const [showCrudModal, setShowCrudModal] = useState<boolean>(false)
   const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
   const [showPurchaseOptions, setShowPurchaseOptions] = useState<boolean>(false)
+  const [purchaseQty, setPurchaseQty] = useState<number>(1)
   const [showMarketplacesSubMenu, setShowMarketplacesSubMenu] = useState<boolean>(false)
   const [displayLimit, setDisplayLimit] = useState<number>(8)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
@@ -4399,64 +4491,23 @@ function App() {
   // CRUD Form State
   const [crudMode, setCrudMode] = useState<'create' | 'edit'>('create')
   const [editId, setEditId] = useState<number | null>(null)
-  const [crudForm, setCrudForm] = useState({
-    name: '',
-    scientific_name: '',
-    class: 'Pakaian & Fashion',
-    habitat: 'General',
-    diet: '',
-    conservation_status: 'Tersedia',
-    price: 0,
-    video_url: '',
-    is_shipping_available: true,
-    description: '',
-    image_url: '',
-    native_region: '',
-    lifespan: '',
-    weight: '',
-    shipping_terms: '',
-    warranty_info: '',
-    shipping_coverage: 'Bisa Kirim se-Indonesia',
-    purchase_links: [] as { platform: string, url: string }[],
-    product_type: 'physical' as ItemCategoryType,
-    attributes: {
-      stock: 1,
-      condition: 'Baru' as 'Baru' | 'Bekas' | 'Refurbished',
-      weight: 100,
-      brand: '',
-      variant: '',
-      download_url: '',
-      file_format: 'PDF',
-      file_size: '10 MB',
-      license_type: 'Lisensi Personal',
-      version: 'v1.0',
-      scientific_name: '',
-      fauna_class: 'Ikan Hias',
-      fauna_status: 'Tersedia',
-      duration: '1 Sesi / 1 Jam',
-      service_location: 'Datang ke Toko',
-      service_area: 'Jabodetabek',
-      inclusions: '',
-      client_requirements: '',
-      portion_size: '1 Porsi',
-      expired_info: 'Fresh Daily',
-      storage_temp: 'Suhu Ruang',
-      certification: '100% Halal',
-      taste_options: '',
-      spicy_level: '',
-      prep_time: '',
-      serving_method: 'Dine-in, Takeaway & Kurir Instan',
-      cooking_guide: '',
-      sugar_ice_options: '',
-      bake_status: 'Freshly Baked Daily',
-      serving_capacity: '',
-      min_order: '',
-      delivery_service: 'Mobil Antar Toko / Kurir Khusus',
-      culinary_type: 'Makanan Siap Santap',
-      min_purchase: '1 Pcs',
-      max_purchase: ''
-    }
-  })
+  const [crudForm, setCrudForm] = useState(() => getInitialCrudForm('physical'))
+
+  const resetCrudState = (type: ItemCategoryType = 'physical') => {
+    setCrudForm(getInitialCrudForm(type));
+    setCrudImages(['']);
+    setCustomClass('');
+    setShowCustomClassInput(false);
+    setCustomHabitat('');
+    setShowCustomHabitatInput(false);
+    setCustomConservationStatus('');
+    setShowCustomConservationStatusInput(false);
+    setCustomShippingCoverage('');
+    setShowCustomShippingCoverageInput(false);
+    setCrudError(null);
+    setEditId(null);
+    setCrudMode('create');
+  };
 
   // Dynamic Master dropdown custom inputs
   const [customClass, setCustomClass] = useState<string>('')
@@ -5066,10 +5117,16 @@ function App() {
           }
           
           if (store.master_categories) {
-            setMasterCategories(prev => ({
-              ...DEFAULT_MASTER_CATEGORIES,
-              ...store.master_categories
-            }));
+            setMasterCategories(prev => {
+              const merged: Record<ItemCategoryType, string[]> = { ...DEFAULT_MASTER_CATEGORIES };
+              (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(type => {
+                const storeList = store.master_categories[type];
+                if (Array.isArray(storeList) && storeList.length > 0) {
+                  merged[type] = Array.from(new Set([...(DEFAULT_MASTER_CATEGORIES[type] || []), ...storeList]));
+                }
+              });
+              return merged;
+            });
           }
           if (store.master_classes) setMasterClasses(store.master_classes);
           if (store.master_habitats) setMasterHabitats(store.master_habitats);
@@ -6137,7 +6194,7 @@ function App() {
     formData.append('image', file)
 
     try {
-      const res = await fetch(`${API_BASE}/upload-image`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=branding`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -6168,78 +6225,7 @@ function App() {
       showToast('Batas listing Plan Gratis (Maksimal 10 item) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
       return
     }
-    const typeConfig = getItemTypeFormConfig(initialType);
-    const foodPreset = initialType === 'food' ? CULINARY_SMART_PRESETS['Makanan Siap Santap'] : null;
-    setCrudMode('create')
-    setEditId(null)
-    setCrudForm({
-      name: '',
-      scientific_name: '',
-      class: typeConfig.defaultCategory,
-      habitat: 'General',
-      diet: '',
-      conservation_status: 'Tersedia',
-      price: 0,
-      video_url: '',
-      is_shipping_available: true,
-      description: '',
-      image_url: '',
-      native_region: '',
-      lifespan: '',
-      weight: '',
-      shipping_terms: '',
-      warranty_info: '',
-      shipping_coverage: foodPreset ? foodPreset.defaultShipping : (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia'),
-      purchase_links: [],
-      product_type: initialType,
-      attributes: {
-        stock: 1,
-        condition: 'Baru',
-        weight: 100,
-        brand: '',
-        variant: '',
-        download_url: '',
-        file_format: 'PDF',
-        file_size: '10 MB',
-        license_type: 'Lisensi Personal',
-        version: 'v1.0',
-        scientific_name: '',
-        fauna_class: 'Ikan Hias',
-        fauna_status: 'Tersedia',
-        duration: '1 Sesi / 1 Jam',
-        service_location: 'Datang ke Toko',
-        service_area: 'Jabodetabek',
-        inclusions: '',
-        client_requirements: '',
-        portion_size: '1 Porsi',
-        expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
-        storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
-        certification: '100% Halal',
-        taste_options: '',
-        spicy_level: '',
-        prep_time: '',
-        serving_method: 'Dine-in, Takeaway & Kurir Instan',
-        cooking_guide: '',
-        sugar_ice_options: '',
-        bake_status: 'Freshly Baked Daily',
-        serving_capacity: '',
-        min_order: '',
-        delivery_service: 'Mobil Antar Toko / Kurir Khusus',
-        culinary_type: 'Makanan Siap Santap',
-        min_purchase: '1 Pcs',
-        max_purchase: ''
-      }
-    })
-    setCustomClass('')
-    setShowCustomClassInput(false)
-    setCustomHabitat('')
-    setShowCustomHabitatInput(false)
-    setCustomConservationStatus('')
-    setShowCustomConservationStatusInput(false)
-    setCustomShippingCoverage('')
-    setShowCustomShippingCoverageInput(false)
-    setCrudImages([''])
-    setCrudError(null)
+    resetCrudState(initialType)
     setShowCrudModal(true)
   }
 
@@ -6247,6 +6233,9 @@ function App() {
   const openEditModal = (item: Fauna) => {
     const itemType = (item.product_type || 'physical') as ItemCategoryType;
     const typeConfig = getItemTypeFormConfig(itemType);
+    const minOrderVal = item.min_order ?? item.attributes?.min_order ?? 1;
+    const maxOrderVal = (item.max_order !== null && item.max_order !== undefined) ? item.max_order : (item.attributes?.max_order ?? '');
+
     setCrudMode('edit')
     setEditId(item.id)
     setCrudForm({
@@ -6257,6 +6246,8 @@ function App() {
       diet: item.diet || '',
       conservation_status: item.conservation_status || 'Tersedia',
       price: item.price,
+      min_order: minOrderVal,
+      max_order: maxOrderVal,
       video_url: item.video_url || '',
       is_shipping_available: item.is_shipping_available,
       description: item.description,
@@ -6277,6 +6268,8 @@ function App() {
       product_type: itemType,
       attributes: {
         stock: item.attributes?.stock ?? 1,
+        min_order: minOrderVal,
+        max_order: maxOrderVal,
         condition: item.attributes?.condition ?? 'Baru',
         weight: item.attributes?.weight ?? 100,
         brand: item.attributes?.brand ?? '',
@@ -6306,7 +6299,6 @@ function App() {
         sugar_ice_options: item.attributes?.sugar_ice_options ?? '',
         bake_status: item.attributes?.bake_status ?? 'Freshly Baked Daily',
         serving_capacity: item.attributes?.serving_capacity ?? '',
-        min_order: item.attributes?.min_order ?? '',
         delivery_service: item.attributes?.delivery_service ?? 'Mobil Antar Toko / Kurir Khusus',
         culinary_type: item.attributes?.culinary_type ?? (CULINARY_SMART_PRESETS[item.class] ? item.class : 'Makanan Siap Santap'),
         min_purchase: item.attributes?.min_purchase ?? '1 Pcs',
@@ -6371,6 +6363,10 @@ function App() {
       return
     }
 
+    const minOrderNum = Math.max(1, parseInt(String(crudForm.min_order)) || 1);
+    const maxOrderParsed = crudForm.max_order !== '' && crudForm.max_order !== null && crudForm.max_order !== undefined ? parseInt(String(crudForm.max_order)) : null;
+    const maxOrderNum = (maxOrderParsed && maxOrderParsed > 0) ? Math.max(minOrderNum, maxOrderParsed) : null;
+
     const payload = {
       name: crudForm.name,
       scientific_name: crudForm.product_type === 'fauna' ? (crudForm.scientific_name || 'N/A') : (crudForm.scientific_name || 'N/A'),
@@ -6379,6 +6375,8 @@ function App() {
       diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
       conservation_status: crudForm.product_type === 'fauna' ? selectedConservationStatus : 'Tersedia',
       price: crudForm.price,
+      min_order: minOrderNum,
+      max_order: maxOrderNum,
       video_url: crudForm.video_url || null,
       is_shipping_available: !isNoShipping,
       description: crudForm.description,
@@ -6386,6 +6384,8 @@ function App() {
       product_type: crudForm.product_type,
       attributes: {
         ...crudForm.attributes,
+        min_order: minOrderNum,
+        max_order: maxOrderNum,
         file_format: crudForm.product_type === 'digital' ? selectedClass : (crudForm.attributes.file_format || selectedClass)
       },
       detailed_info: {
@@ -6415,6 +6415,7 @@ function App() {
       const data = await res.json()
       if (res.ok && data.success) {
         setShowCrudModal(false)
+        resetCrudState('physical')
         loadData()
         showToast('Item katalog berhasil disimpan!')
       } else {
@@ -6447,7 +6448,7 @@ function App() {
     formData.append('image', file)
 
     try {
-      const res = await fetch(`${API_BASE}/upload-image`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -6485,12 +6486,13 @@ function App() {
 
   // Context-isolated Category Options per Product Type & User Master
   const getCategoryOptionsForType = (productType: ItemCategoryType = 'physical'): string[] => {
-    const baseDefaults = masterCategories[productType] || DEFAULT_MASTER_CATEGORIES[productType] || [];
+    const fromMaster = masterCategories[productType] || [];
+    const fromDefaults = DEFAULT_MASTER_CATEGORIES[productType] || [];
     const customUsed = faunas
       .filter(f => (f.product_type || 'physical') === productType && f.class)
       .map(f => f.class);
     
-    const merged = Array.from(new Set([...baseDefaults, ...customUsed])).filter(Boolean);
+    const merged = Array.from(new Set([...fromDefaults, ...fromMaster, ...customUsed])).filter(Boolean);
     return merged.length > 0 ? merged : ['Lainnya'];
   };
 
@@ -6557,7 +6559,7 @@ function App() {
     formData.append('image', file)
 
     try {
-      const res = await fetch(`${API_BASE}/upload-image`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=articles`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -6746,7 +6748,7 @@ function App() {
       const res = await fetch(`${API_BASE}/stores/add-master-option`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ field, value: trimmed })
+        body: JSON.stringify({ field, value: trimmed, product_type: field === 'class' ? masterCategoryContextTab : undefined })
       })
       const data = await res.json()
       if (!checkAuthResponse(res, data)) return
@@ -6784,7 +6786,7 @@ function App() {
       const res = await fetch(`${API_BASE}/stores/rename-master-option`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ field, old_value: oldValue, new_value: trimmed })
+        body: JSON.stringify({ field, old_value: oldValue, new_value: trimmed, product_type: field === 'class' ? masterCategoryContextTab : undefined })
       })
       const data = await res.json()
       if (!checkAuthResponse(res, data)) return
@@ -9199,6 +9201,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <div style={{ fontSize: '2.25rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.5rem' }}>
                   {formatRupiah(selectedFauna.price)}
                 </div>
+                {selectedFauna.product_type !== 'service' && (((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) || ((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0))) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                    {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
+                        Min. Beli: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {selectedFauna.product_type === 'food' ? 'Porsi' : selectedFauna.product_type === 'fauna' ? 'Ekor' : 'Pcs'}
+                      </span>
+                    )}
+                    {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                        Maks. Beli: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {selectedFauna.product_type === 'food' ? 'Porsi' : selectedFauna.product_type === 'fauna' ? 'Ekor' : 'Pcs'}
+                      </span>
+                    )}
+                  </div>
+                )}
                 
                 <h2 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, marginBottom: '0.5rem' }}>
                   {selectedFauna.name}
@@ -9215,7 +9231,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Specs List */}
                 <div style={{ borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : 'Spesifikasi Produk'))}
+                    {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Barang Fisik' : 'Spesifikasi Satwa')))}
                   </h3>
                   
                   {selectedFauna.product_type === 'food' ? (
@@ -9268,10 +9284,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.serving_capacity}</span>
                         </div>
                       )}
-                      {selectedFauna.attributes?.min_order && (
+                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Order</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.min_order}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Pesanan</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Porsi</span>
+                        </div>
+                      )}
+                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal Pesanan</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Porsi</span>
                         </div>
                       )}
                       {(selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service) && (
@@ -9313,16 +9335,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.variant}</span>
                         </div>
                       )}
-                      {selectedFauna.attributes?.min_purchase && (
+                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Min. Pembelian</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.min_purchase}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Beli</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Pcs</span>
                         </div>
                       )}
-                      {selectedFauna.attributes?.max_purchase && (
+                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Maks. Pembelian</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.max_purchase}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal Beli</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Pcs</span>
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
@@ -9330,31 +9352,77 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
                       </div>
                     </div>
-                  ) : (
+                  ) : selectedFauna.product_type === 'fauna' ? (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Bobot</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.weight || 'N/A'}</span>
-                      </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Habitat</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.habitat}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Status / Ketersediaan</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
+                      </div>
+                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Beli</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Ekor</span>
+                        </div>
+                      )}
+                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal per Kiriman</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Ekor</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Jangkauan Pengiriman</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Status Konservasi</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
                         <span style={{ color: 'var(--text-secondary)' }}>Asal Wilayah</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.native_region || 'N/A'}</span>
                       </div>
+                    </div>
+                  ) : selectedFauna.product_type === 'service' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Masa Hidup</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.lifespan || 'N/A'}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>Estimasi Durasi</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.duration || '1 Sesi'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Lokasi Layanan</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.service_location || 'Datang ke Toko'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Area Jangkauan</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.service_area || 'Jabodetabek'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Format File</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.file_format || 'PDF / Digital'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Tipe Lisensi</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.license_type || 'Personal Use'}</span>
+                      </div>
+                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Beli</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Lisensi</span>
+                        </div>
+                      )}
+                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal Lisensi</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Lisensi</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Akses File</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || 'Akses Link Cloud'}</span>
                       </div>
                     </div>
                   )}
@@ -9534,6 +9602,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <button 
                     type="button"
                     onClick={() => {
+                      const minVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                      setPurchaseQty(minVal);
                       if (!settings.enable_wa_direct && !settings.enable_wa_rekber) {
                         setShowMarketplacesSubMenu(true);
                       } else {
@@ -14491,7 +14561,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     const res = await fetch(`${API_BASE}/stores/delete-master-option`, {
                       method: 'POST',
                       headers: getAuthHeaders(),
-                      body: JSON.stringify({ field, value, replacement: selectedReplacement })
+                      body: JSON.stringify({ field, value, replacement: selectedReplacement, product_type: field === 'class' ? masterCategoryContextTab : undefined })
                     })
                     const data = await res.json()
                     if (res.ok && data.success) {
@@ -14522,9 +14592,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         const IconComponent = typeConfig.icon;
         
         return (
-          <div className="modal-overlay" onClick={() => setShowCrudModal(false)}>
+          <div className="modal-overlay" onClick={() => { setShowCrudModal(false); resetCrudState('physical'); }}>
             <div className="glass-panel modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px' }}>
-              <button className="modal-close-btn" onClick={() => setShowCrudModal(false)}>
+              <button className="modal-close-btn" onClick={() => { setShowCrudModal(false); resetCrudState('physical'); }}>
                 <X size={18} />
               </button>
               
@@ -14642,6 +14712,38 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                   </div>
 
+                  {/* Batas Pembelian: Minimal & Maksimal Beli (Hanya untuk kategori produk terkait, dikecualikan dari Jasa) */}
+                  {typeConfig.minOrderLabel && (
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">{typeConfig.minOrderLabel}</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          className="form-input" 
+                          placeholder={typeConfig.minOrderPlaceholder || '1'}
+                          required
+                          value={crudForm.min_order ?? 1}
+                          onChange={(e) => setCrudForm({ ...crudForm, min_order: Math.max(1, parseInt(e.target.value) || 1) })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">{typeConfig.maxOrderLabel || 'Maksimal Beli'}</label>
+                        <input 
+                          type="number" 
+                          min={crudForm.min_order || 1}
+                          className="form-input" 
+                          placeholder={typeConfig.maxOrderPlaceholder || 'Kosongkan jika tanpa batas'}
+                          value={crudForm.max_order ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1);
+                            setCrudForm({ ...crudForm, max_order: val });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Kategori / Klasifikasi */}
                   <div className="form-group">
                     <label className="form-label">{typeConfig.categoryLabel}</label>
@@ -14737,28 +14839,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           />
                         </div>
                       </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">Minimal Pembelian (Opsional)</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: 1 Pcs / 1 Unit / 1 Box"
-                            value={crudForm.attributes.min_purchase || ''}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, min_purchase: e.target.value } })}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Maksimal Pembelian (Opsional)</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: 10 Pcs / Tidak Dibatasi"
-                            value={crudForm.attributes.max_purchase || ''}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, max_purchase: e.target.value } })}
-                          />
-                        </div>
-                      </div>
                     </div>
                   )}
 
@@ -14768,17 +14848,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
                         💻 Atribut Spesifik Item Digital
                       </span>
-                      <div className="form-group">
-                        <label className="form-label">Link Akses / Download File *</label>
-                        <input 
-                          type="url" 
-                          className="form-input" 
-                          placeholder="https://drive.google.com/file/d/... atau link cloud storage"
-                          required
-                          value={crudForm.attributes.download_url}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, download_url: e.target.value } })}
-                        />
-                      </div>
                       <div className="form-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                         <div className="form-group">
                           <label className="form-label">Ukuran File *</label>
@@ -14794,7 +14863,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <div className="form-group">
                           <label className="form-label">Tipe Lisensi *</label>
                           <select 
-                            className="form-select"
+                            className="form-select" 
                             value={crudForm.attributes.license_type || 'Lisensi Personal'}
                             onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: e.target.value } })}
                           >
@@ -14931,28 +15000,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </select>
                         </div>
                       </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label className="form-label">Wilayah Jangkauan Operasional *</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
-                            required
-                            value={crudForm.attributes.service_area}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Termasuk dalam Paket (Inclusions)</label>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Contoh: Alat &amp; Bahan, Garansi 14 Hari, Free Konsultasi"
-                            value={crudForm.attributes.inclusions || ''}
-                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, inclusions: e.target.value } })}
-                          />
-                        </div>
+                      <div className="form-group">
+                        <label className="form-label">Wilayah Jangkauan Operasional *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Jabodetabek / Bandung Kota / Seluruh Indonesia"
+                          required
+                          value={crudForm.attributes.service_area}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
+                        />
                       </div>
                     </div>
                   )}
@@ -15218,7 +15275,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <button 
                   type="button" 
                   className="btn-secondary" 
-                  onClick={() => setShowCrudModal(false)}
+                  onClick={() => { setShowCrudModal(false); resetCrudState('physical'); }}
                 >
                   Batal
                 </button>
@@ -15778,6 +15835,264 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         </div>
       )}
+
+      {/* DESKTOP PURCHASE OPTIONS MODAL POPUP */}
+      {showPurchaseOptions && selectedFauna && (() => {
+        const normalizedLinks = selectedFauna.detailed_info?.purchase_links || [
+          ...(selectedFauna.detailed_info?.shopee_url ? [{ platform: 'Shopee', url: selectedFauna.detailed_info.shopee_url }] : []),
+          ...(selectedFauna.detailed_info?.tokopedia_url ? [{ platform: 'Tokopedia', url: selectedFauna.detailed_info.tokopedia_url }] : []),
+          ...(selectedFauna.detailed_info?.lazada_url ? [{ platform: 'Lazada', url: selectedFauna.detailed_info.lazada_url }] : []),
+          ...(selectedFauna.detailed_info?.bukalapak_url ? [{ platform: 'Bukalapak', url: selectedFauna.detailed_info.bukalapak_url }] : []),
+          ...(selectedFauna.detailed_info?.custom_shop_url ? [{ platform: selectedFauna.detailed_info.custom_shop_name || 'Marketplace', url: selectedFauna.detailed_info.custom_shop_url }] : [])
+        ].filter(link => link.platform && link.url);
+
+        const minOrderLimit = Math.max(1, selectedFauna.min_order || selectedFauna.attributes?.min_order || 1);
+        const maxOrderLimit = (selectedFauna.max_order && selectedFauna.max_order > 0) 
+          ? selectedFauna.max_order 
+          : (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0) 
+            ? selectedFauna.attributes.max_order 
+            : null;
+        const currentQty = Math.max(minOrderLimit, maxOrderLimit ? Math.min(purchaseQty, maxOrderLimit) : purchaseQty);
+        const subtotalPrice = selectedFauna.price * currentQty;
+        const unitLabel = selectedFauna.product_type === 'food' ? 'porsi' : selectedFauna.product_type === 'fauna' ? 'ekor' : selectedFauna.product_type === 'service' ? 'sesi' : 'pcs';
+
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }} onClick={() => setShowPurchaseOptions(false)}>
+            <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem', borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>
+                    {showMarketplacesSubMenu ? 'Pilih Marketplace' : 'Pilih Cara Pembelian'}
+                  </span>
+                </div>
+                <button type="button" onClick={() => setShowPurchaseOptions(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              </div>
+
+              {showMarketplacesSubMenu ? (
+                <>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+                    Kami juga tersedia di platform marketplace resmi berikut:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '55vh', overflowY: 'auto' }}>
+                    {normalizedLinks.map((link, index) => (
+                      <a 
+                        key={index}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                      >
+                        <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Beli di {link.platform}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Buka halaman produk resmi di {link.platform}</span>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </a>
+                    ))}
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn-secondary" 
+                    onClick={() => setShowMarketplacesSubMenu(false)}
+                    style={{ width: '100%', marginTop: '1.25rem', padding: '0.7rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                  >
+                    <ArrowLeft size={16} /> Kembali
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                    {selectedFauna.product_type === 'service' ? 'Pilih metode reservasi atau transaksi resmi kami:' : 'Tentukan jumlah pesanan dan pilih metode transaksi resmi kami:'}
+                  </p>
+
+                  {/* Quantity Stepper & Subtotal Box (Hanya untuk non-jasa) */}
+                  {selectedFauna.product_type !== 'service' ? (
+                    <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                        <div>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Jumlah Pembelian</span>
+                          {(minOrderLimit > 1 || maxOrderLimit) && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              {minOrderLimit > 1 ? `Min: ${minOrderLimit} ` : ''}
+                              {maxOrderLimit ? `(Maks: ${maxOrderLimit})` : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <button 
+                            type="button"
+                            disabled={currentQty <= minOrderLimit}
+                            onClick={() => setPurchaseQty(Math.max(minOrderLimit, currentQty - 1))}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: currentQty <= minOrderLimit ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                              color: currentQty <= minOrderLimit ? 'var(--text-muted)' : 'var(--text-primary)',
+                              cursor: currentQty <= minOrderLimit ? 'not-allowed' : 'pointer',
+                              fontWeight: 800,
+                              fontSize: '1.1rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            -
+                          </button>
+                          <input 
+                            type="number"
+                            min={minOrderLimit}
+                            max={maxOrderLimit || 9999}
+                            value={currentQty}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || minOrderLimit;
+                              if (maxOrderLimit && val > maxOrderLimit) {
+                                setPurchaseQty(maxOrderLimit);
+                              } else if (val < minOrderLimit) {
+                                setPurchaseQty(minOrderLimit);
+                              } else {
+                                setPurchaseQty(val);
+                              }
+                            }}
+                            style={{
+                              width: '60px',
+                              height: '36px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'rgba(0,0,0,0.3)',
+                              color: 'var(--text-primary)',
+                              textAlign: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.95rem'
+                            }}
+                          />
+                          <button 
+                            type="button"
+                            disabled={maxOrderLimit ? currentQty >= maxOrderLimit : false}
+                            onClick={() => setPurchaseQty(maxOrderLimit ? Math.min(maxOrderLimit, currentQty + 1) : currentQty + 1)}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: (maxOrderLimit && currentQty >= maxOrderLimit) ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                              color: (maxOrderLimit && currentQty >= maxOrderLimit) ? 'var(--text-muted)' : 'var(--text-primary)',
+                              cursor: (maxOrderLimit && currentQty >= maxOrderLimit) ? 'not-allowed' : 'pointer',
+                              fontWeight: 800,
+                              fontSize: '1.1rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.08)', fontSize: '0.82rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Total Estimasi ({currentQty} {unitLabel}):</span>
+                        <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.1rem' }}>{formatRupiah(subtotalPrice)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.85rem 1.15rem', borderRadius: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Tarif Layanan:</span>
+                      <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.15rem' }}>{formatRupiah(selectedFauna.price)}</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '48vh', overflowY: 'auto' }}>
+                    {/* Marketplace single or multi */}
+                    {normalizedLinks.length === 1 && (
+                      <a 
+                        href={normalizedLinks[0].url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                      >
+                        <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Beli di {normalizedLinks[0].platform}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Buka transaksi resmi kami di {normalizedLinks[0].platform}</span>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </a>
+                    )}
+
+                    {normalizedLinks.length >= 2 && (
+                      <div 
+                        onClick={() => setShowMarketplacesSubMenu(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', cursor: 'pointer', transition: 'var(--transition-smooth)' }}
+                      >
+                        <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Beli via Online Shop / Marketplace</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Tersedia di {normalizedLinks.map(l => l.platform).join(', ')}</span>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                    )}
+
+                    {/* WhatsApp Purchase Options */}
+                    {settings.whatsapp_number && settings.whatsapp_number.trim() ? (
+                      <>
+                        {settings.enable_wa_rekber && (
+                          <a 
+                            href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                              selectedFauna.product_type === 'service'
+                                ? `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk booking / reservasi jasa *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)}) menggunakan layanan Rekber Syariah (rekbersyariah.com). Mohon info ketersediaan jadwal dan prosedurnya.`
+                                : `Halo ${settings.store_title || 'Catavor'}, saya ingin membeli ${selectedFauna.name} sebanyak ${currentQty} ${unitLabel} dengan total harga ${formatRupiah(subtotalPrice)} menggunakan layanan Rekber Syariah (rekbersyariah.com). Mohon info prosedurnya.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                          >
+                            <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Chat WA &amp; Rekber Syariah</span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Gunakan Rekening Bersama Syariah (Sangat Aman)</span>
+                            </div>
+                            <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                          </a>
+                        )}
+
+                        {settings.enable_wa_direct && (
+                          <a 
+                            href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                              selectedFauna.product_type === 'service'
+                                ? `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk booking / reservasi jasa *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)}) secara langsung. Mohon info ketersediaan jadwal.`
+                                : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli ${selectedFauna.name} sebanyak ${currentQty} ${unitLabel} dengan total harga ${formatRupiah(subtotalPrice)} secara langsung.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
+                          >
+                            <MessageCircle size={20} style={{ color: 'var(--text-muted)' }} />
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Chat WA (Transaksi Langsung)</span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Hubungi kami langsung via chat WhatsApp</span>
+                            </div>
+                            <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                          Pemilik katalog belum mencantumkan nomor WhatsApp resmi.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </>
   )
 }

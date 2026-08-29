@@ -226,3 +226,44 @@ func ClampText(text string, maxLen int) string {
 	}
 	return text
 }
+
+// ValidateOrderLimits validates and clamps min and max purchase quantities
+func ValidateOrderLimits(minVal interface{}, maxVal interface{}) (int, *int) {
+	minOrder := 1
+	if minVal != nil {
+		switch v := minVal.(type) {
+		case float64:
+			if v >= 1 {
+				minOrder = int(v)
+			}
+		case int:
+			if v >= 1 {
+				minOrder = v
+			}
+		}
+	}
+
+	var maxOrder *int
+	if maxVal != nil {
+		switch v := maxVal.(type) {
+		case float64:
+			if v > 0 {
+				valInt := int(v)
+				if valInt < minOrder {
+					valInt = minOrder
+				}
+				maxOrder = &valInt
+			}
+		case int:
+			if v > 0 {
+				valInt := v
+				if valInt < minOrder {
+					valInt = minOrder
+				}
+				maxOrder = &valInt
+			}
+		}
+	}
+
+	return minOrder, maxOrder
+}
