@@ -11,6 +11,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/handlers"
 	"catavor-backend/internal/middleware"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
@@ -46,19 +47,26 @@ func main() {
 	// 5. Setup Security Middlewares (CORS, Headers, Recovery, Tracing, Logger)
 	middleware.SetupSecurityMiddlewares(app, cfg)
 
-	// 6. Setup Handlers
+	// 6. Setup Storage & Handlers
+	storageService, err := storage.NewStorageService(cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Fatal: Storage service initialization failed")
+	}
+
 	authHandler := handlers.NewAuthHandler(cfg)
 	storeHandler := handlers.NewStoreHandler()
 	faunaHandler := handlers.NewFaunaHandler(cfg)
 	articleHandler := handlers.NewArticleHandler()
 	settingHandler := handlers.NewSettingHandler()
+	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg)
 
-	// 7. Static Asset Directories
-	app.Static("/storage", cfg.StorageDir, fiber.Static{
+	// 7. Static Asset Directories with Hardened Security Headers
+	app.Static("/storage", cfg.StorageLocalRoot, fiber.Static{
 		Compress:  true,
 		ByteRange: true,
-		MaxAge:    86400 * 7,
+		MaxAge:    86400 * 30, // 30 days caching
+		Browse:    false,      // Disable directory browsing
 	})
 	app.Static("/desktop", cfg.DesktopDistDir, fiber.Static{
 		Compress:  true,
@@ -103,8 +111,12 @@ func main() {
 		guarded.Post("/logout", authHandler.Logout)
 		guarded.Post("/profile", authHandler.UpdateProfile)
 
-		// CRUD Item Catalog & Images
-		guarded.Post("/upload-image", faunaHandler.UploadImage)
+		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
+		guarded.Post("/storage/upload", storageHandler.Upload)
+		guarded.Delete("/storage/file", storageHandler.DeleteFile)
+		guarded.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
+
+		// CRUD Item Catalog
 		guarded.Post("/fauna", faunaHandler.Store)
 		guarded.Put("/fauna/:id", faunaHandler.Update)
 		guarded.Delete("/fauna/:id", faunaHandler.Destroy)

@@ -16,6 +16,8 @@ type Fauna struct {
 	Diet                string         `gorm:"size:100" json:"diet"`
 	ConservationStatus  string         `gorm:"size:100" json:"conservation_status"`
 	Price               float64        `gorm:"type:decimal(15,2);default:0" json:"price"`
+	MinOrder            int            `gorm:"default:1" json:"min_order"`
+	MaxOrder            *int           `gorm:"default:null" json:"max_order"`
 	VideoURL            string         `gorm:"type:text" json:"video_url"`
 	IsShippingAvailable bool           `gorm:"default:true" json:"is_shipping_available"`
 	Description         string         `gorm:"type:text" json:"description"`

@@ -565,6 +565,14 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 	})
 }
 
+var DefaultMasterCategories = map[string][]string{
+	"physical": {"Pakaian & Fashion", "Aksesoris & Gadget", "Elektronik & Komputer", "Perlengkapan Rumah", "Kerajinan & Kriya", "Koleksi & Hobi", "Lainnya"},
+	"food":     {"Makanan Utama (Main Course)", "Dessert & Manisan", "Minuman & Olahan Kopi", "Camilan & Kudapan (Appetizer)", "Bakery, Roti & Pastry", "Makanan Beku (Frozen)", "Paket Hemat & Bundling", "Lainnya"},
+	"service":  {"Perawatan & Grooming", "Servis & Reparasi", "Desain Grafis & Kreatif", "Fotografi & Videografi", "Kursus & Pelatihan", "Konsultasi & Jasa Ahli", "Kebersihan & Maintenance", "Lainnya"},
+	"digital":  {"E-Book & PDF", "Template Dokumen & Notion", "Desain Grafis & UI Kit", "Source Code & Script", "Audio & Musik", "Preset & Filter", "Video & Aset 3D", "Lisensi Software", "Lainnya"},
+	"fauna":    {"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Tanaman Hias & Flora", "Invertebrata & Serangga", "Pakan & Perlengkapan", "Lainnya"},
+}
+
 // Helper MasterCategories JSON map functions
 func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON {
 	pType = strings.ToLower(strings.TrimSpace(pType))
@@ -579,13 +587,20 @@ func appendMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 		catMap = make(map[string][]string)
 	}
 	list := catMap[pType]
+	if len(list) == 0 {
+		if defs, ok := DefaultMasterCategories[pType]; ok {
+			list = append([]string{}, defs...)
+		}
+	}
 	for _, item := range list {
 		if strings.EqualFold(item, val) {
+			catMap[pType] = list
 			b, _ := json.Marshal(catMap)
 			return datatypes.JSON(b)
 		}
 	}
-	catMap[pType] = append(list, val)
+	list = append(list, val)
+	catMap[pType] = list
 	b, _ := json.Marshal(catMap)
 	return datatypes.JSON(b)
 }
@@ -600,9 +615,14 @@ func replaceMasterCategory(raw datatypes.JSON, pType, oldVal, newVal string) dat
 		_ = json.Unmarshal(raw, &catMap)
 	}
 	if catMap == nil {
-		return raw
+		catMap = make(map[string][]string)
 	}
 	list := catMap[pType]
+	if len(list) == 0 {
+		if defs, ok := DefaultMasterCategories[pType]; ok {
+			list = append([]string{}, defs...)
+		}
+	}
 	for i, item := range list {
 		if strings.EqualFold(item, oldVal) {
 			list[i] = newVal
@@ -623,9 +643,14 @@ func removeMasterCategory(raw datatypes.JSON, pType, val string) datatypes.JSON 
 		_ = json.Unmarshal(raw, &catMap)
 	}
 	if catMap == nil {
-		return raw
+		catMap = make(map[string][]string)
 	}
 	list := catMap[pType]
+	if len(list) == 0 {
+		if defs, ok := DefaultMasterCategories[pType]; ok {
+			list = append([]string{}, defs...)
+		}
+	}
 	var updated []string
 	for _, item := range list {
 		if !strings.EqualFold(item, val) {

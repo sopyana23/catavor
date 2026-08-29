@@ -27,6 +27,16 @@ type Config struct {
 	GoogleRedirectURI  string
 	SQLiteSourcePath   string
 	StorageDir         string
+	StorageDriver      string
+	StorageLocalRoot   string
+	StoragePublicURL   string
+	S3Endpoint         string
+	S3Region           string
+	S3Bucket           string
+	S3AccessKeyID      string
+	S3SecretAccessKey  string
+	S3UsePathStyle     bool
+	S3SSL              bool
 	DesktopDistDir     string
 	MobileDistDir      string
 	AllowedOrigins     []string
@@ -53,10 +63,18 @@ func LoadConfig() *Config {
 		}
 	}
 
+	storageDir := resolveDir("STORAGE_DIR", "public/storage")
+	storageLocalRoot := resolveDir("STORAGE_LOCAL_ROOT", storageDir)
+	appURL := getEnv("APP_URL", "http://localhost:"+port)
+	storagePublicURL := getEnv("STORAGE_PUBLIC_URL", appURL+"/storage")
+
+	s3UsePathStyle := getEnv("S3_USE_PATH_STYLE", "true") == "true"
+	s3SSL := getEnv("S3_SSL", "false") == "true"
+
 	AppConfig = &Config{
 		Port:               port,
 		AppEnv:             getEnv("APP_ENV", "local"),
-		AppURL:             getEnv("APP_URL", "http://localhost:"+port),
+		AppURL:             appURL,
 		DBHost:             getEnv("DB_HOST", "127.0.0.1"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "postgres"),
@@ -69,7 +87,17 @@ func LoadConfig() *Config {
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GoogleRedirectURI:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:"+port),
 		SQLiteSourcePath:   getEnv("SQLITE_SOURCE_PATH", "../legacy/laravel/database/database.sqlite"),
-		StorageDir:         resolveDir("STORAGE_DIR", "public/storage"),
+		StorageDir:         storageDir,
+		StorageDriver:      getEnv("STORAGE_DRIVER", "local"),
+		StorageLocalRoot:   storageLocalRoot,
+		StoragePublicURL:   strings.TrimRight(storagePublicURL, "/"),
+		S3Endpoint:         getEnv("S3_ENDPOINT", "http://localhost:9000"),
+		S3Region:           getEnv("S3_REGION", "us-east-1"),
+		S3Bucket:           getEnv("S3_BUCKET", "catavor-uploads"),
+		S3AccessKeyID:      getEnv("S3_ACCESS_KEY_ID", ""),
+		S3SecretAccessKey:  getEnv("S3_SECRET_ACCESS_KEY", ""),
+		S3UsePathStyle:     s3UsePathStyle,
+		S3SSL:              s3SSL,
 		DesktopDistDir:     resolveDir("DESKTOP_DIST_DIR", "public/desktop"),
 		MobileDistDir:      resolveDir("MOBILE_DIST_DIR", "public/mobile"),
 		AllowedOrigins:     origins,
