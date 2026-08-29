@@ -58,6 +58,7 @@ func main() {
 	faunaHandler := handlers.NewFaunaHandler(cfg)
 	articleHandler := handlers.NewArticleHandler()
 	settingHandler := handlers.NewSettingHandler()
+	reportHandler := handlers.NewReportHandler()
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg)
 
@@ -93,6 +94,7 @@ func main() {
 	api.Get("/articles/:id/comments", articleHandler.GetArticleComments)
 	api.Post("/articles/:id/comments", middleware.PublicSubmissionRateLimiter(), articleHandler.StoreComment)
 	api.Post("/sightings", middleware.PublicSubmissionRateLimiter(), settingHandler.StoreSighting)
+	api.Post("/reports", middleware.PublicSubmissionRateLimiter(), reportHandler.CreateReport)
 
 	// Multi-Tenant Public Store Endpoints
 	api.Get("/stores/featured", storeHandler.FeaturedStores)
@@ -141,6 +143,11 @@ func main() {
 		guarded.Get("/admin/comments", articleHandler.GetAdminComments)
 		guarded.Post("/admin/comments/:id/approve", articleHandler.ApproveComment)
 		guarded.Delete("/admin/comments/:id", articleHandler.DeleteComment)
+
+		// Reports & Compliance Moderation
+		guarded.Get("/reports", reportHandler.Index)
+		guarded.Get("/reports/:id", reportHandler.Show)
+		guarded.Put("/reports/:id", reportHandler.UpdateStatus)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients
