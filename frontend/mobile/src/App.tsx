@@ -82,6 +82,7 @@ import {
   RefreshCw,
   Calendar,
   ChevronDown,
+  ArrowUpDown,
   Briefcase,
   Sliders,
   Building2,
@@ -4492,7 +4493,58 @@ function App() {
   const [habitatFilter, setHabitatFilter] = useState<string>('all')
   const [commentFilter, setCommentFilter] = useState<'all' | 'pending' | 'approved'>('all')
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'name_asc'>('newest')
+  const [showCategorySheet, setShowCategorySheet] = useState<boolean>(false)
+  const [showSortSheet, setShowSortSheet] = useState<boolean>(false)
+  const [showFilterSheet, setShowFilterSheet] = useState<boolean>(false)
+  const [categorySearch, setCategorySearch] = useState<string>('')
   const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
+
+  // Mobile Drag-to-Dismiss Gesture for Bottom Sheets
+  const [sheetDragY, setSheetDragY] = useState<number>(0)
+  const [isSheetDragging, setIsSheetDragging] = useState<boolean>(false)
+  const touchStartY = useRef<number>(0)
+
+  const handleSheetDragStart = (clientY: number) => {
+    touchStartY.current = clientY;
+    setIsSheetDragging(true);
+  };
+
+  const handleSheetDragMove = (clientY: number) => {
+    if (!isSheetDragging) return;
+    const delta = clientY - touchStartY.current;
+    if (delta > 0) {
+      setSheetDragY(delta);
+    } else {
+      setSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter') => {
+    if (!isSheetDragging) return;
+    setIsSheetDragging(false);
+    if (sheetDragY > 75) {
+      if (type === 'category') setShowCategorySheet(false);
+      if (type === 'sort') setShowSortSheet(false);
+      if (type === 'filter') setShowFilterSheet(false);
+    }
+    setSheetDragY(0);
+  };
+
+  const getSubtypeLabel = (prodType: string) => {
+    switch (prodType) {
+      case 'food': return 'Semua Menu / Saji';
+      case 'fauna': return 'Semua Asal / Habitat';
+      case 'service': return 'Semua Model Layanan';
+      case 'digital': return 'Semua Format / Lisensi';
+      default: return 'Semua Tipe / Variasi';
+    }
+  };
+
+  const formatPrice = (num?: number) => {
+    if (!num && num !== 0) return 'Rp 0'
+    return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  };
 
   // Available Product Types in this store
   const availableProductTypes = useMemo(() => {
@@ -4520,7 +4572,7 @@ function App() {
   }, [faunas, productTypeFilter]);
 
   const filteredFaunas = useMemo(() => {
-    return faunas.filter(item => {
+    let result = faunas.filter(item => {
       const itemType = item.product_type || 'physical';
       const matchesSearch = !search.trim() || 
         item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -4533,12 +4585,34 @@ function App() {
 
       return matchesSearch && matchesClass && matchesHabitat && matchesProductType;
     });
-  }, [faunas, search, classFilter, habitatFilter, productTypeFilter]);
+
+    if (sortBy === 'price_asc') {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price_desc') {
+      result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'name_asc') {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === 'oldest') {
+      result.sort((a, b) => a.id - b.id);
+    } else {
+      // 'newest' default
+      result.sort((a, b) => b.id - a.id);
+    }
+
+    return result;
+  }, [faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
 
   // Bottom Sheets
   const [showCrudSheet, setShowCrudSheet] = useState<boolean>(false)
   const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
-  const [displayLimit, setDisplayLimit] = useState<number>(6)
+  const [displayLimit, setDisplayLimit] = useState<number>(10)
+
+  // Smart Floating Dynamic Filter Bar (Auto-Hide on Scroll Down, Reveal on Scroll Up)
+  const [isFilterFloating, setIsFilterFloating] = useState<boolean>(false)
+  const [isFilterVisible, setIsFilterVisible] = useState<boolean>(true)
+  const lastFilterScrollYRef = useRef<number>(0)
+  const [filterBarHeight, setFilterBarHeight] = useState<number>(140)
+  const searchSectionRef = useRef<HTMLElement | null>(null)
 
   // Admin Inventory State & Server/Client-Side Filtering
   const [adminSearch, setAdminSearch] = useState<string>('')
@@ -5409,13 +5483,8 @@ function App() {
           if (store.master_statuses) setMasterStatuses(store.master_statuses);
           if (store.master_shipping_coverages) setMasterShippingCoverages(store.master_shipping_coverages);
 
-          // Fetch store-scoped fauna catalog
-          const params = new URLSearchParams();
-          if (search) params.append('search', search);
-          if (classFilter !== 'all') params.append('class', classFilter);
-          if (habitatFilter !== 'all') params.append('habitat', habitatFilter);
-
-          const faunaRes = await fetch(`${API_BASE}/u/${slug}/fauna?${params.toString()}`);
+          // Fetch store-scoped fauna catalog (Load complete store inventory into master state)
+          const faunaRes = await fetch(`${API_BASE}/u/${slug}/fauna`);
           const faunaData = await faunaRes.json();
           if (faunaData.success) {
             setFaunas(faunaData.data);
@@ -5723,13 +5792,10 @@ function App() {
     }
   }, [selectedArticle])
 
-  // Trigger reloading data
+  // Trigger loading store data
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      loadData()
-    }, 200)
-    return () => clearTimeout(delayDebounceFn)
-  }, [search, classFilter, habitatFilter, storeSlug])
+    loadData()
+  }, [storeSlug])
   // Sync activeTab state, admin sub-tab, sub-sub-paths, settings section, and open views/modals to browser URL
   useEffect(() => {
     if (!storeSlug || error || isInvalidRoute()) return;
@@ -5887,28 +5953,56 @@ function App() {
 
   // Reset displayLimit on search or filter change
   useEffect(() => {
-    setDisplayLimit(6)
-  }, [search, classFilter, habitatFilter])
+    setDisplayLimit(10)
+  }, [search, classFilter, habitatFilter, productTypeFilter, sortBy])
 
-  // Infinite scroll event listener
+  // Responsive Infinite scroll event listener
   useEffect(() => {
     const handleScroll = () => {
       if (isDetailActive || loadingMore) return
-      if (displayLimit >= faunas.length) return
-      const threshold = 100
+      if (displayLimit >= filteredFaunas.length) return
+      const threshold = 150
       const position = window.innerHeight + window.scrollY
       const limit = document.documentElement.scrollHeight - threshold
       if (position >= limit) {
         setLoadingMore(true)
         setTimeout(() => {
-          setDisplayLimit(prev => Math.min(prev + 6, faunas.length))
+          setDisplayLimit(prev => Math.min(prev + 10, filteredFaunas.length))
           setLoadingMore(false)
-        }, 1200)
+        }, 350)
       }
     }
-    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [faunas.length, isDetailActive, loadingMore, displayLimit])
+  }, [filteredFaunas.length, isDetailActive, loadingMore, displayLimit])
+
+  // Smart Floating Dynamic Filter Bar Scroll Listener (Online Shop Standard: Auto-Hide Down, Reveal Up)
+  useEffect(() => {
+    const handleSmartFilterScroll = () => {
+      if (activeTab !== 'catalog' || isDetailActive) return;
+      const currentScrollY = window.scrollY;
+      const triggerThreshold = 190;
+
+      if (currentScrollY <= triggerThreshold) {
+        setIsFilterFloating(false);
+        setIsFilterVisible(true);
+      } else {
+        setIsFilterFloating(true);
+        const delta = currentScrollY - lastFilterScrollYRef.current;
+        if (delta > 6) {
+          // User is scrolling DOWN -> Hide filter bar smoothly
+          setIsFilterVisible(false);
+        } else if (delta < -6) {
+          // User scrolled UP -> Reveal filter bar immediately
+          setIsFilterVisible(true);
+        }
+      }
+      lastFilterScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleSmartFilterScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleSmartFilterScroll);
+  }, [activeTab, isDetailActive]);
 
   // Sync profile when adminUser loads
   useEffect(() => {
@@ -6722,6 +6816,19 @@ function App() {
     resetCrudState(type)
     setView('fauna-editor')
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleExitProductTypeSelector = () => {
+    setShowProductTypeSelector(false)
+    if (isChangingTypeInEditor) {
+      setView('fauna-editor')
+      setIsChangingTypeInEditor(false)
+    } else {
+      resetCrudState('physical')
+      setView('tabs')
+      setActiveTab('admin')
+      setAdminSubTab('items')
+    }
   }
 
   // Open Edit Form
@@ -11489,7 +11596,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowProductTypeSelector(false)}
+                  onClick={handleExitProductTypeSelector}
                   className="btn-back-circle"
                   title="Kembali"
                 >
@@ -11507,18 +11614,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
               <button 
                 type="button"
-                onClick={() => {
-                  setShowProductTypeSelector(false);
-                  if (isChangingTypeInEditor) {
-                    setView('fauna-editor');
-                    setIsChangingTypeInEditor(false);
-                  } else {
-                    resetCrudState('physical');
-                    setView('tabs');
-                    setActiveTab('admin');
-                    setAdminSubTab('items');
-                  }
-                }}
+                onClick={handleExitProductTypeSelector}
                 style={{ 
                   background: 'var(--btn-secondary-bg)', 
                   border: '1px solid var(--btn-secondary-border)', 
@@ -11834,7 +11930,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{ marginTop: '1.75rem', textAlign: 'center' }}>
                 <button
                   type="button"
-                  onClick={() => setShowProductTypeSelector(false)}
+                  onClick={handleExitProductTypeSelector}
                   style={{
                     width: '100%',
                     padding: '0.85rem',
@@ -12012,55 +12108,107 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 ) : (
                   <>
-                    {/* Mobile Search & Filters (Only shown if store has at least 1 product) */}
-                    <section className="mobile-search-section">
-                      <div className="search-wrapper">
-                        <Search className="search-icon" />
-                        <input 
-                          type="text" 
-                          className="search-input" 
-                          placeholder="Cari produk / item katalog..."
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                        />
+                    {/* Smart Placeholder when filter is floating to prevent layout shift */}
+                    {isFilterFloating && (
+                      <div 
+                        style={{ 
+                          height: `${filterBarHeight}px`, 
+                          marginBottom: '0.85rem',
+                          visibility: 'hidden',
+                          pointerEvents: 'none'
+                        }} 
+                        aria-hidden="true" 
+                      />
+                    )}
+
+                    {/* Mobile Search & Filters (Smart Floating Sticky Bar: Auto-Hide Down, Reveal Up) */}
+                    <section 
+                      ref={(el) => {
+                        searchSectionRef.current = el;
+                        if (el && el.offsetHeight && !isFilterFloating) {
+                          setFilterBarHeight(el.offsetHeight);
+                        }
+                      }}
+                      className={`mobile-search-section ${isFilterFloating ? 'sticky-floating' : ''} ${isFilterFloating ? (isFilterVisible ? 'visible' : 'hidden') : ''}`}
+                    >
+                      {/* Row 1: Search Input + Unified Advanced Filter Trigger Button */}
+                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', width: '100%' }}>
+                        <div className="search-wrapper" style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                          <Search className="search-icon" />
+                          <input 
+                            type="text" 
+                            className="search-input" 
+                            placeholder="Cari produk / item katalog..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                          />
+                          {search && (
+                            <button
+                              type="button"
+                              onClick={() => setSearch('')}
+                              className="search-clear-btn"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Unified Industry-Standard Filter Lanjutan & Urutkan Trigger Button */}
+                        <button
+                          type="button"
+                          className={`advanced-filter-trigger-btn ${(classFilter !== 'all' || sortBy !== 'newest') ? 'active' : ''}`}
+                          onClick={() => setShowFilterSheet(true)}
+                          title="Filter Kategori & Urutan Katalog"
+                        >
+                          <SlidersHorizontal size={14} />
+                          <span>Filter</span>
+                          {(classFilter !== 'all' || sortBy !== 'newest') && (
+                            <span className="filter-badge-dot" />
+                          )}
+                        </button>
                       </div>
-                      {/* Product Type Filter Tabs (Only shown if store has multiple types) */}
+
+                      {/* Row 2: Product Type Filter Tabs (Only shown if store has multiple types) */}
                       {isHybridStore && (
-                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.4rem', marginBottom: '0.65rem', WebkitOverflowScrolling: 'touch' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem', marginTop: '0.35rem', marginBottom: '0.15rem', WebkitOverflowScrolling: 'touch' }}>
                           <button
                             type="button"
                             onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); }}
                             style={{
-                              padding: '0.35rem 0.65rem',
+                              padding: '0.32rem 0.75rem',
                               borderRadius: '20px',
                               fontSize: '0.72rem',
-                              fontWeight: 800,
+                              fontWeight: 700,
                               border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               cursor: 'pointer',
                               whiteSpace: 'nowrap',
-                              backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                              color: productTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
+                              backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'var(--bg-deep)',
+                              color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                              boxShadow: productTypeFilter === 'all' ? '0 2px 8px var(--primary-glow)' : 'none',
+                              transition: 'all 0.2s ease'
                             }}
                           >
-                            ✨ Semua ({faunas.length})
+                            Semua ({faunas.length})
                           </button>
                           {availableProductTypes.includes('physical') && (
                             <button
                               type="button"
                               onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); }}
                               style={{
-                                padding: '0.35rem 0.65rem',
+                                padding: '0.32rem 0.75rem',
                                 borderRadius: '20px',
                                 fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: productTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'physical' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
-                                backgroundColor: productTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-                                color: productTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                                backgroundColor: productTypeFilter === 'physical' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'physical' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
                               }}
                             >
-                              📦 Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                              Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
                             </button>
                           )}
                           {availableProductTypes.includes('food') && (
@@ -12068,18 +12216,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               type="button"
                               onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); }}
                               style={{
-                                padding: '0.35rem 0.65rem',
+                                padding: '0.32rem 0.75rem',
                                 borderRadius: '20px',
                                 fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: productTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'food' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
-                                backgroundColor: productTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
-                                color: productTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                                backgroundColor: productTypeFilter === 'food' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'food' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
                               }}
                             >
-                              🍔 Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                              Kuliner ({faunas.filter(f => f.product_type === 'food').length})
                             </button>
                           )}
                           {availableProductTypes.includes('service') && (
@@ -12087,18 +12237,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               type="button"
                               onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); }}
                               style={{
-                                padding: '0.35rem 0.65rem',
+                                padding: '0.32rem 0.75rem',
                                 borderRadius: '20px',
                                 fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: productTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'service' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
-                                backgroundColor: productTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
-                                color: productTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
+                                backgroundColor: productTypeFilter === 'service' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'service' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'service' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
                               }}
                             >
-                              💼 Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                              Jasa ({faunas.filter(f => f.product_type === 'service').length})
                             </button>
                           )}
                           {availableProductTypes.includes('digital') && (
@@ -12106,18 +12258,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               type="button"
                               onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); }}
                               style={{
-                                padding: '0.35rem 0.65rem',
+                                padding: '0.32rem 0.75rem',
                                 borderRadius: '20px',
                                 fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: productTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'digital' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
-                                backgroundColor: productTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
-                                color: productTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                                backgroundColor: productTypeFilter === 'digital' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'digital' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
                               }}
                             >
-                              💾 Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                              Digital ({faunas.filter(f => f.product_type === 'digital').length})
                             </button>
                           )}
                           {availableProductTypes.includes('fauna') && (
@@ -12125,44 +12279,86 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               type="button"
                               onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); }}
                               style={{
-                                padding: '0.35rem 0.65rem',
+                                padding: '0.32rem 0.75rem',
                                 borderRadius: '20px',
                                 fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: productTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'fauna' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 cursor: 'pointer',
                                 whiteSpace: 'nowrap',
-                                backgroundColor: productTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
-                                color: productTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                                backgroundColor: productTypeFilter === 'fauna' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'fauna' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
                               }}
                             >
-                              🐾 Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                              Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
                             </button>
                           )}
                         </div>
                       )}
 
-                      <div className="filters-row">
-                        <select 
-                          className="filter-select"
-                          value={classFilter}
-                          onChange={(e) => setClassFilter(e.target.value)}
-                        >
-                          <option value="all">Semua Kategori ({availableCategories.length})</option>
-                          {availableCategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                        <select 
-                          className="filter-select"
-                          value={habitatFilter}
-                          onChange={(e) => setHabitatFilter(e.target.value)}
-                        >
-                          <option value="all">Semua Tipe / Variasi</option>
-                          {availableSubTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
+                      {/* Row 3: Active Filter Tags & Results Counter */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.2rem 0.15rem 0', marginTop: '0.2rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            <strong style={{ color: 'var(--text-primary)' }}>{filteredFaunas.length}</strong> produk
+                          </span>
+                          {classFilter !== 'all' && (
+                            <button
+                              type="button"
+                              onClick={() => setClassFilter('all')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '12px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                backgroundColor: 'var(--primary-glow)',
+                                color: 'var(--primary)',
+                                border: '1px solid var(--primary)',
+                                cursor: 'pointer'
+                              }}
+                              title="Hapus filter kategori"
+                            >
+                              {classFilter} ✕
+                            </button>
+                          )}
+                          {sortBy !== 'newest' && (
+                            <button
+                              type="button"
+                              onClick={() => setSortBy('newest')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '12px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                backgroundColor: 'var(--primary-glow)',
+                                color: 'var(--primary)',
+                                border: '1px solid var(--primary)',
+                                cursor: 'pointer'
+                              }}
+                              title="Kembalikan urutan default"
+                            >
+                              {sortBy === 'price_asc' ? 'Termurah' : sortBy === 'price_desc' ? 'Tertinggi' : sortBy === 'name_asc' ? 'A - Z' : 'Terlama'} ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {(search || classFilter !== 'all' || habitatFilter !== 'all' || productTypeFilter !== 'all' || sortBy !== 'newest') && (
+                          <button
+                            type="button"
+                            onClick={() => { setSearch(''); setClassFilter('all'); setHabitatFilter('all'); setProductTypeFilter('all'); setSortBy('newest'); }}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            Reset Semua
+                          </button>
+                        )}
                       </div>
                     </section>
 
@@ -12188,36 +12384,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         key={item.id} 
                         className="glass-panel mobile-grid-card"
                         onClick={() => openDetailsSheet(item.id)}
-                        style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                        style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '0.85rem' }}
                       >
-                        <div style={{ width: '100%', height: '130px', position: 'relative', overflow: 'hidden', backgroundColor: '#131916' }}>
-                          {/* Product Type Badge Overlay */}
-                          {item.product_type === 'digital' && (
-                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(139, 92, 246, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
-                              💾 Digital
-                            </span>
-                          )}
-                          {item.product_type === 'physical' && (
-                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(59, 130, 246, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
-                              📦 Barang
-                            </span>
-                          )}
-                          {item.product_type === 'service' && (
-                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(245, 158, 11, 0.9)', color: '#000', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
-                              🛠️ Jasa
-                            </span>
-                          )}
-                          {item.product_type === 'food' && (
-                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(239, 68, 68, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
-                              🍱 Makanan
-                            </span>
-                          )}
-                          {item.product_type === 'fauna' && (
-                            <span style={{ position: 'absolute', top: '0.4rem', left: '0.4rem', padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.9)', color: '#fff', fontSize: '0.58rem', fontWeight: 900, zIndex: 10, backdropFilter: 'blur(4px)' }}>
-                              🐾 Hewan
-                            </span>
-                          )}
-
+                        {/* Clean Product Photo without Emoji Stickers */}
+                        <div style={{ width: '100%', height: '140px', position: 'relative', overflow: 'hidden', backgroundColor: '#131916' }}>
                           {/* Fallback displayed under the image */}
                           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--card-bg-gradient)', color: 'var(--text-secondary)', zIndex: 1 }}>
                             <Compass size={24} style={{ opacity: 0.3 }} />
@@ -12240,12 +12410,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             }}
                             style={{
                               position: 'absolute',
-                              top: '0.5rem',
-                              right: '0.5rem',
-                              width: '28px',
-                              height: '28px',
+                              top: '0.45rem',
+                              right: '0.45rem',
+                              width: '26px',
+                              height: '26px',
                               borderRadius: '50%',
-                              backgroundColor: 'rgba(9, 14, 12, 0.6)',
+                              backgroundColor: 'rgba(9, 14, 12, 0.65)',
                               border: '1px solid var(--border-light)',
                               display: 'flex',
                               alignItems: 'center',
@@ -12259,37 +12429,76 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <Share2 size={12} />
                           </button>
                         </div>
+
+                        {/* Card Body with Clean Typography and Prominent Price */}
                         <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                               <span style={{
                                 fontSize: '0.62rem',
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 padding: '0.12rem 0.45rem',
-                                borderRadius: '5px',
-                                backgroundColor: (item.product_type === 'food' ? '#ef4444' : item.product_type === 'service' ? '#f59e0b' : item.product_type === 'digital' ? '#8b5cf6' : item.product_type === 'fauna' ? '#10b981' : '#3b82f6') + '22',
-                                color: item.product_type === 'food' ? '#f87171' : item.product_type === 'service' ? '#fbbf24' : item.product_type === 'digital' ? '#c084fc' : item.product_type === 'fauna' ? '#34d399' : '#60a5fa',
-                                border: `1px solid ${(item.product_type === 'food' ? '#ef4444' : item.product_type === 'service' ? '#f59e0b' : item.product_type === 'digital' ? '#8b5cf6' : item.product_type === 'fauna' ? '#10b981' : '#3b82f6')}40`,
+                                borderRadius: '4px',
+                                backgroundColor: 'var(--primary-glow)',
+                                color: 'var(--primary)',
+                                border: '1px solid var(--border-light)',
                                 display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.2rem'
+                                alignItems: 'center'
                               }}>
                                 {item.class}
                               </span>
                             </div>
-                            <h3 style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em', lineHeight: 1.2, margin: '0.15rem 0' }}>
+                            <h3 style={{
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              color: 'var(--text-primary)',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              lineHeight: 1.25,
+                              minHeight: '2.05rem',
+                              margin: '0.15rem 0 0.2rem'
+                            }}>
                               {item.name}
                             </h3>
-                            <div style={{ fontStyle: 'italic', fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.5rem' }}>
+                            <div style={{
+                              fontSize: '0.68rem',
+                              color: 'var(--text-secondary)',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              marginBottom: '0.45rem'
+                            }}>
                               {item.product_type === 'digital' 
-                                ? `${item.class || item.attributes?.file_format || 'Digital'} • ${item.attributes?.file_size || 'File'}`
+                                ? `${item.attributes?.file_size || 'Digital File'}${item.attributes?.license_type ? ' • ' + item.attributes.license_type : ''}`
                                 : item.product_type === 'physical'
                                 ? `${item.attributes?.brand ? item.attributes.brand + ' • ' : ''}${item.attributes?.condition || 'Baru'}${item.attributes?.weight ? ' • ' + item.attributes.weight + 'g' : ''}`
                                 : item.product_type === 'service'
-                                ? `Durasi: ${item.attributes?.duration || '1 Sesi'} • ${item.attributes?.service_location || 'Toko'}`
+                                ? `Durasi: ${item.attributes?.duration || '1 Sesi'}${item.attributes?.service_location ? ' • ' + item.attributes.service_location : ''}`
                                 : item.product_type === 'food'
-                                ? `Exp: ${item.attributes?.expired_info || '7 Hari'} • ${item.attributes?.storage_temp || 'Suhu Ruang'}`
-                                : (item.scientific_name !== 'N/A' ? item.scientific_name : item.class)}
+                                ? `Exp: ${item.attributes?.expired_info || '7 Hari'}${item.attributes?.storage_temp ? ' • ' + item.attributes.storage_temp : ''}`
+                                : (item.scientific_name !== 'N/A' && item.scientific_name ? item.scientific_name : item.class)}
+                            </div>
+                          </div>
+
+                          {/* Full-Width Dedicated Price Row (Standard Industrial E-Commerce Pattern) */}
+                          <div style={{
+                            borderTop: '1px solid var(--border-light)',
+                            paddingTop: '0.45rem',
+                            marginTop: 'auto',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}>
+                            <div style={{
+                              fontSize: '0.92rem',
+                              fontWeight: 800,
+                              color: 'var(--text-primary)',
+                              letterSpacing: '-0.01em',
+                              whiteSpace: 'nowrap',
+                              width: '100%'
+                            }}>
+                              {formatPrice(item.price)}
                             </div>
                           </div>
                         </div>
@@ -13369,121 +13578,123 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     )}
                   </div>
 
-                  {/* 2. LEVEL-1 QUICK-PILLS: TIPE PRODUK */}
-                  <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', WebkitOverflowScrolling: 'touch' }}>
-                    <button
-                      type="button"
-                      onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
-                      style={{
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '20px',
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                        color: adminProductTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
-                      }}
-                    >
-                      ✨ Semua ({faunas.length})
-                    </button>
-                    {availableProductTypes.includes('physical') && (
+                  {/* 2. LEVEL-1 QUICK-PILLS: TIPE PRODUK (Hanya muncul jika toko memiliki > 1 jenis kategori item) */}
+                  {isHybridStore && (
+                    <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', marginBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
                       <button
                         type="button"
-                        onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setItemsPage(1); }}
+                        onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
                         style={{
                           padding: '0.35rem 0.65rem',
                           borderRadius: '20px',
                           fontSize: '0.72rem',
                           fontWeight: 800,
-                          border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                          border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                           cursor: 'pointer',
                           whiteSpace: 'nowrap',
-                          backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-                          color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                          backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                          color: adminProductTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
                         }}
                       >
-                        📦 Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                        Semua ({faunas.length})
                       </button>
-                    )}
-                    {availableProductTypes.includes('food') && (
-                      <button
-                        type="button"
-                        onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setItemsPage(1); }}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '20px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
-                          color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
-                        }}
-                      >
-                        🍔 Kuliner ({faunas.filter(f => f.product_type === 'food').length})
-                      </button>
-                    )}
-                    {availableProductTypes.includes('service') && (
-                      <button
-                        type="button"
-                        onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setItemsPage(1); }}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '20px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
-                          color: adminProductTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
-                        }}
-                      >
-                        💼 Jasa ({faunas.filter(f => f.product_type === 'service').length})
-                      </button>
-                    )}
-                    {availableProductTypes.includes('digital') && (
-                      <button
-                        type="button"
-                        onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setItemsPage(1); }}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '20px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
-                          color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
-                        }}
-                      >
-                        💾 Digital ({faunas.filter(f => f.product_type === 'digital').length})
-                      </button>
-                    )}
-                    {availableProductTypes.includes('fauna') && (
-                      <button
-                        type="button"
-                        onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setItemsPage(1); }}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '20px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
-                          color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
-                        }}
-                      >
-                        🐾 Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
-                      </button>
-                    )}
-                  </div>
+                      {availableProductTypes.includes('physical') && (
+                        <button
+                          type="button"
+                          onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setItemsPage(1); }}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+                            color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                        </button>
+                      )}
+                      {availableProductTypes.includes('food') && (
+                        <button
+                          type="button"
+                          onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setItemsPage(1); }}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
+                            color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                        </button>
+                      )}
+                      {availableProductTypes.includes('service') && (
+                        <button
+                          type="button"
+                          onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setItemsPage(1); }}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
+                            color: adminProductTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                        </button>
+                      )}
+                      {availableProductTypes.includes('digital') && (
+                        <button
+                          type="button"
+                          onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setItemsPage(1); }}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
+                            color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                        </button>
+                      )}
+                      {availableProductTypes.includes('fauna') && (
+                        <button
+                          type="button"
+                          onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setItemsPage(1); }}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '20px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
+                            color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* 3. LEVEL-2 SECONDARY FILTER & SORT ROW */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
@@ -16607,6 +16818,381 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               >
                 {crudLoading ? 'Menerapkan...' : 'Terapkan Template Ini'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LUXURY UNIFIED ADVANCED FILTER BOTTOM SHEET (Industry Standard: Filter Lanjutan & Urutan) */}
+      {showFilterSheet && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setShowFilterSheet(false)}
+        >
+          <div 
+            className="bottom-sheet-content filter-modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '86vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '0.65rem 0 0 0'
+            }}
+          >
+            {/* Smooth Drag Handle Area */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('filter')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('filter')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+            
+            {/* Header (Clean without X icon, dismissible via drag handle, backdrop, or footer actions) */}
+            <div 
+              className="bottom-sheet-header"
+              style={{ padding: '0 1.25rem 0.65rem' }}
+            >
+              <div className="bottom-sheet-title-box">
+                <SlidersHorizontal size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <div>
+                  <h3 className="bottom-sheet-title">Filter &amp; Urutkan Produk</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Container (Fixed Sort + Isolated Category Scroll) */}
+            <div style={{ padding: '0.75rem 1.25rem 0.5rem', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              {/* SECTION 1: URUTKAN (SORT BY) - Static Fixed Header */}
+              <div style={{ marginBottom: '1rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Urutkan Berdasarkan
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.45rem' }}>
+                  {[
+                    { key: 'newest', label: 'Terbaru' },
+                    { key: 'price_asc', label: 'Harga: Termurah' },
+                    { key: 'price_desc', label: 'Harga: Tertinggi' },
+                    { key: 'name_asc', label: 'Nama: A - Z' },
+                    { key: 'oldest', label: 'Terlama' }
+                  ].map((s) => {
+                    const isSelected = sortBy === s.key;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setSortBy(s.key as any)}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.75rem',
+                          fontWeight: isSelected ? 800 : 600,
+                          textAlign: 'left',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <span>{s.label}</span>
+                        {isSelected && <Check size={14} strokeWidth={3} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION 2: KATEGORI PRODUK - Isolated Scroll for Category List */}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Kategori Produk ({availableCategories.length})
+                  </span>
+                  {classFilter !== 'all' && (
+                    <button 
+                      type="button" 
+                      onClick={() => setClassFilter('all')} 
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Pilih Semua
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Category Search */}
+                {availableCategories.length > 6 && (
+                  <div className="category-search-input-box" style={{ flexShrink: 0, marginBottom: '0.5rem' }}>
+                    <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      className="category-search-input"
+                      placeholder="Cari kategori cepat..."
+                      value={categorySearch}
+                      onChange={(e) => setCategorySearch(e.target.value)}
+                    />
+                    {categorySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCategorySearch('')}
+                        style={{ position: 'absolute', right: '0.55rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.7rem' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Dedicated Scroll Container ONLY for the Category List items */}
+                <div className="unified-category-list-scroll-box">
+                  <button
+                    type="button"
+                    className={`unified-category-item ${classFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setClassFilter('all')}
+                  >
+                    <div className="unified-category-left">
+                      <span className="unified-category-name">Semua Kategori</span>
+                    </div>
+                    <div className="unified-category-right">
+                      <span className="unified-category-badge">
+                        {productTypeFilter === 'all' ? faunas.length : faunas.filter(f => (f.product_type || 'physical') === productTypeFilter).length} item
+                      </span>
+                      <div className={`unified-category-radio ${classFilter === 'all' ? 'selected' : ''}`}>
+                        {classFilter === 'all' && <Check size={12} strokeWidth={3.5} />}
+                      </div>
+                    </div>
+                  </button>
+
+                  {availableCategories
+                    .filter(cat => !categorySearch.trim() || cat.toLowerCase().includes(categorySearch.toLowerCase()))
+                    .map((cat) => {
+                      const count = faunas.filter(f => f.class === cat && (productTypeFilter === 'all' || (f.product_type || 'physical') === productTypeFilter)).length;
+                      const isSelected = classFilter === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`unified-category-item ${isSelected ? 'active' : ''}`}
+                          onClick={() => setClassFilter(cat)}
+                        >
+                          <div className="unified-category-left">
+                            <span className="unified-category-name">{cat}</span>
+                          </div>
+                          <div className="unified-category-right">
+                            <span className="unified-category-badge">{count} item</span>
+                            <div className={`unified-category-radio ${isSelected ? 'selected' : ''}`}>
+                              {isSelected && <Check size={12} strokeWidth={3.5} />}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Bottom Sticky Actions (Pinned Flush to Screen Bottom) */}
+            <div className="bottom-sheet-sticky-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setClassFilter('all');
+                  setSortBy('newest');
+                }}
+                style={{ flex: 1, padding: '0.75rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem' }}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowFilterSheet(false)}
+                style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
+              >
+                Terapkan ({filteredFaunas.length} Produk)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LUXURY MOBILE BOTTOM SHEET: CATEGORY FILTER */}
+      {showCategorySheet && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setShowCategorySheet(false)}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('category')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('category')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+            
+            {/* Header without X icon */}
+            <div 
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('category')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('category')}
+            >
+              <div className="bottom-sheet-title-box">
+                <Layers size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <h3 className="bottom-sheet-title">Pilih Kategori Produk</h3>
+              </div>
+            </div>
+
+            <div className="bottom-sheet-scrollable-body">
+              <button
+                type="button"
+                className={`bottom-sheet-item ${classFilter === 'all' ? 'active' : ''}`}
+                onClick={() => {
+                  setClassFilter('all');
+                  setShowCategorySheet(false);
+                }}
+              >
+                <div className="bottom-sheet-item-left">
+                  <span className="bottom-sheet-item-name">Semua Kategori</span>
+                  <span className="bottom-sheet-item-badge">{faunas.length} item</span>
+                </div>
+                <div className={`bottom-sheet-radio ${classFilter === 'all' ? 'selected' : ''}`}>
+                  {classFilter === 'all' && (
+                    <Check size={12} strokeWidth={3.5} style={{ display: 'block', margin: 'auto' }} />
+                  )}
+                </div>
+              </button>
+
+              {availableCategories.map((cat) => {
+                const count = faunas.filter(f => f.class === cat && (productTypeFilter === 'all' || (f.product_type || 'physical') === productTypeFilter)).length;
+                const isSelected = classFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => {
+                      setClassFilter(cat);
+                      setShowCategorySheet(false);
+                    }}
+                  >
+                    <div className="bottom-sheet-item-left">
+                      <span className="bottom-sheet-item-name">{cat}</span>
+                      <span className="bottom-sheet-item-badge">{count} item</span>
+                    </div>
+                    <div className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}>
+                      {isSelected && (
+                        <Check size={12} strokeWidth={3.5} style={{ display: 'block', margin: 'auto' }} />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LUXURY MOBILE BOTTOM SHEET: SORT OPTIONS */}
+      {showSortSheet && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setShowSortSheet(false)}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('sort')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('sort')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header without X icon */}
+            <div 
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('sort')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('sort')}
+            >
+              <div className="bottom-sheet-title-box">
+                <ArrowUpDown size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <h3 className="bottom-sheet-title">Urutkan Produk</h3>
+              </div>
+            </div>
+
+            <div className="bottom-sheet-scrollable-body">
+              {[
+                { id: 'newest', label: 'Produk Terbaru', desc: 'Menampilkan item yang baru ditambahkan' },
+                { id: 'price_asc', label: 'Harga: Termurah', desc: 'Urutan dari harga paling hemat' },
+                { id: 'price_desc', label: 'Harga: Tertinggi', desc: 'Urutan dari harga paling tinggi / eksklusif' },
+                { id: 'name_asc', label: 'Nama Produk: A - Z', desc: 'Urutan alfabetis nama item katalog' },
+                { id: 'oldest', label: 'Produk Terlama', desc: 'Item katalog pertama' }
+              ].map((opt) => {
+                const isSelected = sortBy === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => {
+                      setSortBy(opt.id as any);
+                      setShowSortSheet(false);
+                    }}
+                  >
+                    <div className="bottom-sheet-item-col">
+                      <span className="bottom-sheet-item-name">{opt.label}</span>
+                      <span className="bottom-sheet-item-desc">{opt.desc}</span>
+                    </div>
+                    <div className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}>
+                      {isSelected && (
+                        <Check size={12} strokeWidth={3.5} style={{ display: 'block', margin: 'auto' }} />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

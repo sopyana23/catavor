@@ -17,6 +17,10 @@
 **/database/*.sqlite
 /public/storage/fauna/*
 !/public/storage/fauna/.gitkeep
+/public/storage/articles/*
+!/public/storage/articles/.gitkeep
+/public/storage/stores/*
+!/public/storage/stores/.gitkeep
 /backend/storage/uploads/*
 !/backend/storage/uploads/.gitkeep
 /legacy/laravel/storage/app/public/fauna/*
