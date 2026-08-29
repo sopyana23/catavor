@@ -108,7 +108,10 @@ import {
   LayoutGrid,
   Maximize2,
   Minimize2,
-  Columns
+  Columns,
+  MoreVertical,
+  MoreHorizontal,
+  Flag
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -4396,6 +4399,14 @@ function App() {
   const [showMarketplacesSubMenu, setShowMarketplacesSubMenu] = useState<boolean>(false)
   const [displayLimit, setDisplayLimit] = useState<number>(8)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
+
+  // Context-Aware Action Menu (Three-Dots) & Report Modal State
+  const [actionMenuData, setActionMenuData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null)
+  const [reportModalData, setReportModalData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null)
+  const [reportReason, setReportReason] = useState<string>('fraud')
+  const [reportNotes, setReportNotes] = useState<string>('')
+  const [reportEmail, setReportEmail] = useState<string>('')
+  const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false)
 
   // Desktop Admin Inventory States & Filters
   const [adminSearch, setAdminSearch] = useState<string>('')
@@ -9739,7 +9750,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 })()}
                 <button
                   type="button"
-                  onClick={handleShareStore}
+                  onClick={() => setActionMenuData({ type: 'store' })}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -9747,16 +9758,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    padding: '0.25rem',
-                    borderRadius: '4px',
+                    justifyContent: 'center',
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
                     transition: 'all 0.2s',
                     lineHeight: 1
                   }}
-                  title="Bagikan Link Toko"
-                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                  title="Menu & Opsi Katalog"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--primary)';
+                    e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
-                  <Share2 size={16} />
+                  <MoreVertical size={18} />
                 </button>
               </div>
             </div>
@@ -10441,7 +10460,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleShareItem(fauna);
+                                setActionMenuData({ type: 'item', item: fauna });
                               }}
                               style={{
                                 position: 'absolute',
@@ -10450,7 +10469,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 width: '32px',
                                 height: '32px',
                                 borderRadius: '50%',
-                                backgroundColor: 'rgba(9, 14, 12, 0.6)',
+                                backgroundColor: 'rgba(9, 14, 12, 0.72)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -10458,14 +10477,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 color: '#fff',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                backdropFilter: 'blur(4px)',
+                                backdropFilter: 'blur(6px)',
                                 zIndex: 10
                               }}
-                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = '#000'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(9, 14, 12, 0.6)'; e.currentTarget.style.color = '#fff'; }}
-                              title="Bagikan produk"
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = '#000'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(9, 14, 12, 0.72)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.transform = 'scale(1)'; }}
+                              title="Opsi Produk"
                             >
-                              <Share2 size={14} />
+                              <MoreVertical size={16} />
                             </button>
 
                           </div>
@@ -16153,6 +16172,422 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         );
       })()}
+
+      {/* CONTEXT-AWARE LUXURY ACTION MENU MODAL (Bagikan / Laporkan) - Desktop */}
+      {actionMenuData && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setActionMenuData(null)}
+          style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div 
+            className="glass-panel animate-scale-up" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '440px',
+              padding: '1.5rem',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--border-light)',
+              background: 'var(--bg-card)',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)',
+                  flexShrink: 0
+                }}>
+                  {actionMenuData.type === 'store' ? <Store size={18} /> : <Package size={18} />}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    {actionMenuData.type === 'store' 
+                      ? (settings.store_title || 'Katalog Digital') 
+                      : (actionMenuData.item?.name || 'Item Katalog')}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {actionMenuData.type === 'store' 
+                      ? 'Opsi dan menu katalog' 
+                      : `${actionMenuData.item?.class || 'Produk'} • ${formatRupiah(actionMenuData.item?.price)}`}
+                  </span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setActionMenuData(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Options List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {/* Option 1: Bagikan */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (actionMenuData.type === 'store') {
+                    handleShareStore();
+                  } else {
+                    handleShareItem(actionMenuData.item);
+                  }
+                  setActionMenuData(null);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.85rem',
+                  padding: '0.9rem 1.1rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '0.85rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                  color: 'var(--text-primary)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
+              >
+                <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                  <Share2 size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                    {actionMenuData.type === 'store' ? 'Bagikan Katalog' : 'Bagikan Produk Ini'}
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    {actionMenuData.type === 'store' 
+                      ? 'Salin tautan atau bagikan QR code katalog ini' 
+                      : 'Salin tautan langsung produk untuk dibagikan ke chat & medsos'}
+                  </span>
+                </div>
+                <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+              </button>
+
+              {/* Option 2: Laporkan */}
+              <button
+                type="button"
+                onClick={() => {
+                  const savedData = actionMenuData;
+                  setActionMenuData(null);
+                  setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
+                  setReportNotes('');
+                  setReportEmail('');
+                  setReportModalData(savedData);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.85rem',
+                  padding: '0.9rem 1.1rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '0.85rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                  color: 'var(--text-primary)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)'; e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
+              >
+                <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                  <ShieldAlert size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: '#ef4444' }}>
+                    {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    {actionMenuData.type === 'store' 
+                      ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
+                      : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
+                  </span>
+                </div>
+                <ChevronRight size={18} style={{ color: '#ef4444' }} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTEXT-AWARE LUXURY REPORT MODAL - Desktop */}
+      {reportModalData && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setReportModalData(null)}
+          style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div 
+            className="glass-panel animate-scale-up" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '88vh',
+              overflowY: 'auto',
+              padding: '1.75rem',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--border-light)',
+              background: 'var(--bg-card)',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.15rem'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}>
+                  <ShieldAlert size={19} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>
+                    {reportModalData.type === 'store' 
+                      ? (settings.store_title ? `Laporkan Katalog: ${settings.store_title}` : 'Laporkan Katalog Ini') 
+                      : `Laporkan Produk: ${reportModalData.item?.name || 'Produk'}`}
+                  </h3>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    Pilih alasan pelanggaran untuk ditinjau Tim Kepatuhan
+                  </span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setReportModalData(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Reasons List */}
+            <div>
+              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Alasan Pelaporan *
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {(reportModalData.type === 'store' ? [
+                  { id: 'illegal_content', title: 'Konten atau Komoditas Terlarang', desc: 'Menampilkan barang terlarang hukum, zat berbahaya, atau satwa/tumbuhan dilindungi' },
+                  { id: 'copyright', title: 'Pelanggaran Hak Cipta & Merek Dagang', desc: 'Menggunakan nama brand, logo, foto, atau hak cipta tanpa izin sah' },
+                  { id: 'fraud_suspicion', title: 'Indikasi Penipuan atau Aktivitas Fiktif', desc: 'Indikasi penipuan pesanan, identitas palsu, atau transaksi mencurigakan' },
+                  { id: 'misleading_info', title: 'Informasi atau Kontak Menyesatkan', desc: 'Nomor kontak, alamat, atau profil katalog manipulatif / palsu' },
+                  { id: 'other', title: 'Alasan Lainnya', desc: 'Pelanggaran ketentuan penggunaan dan komunitas lainnya' }
+                ] : [
+                  { id: 'counterfeit', title: 'Produk Tiruan atau Pembajakan (KW)', desc: 'Barang tiruan atau bajakan yang melanggar hak cipta / brand resmi' },
+                  { id: 'illegal_item', title: 'Komoditas Terlarang atau Satwa Dilindungi', desc: 'Barang terlarang hukum atau satwa/tumbuhan dilindungi undang-undang' },
+                  { id: 'misleading_info', title: 'Foto atau Deskripsi Menyesatkan', desc: 'Informasi spesifikasi, kondisi, atau foto produk fiktif / tidak akurat' },
+                  { id: 'price_manipulation', title: 'Manipulasi Harga atau Informasi Tarif', desc: 'Harga fiktif, tidak wajar, atau tidak sesuai dengan kesepakatan' },
+                  { id: 'other', title: 'Alasan Lainnya', desc: 'Pelanggaran pada item produk yang tidak tercantum di atas' }
+                ]).map((reason) => {
+                  const isSelected = reportReason === reason.id;
+                  return (
+                    <button
+                      key={reason.id}
+                      type="button"
+                      onClick={() => setReportReason(reason.id)}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.75rem',
+                        border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        color: 'var(--text-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: isSelected ? 'var(--primary)' : 'var(--text-primary)', display: 'block' }}>
+                          {reason.title}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.12rem', lineHeight: 1.3 }}>
+                          {reason.desc}
+                        </span>
+                      </div>
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        border: isSelected ? '1.5px solid var(--primary)' : '1.5px solid var(--border-light)',
+                        backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {isSelected && <Check size={12} strokeWidth={3.5} />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Additional Details */}
+            <div>
+              <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Keterangan Tambahan (Opsional)
+              </label>
+              <textarea
+                placeholder="Jelaskan detail pelanggaran yang Anda temukan..."
+                value={reportNotes}
+                onChange={(e) => setReportNotes(e.target.value)}
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  resize: 'none',
+                  fontSize: '0.8rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
+            {/* Email (Optional) */}
+            <div>
+              <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Email Pelapor (Opsional)
+              </label>
+              <input
+                type="email"
+                placeholder="email@anda.com (untuk pembaruan status laporan)"
+                value={reportEmail}
+                onChange={(e) => setReportEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setReportModalData(null)}
+                disabled={isSubmittingReport}
+                style={{ flex: 1, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 700, borderRadius: '0.75rem' }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={isSubmittingReport}
+                onClick={async () => {
+                  const reasonList = reportModalData.type === 'store' ? [
+                    { id: 'illegal_content', title: 'Konten atau Komoditas Terlarang' },
+                    { id: 'copyright', title: 'Pelanggaran Hak Cipta & Merek Dagang' },
+                    { id: 'fraud_suspicion', title: 'Indikasi Penipuan atau Aktivitas Fiktif' },
+                    { id: 'misleading_info', title: 'Informasi atau Kontak Menyesatkan' },
+                    { id: 'other', title: 'Alasan Lainnya' }
+                  ] : [
+                    { id: 'counterfeit', title: 'Produk Tiruan atau Pembajakan (KW)' },
+                    { id: 'illegal_item', title: 'Komoditas Terlarang atau Satwa Dilindungi' },
+                    { id: 'misleading_info', title: 'Foto atau Deskripsi Menyesatkan' },
+                    { id: 'price_manipulation', title: 'Manipulasi Harga atau Informasi Tarif' },
+                    { id: 'other', title: 'Alasan Lainnya' }
+                  ];
+                  const currentReasonObj = reasonList.find(r => r.id === reportReason);
+                  const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
+                  const targetName = reportModalData.type === 'store' 
+                    ? (settings.store_title || 'katalog ini') 
+                    : (reportModalData.item?.name || 'produk ini');
+
+                  setIsSubmittingReport(true);
+                  try {
+                    const res = await fetch(`${API_BASE}/reports`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        target_type: reportModalData.type === 'store' ? 'catalog' : 'item',
+                        store_id: (settings as any).id || 0,
+                        store_slug: storeSlug || '',
+                        store_title: settings.store_title || 'Katalog Digital',
+                        fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
+                        item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
+                        reason_category: reportReason,
+                        reason_label: reasonLabel,
+                        description: reportNotes.trim(),
+                        reporter_email: reportEmail.trim()
+                      })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setReportModalData(null);
+                      setReportNotes('');
+                      setReportEmail('');
+                      showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetName}" telah berhasil dikirim ke tim kepatuhan.`);
+                    } else {
+                      showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
+                    }
+                  } catch (err) {
+                    showToast('Terjadi gangguan saat mengirim laporan. Silakan coba lagi.', 'error');
+                  } finally {
+                    setIsSubmittingReport(false);
+                  }
+                }}
+                style={{
+                  flex: 2,
+                  padding: '0.75rem',
+                  fontSize: '0.86rem',
+                  fontWeight: 800,
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)'
+                }}
+              >
+                {isSubmittingReport ? 'Mengirim Laporan...' : 'Kirim Laporan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

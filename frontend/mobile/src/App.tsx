@@ -106,7 +106,10 @@ import {
   LayoutGrid,
   Maximize2,
   Minimize2,
-  Columns
+  Columns,
+  MoreVertical,
+  MoreHorizontal,
+  Flag
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -4500,6 +4503,14 @@ function App() {
   const [categorySearch, setCategorySearch] = useState<string>('')
   const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
 
+  // Context-Aware Action Menu (Three-Dots) & Report Sheet State
+  const [actionMenuData, setActionMenuData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null)
+  const [reportModalData, setReportModalData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null)
+  const [reportReason, setReportReason] = useState<string>('fraud')
+  const [reportNotes, setReportNotes] = useState<string>('')
+  const [reportEmail, setReportEmail] = useState<string>('')
+  const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false)
+
   // Mobile Drag-to-Dismiss Gesture for Bottom Sheets
   const [sheetDragY, setSheetDragY] = useState<number>(0)
   const [isSheetDragging, setIsSheetDragging] = useState<boolean>(false)
@@ -4520,13 +4531,15 @@ function App() {
     }
   };
 
-  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter') => {
+  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report') => {
     if (!isSheetDragging) return;
     setIsSheetDragging(false);
     if (sheetDragY > 75) {
       if (type === 'category') setShowCategorySheet(false);
       if (type === 'sort') setShowSortSheet(false);
       if (type === 'filter') setShowFilterSheet(false);
+      if (type === 'action_menu') setActionMenuData(null);
+      if (type === 'report') setReportModalData(null);
     }
     setSheetDragY(0);
   };
@@ -9099,7 +9112,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
             
             <button
-              onClick={() => handleShareItem(selectedFauna)}
+              onClick={() => setActionMenuData({ type: 'item', item: selectedFauna })}
               style={{
                 background: 'none',
                 border: 'none',
@@ -9110,9 +9123,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 justifyContent: 'center',
                 padding: '0.25rem'
               }}
-              title="Bagikan Produk"
+              title="Opsi Produk"
             >
-              <Share2 size={20} />
+              <MoreVertical size={20} />
             </button>
           </div>
 
@@ -11497,11 +11510,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <button
                       type="button"
-                      className="header-share-btn"
-                      onClick={handleShareStore}
-                      title="Bagikan Link Toko"
+                      className="header-more-btn"
+                      onClick={() => setActionMenuData({ type: 'store' })}
+                      title="Menu & Opsi Katalog"
                     >
-                      <Share2 size={16} style={{ color: 'var(--primary)' }} />
+                      <MoreVertical size={18} style={{ color: 'var(--primary)' }} />
                     </button>
                   </div>
                 </div>
@@ -12406,27 +12419,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleShareItem(item);
+                              setActionMenuData({ type: 'item', item });
                             }}
-                            style={{
-                              position: 'absolute',
-                              top: '0.45rem',
-                              right: '0.45rem',
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '50%',
-                              backgroundColor: 'rgba(9, 14, 12, 0.65)',
-                              border: '1px solid var(--border-light)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#fff',
-                              cursor: 'pointer',
-                              zIndex: 10,
-                              backdropFilter: 'blur(4px)'
-                            }}
+                            className="card-more-action-btn"
+                            title="Opsi Produk"
                           >
-                            <Share2 size={12} />
+                            <MoreVertical size={13} />
                           </button>
                         </div>
 
@@ -17020,6 +17018,375 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
               >
                 Terapkan ({filteredFaunas.length} Produk)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTEXT-AWARE LUXURY ACTION MENU BOTTOM SHEET (Bagikan / Laporkan) */}
+      {actionMenuData && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setActionMenuData(null)}
+        >
+          <div 
+            className="bottom-sheet-content action-menu-modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              padding: '0.65rem 0 0 0'
+            }}
+          >
+            {/* Drag Handle */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('action_menu')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('action_menu')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header / Context Preview */}
+            <div className="bottom-sheet-header" style={{ padding: '0 1.25rem 0.65rem' }}>
+              <div className="bottom-sheet-title-box">
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)',
+                  flexShrink: 0
+                }}>
+                  {actionMenuData.type === 'store' ? <Store size={17} /> : <Package size={17} />}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 className="bottom-sheet-title" style={{ fontSize: '0.92rem' }}>
+                    {actionMenuData.type === 'store' 
+                      ? (settings.store_title || 'Katalog Digital') 
+                      : (actionMenuData.item?.name || 'Item Katalog')}
+                  </h3>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {actionMenuData.type === 'store' 
+                      ? 'Opsi dan menu katalog' 
+                      : `${actionMenuData.item?.class || 'Produk'} • ${formatPrice(actionMenuData.item?.price)}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Menu List */}
+            <div style={{ padding: '0.85rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              {/* Option 1: Bagikan */}
+              <button
+                type="button"
+                className="action-menu-btn"
+                onClick={() => {
+                  if (actionMenuData.type === 'store') {
+                    handleShareStore();
+                  } else {
+                    handleShareItem(actionMenuData.item);
+                  }
+                  setActionMenuData(null);
+                }}
+              >
+                <div className="action-menu-icon-box share-icon-box">
+                  <Share2 size={18} />
+                </div>
+                <div className="action-menu-text-box">
+                  <span className="action-menu-title">
+                    {actionMenuData.type === 'store' ? 'Bagikan Katalog' : 'Bagikan Produk Ini'}
+                  </span>
+                  <span className="action-menu-desc">
+                    {actionMenuData.type === 'store' 
+                      ? 'Salin tautan atau bagikan QR code katalog ini' 
+                      : 'Salin tautan langsung produk untuk dibagikan ke chat & medsos'}
+                  </span>
+                </div>
+                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+              </button>
+
+              {/* Option 2: Laporkan */}
+              <button
+                type="button"
+                className="action-menu-btn danger-menu-btn"
+                onClick={() => {
+                  const savedData = actionMenuData;
+                  setActionMenuData(null);
+                  setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
+                  setReportNotes('');
+                  setReportEmail('');
+                  setReportModalData(savedData);
+                }}
+              >
+                <div className="action-menu-icon-box report-icon-box">
+                  <ShieldAlert size={18} />
+                </div>
+                <div className="action-menu-text-box">
+                  <span className="action-menu-title" style={{ color: '#ef4444' }}>
+                    {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
+                  </span>
+                  <span className="action-menu-desc">
+                    {actionMenuData.type === 'store' 
+                      ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
+                      : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
+                  </span>
+                </div>
+                <ChevronRight size={16} style={{ color: '#ef4444' }} />
+              </button>
+            </div>
+
+            {/* Bottom Safe Cancel */}
+            <div className="bottom-sheet-sticky-footer" style={{ borderTop: 'none', paddingTop: '0.35rem' }}>
+              <button
+                type="button"
+                className="btn-secondary btn-full"
+                onClick={() => setActionMenuData(null)}
+                style={{ padding: '0.75rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem' }}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTEXT-AWARE LUXURY REPORT MODAL BOTTOM SHEET */}
+      {reportModalData && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setReportModalData(null)}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '0.65rem 0 0 0'
+            }}
+          >
+            {/* Drag Handle */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('report')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('report')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header */}
+            <div className="bottom-sheet-header" style={{ padding: '0 1.25rem 0.65rem' }}>
+              <div className="bottom-sheet-title-box">
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}>
+                  <ShieldAlert size={18} />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 className="bottom-sheet-title" style={{ fontSize: '0.92rem', color: '#ef4444' }}>
+                    {reportModalData.type === 'store' 
+                      ? (settings.store_title ? `Laporkan Katalog: ${settings.store_title}` : 'Laporkan Katalog Ini') 
+                      : `Laporkan Produk: ${reportModalData.item?.name || 'Produk'}`}
+                  </h3>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>
+                    Pilih alasan pelanggaran untuk ditinjau Tim Kepatuhan
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable Report Form Body */}
+            <div style={{ padding: '0.75rem 1.25rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
+              {/* Reason Selector */}
+              <div>
+                <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Alasan Pelaporan *
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {(reportModalData.type === 'store' ? [
+                    { id: 'illegal_content', title: 'Konten atau Komoditas Terlarang', desc: 'Menampilkan barang terlarang hukum, zat berbahaya, atau satwa/tumbuhan dilindungi' },
+                    { id: 'copyright', title: 'Pelanggaran Hak Cipta & Merek Dagang', desc: 'Menggunakan nama brand, logo, foto, atau hak cipta tanpa izin sah' },
+                    { id: 'fraud_suspicion', title: 'Indikasi Penipuan atau Aktivitas Fiktif', desc: 'Indikasi penipuan pesanan, identitas palsu, atau transaksi mencurigakan' },
+                    { id: 'misleading_info', title: 'Informasi atau Kontak Menyesatkan', desc: 'Nomor kontak, alamat, atau profil katalog manipulatif / palsu' },
+                    { id: 'other', title: 'Alasan Lainnya', desc: 'Pelanggaran ketentuan penggunaan dan komunitas lainnya' }
+                  ] : [
+                    { id: 'counterfeit', title: 'Produk Tiruan atau Pembajakan (KW)', desc: 'Barang tiruan atau bajakan yang melanggar hak cipta / brand resmi' },
+                    { id: 'illegal_item', title: 'Komoditas Terlarang atau Satwa Dilindungi', desc: 'Barang terlarang hukum atau satwa/tumbuhan dilindungi undang-undang' },
+                    { id: 'misleading_info', title: 'Foto atau Deskripsi Menyesatkan', desc: 'Informasi spesifikasi, kondisi, atau foto produk fiktif / tidak akurat' },
+                    { id: 'price_manipulation', title: 'Manipulasi Harga atau Informasi Tarif', desc: 'Harga fiktif, tidak wajar, atau tidak sesuai dengan kesepakatan' },
+                    { id: 'other', title: 'Alasan Lainnya', desc: 'Pelanggaran pada item produk yang tidak tercantum di atas' }
+                  ]).map((reason) => {
+                    const isSelected = reportReason === reason.id;
+                    return (
+                      <button
+                        key={reason.id}
+                        type="button"
+                        className={`unified-category-item ${isSelected ? 'active' : ''}`}
+                        onClick={() => setReportReason(reason.id)}
+                        style={{ padding: '0.65rem 0.85rem' }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: isSelected ? 'var(--primary)' : 'var(--text-primary)', display: 'block' }}>
+                            {reason.title}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.12rem', lineHeight: 1.3 }}>
+                            {reason.desc}
+                          </span>
+                        </div>
+                        <div className={`unified-category-radio ${isSelected ? 'selected' : ''}`} style={{ borderColor: isSelected ? 'var(--primary)' : 'var(--border-light)' }}>
+                          {isSelected && <Check size={12} strokeWidth={3.5} />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Additional Details (Textarea) */}
+              <div>
+                <label style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Keterangan Tambahan (Opsional)
+                </label>
+                <textarea
+                  className="search-input"
+                  placeholder="Jelaskan detail pelanggaran yang Anda temukan..."
+                  value={reportNotes}
+                  onChange={(e) => setReportNotes(e.target.value)}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    resize: 'none',
+                    fontSize: '0.78rem',
+                    lineHeight: 1.4,
+                    height: 'auto'
+                  }}
+                />
+              </div>
+
+              {/* Email (Optional) */}
+              <div>
+                <label style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Email Pelapor (Opsional)
+                </label>
+                <input
+                  type="email"
+                  className="search-input"
+                  placeholder="email@anda.com (untuk pembaruan status laporan)"
+                  value={reportEmail}
+                  onChange={(e) => setReportEmail(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.85rem' }}
+                />
+              </div>
+            </div>
+
+            {/* Sticky Action Footer */}
+            <div className="bottom-sheet-sticky-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setReportModalData(null)}
+                disabled={isSubmittingReport}
+                style={{ flex: 1, padding: '0.75rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem' }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={isSubmittingReport}
+                onClick={async () => {
+                  const reasonList = reportModalData.type === 'store' ? [
+                    { id: 'illegal_content', title: 'Konten atau Komoditas Terlarang' },
+                    { id: 'copyright', title: 'Pelanggaran Hak Cipta & Merek Dagang' },
+                    { id: 'fraud_suspicion', title: 'Indikasi Penipuan atau Aktivitas Fiktif' },
+                    { id: 'misleading_info', title: 'Informasi atau Kontak Menyesatkan' },
+                    { id: 'other', title: 'Alasan Lainnya' }
+                  ] : [
+                    { id: 'counterfeit', title: 'Produk Tiruan atau Pembajakan (KW)' },
+                    { id: 'illegal_item', title: 'Komoditas Terlarang atau Satwa Dilindungi' },
+                    { id: 'misleading_info', title: 'Foto atau Deskripsi Menyesatkan' },
+                    { id: 'price_manipulation', title: 'Manipulasi Harga atau Informasi Tarif' },
+                    { id: 'other', title: 'Alasan Lainnya' }
+                  ];
+                  const currentReasonObj = reasonList.find(r => r.id === reportReason);
+                  const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
+                  const targetName = reportModalData.type === 'store' 
+                    ? (settings.store_title || 'katalog ini') 
+                    : (reportModalData.item?.name || 'produk ini');
+
+                  setIsSubmittingReport(true);
+                  try {
+                    const res = await fetch(`${API_BASE}/reports`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        target_type: reportModalData.type === 'store' ? 'catalog' : 'item',
+                        store_id: (settings as any).id || 0,
+                        store_slug: storeSlug || '',
+                        store_title: settings.store_title || 'Katalog Digital',
+                        fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
+                        item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
+                        reason_category: reportReason,
+                        reason_label: reasonLabel,
+                        description: reportNotes.trim(),
+                        reporter_email: reportEmail.trim()
+                      })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setReportModalData(null);
+                      setReportNotes('');
+                      setReportEmail('');
+                      showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetName}" telah berhasil dikirim ke tim kepatuhan.`);
+                    } else {
+                      showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
+                    }
+                  } catch (err) {
+                    showToast('Terjadi gangguan saat mengirim laporan. Silakan coba lagi.', 'error');
+                  } finally {
+                    setIsSubmittingReport(false);
+                  }
+                }}
+                style={{
+                  flex: 2,
+                  padding: '0.75rem',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)'
+                }}
+              >
+                {isSubmittingReport ? 'Mengirim Laporan...' : 'Kirim Laporan'}
               </button>
             </div>
           </div>

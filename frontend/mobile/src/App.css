@@ -786,6 +786,127 @@
   border-color: var(--primary);
 }
 
+/* Header & Card More Action Button (Three-Dots) */
+.header-more-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.header-more-btn:hover,
+.header-more-btn:active {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+  color: var(--primary);
+}
+
+.card-more-action-btn {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(9, 14, 12, 0.72);
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  cursor: pointer;
+  z-index: 10;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: all 0.2s ease;
+}
+
+.card-more-action-btn:hover,
+.card-more-action-btn:active {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: var(--primary);
+  transform: scale(1.08);
+}
+
+/* Action Menu Sheet Items */
+.action-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-light);
+  border-radius: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  font-family: inherit;
+}
+
+.action-menu-btn:hover,
+.action-menu-btn:active {
+  border-color: var(--primary);
+  background: var(--bg-card-hover);
+  transform: translateY(-1px);
+}
+
+.action-menu-btn.danger-menu-btn:hover,
+.action-menu-btn.danger-menu-btn:active {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.action-menu-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-menu-icon-box.share-icon-box {
+  background: var(--primary-glow);
+  border: 1px solid var(--border-light);
+  color: var(--primary);
+}
+
+.action-menu-icon-box.report-icon-box {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.action-menu-text-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.action-menu-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.action-menu-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
 @keyframes sheetSlideUp {
   from {
     transform: translateY(100%);
