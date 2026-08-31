@@ -110,7 +110,8 @@ import {
   Columns,
   MoreVertical,
   MoreHorizontal,
-  Flag
+  Flag,
+  Award
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -4937,6 +4938,15 @@ function App() {
   const [reportEmail, setReportEmail] = useState<string>('')
   const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false)
 
+  // Dynamic Mobile Bottom Sheet Generic Form Dropdown Picker State
+  const [crudDropdownPicker, setCrudDropdownPicker] = useState<{
+    title: string;
+    icon?: any;
+    options: { value: string; label: string; desc?: string; badge?: string; isAction?: boolean }[];
+    selectedValue: string;
+    onSelect: (value: string) => void;
+  } | null>(null);
+
   // Mobile Drag-to-Dismiss Gesture for Bottom Sheets
   const [sheetDragY, setSheetDragY] = useState<number>(0)
   const [isSheetDragging, setIsSheetDragging] = useState<boolean>(false)
@@ -4957,7 +4967,7 @@ function App() {
     }
   };
 
-  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options') => {
+  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown') => {
     if (!isSheetDragging) return;
     setIsSheetDragging(false);
     if (sheetDragY > 75) {
@@ -4967,6 +4977,7 @@ function App() {
       if (type === 'action_menu') setActionMenuData(null);
       if (type === 'report') setReportModalData(null);
       if (type === 'rekber_explainer') setShowRekberExplainerModal(false);
+      if (type === 'crud_dropdown') setCrudDropdownPicker(null);
       if (type === 'purchase_options') {
         setShowPurchaseOptions(false);
         setShowMarketplacesSubMenu(false);
@@ -7945,6 +7956,19 @@ function App() {
     }
     const theme = (themeName || 'emerald').toLowerCase();
     switch (theme) {
+      case 'nordic':
+        return {
+          bg: '#0f141a',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(91, 124, 153, 0.22) 0%, rgba(15, 20, 26, 0.98) 70%)',
+          cardBg: '#17202a',
+          logoBoxBg: '#ffffff',
+          logoBoxBorder: '1px solid rgba(142, 176, 204, 0.35)',
+          logoBoxShadow: '0 10px 30px rgba(91, 124, 153, 0.25)',
+          titleColor: '#f8fafc',
+          subtitleColor: '#cbd5e1',
+          trackBg: 'rgba(91, 124, 153, 0.18)',
+          accent: '#5b7c99'
+        };
       case 'cyberpunk':
         return {
           bg: '#0b0716',
@@ -9734,12 +9758,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                   {selectedFauna.product_type === 'property' && selectedFauna.attributes?.transaction_type && (
                     <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
-                      🏡 {selectedFauna.attributes.transaction_type}
+                      {selectedFauna.attributes.transaction_type}
                     </span>
                   )}
                   {selectedFauna.product_type === 'food' && selectedFauna.attributes?.halal_status && (
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                      🏅 {selectedFauna.attributes.halal_status}
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '0.22rem 0.6rem',
+                      borderRadius: '6px',
+                      background: 'var(--primary-glow)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--primary)',
+                      letterSpacing: '0.01em',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}>
+                      {selectedFauna.attributes.halal_status}
                     </span>
                   )}
                   {selectedFauna.product_type !== 'service' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
@@ -9763,7 +9798,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
               )}
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Kategori: <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{selectedFauna.class.toUpperCase()}</span>
+                Kategori: <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{selectedFauna.class.toUpperCase()}</span>
               </div>
             </div>
 
@@ -9776,7 +9811,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                backgroundColor: 'var(--card-bg-gradient)',
                 border: '1px solid var(--border-light)',
                 borderRadius: '0.75rem',
                 padding: '0.4rem 0.9rem'
@@ -9793,16 +9828,16 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           gap: '0.85rem',
                           alignItems: 'baseline', 
                           padding: '0.55rem 0', 
-                          borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)', 
+                          borderBottom: isLast ? 'none' : '1px solid var(--border-light)', 
                           fontSize: '0.83rem',
                           lineHeight: 1.45 
                         }}
                       >
-                        <span style={{ color: 'var(--text-secondary)', fontWeight: 500, flexShrink: 0 }}>
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600, flexShrink: 0 }}>
                           {label}
                         </span>
                         <span style={{ 
-                          fontWeight: 600, 
+                          fontWeight: 700, 
                           color: isHighlight ? 'var(--primary)' : 'var(--text-primary)', 
                           textAlign: 'right', 
                           wordBreak: 'break-word',
@@ -10061,18 +10096,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   className="btn-primary"
                   style={{
                     flex: 1,
-                    height: '42px',
+                    height: '44px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: '#10b981',
-                    borderColor: '#10b981',
-                    color: '#fff',
-                    fontSize: '0.85rem',
+                    backgroundColor: 'var(--primary)',
+                    borderColor: 'var(--primary)',
+                    color: '#ffffff',
+                    fontSize: '0.88rem',
                     fontWeight: 700,
-                    borderRadius: '0.35rem',
+                    borderRadius: '0.5rem',
                     gap: '0.5rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px var(--primary-glow)'
                   }}
                 >
                   {selectedFauna.product_type === 'property' ? (
@@ -10949,26 +10985,58 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
                   <label className="form-label">{typeConfig.categoryLabel}</label>
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <select
-                      className="form-select"
-                      style={{ flex: 1, height: '42px', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
-                      value={showCustomClassInput ? '__NEW__' : crudForm.class}
-                      onChange={(e) => {
-                        const newClass = e.target.value;
-                        if (newClass === '__NEW__') {
-                          setShowCustomClassInput(true);
-                          setCustomClass('');
-                        } else {
-                          setShowCustomClassInput(false);
-                          setCrudForm(prev => ({ ...prev, class: newClass }));
-                        }
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cats = getCategoryOptionsForType(crudForm.product_type);
+                        const opts = cats.map(cat => ({
+                          value: cat,
+                          label: cat,
+                          badge: `${faunas.filter(f => f.class === cat).length} item`
+                        }));
+                        opts.push({
+                          value: '__NEW__',
+                          label: '+ Tambah Kategori Baru...',
+                          desc: 'Ketik nama kategori kustom sendiri',
+                          isAction: true
+                        } as any);
+                        setCrudDropdownPicker({
+                          title: typeConfig.categoryLabel,
+                          icon: Layers,
+                          options: opts,
+                          selectedValue: showCustomClassInput ? '__NEW__' : crudForm.class,
+                          onSelect: (val) => {
+                            if (val === '__NEW__') {
+                              setShowCustomClassInput(true);
+                              setCustomClass('');
+                            } else {
+                              setShowCustomClassInput(false);
+                              setCrudForm(prev => ({ ...prev, class: val }));
+                            }
+                          }
+                        });
+                      }}
+                      className="form-input"
+                      style={{
+                        flex: 1,
+                        height: '42px',
+                        padding: '0 0.85rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)'
                       }}
                     >
-                      {getCategoryOptionsForType(crudForm.product_type).map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                      <option value="__NEW__">+ Tambah Kategori Baru...</option>
-                    </select>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                        {showCustomClassInput ? '+ Tambah Kategori Baru...' : (crudForm.class || 'Pilih Kategori...')}
+                      </span>
+                      <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                    </button>
                   </div>
                   {showCustomClassInput && (
                     <input
@@ -10990,16 +11058,41 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi Barang *</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.condition}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Kondisi Barang',
+                              icon: Package,
+                              options: [
+                                { value: 'Baru', label: 'Baru', desc: 'Produk dalam kondisi gres 100% baru & tersegel' },
+                                { value: 'Bekas', label: 'Bekas / Second', desc: 'Produk pernah digunakan / pre-owned' },
+                                { value: 'Refurbished', label: 'Refurbished', desc: 'Produk rekondisi resmi & siap pakai' }
+                              ],
+                              selectedValue: crudForm.attributes.condition,
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, condition: val as any } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
                         >
-                          <option value="Baru">Baru</option>
-                          <option value="Bekas">Bekas / Second</option>
-                          <option value="Refurbished">Refurbished</option>
-                        </select>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.condition || 'Pilih Kondisi'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Berat (Gram) *</label>
@@ -11067,17 +11160,42 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label" style={{ marginBottom: '0.35rem' }}>Tipe Lisensi *</label>
-                      <select 
-                        className="form-select"
-                        style={{ height: '42px' }}
-                        value={crudForm.attributes.license_type || 'Lisensi Personal'}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: e.target.value } })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCrudDropdownPicker({
+                            title: 'Pilih Tipe Lisensi Digital',
+                            icon: ShieldCheck,
+                            options: [
+                              { value: 'Lisensi Personal', label: 'Lisensi Personal', desc: 'Hanya untuk pemakaian individu non-komersial' },
+                              { value: 'Lisensi Komersial', label: 'Lisensi Komersial', desc: 'Boleh digunakan untuk bisnis & proyek berbayar' },
+                              { value: 'Resale Rights', label: 'Extended License / Resale Rights', desc: 'Hak cipta diperluas / dapat dijual kembali' },
+                              { value: 'Open Source', label: 'Open Source / Bebas', desc: 'Bebas digunakan tanpa batasan royalti' }
+                            ],
+                            selectedValue: crudForm.attributes.license_type || 'Lisensi Personal',
+                            onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, license_type: val } }))
+                          });
+                        }}
+                        className="form-input"
+                        style={{
+                          height: '42px',
+                          padding: '0 0.85rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)'
+                        }}
                       >
-                        <option value="Lisensi Personal">Lisensi Personal (Penggunaan Pribadi)</option>
-                        <option value="Lisensi Komersial">Lisensi Komersial (Bisnis/Proyek)</option>
-                        <option value="Resale Rights">Extended License / Resale Rights</option>
-                        <option value="Open Source">Open Source / Bebas</option>
-                      </select>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          {crudForm.attributes.license_type || 'Lisensi Personal'}
+                        </span>
+                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -11130,16 +11248,41 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Status Ketersediaan *</label>
-                      <select 
-                        className="form-select"
-                        style={{ height: '42px' }}
-                        value={crudForm.conservation_status}
-                        onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCrudDropdownPicker({
+                            title: 'Pilih Status Ketersediaan',
+                            icon: CheckCircle,
+                            options: [
+                              { value: 'Ready Stock', label: 'Ready Stock', desc: 'Satwa / fauna siap dikirim / diadopsi segera' },
+                              { value: 'Pre-Order', label: 'Pre-Order', desc: 'Pemesanan terlebih dahulu / inden khusus' },
+                              { value: 'Tersedia', label: 'Tersedia', desc: 'Stok tersedia di fasilitas penangkaran' }
+                            ],
+                            selectedValue: crudForm.conservation_status || 'Ready Stock',
+                            onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
+                          });
+                        }}
+                        className="form-input"
+                        style={{
+                          height: '42px',
+                          padding: '0 0.85rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)'
+                        }}
                       >
-                        <option value="Ready Stock">Ready Stock</option>
-                        <option value="Pre-Order">Pre-Order</option>
-                        <option value="Tersedia">Tersedia</option>
-                      </select>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          {crudForm.conservation_status || 'Ready Stock'}
+                        </span>
+                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -11161,16 +11304,41 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Metode Layanan *</label>
-                        <select 
-                          className="form-select" 
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.service_location}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Metode Layanan',
+                              icon: MapPin,
+                              options: [
+                                { value: 'Datang ke Toko', label: 'Datang ke Toko', desc: 'Klien datang langsung ke outlet / workshop' },
+                                { value: 'Home Visit (Ke Rumah)', label: 'Home Visit (Ke Rumah)', desc: 'Penyedia jasa datang ke lokasi / rumah klien' },
+                                { value: 'Online', label: 'Online / Jarak Jauh', desc: 'Layanan digital via internet / remote' }
+                              ],
+                              selectedValue: crudForm.attributes.service_location || 'Datang ke Toko',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, service_location: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
                         >
-                          <option value="Datang ke Toko">Datang ke Toko</option>
-                          <option value="Home Visit (Ke Rumah)">Home Visit (Ke Rumah)</option>
-                          <option value="Online">Online / Jarak Jauh</option>
-                        </select>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.service_location || 'Datang ke Toko'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
                       </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
@@ -11193,32 +11361,82 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Tipe Transaksi *</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.transaction_type || 'Dijual'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, transaction_type: e.target.value as any } })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Tipe Transaksi',
+                              icon: Home,
+                              options: [
+                                { value: 'Dijual', label: 'Dijual (Jual Putus)', desc: 'Pengalihan hak milik properti secara penuh' },
+                                { value: 'Disewakan (Tahunan)', label: 'Disewakan (Tahunan)', desc: 'Sewa kontrak dengan termin per tahun' },
+                                { value: 'Disewakan (Bulanan)', label: 'Disewakan (Bulanan)', desc: 'Sewa fleksibel dengan pembayaran per bulan' }
+                              ],
+                              selectedValue: crudForm.attributes.transaction_type || 'Dijual',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, transaction_type: val as any } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
                         >
-                          <option value="Dijual">Dijual (Jual Putus)</option>
-                          <option value="Disewakan (Tahunan)">Disewakan (Tahunan)</option>
-                          <option value="Disewakan (Bulanan)">Disewakan (Bulanan)</option>
-                        </select>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.transaction_type || 'Dijual'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Legalitas / Sertifikat *</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certificate: e.target.value } })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Legalitas / Sertifikat',
+                              icon: Award,
+                              options: [
+                                { value: 'SHM (Sertifikat Hak Milik)', label: 'SHM (Sertifikat Hak Milik)', desc: 'Tingkat kepemilikan terkuat & tertinggi' },
+                                { value: 'HGB (Hak Guna Bangunan)', label: 'HGB (Hak Guna Bangunan)', desc: 'Hak mendirikan bangunan di atas tanah' },
+                                { value: 'Strata Title / SHMRS', label: 'Strata Title / SHMRS', desc: 'Kepemilikan unit apartemen / kondominium' },
+                                { value: 'AJB (Akta Jual Beli)', label: 'AJB (Akta Jual Beli)', desc: 'Bukti sah transaksi di hadapan PPAT' },
+                                { value: 'Girik / Letter C', label: 'Girik / Letter C', desc: 'Surat keterangan tanah adat / warisan' },
+                                { value: 'Lainnya', label: 'Lainnya', desc: 'Status legalitas atau dokumen khusus' }
+                              ],
+                              selectedValue: crudForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, certificate: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
                         >
-                          <option value="SHM (Sertifikat Hak Milik)">SHM (Sertifikat Hak Milik)</option>
-                          <option value="HGB (Hak Guna Bangunan)">HGB (Hak Guna Bangunan)</option>
-                          <option value="Strata Title / SHMRS">Strata Title / SHMRS</option>
-                          <option value="AJB (Akta Jual Beli)">AJB (Akta Jual Beli)</option>
-                          <option value="Girik / Letter C">Girik / Letter C</option>
-                          <option value="Lainnya">Lainnya</option>
-                        </select>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
                       </div>
                     </div>
 
@@ -11320,35 +11538,85 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi Perabotan</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.furnishing || 'Semi-Furnished'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, furnishing: e.target.value } })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Kondisi Perabotan',
+                              icon: Layers,
+                              options: [
+                                { value: 'Unfurnished (Kosong)', label: 'Unfurnished (Kosong)', desc: 'Unit kosong siap diisi perabot sendiri' },
+                                { value: 'Semi-Furnished', label: 'Semi-Furnished', desc: 'Sudah ada beberapa perabot utama (AC, Kitchen Set)' },
+                                { value: 'Fully Furnished (Lengkap)', label: 'Fully Furnished (Lengkap)', desc: 'Unit lengkap siap huni / tinggal bawa koper' }
+                              ],
+                              selectedValue: crudForm.attributes.furnishing || 'Semi-Furnished',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, furnishing: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
                         >
-                          <option value="Unfurnished (Kosong)">Unfurnished (Kosong)</option>
-                          <option value="Semi-Furnished">Semi-Furnished</option>
-                          <option value="Fully Furnished (Lengkap)">Fully Furnished (Lengkap)</option>
-                        </select>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.furnishing || 'Semi-Furnished'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Arah Hadap</label>
-                        <select 
-                          className="form-select"
-                          style={{ height: '42px' }}
-                          value={crudForm.attributes.facing || 'Timur'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, facing: e.target.value } })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Arah Hadap Bangunan',
+                              icon: Compass,
+                              options: [
+                                { value: 'Utara', label: 'Utara' },
+                                { value: 'Selatan', label: 'Selatan' },
+                                { value: 'Timur', label: 'Timur (Matahari Pagi)' },
+                                { value: 'Barat', label: 'Barat' },
+                                { value: 'Timur Laut', label: 'Timur Laut' },
+                                { value: 'Tenggara', label: 'Tenggara' },
+                                { value: 'Barat Daya', label: 'Barat Daya' },
+                                { value: 'Barat Laut', label: 'Barat Laut' },
+                                { value: 'Bebas / Fleksibel', label: 'Bebas / Fleksibel' }
+                              ],
+                              selectedValue: crudForm.attributes.facing || 'Timur',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, facing: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
                         >
-                          <option value="Utara">Utara</option>
-                          <option value="Selatan">Selatan</option>
-                          <option value="Timur">Timur</option>
-                          <option value="Barat">Barat</option>
-                          <option value="Timur Laut">Timur Laut</option>
-                          <option value="Tenggara">Tenggara</option>
-                          <option value="Barat Daya">Barat Daya</option>
-                          <option value="Barat Laut">Barat Laut</option>
-                          <option value="Bebas / Fleksibel">Bebas / Fleksibel</option>
-                        </select>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.facing || 'Timur'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
                       </div>
                     </div>
 
@@ -11371,18 +11639,43 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label" style={{ marginBottom: '0.35rem' }}>Sertifikasi / Status Halal *</label>
-                      <select 
-                        className="form-select"
-                        style={{ height: '42px' }}
-                        value={crudForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'}
-                        onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, halal_status: e.target.value } })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCrudDropdownPicker({
+                            title: 'Pilih Sertifikasi / Status Halal',
+                            icon: CheckCircle,
+                            options: [
+                              { value: 'Bersertifikat Halal Resmi (BPJPH / MUI)', label: 'Bersertifikat Halal Resmi (BPJPH / MUI)', desc: 'Telah terverifikasi & terdaftar resmi di BPJPH/MUI' },
+                              { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)', desc: '100% menggunakan bahan baku halal, bersih & higienis' },
+                              { value: 'Muslim Friendly / No Pork No Lard', label: 'Muslim Friendly / No Pork No Lard', desc: 'Bebas daging babi, minyak babi, dan alkohol' },
+                              { value: 'Dalam Proses Sertifikasi Halal', label: 'Dalam Proses Sertifikasi Halal', desc: 'Sedang dalam proses audit sertifikasi halal' },
+                              { value: 'Non-Halal', label: 'Non-Halal', desc: 'Mengandung bahan non-halal / khusus non-muslim' }
+                            ],
+                            selectedValue: crudForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+                            onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, halal_status: val } }))
+                          });
+                        }}
+                        className="form-input"
+                        style={{
+                          height: '42px',
+                          padding: '0 0.85rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)'
+                        }}
                       >
-                        <option value="Bersertifikat Halal Resmi (BPJPH / MUI)">Bersertifikat Halal Resmi (BPJPH / MUI)</option>
-                        <option value="Halal (Bahan Baku Halal & Thayyib)">Halal (Bahan Baku Halal &amp; Thayyib)</option>
-                        <option value="Muslim Friendly / No Pork No Lard">Muslim Friendly / No Pork No Lard</option>
-                        <option value="Dalam Proses Sertifikasi Halal">Dalam Proses Sertifikasi Halal</option>
-                        <option value="Non-Halal">Non-Halal</option>
-                      </select>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          {crudForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'}
+                        </span>
+                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      </button>
                     </div>
 
                     <div className="form-group" style={{ marginBottom: 0 }}>
@@ -13175,7 +13468,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     {isStoreOwner && (
                       <button 
                         className="btn-primary" 
-                        onClick={() => { setView('tabs'); setActiveTab('admin'); setAdminSubTab('items'); }}
+                        onClick={openCreateSheet}
                         style={{ padding: '0.6rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: '0.5rem', marginTop: '0.25rem' }}
                       >
                         + Tambah Produk Pertama
@@ -14242,38 +14535,41 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div style={{
                       padding: '1rem 1.1rem',
                       borderRadius: '0.9rem',
-                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(6, 182, 212, 0.2) 100%)',
-                      border: '1px solid rgba(16, 185, 129, 0.35)',
-                      color: '#ffffff',
+                      background: 'var(--card-bg-gradient)',
+                      border: '1px solid var(--border-light)',
+                      borderLeft: '4px solid var(--primary)',
+                      color: 'var(--text-primary)',
                       fontSize: '0.8rem',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.75rem',
                       marginBottom: '1rem',
-                      boxShadow: '0 6px 20px rgba(16, 185, 129, 0.15)',
-                      backdropFilter: 'blur(10px)'
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 16px var(--primary-glow)',
+                      backdropFilter: 'blur(10px)',
+                      position: 'relative',
+                      overflow: 'hidden'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                         <div style={{
                           width: '38px',
                           height: '38px',
                           borderRadius: '10px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                          backgroundColor: 'var(--primary-glow)',
+                          border: '1px solid var(--primary)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#10b981',
+                          color: 'var(--primary)',
                           flexShrink: 0,
-                          boxShadow: '0 0 12px rgba(16, 185, 129, 0.3)'
+                          boxShadow: '0 2px 8px var(--primary-glow)'
                         }}>
                           <Sparkles size={18} />
                         </div>
                         <div>
-                          <strong style={{ color: '#ffffff', display: 'block', fontSize: '0.88rem', fontWeight: 800, marginBottom: '0.2rem' }}>
+                          <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.88rem', fontWeight: 800, marginBottom: '0.2rem' }}>
                             ✨ Selamat Datang di Catavor!
                           </strong>
-                          <p style={{ margin: 0, color: '#d1d5db', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: 1.4 }}>
                             Lengkapi informasi Halaman Tentang Kami (Alamat, Jam Operasional, &amp; Profil Komitmen) agar toko terlihat profesional.
                           </p>
                         </div>
@@ -14282,6 +14578,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <button
                           type="button"
+                          className="btn-primary"
                           onClick={() => {
                             setAdminSubTab('settings');
                             setMobileSettingsTab('about');
@@ -14290,30 +14587,24 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             flex: 1,
                             padding: '0.5rem 0.85rem',
                             borderRadius: '0.6rem',
-                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                            color: '#ffffff',
-                            border: 'none',
                             fontSize: '0.76rem',
                             fontWeight: 800,
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '0.35rem',
-                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                            gap: '0.35rem'
                           }}
                         >
                           <Sparkles size={14} /> Lengkapi Sekarang
                         </button>
                         <button
                           type="button"
+                          className="btn-secondary"
                           onClick={() => dismissAboutOnboarding()}
                           style={{
                             padding: '0.5rem 0.75rem',
                             borderRadius: '0.6rem',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            color: '#9ca3af',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
                             fontSize: '0.74rem',
                             fontWeight: 700,
                             cursor: 'pointer'
@@ -14592,229 +14883,234 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 /* TAB 1: ADMIN INVENTORY MANAGEMENT (SEARCH, MULTI-TYPE PILLS, RICH CARDS, SERVER-SIDE PAGINATION) */
                 <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   
-                  {/* 1. TOP SEARCH BAR */}
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input 
-                      type="text"
-                      className="form-input"
-                      placeholder="Cari nama item, kategori, atau deskripsi..."
-                      value={adminSearch}
-                      onChange={(e) => {
-                        setAdminSearch(e.target.value);
-                        setItemsPage(1);
-                      }}
-                      style={{
-                        paddingLeft: '2.35rem',
-                        paddingRight: adminSearch ? '2.2rem' : '0.85rem',
-                        height: '40px',
-                        fontSize: '0.82rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--card-bg-gradient)',
-                        border: '1px solid var(--border-light)'
-                      }}
-                    />
-                    {adminSearch && (
-                      <button
-                        type="button"
-                        onClick={() => { setAdminSearch(''); setItemsPage(1); }}
-                        style={{
-                          position: 'absolute',
-                          right: '0.65rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'rgba(255,255,255,0.1)',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          borderRadius: '50%',
-                          width: '20px',
-                          height: '20px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
+                  {/* 1. TOP SEARCH BAR & FILTERS (Hanya tampil jika sudah ada data item inventaris) */}
+                  {faunas.length > 0 && (
+                    <>
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input 
+                          type="text"
+                          className="form-input"
+                          placeholder="Cari nama item, kategori, atau deskripsi..."
+                          value={adminSearch}
+                          onChange={(e) => {
+                            setAdminSearch(e.target.value);
+                            setItemsPage(1);
+                          }}
+                          style={{
+                            paddingLeft: '2.35rem',
+                            paddingRight: adminSearch ? '2.2rem' : '0.85rem',
+                            height: '40px',
+                            fontSize: '0.82rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--card-bg-gradient)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)'
+                          }}
+                        />
+                        {adminSearch && (
+                          <button
+                            type="button"
+                            onClick={() => { setAdminSearch(''); setItemsPage(1); }}
+                            style={{
+                              position: 'absolute',
+                              right: '0.65rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'var(--border-light)',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              borderRadius: '50%',
+                              width: '20px',
+                              height: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              fontSize: '0.7rem'
+                            }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
 
-                  {/* 2. LEVEL-1 QUICK-PILLS: TIPE PRODUK (Hanya muncul jika toko memiliki > 1 jenis kategori item) */}
-                  {isHybridStore && (
-                    <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', marginBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
-                      <button
-                        type="button"
-                        onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
-                        style={{
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '20px',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                          color: adminProductTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
-                        }}
-                      >
-                        Semua ({faunas.length})
-                      </button>
-                      {availableProductTypes.includes('physical') && (
-                        <button
-                          type="button"
-                          onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setItemsPage(1); }}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-                            color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
-                        </button>
+                      {/* 2. LEVEL-1 QUICK-PILLS: TIPE PRODUK (Hanya muncul jika toko memiliki > 1 jenis kategori item) */}
+                      {isHybridStore && (
+                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', marginBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '20px',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'var(--card-bg-gradient)',
+                              color: adminProductTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                            }}
+                          >
+                            Semua ({faunas.length})
+                          </button>
+                          {availableProductTypes.includes('physical') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setItemsPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'var(--card-bg-gradient)',
+                                color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('food') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setItemsPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'var(--card-bg-gradient)',
+                                color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('service') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setItemsPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'var(--card-bg-gradient)',
+                                color: adminProductTypeFilter === 'service' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('digital') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setItemsPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'var(--card-bg-gradient)',
+                                color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('fauna') && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setItemsPage(1); }}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'var(--card-bg-gradient)',
+                                color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                            </button>
+                          )}
+                        </div>
                       )}
-                      {availableProductTypes.includes('food') && (
-                        <button
-                          type="button"
-                          onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setItemsPage(1); }}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.06)',
-                            color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
+
+                      {/* 3. LEVEL-2 SECONDARY FILTER & SORT ROW */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
+                        <select
+                          className="form-select"
+                          value={adminClassFilter}
+                          onChange={(e) => { setAdminClassFilter(e.target.value); setItemsPage(1); }}
+                          style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
                         >
-                          Kuliner ({faunas.filter(f => f.product_type === 'food').length})
-                        </button>
-                      )}
-                      {availableProductTypes.includes('service') && (
-                        <button
-                          type="button"
-                          onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setItemsPage(1); }}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.06)',
-                            color: adminProductTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
-                          }}
+                          <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
+                          {availableAdminCategories.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          className="form-select"
+                          value={adminSortBy}
+                          onChange={(e) => { setAdminSortBy(e.target.value as any); setItemsPage(1); }}
+                          style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
                         >
-                          Jasa ({faunas.filter(f => f.product_type === 'service').length})
-                        </button>
-                      )}
-                      {availableProductTypes.includes('digital') && (
-                        <button
-                          type="button"
-                          onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setItemsPage(1); }}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
-                            color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          Digital ({faunas.filter(f => f.product_type === 'digital').length})
-                        </button>
-                      )}
-                      {availableProductTypes.includes('fauna') && (
-                        <button
-                          type="button"
-                          onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setItemsPage(1); }}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '20px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.06)',
-                            color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
-                          }}
-                        >
-                          Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
-                        </button>
-                      )}
-                    </div>
+                          <option value="newest">Terbaru</option>
+                          <option value="oldest">Terlama</option>
+                          <option value="name_asc">Nama (A-Z)</option>
+                          <option value="price_asc">Harga Terendah</option>
+                          <option value="price_desc">Harga Tertinggi</option>
+                        </select>
+                      </div>
+
+                      {/* 4. SUMMARY BAR */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.1rem 0.2rem' }}>
+                        <span>
+                          Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{filteredAdminItems.length}</strong> item
+                        </span>
+                        {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminSearch('');
+                              setAdminProductTypeFilter('all');
+                              setAdminClassFilter('all');
+                              setAdminSortBy('newest');
+                              setItemsPage(1);
+                            }}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
+                          >
+                            Reset Filter
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
-
-                  {/* 3. LEVEL-2 SECONDARY FILTER & SORT ROW */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
-                    <select
-                      className="form-select"
-                      value={adminClassFilter}
-                      onChange={(e) => { setAdminClassFilter(e.target.value); setItemsPage(1); }}
-                      style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)' }}
-                    >
-                      <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
-                      {availableAdminCategories.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      className="form-select"
-                      value={adminSortBy}
-                      onChange={(e) => { setAdminSortBy(e.target.value as any); setItemsPage(1); }}
-                      style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)' }}
-                    >
-                      <option value="newest">Terbaru</option>
-                      <option value="oldest">Terlama</option>
-                      <option value="name_asc">Nama (A-Z)</option>
-                      <option value="price_asc">Harga Terendah</option>
-                      <option value="price_desc">Harga Tertinggi</option>
-                    </select>
-                  </div>
-
-                  {/* 4. SUMMARY BAR */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.1rem 0.2rem' }}>
-                    <span>
-                      Menampilkan <strong style={{ color: '#fff' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: '#fff' }}>{filteredAdminItems.length}</strong> item
-                    </span>
-                    {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdminSearch('');
-                          setAdminProductTypeFilter('all');
-                          setAdminClassFilter('all');
-                          setAdminSortBy('newest');
-                          setItemsPage(1);
-                        }}
-                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
-                      >
-                        Reset Filter
-                      </button>
-                    )}
-                  </div>
 
                   {/* 5. ITEM CARDS LIST */}
                   {faunas.length === 0 ? (
-                    <div className="glass-panel" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem' }}>
-                      <Database size={36} style={{ marginBottom: '0.65rem', color: 'var(--text-muted)' }} />
-                      <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Belum Ada Item Terdaftar</h4>
-                      <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '0 0 1rem 0' }}>Mulai tambahkan produk, menu, jasa, atau file digital pertama Anda.</p>
+                    <div className="glass-panel" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem', background: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)' }}>
+                      <Database size={36} style={{ marginBottom: '0.65rem', color: 'var(--primary)' }} />
+                      <h4 style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Belum Ada Item Terdaftar</h4>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Mulai tambahkan produk, menu, jasa, atau file digital pertama Anda.</p>
                       <button 
                         type="button"
                         className="btn-primary" 
@@ -14825,10 +15121,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </button>
                     </div>
                   ) : filteredAdminItems.length === 0 ? (
-                    <div className="glass-panel" style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem' }}>
-                      <Search size={32} style={{ marginBottom: '0.5rem', color: 'var(--text-muted)' }} />
-                      <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Item Tidak Ditemukan</h4>
-                      <p style={{ fontSize: '0.73rem', color: '#9ca3af', margin: '0 0 0.85rem 0' }}>Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.</p>
+                    <div className="glass-panel" style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem', background: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)' }}>
+                      <Search size={32} style={{ marginBottom: '0.5rem', color: 'var(--primary)' }} />
+                      <h4 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Item Tidak Ditemukan</h4>
+                      <p style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem 0' }}>Tidak ada item yang sesuai dengan kata kunci atau filter yang Anda pilih.</p>
                       <button 
                         type="button"
                         className="btn-secondary" 
@@ -14986,7 +15282,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               style={{
                                 border: pageNum === itemsPage ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: pageNum === itemsPage ? 'var(--primary)' : 'var(--card-bg-gradient)',
-                                color: pageNum === itemsPage ? '#000000' : 'var(--text-primary)',
+                                color: pageNum === itemsPage ? '#ffffff' : 'var(--text-primary)',
                                 borderRadius: '0.4rem',
                                 width: '32px',
                                 height: '32px',
@@ -15157,6 +15453,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                                 {[
                                   { id: 'emerald', name: 'Midnight Emerald', desc: 'Nuansa gelap modern dengan kaca transparan & aksen hijau emerald.', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a', IconComponent: Trees },
+                                  { id: 'nordic', name: 'Midnight Slate', desc: 'Nuansa gelap slate yang elegan & tenang dengan aksen dusty blue & pendar malam modern.', bg: '#0f141a', primary: '#5b7c99', accent: '#8eb0cc', cardBg: '#17202a', IconComponent: Moon },
                                   { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Gaya futuristik dengan warna ungu royal & efek neon cyan.', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a', IconComponent: Zap },
                                   { id: 'sunset', name: 'Warm Sunset', desc: 'Tampilan mewah onyx gelap dengan aksen emas amber & coral.', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411', IconComponent: Sunset },
                                   { id: 'ocean', name: 'Oceanic Azure', desc: 'Desain profesional biru gelap korporat & cyan segar.', bg: '#080121', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38', IconComponent: Waves },
@@ -18616,6 +18913,95 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div className="bottom-sheet-item-col">
                       <span className="bottom-sheet-item-name">{opt.label}</span>
                       <span className="bottom-sheet-item-desc">{opt.desc}</span>
+                    </div>
+                    <div className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}>
+                      {isSelected && (
+                        <Check size={12} strokeWidth={3.5} style={{ display: 'block', margin: 'auto' }} />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LUXURY MOBILE BOTTOM SHEET: CRUD FORM DROPDOWN PICKER */}
+      {crudDropdownPicker && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          style={{ zIndex: 11000 }}
+          onClick={() => setCrudDropdownPicker(null)}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('crud_dropdown')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('crud_dropdown')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header */}
+            <div 
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('crud_dropdown')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('crud_dropdown')}
+            >
+              <div className="bottom-sheet-title-box">
+                {crudDropdownPicker.icon ? (
+                  <crudDropdownPicker.icon size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                ) : (
+                  <Layers size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                )}
+                <h3 className="bottom-sheet-title">{crudDropdownPicker.title}</h3>
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '60vh' }}>
+              {crudDropdownPicker.options.map((opt) => {
+                const isSelected = crudDropdownPicker.selectedValue === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
+                    style={opt.isAction ? { borderStyle: 'dashed', borderColor: 'var(--primary)', backgroundColor: 'var(--primary-glow)' } : {}}
+                    onClick={() => {
+                      crudDropdownPicker.onSelect(opt.value);
+                      setCrudDropdownPicker(null);
+                    }}
+                  >
+                    <div className="bottom-sheet-item-left">
+                      <div className="bottom-sheet-item-col">
+                        <span className="bottom-sheet-item-name" style={opt.isAction ? { color: 'var(--primary)', fontWeight: 800 } : {}}>
+                          {opt.label}
+                        </span>
+                        {opt.desc && (
+                          <span className="bottom-sheet-item-desc">{opt.desc}</span>
+                        )}
+                      </div>
+                      {opt.badge && (
+                        <span className="bottom-sheet-item-badge">{opt.badge}</span>
+                      )}
                     </div>
                     <div className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}>
                       {isSelected && (
