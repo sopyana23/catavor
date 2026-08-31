@@ -7367,6 +7367,19 @@ function App() {
     }
     const theme = (themeName || 'emerald').toLowerCase();
     switch (theme) {
+      case 'nordic':
+        return {
+          bg: '#0f141a',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(91, 124, 153, 0.22) 0%, rgba(15, 20, 26, 0.98) 70%)',
+          cardBg: '#17202a',
+          logoBoxBg: '#ffffff',
+          logoBoxBorder: '1px solid rgba(142, 176, 204, 0.35)',
+          logoBoxShadow: '0 10px 30px rgba(91, 124, 153, 0.25)',
+          titleColor: '#f8fafc',
+          subtitleColor: '#cbd5e1',
+          trackBg: 'rgba(91, 124, 153, 0.18)',
+          accent: '#5b7c99'
+        };
       case 'cyberpunk':
         return {
           bg: '#0b0716',
@@ -9670,12 +9683,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
                     {selectedFauna.product_type === 'property' && selectedFauna.attributes?.transaction_type && (
                       <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
-                        🏡 {selectedFauna.attributes.transaction_type}
+                        {selectedFauna.attributes.transaction_type}
                       </span>
                     )}
                     {selectedFauna.product_type === 'food' && selectedFauna.attributes?.halal_status && (
-                      <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                        🏅 {selectedFauna.attributes.halal_status}
+                      <span style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '6px',
+                        background: 'var(--primary-glow)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--primary)',
+                        letterSpacing: '0.01em',
+                        display: 'inline-flex',
+                        alignItems: 'center'
+                      }}>
+                        {selectedFauna.attributes.halal_status}
                       </span>
                     )}
                     {selectedFauna.product_type !== 'service' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
@@ -9702,7 +9726,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 )}
 
                 <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                  Kategori: <span style={{ color: 'var(--primary)', fontWeight: 700, fontSize: '0.95rem' }}>{selectedFauna.class.toUpperCase()}</span>
+                  Kategori: <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.95rem' }}>{selectedFauna.class.toUpperCase()}</span>
                 </div>
 
                 {/* Specs List */}
@@ -9715,7 +9739,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
                     gap: '0.5rem 2rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    backgroundColor: 'var(--card-bg-gradient)',
                     border: '1px solid var(--border-light)',
                     borderRadius: '0.75rem',
                     padding: '0.75rem 1.25rem'
@@ -9732,16 +9756,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               gap: '0.85rem',
                               alignItems: 'baseline', 
                               padding: '0.55rem 0', 
-                              borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                              borderBottom: '1px solid var(--border-light)', 
                               fontSize: '0.88rem',
                               lineHeight: 1.45 
                             }}
                           >
-                            <span style={{ color: 'var(--text-secondary)', fontWeight: 500, flexShrink: 0 }}>
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: 600, flexShrink: 0 }}>
                               {label}
                             </span>
                             <span style={{ 
-                              fontWeight: 600, 
+                              fontWeight: 700, 
                               color: isHighlight ? 'var(--primary)' : 'var(--text-primary)', 
                               textAlign: 'right', 
                               wordBreak: 'break-word',
@@ -10019,14 +10043,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: '#10b981',
-                      borderColor: '#10b981',
-                      color: '#fff',
+                      backgroundColor: 'var(--primary)',
+                      borderColor: 'var(--primary)',
+                      color: '#ffffff',
                       fontSize: '0.9rem',
                       fontWeight: 700,
-                      borderRadius: '0.35rem',
+                      borderRadius: '0.5rem',
                       gap: '0.5rem',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px var(--primary-glow)'
                     }}
                   >
                     {selectedFauna.product_type === 'property' ? (
@@ -10580,7 +10605,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     {isStoreOwner && (
                       <button 
                         className="btn-primary" 
-                        onClick={() => setView('admin')}
+                        onClick={() => openCreateModal('physical')}
                         style={{ padding: '0.75rem 1.6rem', fontSize: '0.88rem', fontWeight: 700, borderRadius: '0.65rem', marginTop: '0.5rem' }}
                       >
                         + Tambah Produk Pertama
@@ -11235,19 +11260,18 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               {/* Onboarding Banner: Lengkapi Pengaturan Halaman Tentang Kami */}
               {showAboutOnboarding && (
-                <div style={{
-                  padding: '1.15rem 1.35rem',
+                <div className="glass-panel" style={{
+                  padding: '1.15rem 1.4rem',
                   borderRadius: '1rem',
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.18) 100%)',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  color: '#ffffff',
-                  fontSize: '0.85rem',
+                  background: 'var(--card-bg-gradient)',
+                  border: '1px solid var(--border-light)',
+                  borderLeft: '4px solid var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '1.25rem',
                   marginBottom: '1.5rem',
-                  boxShadow: '0 8px 24px rgba(16, 185, 129, 0.15)',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08), 0 0 16px var(--primary-glow)',
                   backdropFilter: 'blur(10px)',
                   position: 'relative'
                 }}>
@@ -11256,22 +11280,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       width: '44px',
                       height: '44px',
                       borderRadius: '12px',
-                      backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      backgroundColor: 'var(--primary-glow)',
+                      border: '1px solid var(--primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#10b981',
+                      color: 'var(--primary)',
                       flexShrink: 0,
-                      boxShadow: '0 0 16px rgba(16, 185, 129, 0.3)'
+                      boxShadow: '0 2px 10px var(--primary-glow)'
                     }}>
                       <Sparkles size={22} />
                     </div>
                     <div>
-                      <strong style={{ color: '#ffffff', display: 'block', fontSize: '0.95rem', fontWeight: 800, marginBottom: '0.2rem' }}>
+                      <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.95rem', fontWeight: 800, marginBottom: '0.2rem' }}>
                         ✨ Selamat Datang di Catavor! Lengkapi Informasi Toko Anda
                       </strong>
-                      <p style={{ margin: 0, color: '#d1d5db', fontSize: '0.8rem', lineHeight: 1.45 }}>
+                      <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.45 }}>
                         Agar katalog digital Anda terlihat lebih profesional dan terpercaya bagi pengunjung, mari lengkapi informasi Halaman Tentang Kami (Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan).
                       </p>
                     </div>
@@ -11280,6 +11304,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
                     <button
                       type="button"
+                      className="btn-primary"
                       onClick={() => {
                         setAdminTab('settings');
                         setSettingsSubTab('about');
@@ -11287,16 +11312,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       style={{
                         padding: '0.55rem 1.1rem',
                         borderRadius: '0.65rem',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        color: '#ffffff',
-                        border: 'none',
                         fontSize: '0.8rem',
                         fontWeight: 800,
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.4rem',
-                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
                         transition: 'all 0.2s ease'
                       }}
                     >
@@ -11304,13 +11325,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </button>
                     <button
                       type="button"
+                      className="btn-secondary"
                       onClick={() => dismissAboutOnboarding()}
                       style={{
                         padding: '0.55rem 0.85rem',
                         borderRadius: '0.65rem',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        color: '#9ca3af',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
                         fontSize: '0.78rem',
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -11496,196 +11515,198 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} className="animate-fade-in">
                     
-                    {/* Top Control Bar: Search & Level-1 Type Pills */}
-                    <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                      
-                      {/* Search Bar + Secondary Dropdowns */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                    {/* Top Control Bar: Search & Level-1 Type Pills (Hanya tampil jika sudah ada data item inventaris) */}
+                    {faunas.length > 0 && (
+                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                         
-                        {/* Search Input */}
-                        <div style={{ position: 'relative' }}>
-                          <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                          <input 
-                            type="text"
-                            className="form-input"
-                            placeholder="Cari nama item, ilmiah, kategori, atau deskripsi..."
-                            value={adminSearch}
-                            onChange={(e) => { setAdminSearch(e.target.value); setAdminPage(1); }}
-                            style={{ paddingLeft: '2.4rem', paddingRight: adminSearch ? '2.2rem' : '0.85rem', height: '40px', fontSize: '0.84rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)' }}
-                          />
-                          {adminSearch && (
-                            <button
-                              type="button"
-                              onClick={() => { setAdminSearch(''); setAdminPage(1); }}
-                              style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Category Dropdown */}
-                        <select
-                          className="form-select"
-                          value={adminClassFilter}
-                          onChange={(e) => { setAdminClassFilter(e.target.value); setAdminPage(1); }}
-                          style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)' }}
-                        >
-                          <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
-                          {availableAdminCategories.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-
-                        {/* Sort Dropdown */}
-                        <select
-                          className="form-select"
-                          value={adminSortBy}
-                          onChange={(e) => { setAdminSortBy(e.target.value as any); setAdminPage(1); }}
-                          style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)' }}
-                        >
-                          <option value="newest">Terbaru</option>
-                          <option value="oldest">Terlama</option>
-                          <option value="name_asc">Nama (A-Z)</option>
-                          <option value="price_asc">Harga Terendah</option>
-                          <option value="price_desc">Harga Tertinggi</option>
-                        </select>
-                      </div>
-
-                      {/* Level-1 Type Pills (Hanya muncul jika toko memiliki > 1 jenis kategori item) */}
-                      {isHybridStore && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setAdminPage(1); }}
-                              style={{
-                                padding: '0.35rem 0.8rem',
-                                borderRadius: '20px',
-                                fontSize: '0.76rem',
-                                fontWeight: 800,
-                                border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                                color: adminProductTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
-                              }}
-                            >
-                              Semua ({faunas.length})
-                            </button>
-                            {availableProductTypes.includes('physical') && (
+                        {/* Search Bar + Secondary Dropdowns */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                          
+                          {/* Search Input */}
+                          <div style={{ position: 'relative' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <input 
+                              type="text"
+                              className="form-input"
+                              placeholder="Cari nama item, ilmiah, kategori, atau deskripsi..."
+                              value={adminSearch}
+                              onChange={(e) => { setAdminSearch(e.target.value); setAdminPage(1); }}
+                              style={{ paddingLeft: '2.4rem', paddingRight: adminSearch ? '2.2rem' : '0.85rem', height: '40px', fontSize: '0.84rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
+                            />
+                            {adminSearch && (
                               <button
                                 type="button"
-                                onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                style={{
-                                  padding: '0.35rem 0.8rem',
-                                  borderRadius: '20px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 800,
-                                  border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
-                                  cursor: 'pointer',
-                                  backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'rgba(255,255,255,0.04)',
-                                  color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
-                                }}
+                                onClick={() => { setAdminSearch(''); setAdminPage(1); }}
+                                style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--border-light)', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.75rem', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                               >
-                                Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
-                              </button>
-                            )}
-                            {availableProductTypes.includes('food') && (
-                              <button
-                                type="button"
-                                onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                style={{
-                                  padding: '0.35rem 0.8rem',
-                                  borderRadius: '20px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 800,
-                                  border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                                  cursor: 'pointer',
-                                  backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'rgba(255,255,255,0.04)',
-                                  color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
-                                }}
-                              >
-                                Kuliner ({faunas.filter(f => f.product_type === 'food').length})
-                              </button>
-                            )}
-                            {availableProductTypes.includes('service') && (
-                              <button
-                                type="button"
-                                onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                style={{
-                                  padding: '0.35rem 0.8rem',
-                                  borderRadius: '20px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 800,
-                                  border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                                  cursor: 'pointer',
-                                  backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'rgba(255,255,255,0.04)',
-                                  color: adminProductTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
-                                }}
-                              >
-                                Jasa ({faunas.filter(f => f.product_type === 'service').length})
-                              </button>
-                            )}
-                            {availableProductTypes.includes('digital') && (
-                              <button
-                                type="button"
-                                onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                style={{
-                                  padding: '0.35rem 0.8rem',
-                                  borderRadius: '20px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 800,
-                                  border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
-                                  cursor: 'pointer',
-                                  backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'rgba(255,255,255,0.04)',
-                                  color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
-                                }}
-                              >
-                                Digital ({faunas.filter(f => f.product_type === 'digital').length})
-                              </button>
-                            )}
-                            {availableProductTypes.includes('fauna') && (
-                              <button
-                                type="button"
-                                onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                style={{
-                                  padding: '0.35rem 0.8rem',
-                                  borderRadius: '20px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 800,
-                                  border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                                  cursor: 'pointer',
-                                  backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(255,255,255,0.04)',
-                                  color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
-                                }}
-                              >
-                                Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                                ✕
                               </button>
                             )}
                           </div>
 
-                          {/* Reset filter button */}
-                          {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAdminSearch('');
-                                setAdminProductTypeFilter('all');
-                                setAdminClassFilter('all');
-                                setAdminSortBy('newest');
-                                setAdminPage(1);
-                              }}
-                              style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer' }}
-                            >
-                              Reset Filter
-                            </button>
-                          )}
+                          {/* Category Dropdown */}
+                          <select
+                            className="form-select"
+                            value={adminClassFilter}
+                            onChange={(e) => { setAdminClassFilter(e.target.value); setAdminPage(1); }}
+                            style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
+                          >
+                            <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
+                            {availableAdminCategories.map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+
+                          {/* Sort Dropdown */}
+                          <select
+                            className="form-select"
+                            value={adminSortBy}
+                            onChange={(e) => { setAdminSortBy(e.target.value as any); setAdminPage(1); }}
+                            style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
+                          >
+                            <option value="newest">Terbaru</option>
+                            <option value="oldest">Terlama</option>
+                            <option value="name_asc">Nama (A-Z)</option>
+                            <option value="price_asc">Harga Terendah</option>
+                            <option value="price_desc">Harga Tertinggi</option>
+                          </select>
                         </div>
-                      )}
-                    </div>
+
+                        {/* Level-1 Type Pills (Hanya muncul jika toko memiliki > 1 jenis kategori item) */}
+                        {isHybridStore && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                style={{
+                                  padding: '0.35rem 0.8rem',
+                                  borderRadius: '20px',
+                                  fontSize: '0.76rem',
+                                  fontWeight: 800,
+                                  border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                  cursor: 'pointer',
+                                  backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'var(--card-bg-gradient)',
+                                  color: adminProductTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                                }}
+                              >
+                                Semua ({faunas.length})
+                              </button>
+                              {availableProductTypes.includes('physical') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                  style={{
+                                    padding: '0.35rem 0.8rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 800,
+                                    border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'var(--card-bg-gradient)',
+                                    color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                                  }}
+                                >
+                                  Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
+                                </button>
+                              )}
+                              {availableProductTypes.includes('food') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                  style={{
+                                    padding: '0.35rem 0.8rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 800,
+                                    border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'var(--card-bg-gradient)',
+                                    color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                                  }}
+                                >
+                                  Kuliner ({faunas.filter(f => f.product_type === 'food').length})
+                                </button>
+                              )}
+                              {availableProductTypes.includes('service') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                  style={{
+                                    padding: '0.35rem 0.8rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 800,
+                                    border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'var(--card-bg-gradient)',
+                                    color: adminProductTypeFilter === 'service' ? '#ffffff' : 'var(--text-secondary)'
+                                  }}
+                                >
+                                  Jasa ({faunas.filter(f => f.product_type === 'service').length})
+                                </button>
+                              )}
+                              {availableProductTypes.includes('digital') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                  style={{
+                                    padding: '0.35rem 0.8rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 800,
+                                    border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'var(--card-bg-gradient)',
+                                    color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                                  }}
+                                >
+                                  Digital ({faunas.filter(f => f.product_type === 'digital').length})
+                                </button>
+                              )}
+                              {availableProductTypes.includes('fauna') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                  style={{
+                                    padding: '0.35rem 0.8rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 800,
+                                    border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'var(--card-bg-gradient)',
+                                    color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                                  }}
+                                >
+                                  Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Reset filter button */}
+                            {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAdminSearch('');
+                                  setAdminProductTypeFilter('all');
+                                  setAdminClassFilter('all');
+                                  setAdminSortBy('newest');
+                                  setAdminPage(1);
+                                }}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer' }}
+                              >
+                                Reset Filter
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Table Container */}
-                    <div className="admin-table-container">
+                    <div className="admin-table-container" style={{ background: 'var(--card-bg-gradient)' }}>
                       <table className="admin-table">
                         <thead>
                           <tr>
@@ -11700,13 +11721,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <tbody>
                           {faunas.length === 0 ? (
                             <tr>
-                              <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2.5rem' }}>
+                              <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2.5rem' }}>
                                 Belum ada item katalog terdaftar. Klik "+ Tambah Item Baru" di atas untuk memulai.
                               </td>
                             </tr>
                           ) : filteredAdminItems.length === 0 ? (
                             <tr>
-                              <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2.5rem' }}>
+                              <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2.5rem' }}>
                                 Tidak ada item yang sesuai dengan filter atau pencarian Anda.
                               </td>
                             </tr>
@@ -11804,7 +11825,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     {/* Desktop Pagination Bar */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       <div>
-                        Menampilkan <strong style={{ color: '#fff' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: '#fff' }}>{filteredAdminItems.length}</strong> total item
+                        Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{filteredAdminItems.length}</strong> total item
                       </div>
 
                       {totalAdminPages > 1 && (
@@ -11814,7 +11835,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             disabled={adminPage === 1}
                             onClick={() => setAdminPage(prev => Math.max(prev - 1, 1))}
                             style={{
-                              background: 'rgba(255,255,255,0.04)',
+                              background: 'var(--card-bg-gradient)',
                               border: '1px solid var(--border-light)',
                               color: adminPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
                               borderRadius: '0.4rem',
@@ -11851,8 +11872,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 onClick={() => setAdminPage(pageNum)}
                                 style={{
                                   border: pageNum === adminPage ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                  backgroundColor: pageNum === adminPage ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
-                                  color: pageNum === adminPage ? '#000000' : 'var(--text-primary)',
+                                  backgroundColor: pageNum === adminPage ? 'var(--primary)' : 'var(--card-bg-gradient)',
+                                  color: pageNum === adminPage ? '#ffffff' : 'var(--text-primary)',
                                   borderRadius: '0.4rem',
                                   width: '34px',
                                   height: '34px',
@@ -11874,7 +11895,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             disabled={adminPage === totalAdminPages}
                             onClick={() => setAdminPage(prev => Math.min(prev + 1, totalAdminPages))}
                             style={{
-                              background: 'rgba(255,255,255,0.04)',
+                              background: 'var(--card-bg-gradient)',
                               border: '1px solid var(--border-light)',
                               color: adminPage === totalAdminPages ? 'var(--text-muted)' : 'var(--text-primary)',
                               borderRadius: '0.4rem',
@@ -12017,6 +12038,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         {[
                           { id: 'emerald', name: 'Midnight Emerald', desc: 'Nuansa gelap modern dengan kaca transparan & aksen hijau emerald.', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a', IconComponent: Trees },
+                          { id: 'nordic', name: 'Midnight Slate', desc: 'Nuansa gelap slate yang elegan & tenang dengan aksen dusty blue & pendar malam modern.', bg: '#0f141a', primary: '#5b7c99', accent: '#8eb0cc', cardBg: '#17202a', IconComponent: Moon },
                           { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Gaya futuristik dengan warna ungu royal & efek neon cyan.', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a', IconComponent: Zap },
                           { id: 'sunset', name: 'Warm Sunset', desc: 'Tampilan mewah onyx gelap dengan aksen emas amber & coral.', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411', IconComponent: Sunset },
                           { id: 'ocean', name: 'Oceanic Azure', desc: 'Desain profesional biru gelap korporat & cyan segar.', bg: '#081021', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38', IconComponent: Waves },

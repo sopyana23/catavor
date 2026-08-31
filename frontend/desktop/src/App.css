@@ -471,7 +471,7 @@
 }
 
 .meta-item {
-  background: #18221c;
+  background: var(--card-bg-gradient);
   border: 1px solid var(--border-light);
   border-radius: 0.5rem;
   padding: 0.75rem;
@@ -639,21 +639,22 @@
 }
 
 .admin-table th {
-  background: #18221c;
+  background: var(--card-bg-gradient);
   font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 0.875rem;
+  font-weight: 700;
+  font-size: 0.82rem;
   color: var(--primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .admin-table tr:hover {
-  background: #1b241f;
+  background: var(--primary-glow);
 }
 
 .admin-table td {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  color: var(--text-primary);
 }
 
 .action-buttons {
