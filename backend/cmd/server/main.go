@@ -84,6 +84,7 @@ func main() {
 	// Public Endpoints
 	api.Get("/fauna", faunaHandler.Index)
 	api.Get("/fauna/:id", faunaHandler.Show)
+	api.Get("/fauna/:id/recommendations", faunaHandler.GetRecommendations)
 	api.Get("/taxonomy/culinary", faunaHandler.GetCulinaryTaxonomy)
 	api.Get("/culinary-taxonomy", faunaHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)

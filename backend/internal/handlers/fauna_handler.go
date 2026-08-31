@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type FaunaHandler struct {
@@ -151,6 +152,49 @@ func (h *FaunaHandler) Show(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    fauna,
+	})
+}
+
+func (h *FaunaHandler) GetRecommendations(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	// 1. Fetch only essential attributes of the target item to minimize memory
+	var currentItem models.Fauna
+	if err := database.DB.Select("id, store_id, class, product_type").First(&currentItem, id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Item tidak ditemukan.",
+		})
+	}
+
+	// 2. Query with Weighted Scoring (Tier 1: same class+type, Tier 2: same type, Tier 3: rest of store)
+	// Column projection selects only lightweight fields needed by recommendation cards
+	var recommendations []models.Fauna
+	err := database.DB.Select("id, store_id, name, scientific_name, class, habitat, price, image_url, product_type, conservation_status, is_shipping_available").
+		Where("store_id = ? AND id != ?", currentItem.StoreID, currentItem.ID).
+		Order(gorm.Expr(`
+			CASE 
+				WHEN class = ? AND product_type = ? THEN 1
+				WHEN product_type = ? THEN 2
+				ELSE 3
+			END ASC, id DESC
+		`, currentItem.Class, currentItem.ProductType, currentItem.ProductType)).
+		Limit(6).
+		Find(&recommendations).Error
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat rekomendasi.",
+		})
+	}
+
+	// HTTP Cache header to reduce server load for repeat views
+	c.Set("Cache-Control", "public, max-age=60")
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    recommendations,
 	})
 }
 

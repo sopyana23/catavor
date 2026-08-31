@@ -178,7 +178,48 @@ function cacheLogoAsBase64(slug: string, url: string) {
   } catch {}
 }
 
-export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food';
+function getCatalogItemUnit(item: any): string {
+  if (!item) return 'Pcs';
+  if (item.product_type === 'property') return 'Unit';
+  if (item.product_type === 'food') return 'Porsi / Pack';
+  if (item.product_type === 'service') return 'Sesi';
+  if (item.product_type === 'digital') return 'Lisensi';
+  if (item.product_type === 'physical') return 'Pcs';
+
+  // For fauna or general showcase:
+  const text = `${item.class || ''} ${item.name || ''} ${item.habitat || ''}`.toLowerCase();
+  if (text.includes('tanaman') || text.includes('flora') || text.includes('plant') || text.includes('moss') || text.includes('anubias') || text.includes('buce')) {
+    return 'Pot / Batang';
+  }
+  if (text.includes('aquascape') || text.includes('aquarium') || text.includes('tank') || text.includes('paket') || text.includes('set')) {
+    return 'Set / Unit';
+  }
+  if (text.includes('aksesoris') || text.includes('pakan') || text.includes('filter') || text.includes('lampu') || text.includes('alat') || text.includes('pupuk') || text.includes('obat') || text.includes('batu') || text.includes('kayu') || text.includes('hardscape')) {
+    return 'Pcs';
+  }
+  if (text.includes('reptil') || text.includes('ikan') || text.includes('fish') || text.includes('burung') || text.includes('bird') || text.includes('kucing') || text.includes('cat') || text.includes('anjing') || text.includes('dog') || text.includes('fauna') || text.includes('satwa') || text.includes('hewan') || text.includes('aves') || text.includes('mamalia') || text.includes('amfibi') || text.includes('tortoise') || text.includes('gecko') || text.includes('chinchilla') || text.includes('sugar glider')) {
+    return 'Ekor';
+  }
+  return 'Unit';
+}
+
+export function isNonEmptyValue(val: any): boolean {
+  if (val === undefined || val === null) return false;
+  if (typeof val === 'boolean') return true;
+  if (typeof val === 'number') return !isNaN(val) && val > 0;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    if (s === '' || s === '-' || s === '--' || s === 'n/a' || s === 'na' || s === 'null' || s === 'undefined' || s === 'none' || s === '0' || s === '0 gram' || s === '0 porsi' || s === '0 sesi' || s === '0 lisensi' || s === '0 pack' || s === '0 porsi / pack' || s === '0 porsi/pack') {
+      return false;
+    }
+    return true;
+  }
+  if (Array.isArray(val)) return val.length > 0;
+  if (typeof val === 'object') return Object.keys(val).length > 0;
+  return false;
+}
+
+export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property';
 
 export interface ItemTypeConfig {
   type: ItemCategoryType;
@@ -296,6 +337,7 @@ export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
   service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
   digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
   fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
+  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya']
 };
 
 export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
@@ -346,9 +388,9 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         modalSubtitle: 'Lengkapi tautan unduhan, format file, dan lisensi penggunaan item digital.',
         nameLabel: 'Nama File / Item Digital *',
         namePlaceholder: 'Contoh: E-Book Panduan Bisnis Kuliner / Template Notion 2026 / Source Code...',
-        categoryLabel: 'Format & Kategori Digital *',
-        defaultCategory: 'E-Book & PDF',
-        categoryOptions: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software'],
+        categoryLabel: 'Kategori Item Digital *',
+        defaultCategory: 'E-Book & Publikasi',
+        categoryOptions: ['E-Book & Publikasi', 'Template & Dokumen', 'Desain Grafis & UI Kit', 'Source Code & Skrip', 'Audio, Musik & SFX', 'Preset, Filter & LUTs', 'Video & Aset 3D', 'Software & Tool', 'Kursus & Modul', 'Lainnya'],
         priceLabel: 'Harga Lisensi (IDR) *',
         pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
         photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
@@ -477,12 +519,60 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         maxOrderLabel: 'Maksimal Pesanan per Order (Opsional)',
         maxOrderPlaceholder: 'Contoh: 50 (Batas kapasitas dapur)'
       };
+    case 'property':
+      return {
+        type: 'property',
+        typeName: 'Properti & Real Estate',
+        badgeName: 'Properti & Real Estate',
+        icon: Building2,
+        color: '#0284c7',
+        gradientBg: 'radial-gradient(circle at top left, rgba(2, 132, 199, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Listing Properti' : 'Edit Listing Properti',
+        modalSubtitle: 'Lengkapi spesifikasi luas tanah/bangunan, legalitas SHM, kamar tidur, dan jadwal survey.',
+        nameLabel: 'Judul / Nama Listing Properti *',
+        namePlaceholder: 'Contoh: Rumah Cluster Minimalis 2 Lantai SHM Siap Huni di BSD City...',
+        categoryLabel: 'Tipe / Jenis Properti *',
+        defaultCategory: 'Rumah Tinggal (Landed House)',
+        categoryOptions: [
+          'Rumah Tinggal (Landed House)',
+          'Apartemen & Kondominium',
+          'Tanah & Kavling',
+          'Ruko & Komersial',
+          'Villa & Resort',
+          'Gudang & Pabrik',
+          'Kost & Kontrakan',
+          'Lainnya'
+        ],
+        priceLabel: 'Harga Properti (IDR) *',
+        pricePlaceholder: 'Contoh: 850.000.000 (Jual) / 35.000.000 (Sewa/Tahun)',
+        photoLabel: 'Foto Properti & Interior (1-5 Foto) *',
+        photoHelper: 'Unggah 1 hingga 5 foto fasad depan, ruang keluarga, kamar tidur, dapur, dan lingkungan.',
+        videoLabel: 'Video Virtual Tour Properti (YouTube URL - Opsional)',
+        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        deliveryLabel: 'Akses & Ketentuan Booking / Survey Lokasi',
+        deliveryOptions: [
+          'Jadwalkan Survey via WhatsApp',
+          'Siap Huni (Ready Unit)',
+          'Pre-Launch / Indent',
+          'Disewakan (Bulanan / Tahunan)',
+          'Cash Keras / KPR Bank'
+        ],
+        deliveryTermsLabel: 'Akses & Ketentuan Booking / Survey Lokasi',
+        deliveryTermsPlaceholder: 'Contoh: Layanan survey lokasi dibuka setiap hari pukul 09:00 - 17:00 WIB (konfirmasi H-1). Akses jalan lebar 2 mobil, bebas banjir, 5 menit ke gerbang tol...',
+        warrantyLabel: 'Legalitas & Kelengkapan Dokumen',
+        warrantyPlaceholder: 'Contoh: Sertifikat Hak Milik (SHM) on hand, IMB/PBG lengkap, PBB lunas. Pembayaran bisa Cash Keras, Cash Bertahap, atau KPR Bank (dibantu hingga akad)...',
+        descLabel: 'Deskripsi Lengkap & Keunggulan Properti *',
+        descPlaceholder: 'Jelaskan fasilitas cluster (one gate, security 24 jam), akses transportasi terdekat (stasiun/tol), spesifikasi pondasi/kusen, dan nilai investasi properti ini...',
+        minOrderLabel: 'Minimal Unit *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Unit per Pembeli (Opsional)',
+        maxOrderPlaceholder: '1'
+      };
   }
 }
 
 export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
   const typeConfig = getItemTypeFormConfig(type);
-  const foodPreset = type === 'food' ? CULINARY_SMART_PRESETS['Makanan Siap Santap'] : null;
 
   return {
     name: '',
@@ -503,46 +593,37 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
     weight: '',
     shipping_terms: '',
     warranty_info: '',
-    shipping_coverage: foodPreset ? foodPreset.defaultShipping : (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia'),
+    shipping_coverage: typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
     purchase_links: [] as { platform: string, url: string }[],
+    enable_wa_rekber: true,
+    enable_wa_direct: true,
     product_type: type,
     attributes: {
-      stock: 1,
-      min_order: 1,
-      max_order: '' as string | number,
       condition: 'Baru' as 'Baru' | 'Bekas' | 'Refurbished',
       weight: 100,
       brand: '',
       variant: '',
-      download_url: '',
       file_format: 'PDF',
       file_size: '10 MB',
       license_type: 'Lisensi Personal',
-      version: 'v1.0',
-      scientific_name: '',
-      fauna_class: 'Ikan Hias',
-      fauna_status: 'Tersedia',
       duration: '1 Sesi / 1 Jam',
       service_location: 'Datang ke Toko',
       service_area: 'Jabodetabek',
-      inclusions: '',
-      client_requirements: '',
-      portion_size: '1 Porsi',
-      expired_info: foodPreset ? foodPreset.defaultExpiredInfo : 'Fresh Daily',
-      storage_temp: foodPreset ? foodPreset.defaultStorageTemp : 'Suhu Ruang',
-      certification: '100% Halal',
-      taste_options: '',
-      spicy_level: '',
-      prep_time: '',
-      serving_method: 'Dine-in, Takeaway & Kurir Instan',
-      cooking_guide: '',
-      sugar_ice_options: '',
-      bake_status: 'Freshly Baked Daily',
-      serving_capacity: '',
-      delivery_service: 'Mobil Antar Toko / Kurir Khusus',
-      culinary_type: 'Makanan Siap Santap',
-      min_purchase: '1 Pcs',
-      max_purchase: ''
+      transaction_type: 'Dijual' as 'Dijual' | 'Disewakan (Tahunan)' | 'Disewakan (Bulanan)',
+      certificate: 'SHM (Sertifikat Hak Milik)',
+      land_area: '120',
+      building_area: '90',
+      bedrooms: 3,
+      bathrooms: 2,
+      floors: '2 Lantai',
+      electricity: '2200 VA',
+      water_source: 'PDAM & Sumur Bor',
+      furnishing: 'Semi-Furnished',
+      carport: '1 Mobil',
+      facing: 'Timur',
+      property_location: 'BSD City, Tangerang Selatan',
+      facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
+      halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)'
     }
   };
 };
@@ -564,50 +645,47 @@ interface Fauna {
   image_url: string
   product_type?: ItemCategoryType
   attributes?: {
-    stock?: number
     condition?: 'Baru' | 'Bekas' | 'Refurbished'
     weight?: number
     brand?: string
     variant?: string
-    min_order?: number
-    max_order?: number | null
-    download_url?: string
     file_format?: string
     file_size?: string
     license_type?: string
-    version?: string
-    scientific_name?: string
-    fauna_class?: string
-    fauna_status?: string
     duration?: string
     service_location?: string
     service_area?: string
-    inclusions?: string
-    client_requirements?: string
-    portion_size?: string
-    expired_info?: string
-    storage_temp?: string
-    certification?: string
-    taste_options?: string
-    min_purchase?: string
-    max_purchase?: string
+    transaction_type?: string
+    certificate?: string
+    land_area?: string | number
+    building_area?: string | number
+    bedrooms?: number
+    bathrooms?: number
+    floors?: string | number
+    electricity?: string
+    water_source?: string
+    furnishing?: string
+    carport?: string
+    facing?: string
+    property_location?: string
+    facilities?: string
+    halal_status?: string
+    enable_wa_rekber?: boolean
+    enable_wa_direct?: boolean
     [key: string]: any
   }
   detailed_info?: {
-    native_region: string
-    lifespan: string
-    weight: string
+    native_region?: string
+    lifespan?: string
+    weight?: string
     shipping_terms?: string
     warranty_info?: string
     shipping_coverage?: string
     images?: string[]
-    shopee_url?: string
-    tokopedia_url?: string
-    lazada_url?: string
-    bukalapak_url?: string
-    custom_shop_name?: string
-    custom_shop_url?: string
     purchase_links?: Array<{ platform: string, url: string }>
+    enable_wa_rekber?: boolean
+    enable_wa_direct?: boolean
+    [key: string]: any
   }
 }
 
@@ -1523,6 +1601,351 @@ export const FormattedText: React.FC<{ text?: string; style?: React.CSSPropertie
   return (
     <div style={{ wordBreak: 'break-word', ...style }} className={className}>
       {elements}
+    </div>
+  );
+};
+
+export const ProductDescriptionView: React.FC<{ description?: string; isMobile?: boolean; title?: string }> = ({ description, isMobile = false, title }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!isNonEmptyValue(description)) return null;
+
+  const cleanDesc = description!.trim();
+  const isLong = cleanDesc.length > 200 || cleanDesc.split('\n').length > 3;
+
+  return (
+    <div style={{
+      marginBottom: '1.5rem',
+      paddingBottom: '1.25rem',
+      borderBottom: '1px solid var(--border-light)'
+    }}>
+      <h3 style={{
+        fontSize: '1.05rem',
+        fontWeight: 700,
+        color: 'var(--text-primary)',
+        marginBottom: '0.65rem',
+        letterSpacing: '-0.01em'
+      }}>
+        {title || 'Deskripsi'}
+      </h3>
+      
+      <div style={{
+        position: 'relative',
+        lineHeight: '1.7',
+        fontSize: '0.925rem',
+        color: 'var(--text-secondary)'
+      }}>
+        <div style={{
+          display: (!isExpanded && isLong) ? '-webkit-box' : 'block',
+          WebkitLineClamp: (!isExpanded && isLong) ? 4 : undefined,
+          WebkitBoxOrient: 'vertical',
+          overflow: (!isExpanded && isLong) ? 'hidden' : 'visible',
+          textOverflow: 'ellipsis'
+        }}>
+          <FormattedText 
+            text={cleanDesc} 
+            style={{
+              fontSize: 'inherit',
+              color: 'inherit',
+              lineHeight: 'inherit'
+            }} 
+          />
+        </div>
+      </div>
+
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            color: 'var(--primary)',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '0.5rem 0 0.1rem',
+            marginTop: '0.25rem',
+            transition: 'color 0.2s ease'
+          }}
+        >
+          <span>{isExpanded ? 'Sembunyikan' : 'Lihat Selengkapnya'}</span>
+          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+      )}
+    </div>
+  );
+};
+
+export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boolean }> = ({ item, isMobile = false }) => {
+  if (!item) return null;
+  const pType = item.product_type || 'fauna';
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const infoItems = useMemo(() => {
+    const list: {
+      id: string;
+      label: string;
+      fullTitle: string;
+      icon: any;
+      content: string;
+    }[] = [];
+
+    // 1. Ketentuan Pengiriman / SOP / Akses File / Ketentuan Layanan / Akses & Survey Properti
+    const shippingTerms = (item.detailed_info?.shipping_terms || '').trim();
+    if (isNonEmptyValue(shippingTerms) || pType === 'digital' || pType === 'service' || pType === 'property' || pType === 'food') {
+      let label = 'Ketentuan Pengiriman';
+      let fullTitle = 'Ketentuan Pengiriman & Logistik';
+      let icon = Truck;
+      let content = shippingTerms;
+
+      if (pType === 'property') {
+        label = 'Akses & Survey';
+        fullTitle = 'Akses & Ketentuan Booking / Survey Lokasi';
+        icon = MapPin;
+        if (!content) {
+          content = 'Jadwal kunjungan dan survey unit dapat dikoordinasikan langsung bersama agen/pemilik melalui kontak WhatsApp yang tersedia.';
+        }
+      } else if (pType === 'fauna') {
+        label = 'Pengiriman Satwa';
+        fullTitle = 'Pengiriman & Garansi Live Arrival';
+        icon = Truck;
+      } else if (pType === 'service') {
+        label = 'Area & Ketentuan';
+        fullTitle = 'Area Layanan & Ketentuan Reservasi';
+        icon = Calendar;
+        if (!content) {
+          content = 'Layanan pengerjaan dilaksanakan sesuai dengan jadwal reservasi dan jangkauan wilayah operasional yang disepakati.';
+        }
+      } else if (pType === 'digital') {
+        label = 'Akses File';
+        fullTitle = 'Pengiriman & Panduan Akses File';
+        icon = Download;
+        if (!content) {
+          content = 'Tautan unduhan berkas digital akan langsung aktif atau dikirimkan secara instan setelah pesanan berhasil terverifikasi.';
+        }
+      } else if (pType === 'food') {
+        label = 'Pengiriman & Kemasan';
+        fullTitle = 'Pengiriman & Ketentuan Kemasan (F&B)';
+        icon = Truck;
+        if (!content) {
+          content = 'Pesanan dikemas rapi dan higienis dengan kemasan food-grade. Untuk pengiriman instan/sameday menggunakan kurir Gojek/Grab/Maxim, dan untuk produk frozen/tahan lama menggunakan ekspedisi khusus / Next Day.';
+        }
+      } else if (pType === 'physical') {
+        label = 'Pengiriman';
+        fullTitle = 'Ketentuan Pengiriman & Ekspedisi';
+        icon = Package;
+      }
+
+      list.push({ id: 'shipping_terms', label, fullTitle, icon, content });
+    }
+
+    // 2. Garansi / Kebijakan Toko / Lisensi / DOA / Legalitas Dokumen Properti (Kecuali Service yang tidak memiliki form garansi)
+    const warrantyInfo = (item.detailed_info?.warranty_info || '').trim();
+    const hasWarranty = pType !== 'service' && (isNonEmptyValue(warrantyInfo) || (pType === 'digital' && isNonEmptyValue(item.attributes?.license_type)) || pType === 'property');
+    if (hasWarranty) {
+      let label = 'Kebijakan Garansi';
+      let fullTitle = 'Kebijakan Garansi & Klaim';
+      let icon = ShieldCheck;
+      let content = warrantyInfo;
+
+      if (pType === 'property') {
+        label = 'Legalitas Dokumen';
+        fullTitle = 'Legalitas & Kelengkapan Dokumen';
+        icon = FileCheck;
+        if (!content) {
+          content = 'Legalitas properti dan keabsahan berkas (Sertifikat SHM/HGB, IMB/PBG, PBB) siap diverifikasi bersama notaris/PPAT yang ditunjuk.';
+        }
+      } else if (pType === 'fauna') {
+        label = 'Garansi D.O.A';
+        fullTitle = 'Ketentuan Garansi D.O.A (Dead On Arrival)';
+        icon = Heart;
+      } else if (pType === 'digital') {
+        label = 'Lisensi & Hak Cipta';
+        fullTitle = 'Ketentuan Lisensi & Hak Cipta';
+        icon = FileCheck;
+        if (!content) {
+          content = `Item digital ini dilindungi oleh hak cipta dan diberikan dengan ketentuan **${item.attributes?.license_type || 'Lisensi Standar'}**.\n\n- Penggunaan hak akses disesuaikan dengan izin lisensi yang dipilih.\n- Dilarang keras membagikan ulang, menjual kembali, atau mendistribusikan berkas tanpa izin pemilik hak cipta.`;
+        }
+      } else if (pType === 'food') {
+        label = 'Jaminan Simpan';
+        fullTitle = 'Petunjuk Penyimpanan & Jaminan Kesegaran';
+        icon = ShieldCheck;
+      }
+
+      list.push({ id: 'warranty_info', label, fullTitle, icon, content });
+    }
+
+    return list;
+  }, [item, pType]);
+
+  const [activeTabId, setActiveTabId] = useState<string>(() => infoItems[0]?.id || '');
+
+  useEffect(() => {
+    if (infoItems.length > 0 && !infoItems.some(it => it.id === activeTabId)) {
+      setActiveTabId(infoItems[0].id);
+    }
+  }, [infoItems, activeTabId]);
+
+  if (infoItems.length === 0) return null;
+
+  const currentItem = infoItems.find(it => it.id === activeTabId) || infoItems[0];
+  const hasMultiple = infoItems.length > 1;
+
+  // Clean redundant leading markdown header that matches or duplicates the card title
+  const cleanContent = useMemo(() => {
+    if (!currentItem?.content) return '';
+    let text = currentItem.content.trim();
+    const lines = text.split('\n');
+    if (lines.length > 0 && /^#{1,4}\s+/.test(lines[0])) {
+      const headingRaw = lines[0].replace(/^#{1,4}\s+/, '').trim().toLowerCase();
+      const titleLower = (currentItem.fullTitle || '').toLowerCase();
+      const labelLower = (currentItem.label || '').toLowerCase();
+      if (
+        titleLower.includes(headingRaw) ||
+        headingRaw.includes(titleLower) ||
+        headingRaw.includes(labelLower) ||
+        headingRaw.includes('prosedur') ||
+        headingRaw.includes('reservasi') ||
+        headingRaw.includes('layanan') ||
+        headingRaw.includes('ketentuan') ||
+        headingRaw.includes('panduan') ||
+        headingRaw.includes('jaminan') ||
+        headingRaw.includes('standar') ||
+        headingRaw.includes('syarat') ||
+        headingRaw.includes('garansi') ||
+        headingRaw.includes('pengiriman')
+      ) {
+        text = lines.slice(1).join('\n').trim();
+      }
+    }
+    return text;
+  }, [currentItem]);
+
+  const isLong = cleanContent.length > 250 || cleanContent.split('\n').length > 4;
+
+  return (
+    <div style={{
+      marginBottom: isMobile ? 0 : '1.5rem',
+      padding: isMobile ? '1rem' : '0 0 1.25rem',
+      borderBottom: '1px solid var(--border-light)'
+    }}>
+      {/* Section Title */}
+      <h3 style={{
+        fontSize: isMobile ? '0.95rem' : '1.05rem',
+        fontWeight: 700,
+        color: 'var(--text-primary)',
+        marginBottom: '0.65rem',
+        letterSpacing: '-0.01em'
+      }}>
+        {hasMultiple ? 'Ketentuan & Garansi' : currentItem.fullTitle}
+      </h3>
+
+      {/* Tabs Pill Switcher (only rendered if 2+ tabs) */}
+      {hasMultiple && (
+        <div style={{
+          display: 'flex',
+          gap: '0.45rem',
+          overflowX: 'auto',
+          paddingBottom: '0.4rem',
+          marginBottom: '0.75rem',
+          scrollbarWidth: 'none'
+        }}>
+          {infoItems.map(info => {
+            const IconComp = info.icon;
+            const isActive = info.id === currentItem.id;
+            return (
+              <button
+                key={info.id}
+                type="button"
+                onClick={() => {
+                  setActiveTabId(info.id);
+                  setIsExpanded(false);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: isMobile ? '0.38rem 0.85rem' : '0.42rem 0.95rem',
+                  borderRadius: '0.5rem',
+                  fontSize: isMobile ? '0.78rem' : '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                  backgroundColor: isActive ? 'var(--primary)' : 'rgba(255, 255, 255, 0.03)',
+                  color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                  border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  boxShadow: isActive ? '0 2px 8px rgba(var(--primary-rgb), 0.2)' : 'none',
+                  flexShrink: 0
+                }}
+              >
+                <IconComp size={13} style={{ color: isActive ? '#ffffff' : 'var(--primary)' }} />
+                <span>{info.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Clean Container (matching Spesifikasi & Deskripsi styling) */}
+      <div style={{
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        border: '1px solid var(--border-light)',
+        borderRadius: '0.75rem',
+        padding: isMobile ? '0.85rem 1rem' : '0.9rem 1.25rem'
+      }}>
+        <div style={{
+          position: 'relative',
+          lineHeight: '1.65',
+          fontSize: isMobile ? '0.82rem' : '0.88rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <div style={{
+            display: (!isExpanded && isLong) ? '-webkit-box' : 'block',
+            WebkitLineClamp: (!isExpanded && isLong) ? (isMobile ? 3 : 4) : undefined,
+            WebkitBoxOrient: 'vertical',
+            overflow: (!isExpanded && isLong) ? 'hidden' : 'visible',
+            textOverflow: 'ellipsis'
+          }}>
+            <FormattedText 
+              text={cleanContent} 
+              style={{
+                fontSize: 'inherit',
+                color: 'inherit',
+                lineHeight: 'inherit'
+              }} 
+            />
+          </div>
+        </div>
+
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              color: 'var(--primary)',
+              fontSize: isMobile ? '0.8rem' : '0.84rem',
+              fontWeight: 700,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0.45rem 0 0.1rem',
+              marginTop: '0.2rem',
+              transition: 'color 0.2s ease'
+            }}
+          >
+            <span>{isExpanded ? 'Sembunyikan' : 'Lihat Selengkapnya'}</span>
+            {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -4395,6 +4818,7 @@ function App() {
   const [showCrudModal, setShowCrudModal] = useState<boolean>(false)
   const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
   const [showPurchaseOptions, setShowPurchaseOptions] = useState<boolean>(false)
+  const [showRekberExplainerModal, setShowRekberExplainerModal] = useState<boolean>(false)
   const [purchaseQty, setPurchaseQty] = useState<number>(1)
   const [showMarketplacesSubMenu, setShowMarketplacesSubMenu] = useState<boolean>(false)
   const [displayLimit, setDisplayLimit] = useState<number>(8)
@@ -5537,6 +5961,7 @@ function App() {
           setAdminUser(data.user);
           setIsPasswordChanged(true);
           setStoreSlug(data.user.store_slug);
+          window.history.pushState({}, '', `/${data.user.store_slug}`);
           setView('admin');
           setPortalTab('home');
           showToast('Selamat datang kembali! Akun Google Anda telah terdaftar, otomatis masuk ke Dashboard.', 'success');
@@ -5549,10 +5974,10 @@ function App() {
             setToken(data.token);
             setAdminUser(data.user);
           }
-          const userEmail = data.user?.email || googleUser.email;
-          const userName = data.user?.name || googleUser.name;
-          const userGoogleId = data.user?.google_id || googleUser.google_id;
-          const userAvatar = data.user?.avatar || googleUser.avatar;
+          const userEmail = data.google_data?.email || data.user?.email || googleUser.email;
+          const userName = data.google_data?.name || data.user?.name || googleUser.name;
+          const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id;
+          const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar;
 
           setRegisterForm((prev: any) => ({
             ...prev,
@@ -5563,8 +5988,10 @@ function App() {
             store_name: prev.store_name || '',
             store_slug: prev.store_slug || ''
           }));
+          setStoreSlug('');
           setRegisterStep(2);
           setPortalTab('register');
+          window.history.pushState({ tab: 'register', step: 2 }, '', '/register/step-2');
           showToast('Otentikasi Google Berhasil! Silakan lengkapi Informasi Toko & Link Username Anda di Langkah 2.', 'info');
         }
       } else {
@@ -6264,6 +6691,12 @@ function App() {
     const typeConfig = getItemTypeFormConfig(itemType);
     const minOrderVal = item.min_order ?? item.attributes?.min_order ?? 1;
     const maxOrderVal = (item.max_order !== null && item.max_order !== undefined) ? item.max_order : (item.attributes?.max_order ?? '');
+    const isRekberEnabled = item.detailed_info?.enable_wa_rekber !== undefined
+      ? Boolean(item.detailed_info.enable_wa_rekber)
+      : (item.attributes?.enable_wa_rekber !== undefined ? Boolean(item.attributes.enable_wa_rekber) : true);
+    const isDirectEnabled = item.detailed_info?.enable_wa_direct !== undefined
+      ? Boolean(item.detailed_info.enable_wa_direct)
+      : (item.attributes?.enable_wa_direct !== undefined ? Boolean(item.attributes.enable_wa_direct) : true);
 
     setCrudMode('edit')
     setEditId(item.id)
@@ -6294,44 +6727,35 @@ function App() {
         ...(item.detailed_info?.bukalapak_url ? [{ platform: 'Bukalapak', url: item.detailed_info.bukalapak_url }] : []),
         ...(item.detailed_info?.custom_shop_url ? [{ platform: item.detailed_info.custom_shop_name || 'Marketplace', url: item.detailed_info.custom_shop_url }] : [])
       ],
+      enable_wa_rekber: isRekberEnabled,
+      enable_wa_direct: isDirectEnabled,
       product_type: itemType,
       attributes: {
-        stock: item.attributes?.stock ?? 1,
-        min_order: minOrderVal,
-        max_order: maxOrderVal,
-        condition: item.attributes?.condition ?? 'Baru',
+        condition: (item.attributes?.condition as any) ?? 'Baru',
         weight: item.attributes?.weight ?? 100,
         brand: item.attributes?.brand ?? '',
         variant: item.attributes?.variant ?? '',
-        download_url: item.attributes?.download_url ?? '',
         file_format: item.attributes?.file_format ?? 'PDF',
         file_size: item.attributes?.file_size ?? '10 MB',
         license_type: item.attributes?.license_type ?? 'Lisensi Personal',
-        version: item.attributes?.version ?? 'v1.0',
-        scientific_name: item.attributes?.scientific_name ?? item.scientific_name ?? '',
-        fauna_class: item.attributes?.fauna_class ?? item.class ?? 'Ikan Hias',
-        fauna_status: item.attributes?.fauna_status ?? item.conservation_status ?? 'Tersedia',
         duration: item.attributes?.duration ?? '1 Sesi / 1 Jam',
         service_location: item.attributes?.service_location ?? 'Datang ke Toko',
         service_area: item.attributes?.service_area ?? 'Jabodetabek',
-        inclusions: item.attributes?.inclusions ?? '',
-        client_requirements: item.attributes?.client_requirements ?? '',
-        portion_size: item.attributes?.portion_size ?? '1 Porsi',
-        expired_info: item.attributes?.expired_info ?? 'Fresh Daily',
-        storage_temp: item.attributes?.storage_temp ?? 'Suhu Ruang',
-        certification: item.attributes?.certification ?? '100% Halal',
-        taste_options: item.attributes?.taste_options ?? '',
-        spicy_level: item.attributes?.spicy_level ?? '',
-        prep_time: item.attributes?.prep_time ?? '',
-        serving_method: item.attributes?.serving_method ?? 'Dine-in, Takeaway & Kurir Instan',
-        cooking_guide: item.attributes?.cooking_guide ?? '',
-        sugar_ice_options: item.attributes?.sugar_ice_options ?? '',
-        bake_status: item.attributes?.bake_status ?? 'Freshly Baked Daily',
-        serving_capacity: item.attributes?.serving_capacity ?? '',
-        delivery_service: item.attributes?.delivery_service ?? 'Mobil Antar Toko / Kurir Khusus',
-        culinary_type: item.attributes?.culinary_type ?? (CULINARY_SMART_PRESETS[item.class] ? item.class : 'Makanan Siap Santap'),
-        min_purchase: item.attributes?.min_purchase ?? '1 Pcs',
-        max_purchase: item.attributes?.max_purchase ?? ''
+        transaction_type: (item.attributes?.transaction_type as any) ?? 'Dijual',
+        certificate: item.attributes?.certificate ?? 'SHM (Sertifikat Hak Milik)',
+        land_area: String(item.attributes?.land_area ?? '120'),
+        building_area: String(item.attributes?.building_area ?? '90'),
+        bedrooms: item.attributes?.bedrooms ?? 3,
+        bathrooms: item.attributes?.bathrooms ?? 2,
+        floors: String(item.attributes?.floors ?? '2 Lantai'),
+        electricity: item.attributes?.electricity ?? '2200 VA',
+        water_source: item.attributes?.water_source ?? 'PDAM & Sumur Bor',
+        furnishing: item.attributes?.furnishing ?? 'Semi-Furnished',
+        carport: item.attributes?.carport ?? '1 Mobil',
+        facing: item.attributes?.facing ?? 'Timur',
+        property_location: item.attributes?.property_location ?? 'BSD City, Tangerang Selatan',
+        facilities: item.attributes?.facilities ?? 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
+        halal_status: item.attributes?.halal_status ?? 'Bersertifikat Halal Resmi (BPJPH / MUI)'
       }
     })
     setCustomClass('')
@@ -6398,7 +6822,7 @@ function App() {
 
     const payload = {
       name: crudForm.name,
-      scientific_name: crudForm.product_type === 'fauna' ? (crudForm.scientific_name || 'N/A') : (crudForm.scientific_name || 'N/A'),
+      scientific_name: crudForm.product_type === 'fauna' ? (crudForm.scientific_name || '') : '',
       class: selectedClass,
       habitat: crudForm.product_type === 'fauna' ? selectedHabitat : 'General',
       diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
@@ -6415,7 +6839,9 @@ function App() {
         ...crudForm.attributes,
         min_order: minOrderNum,
         max_order: maxOrderNum,
-        file_format: crudForm.product_type === 'digital' ? selectedClass : (crudForm.attributes.file_format || selectedClass)
+        file_format: crudForm.attributes.file_format || 'PDF',
+        enable_wa_rekber: crudForm.enable_wa_rekber !== false,
+        enable_wa_direct: crudForm.enable_wa_direct !== false
       },
       detailed_info: {
         native_region: crudForm.native_region,
@@ -6425,7 +6851,9 @@ function App() {
         warranty_info: crudForm.product_type === 'service' ? '' : crudForm.warranty_info,
         shipping_coverage: termsVal || 'Bisa Kirim se-Indonesia',
         images: filteredImages,
-        purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== '')
+        purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== ''),
+        enable_wa_rekber: crudForm.enable_wa_rekber !== false,
+        enable_wa_direct: crudForm.enable_wa_direct !== false
       }
     }
 
@@ -6903,13 +7331,21 @@ function App() {
     }
   }
 
-  // Get recommendations for desktop
+  // Get recommendations for desktop (3-Tier Waterfall Algorithm: Same Class+Type -> Same Type -> Other Store Items)
   const getRecommendations = (fauna: Fauna) => {
+    if (!faunas || faunas.length <= 1) return []
     const otherFaunas = faunas.filter(f => f.id !== fauna.id)
-    const sameClass = otherFaunas.filter(f => f.class === fauna.class)
-    const differentClass = otherFaunas.filter(f => f.class !== fauna.class)
-    const combined = [...sameClass, ...differentClass]
-    return combined.slice(0, 4)
+    
+    // Tier 1: Kategori & Tipe Produk sama persis
+    const tier1 = otherFaunas.filter(f => f.class === fauna.class && f.product_type === fauna.product_type)
+    
+    // Tier 2: Tipe Produk sama, tetapi kategori berbeda
+    const tier2 = otherFaunas.filter(f => f.product_type === fauna.product_type && f.class !== fauna.class)
+    
+    // Tier 3: Sisa katalog lainnya di toko
+    const tier3 = otherFaunas.filter(f => f.product_type !== fauna.product_type)
+    
+    return [...tier1, ...tier2, ...tier3].slice(0, 4)
   }
 
 
@@ -9230,16 +9666,26 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <div style={{ fontSize: '2.25rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.5rem' }}>
                   {formatRupiah(selectedFauna.price)}
                 </div>
-                {selectedFauna.product_type !== 'service' && (((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) || ((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0))) && (
+                {((((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) || ((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0))) || (selectedFauna.product_type === 'food' && selectedFauna.attributes?.halal_status) || (selectedFauna.product_type === 'property' && selectedFauna.attributes?.transaction_type)) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
-                    {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
+                    {selectedFauna.product_type === 'property' && selectedFauna.attributes?.transaction_type && (
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+                        🏡 {selectedFauna.attributes.transaction_type}
+                      </span>
+                    )}
+                    {selectedFauna.product_type === 'food' && selectedFauna.attributes?.halal_status && (
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        🏅 {selectedFauna.attributes.halal_status}
+                      </span>
+                    )}
+                    {selectedFauna.product_type !== 'service' && ((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
                       <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
-                        Min. Beli: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {selectedFauna.product_type === 'food' ? 'Porsi' : selectedFauna.product_type === 'fauna' ? 'Ekor' : 'Pcs'}
+                        {selectedFauna.product_type === 'food' ? 'Min. Pesanan' : (selectedFauna.product_type === 'property' ? 'Min. Unit' : 'Min. Beli')}: {selectedFauna.min_order || selectedFauna.attributes?.min_order} {getCatalogItemUnit(selectedFauna)}
                       </span>
                     )}
                     {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
                       <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                        Maks. Beli: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {selectedFauna.product_type === 'food' ? 'Porsi' : selectedFauna.product_type === 'fauna' ? 'Ekor' : 'Pcs'}
+                        {selectedFauna.product_type === 'food' ? 'Maks. Pesanan' : (selectedFauna.product_type === 'service' ? 'Maks. Pemesanan' : (selectedFauna.product_type === 'property' ? 'Maks. Unit' : 'Maks. Beli'))}: {selectedFauna.max_order || selectedFauna.attributes?.max_order} {getCatalogItemUnit(selectedFauna)}
                       </span>
                     )}
                   </div>
@@ -9249,266 +9695,174 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {selectedFauna.name}
                 </h2>
                 
-                <div style={{ fontStyle: 'italic', fontSize: '1rem', color: 'var(--primary-hover)', marginBottom: '1.5rem' }}>
-                  {selectedFauna.scientific_name}
-                </div>
+                {selectedFauna.product_type === 'fauna' && isNonEmptyValue(selectedFauna.scientific_name) && (
+                  <div style={{ fontStyle: 'italic', fontSize: '1rem', color: 'var(--primary)', marginBottom: '1.25rem' }}>
+                    {selectedFauna.scientific_name}
+                  </div>
+                )}
 
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                  Kategori: <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.95rem' }}>{selectedFauna.class.toUpperCase()}</span>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                  Kategori: <span style={{ color: 'var(--primary)', fontWeight: 700, fontSize: '0.95rem' }}>{selectedFauna.class.toUpperCase()}</span>
                 </div>
 
                 {/* Specs List */}
                 <div style={{ borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    {selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Barang Fisik' : 'Spesifikasi Satwa')))}
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.85rem' }}>
+                    {selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : 'Spesifikasi Satwa & Fauna'))))}
                   </h3>
                   
-                  {selectedFauna.product_type === 'food' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                      {selectedFauna.attributes?.portion_size && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Porsi / Isi Bersih</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.portion_size}</span>
-                        </div>
-                      )}
-                      {(selectedFauna.attributes?.spicy_level || selectedFauna.attributes?.taste_options) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Varian / Rasa</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.spicy_level || selectedFauna.attributes?.taste_options}</span>
-                        </div>
-                      )}
-                      {(selectedFauna.attributes?.prep_time || selectedFauna.attributes?.bake_status) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Waktu Masak / PO</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.prep_time || selectedFauna.attributes?.bake_status}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.cooking_guide && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Cara Memasak</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.cooking_guide}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.sugar_ice_options && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Pilihan Manis &amp; Es</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.sugar_ice_options}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.expired_info && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Masa Simpan</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.expired_info}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.storage_temp && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Suhu Simpan</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.storage_temp}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.serving_capacity && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Kapasitas Masak</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.serving_capacity}</span>
-                        </div>
-                      )}
-                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Pesanan</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Porsi</span>
-                        </div>
-                      )}
-                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal Pesanan</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Porsi</span>
-                        </div>
-                      )}
-                      {(selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Metode Layanan</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.serving_method || selectedFauna.attributes?.delivery_service}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.certification && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Sertifikasi</span>
-                          <span style={{ fontWeight: 600, color: '#10b981' }}>{selectedFauna.attributes.certification}</span>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Pengiriman</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim' : 'Ambil Sendiri')}</span>
-                      </div>
-                    </div>
-                  ) : selectedFauna.product_type === 'physical' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Kondisi</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.condition || 'Baru'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Berat Produk</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.weight ? `${selectedFauna.attributes.weight} Gram` : '100 Gram'}</span>
-                      </div>
-                      {selectedFauna.attributes?.brand && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Merek / Brand</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.brand}</span>
-                        </div>
-                      )}
-                      {selectedFauna.attributes?.variant && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Varian / Pilihan</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes.variant}</span>
-                        </div>
-                      )}
-                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Beli</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Pcs</span>
-                        </div>
-                      )}
-                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal Beli</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Pcs</span>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Pengiriman</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
-                      </div>
-                    </div>
-                  ) : selectedFauna.product_type === 'fauna' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Habitat</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.habitat}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Status / Ketersediaan</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.conservation_status}</span>
-                      </div>
-                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Beli</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Ekor</span>
-                        </div>
-                      )}
-                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal per Kiriman</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Ekor</span>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Jangkauan Pengiriman</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || (selectedFauna.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Asal Wilayah</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.native_region || 'N/A'}</span>
-                      </div>
-                    </div>
-                  ) : selectedFauna.product_type === 'service' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Estimasi Durasi</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.duration || '1 Sesi'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Lokasi Layanan</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.service_location || 'Datang ke Toko'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Area Jangkauan</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.service_area || 'Jabodetabek'}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem 2rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Format File</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.file_format || 'PDF / Digital'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Tipe Lisensi</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.attributes?.license_type || 'Personal Use'}</span>
-                      </div>
-                      {((selectedFauna.min_order && selectedFauna.min_order > 1) || (selectedFauna.attributes?.min_order && selectedFauna.attributes.min_order > 1)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Minimal Beli</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.min_order || selectedFauna.attributes?.min_order} Lisensi</span>
-                        </div>
-                      )}
-                      {((selectedFauna.max_order && selectedFauna.max_order > 0) || (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0)) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Maksimal Lisensi</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.max_order || selectedFauna.attributes?.max_order} Lisensi</span>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Akses File</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedFauna.detailed_info?.shipping_coverage || 'Akses Link Cloud'}</span>
-                      </div>
-                    </div>
-                  )}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: '0.5rem 2rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1.25rem'
+                  }}>
+                    {(() => {
+                      const renderRow = (label: string, value: React.ReactNode, isHighlight = false) => {
+                        if (!isNonEmptyValue(value)) return null;
+                        return (
+                          <div 
+                            key={label}
+                            style={{ 
+                              display: 'grid', 
+                              gridTemplateColumns: 'minmax(120px, 150px) 1fr', 
+                              gap: '0.85rem',
+                              alignItems: 'baseline', 
+                              padding: '0.55rem 0', 
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                              fontSize: '0.88rem',
+                              lineHeight: 1.45 
+                            }}
+                          >
+                            <span style={{ color: 'var(--text-secondary)', fontWeight: 500, flexShrink: 0 }}>
+                              {label}
+                            </span>
+                            <span style={{ 
+                              fontWeight: 600, 
+                              color: isHighlight ? 'var(--primary)' : 'var(--text-primary)', 
+                              textAlign: 'right', 
+                              wordBreak: 'break-word',
+                              letterSpacing: '0.01em'
+                            }}>
+                              {value}
+                            </span>
+                          </div>
+                        );
+                      };
+
+                      const unit = getCatalogItemUnit(selectedFauna);
+
+                      if (selectedFauna.product_type === 'property') {
+                        const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Tipe Transaksi', selectedFauna.attributes?.transaction_type || 'Dijual', true)}
+                            {renderRow('Tipe / Jenis Properti', selectedFauna.class || selectedFauna.attributes?.property_type)}
+                            {renderRow('Legalitas / Sertifikat', selectedFauna.attributes?.certificate)}
+                            {renderRow('Luas Tanah (LT)', isNonEmptyValue(selectedFauna.attributes?.land_area) ? `${selectedFauna.attributes?.land_area} m²` : null)}
+                            {renderRow('Luas Bangunan (LB)', isNonEmptyValue(selectedFauna.attributes?.building_area) ? `${selectedFauna.attributes?.building_area} m²` : null)}
+                            {renderRow('Kamar Tidur (KT)', isNonEmptyValue(selectedFauna.attributes?.bedrooms) ? `${selectedFauna.attributes?.bedrooms}` : null)}
+                            {renderRow('Kamar Mandi (KM)', isNonEmptyValue(selectedFauna.attributes?.bathrooms) ? `${selectedFauna.attributes?.bathrooms}` : null)}
+                            {renderRow('Jumlah Lantai', selectedFauna.attributes?.floors)}
+                            {renderRow('Kapasitas Carport', selectedFauna.attributes?.carport)}
+                            {renderRow('Daya Listrik', selectedFauna.attributes?.electricity)}
+                            {renderRow('Sumber Air', selectedFauna.attributes?.water_source)}
+                            {renderRow('Kondisi Perabotan', selectedFauna.attributes?.furnishing)}
+                            {renderRow('Arah Hadap', selectedFauna.attributes?.facing)}
+                            {renderRow('Lokasi / Wilayah Properti', selectedFauna.attributes?.property_location || selectedFauna.habitat)}
+                            {minOrderVal > 1 && renderRow('Minimal Unit', `${minOrderVal} Unit`)}
+                            {maxOrderVal && Number(maxOrderVal) > 0 && renderRow('Maksimal Unit', `${maxOrderVal} Unit`)}
+                          </>
+                        );
+                      } else if (selectedFauna.product_type === 'physical') {
+                        const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Kondisi', selectedFauna.attributes?.condition)}
+                            {renderRow('Berat Produk', isNonEmptyValue(selectedFauna.attributes?.weight) ? `${selectedFauna.attributes?.weight} Gram` : null)}
+                            {renderRow('Merek / Brand', selectedFauna.attributes?.brand)}
+                            {renderRow('Varian / Pilihan', selectedFauna.attributes?.variant)}
+                            {renderRow('Minimal Beli', `${minOrderVal} ${unit}`)}
+                            {renderRow('Maksimal Beli', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null)}
+                          </>
+                        );
+                      } else if (selectedFauna.product_type === 'food') {
+                        const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Status / Sertifikasi Halal', selectedFauna.attributes?.halal_status, true)}
+                            {renderRow('Kategori Menu', selectedFauna.class)}
+                            {renderRow('Pilihan Varian / Rasa', selectedFauna.attributes?.variant)}
+                            {renderRow('Minimal Pesanan', `${minOrderVal} Porsi / Pack`)}
+                            {renderRow('Maksimal Pesanan', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} Porsi / Pack` : null)}
+                          </>
+                        );
+                      } else if (selectedFauna.product_type === 'fauna') {
+                        const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Kelas / Kategori', selectedFauna.class)}
+                            {renderRow('Nama Ilmiah / Taksonomi', selectedFauna.scientific_name)}
+                            {renderRow('Asal Wilayah', selectedFauna.detailed_info?.native_region)}
+                            {renderRow('Masa Hidup', selectedFauna.detailed_info?.lifespan)}
+                            {renderRow('Bobot', selectedFauna.detailed_info?.weight)}
+                            {renderRow('Status Ketersediaan', selectedFauna.conservation_status)}
+                            {renderRow('Minimal Beli', `${minOrderVal} ${unit}`)}
+                            {renderRow('Maksimal per Kiriman', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null)}
+                          </>
+                        );
+                      } else if (selectedFauna.product_type === 'service') {
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Kategori Bidang Jasa', selectedFauna.class)}
+                            {renderRow('Durasi Layanan', selectedFauna.attributes?.duration)}
+                            {renderRow('Metode Layanan', selectedFauna.attributes?.service_location)}
+                            {renderRow('Area Jangkauan', selectedFauna.attributes?.service_area)}
+                            {renderRow('Maksimal Pemesanan', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} Sesi` : null)}
+                          </>
+                        );
+                      } else {
+                        const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Kategori Item', selectedFauna.class)}
+                            {renderRow('Format File', selectedFauna.attributes?.file_format)}
+                            {renderRow('Ukuran File', selectedFauna.attributes?.file_size)}
+                            {renderRow('Tipe Lisensi', selectedFauna.attributes?.license_type)}
+                            {renderRow('Minimal Beli', `${minOrderVal} Lisensi / Seat`)}
+                            {renderRow('Maksimal Beli', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} Lisensi / Seat` : null)}
+                          </>
+                        );
+                      }
+                    })()}
+                  </div>
                 </div>
 
-                {/* Description */}
-                {selectedFauna.description && (
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Deskripsi</h3>
-                    <FormattedText 
-                      text={selectedFauna.description} 
-                      style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: '1.6' }} 
-                    />
-                  </div>
-                )}
+                {/* Description with Expand/Collapse */}
+                <ProductDescriptionView 
+                  description={selectedFauna.description} 
+                  isMobile={false} 
+                  title={selectedFauna.product_type === 'property' ? 'Deskripsi & Keunggulan Properti' : (selectedFauna.product_type === 'fauna' ? 'Deskripsi & Kondisi Satwa' : (selectedFauna.product_type === 'service' ? 'Deskripsi Cakupan Layanan' : (selectedFauna.product_type === 'digital' ? 'Deskripsi & Isi Materi Digital' : (selectedFauna.product_type === 'food' ? 'Deskripsi Menu & Komposisi' : 'Deskripsi Produk & Spesifikasi'))))}
+                />
 
-                {/* Shipping & Warranty */}
-                {(selectedFauna.detailed_info?.shipping_terms || selectedFauna.detailed_info?.warranty_info) && (
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: (selectedFauna.detailed_info?.shipping_terms && selectedFauna.detailed_info?.warranty_info) ? '1fr 1fr' : '1fr', 
-                    gap: '1.5rem', 
-                    backgroundColor: 'rgba(255,255,255,0.01)', 
-                    padding: '1.25rem', 
-                    borderRadius: '0.5rem', 
-                    border: '1px solid var(--border-light)', 
-                    marginBottom: '1.5rem' 
-                  }}>
-                    {selectedFauna.detailed_info?.shipping_terms && (
-                      <div>
-                        <h4 style={{ fontSize: '0.85rem', color: 'var(--primary-hover)', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          {selectedFauna.product_type === 'service' ? 'Ketentuan & Jadwal Layanan' : (selectedFauna.product_type === 'digital' ? 'Panduan Akses File' : (selectedFauna.product_type === 'food' ? 'Ketentuan Pemesanan & Penyajian' : 'Ketentuan Pengiriman'))}
-                        </h4>
-                        <FormattedText 
-                          text={selectedFauna.detailed_info.shipping_terms} 
-                          style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.55' }} 
-                        />
-                      </div>
-                    )}
-                    {selectedFauna.detailed_info?.warranty_info && (
-                      <div>
-                        <h4 style={{ fontSize: '0.85rem', color: 'var(--secondary)', fontWeight: 700, marginBottom: '0.35rem' }}>
-                          {selectedFauna.product_type === 'digital' ? 'Ketentuan Lisensi' : (selectedFauna.product_type === 'fauna' ? 'Garansi Live Arrival (D.O.A)' : (selectedFauna.product_type === 'food' ? 'Petunjuk Penyimpanan' : 'Kebijakan Garansi'))}
-                        </h4>
-                        <FormattedText 
-                          text={selectedFauna.detailed_info.warranty_info} 
-                          style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.55' }} 
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Important Information with Dynamic Contextual Action Buttons */}
+                <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
                 {/* YouTube Video Embed */}
                 {selectedFauna.video_url && getYoutubeEmbedUrl(selectedFauna.video_url) && (
                   <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Video Dokumentasi</h3>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                      {selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Hasil Kerja' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing'))))}
+                    </h3>
                     <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
                       <iframe 
                         src={getYoutubeEmbedUrl(selectedFauna.video_url)} 
@@ -9523,46 +9877,55 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
             </div>
 
-            {/* Recommendations Section */}
-            <div style={{ marginTop: '4rem', borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem' }}>
-              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1.5rem' }}>Rekomendasi Satwa Serupa</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem' }}>
-                {getRecommendations(selectedFauna).map(rec => (
-                  <div 
-                    key={rec.id} 
-                    className="glass-panel" 
-                    onClick={() => {
-                      setSelectedFauna(rec);
-                      setActiveImageIndex(0);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    style={{ cursor: 'pointer', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'transform 0.2s' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)' }}
-                  >
-                    <img 
-                      src={rec.image_url} 
-                      alt={rec.name} 
-                      style={{ width: '100%', height: '160px', objectFit: 'cover' }}
-                      onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
-                    />
-                    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
-                      <div>
-                        <span style={{ display: 'inline-block', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                          {rec.class}
-                        </span>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em', lineHeight: 1.3, marginBottom: '0.5rem' }}>
-                          {rec.name}
+            {/* Recommendations Section (Multi-Sector Recommendation & Graceful Hiding) */}
+            {getRecommendations(selectedFauna).length > 0 && (
+              <div style={{ marginTop: '4rem', borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Rekomendasi Katalog Lainnya
+                  </h3>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.25rem', marginBottom: 0 }}>
+                    Eksplorasi pilihan produk dan layanan menarik lainnya dari toko ini
+                  </p>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem' }}>
+                  {getRecommendations(selectedFauna).map(rec => (
+                    <div 
+                      key={rec.id} 
+                      className="glass-panel" 
+                      onClick={() => {
+                        setSelectedFauna(rec);
+                        setActiveImageIndex(0);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{ cursor: 'pointer', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'transform 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)' }}
+                    >
+                      <img 
+                        src={rec.image_url} 
+                        alt={rec.name} 
+                        style={{ width: '100%', height: '160px', objectFit: 'cover' }}
+                        onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                      />
+                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                        <div>
+                          <span style={{ display: 'inline-block', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                            {rec.class}
+                          </span>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em', lineHeight: 1.3, marginBottom: '0.5rem' }}>
+                            {rec.name}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ef4444' }}>
+                          {formatRupiah(rec.price)}
                         </div>
                       </div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ef4444' }}>
-                        {formatRupiah(rec.price)}
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
 
@@ -9631,6 +9994,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <button 
                     type="button"
                     onClick={() => {
+                      if (selectedFauna.product_type === 'property') {
+                        if (settings.whatsapp_number && settings.whatsapp_number.trim()) {
+                          const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
+                          window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+                        } else {
+                          alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan toko.');
+                        }
+                        return;
+                      }
                       const minVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
                       setPurchaseQty(minVal);
                       if (!settings.enable_wa_direct && !settings.enable_wa_rekber) {
@@ -9657,7 +10029,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       cursor: 'pointer'
                     }}
                   >
-                    <ShoppingCart size={16} /> Beli Sekarang / Pilih Pembelian
+                    {selectedFauna.product_type === 'property' ? (
+                      <>
+                        <MessageCircle size={16} /> Hubungi Agen / Janji Survey
+                      </>
+                    ) : selectedFauna.product_type === 'service' ? (
+                      <>
+                        <ShieldCheck size={16} /> Pesan Layanan / Booking Jasa
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={16} /> Beli Sekarang / Pilih Pembelian
+                      </>
+                    )}
                   </button>
                   <button 
                     type="button"
@@ -10506,7 +10890,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{fauna.habitat}</span>
                             </div>
                             <h3 className="card-title" style={{ fontSize: '1.1rem', margin: '0.2rem 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>{fauna.name}</h3>
-                            <div className="card-subtitle" style={{ fontSize: '0.8rem', margin: 0, fontStyle: 'italic', color: 'var(--text-muted)' }}>{fauna.scientific_name}</div>
+                            <div className="card-subtitle" style={{ fontSize: '0.8rem', margin: '0.15rem 0 0', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {fauna.product_type === 'digital'
+                                ? `${fauna.attributes?.file_format ? fauna.attributes.file_format + ' • ' : ''}${fauna.attributes?.file_size || 'Digital File'}${fauna.attributes?.license_type ? ' • ' + fauna.attributes.license_type : ''}`
+                                : fauna.product_type === 'physical'
+                                ? `${fauna.attributes?.brand ? fauna.attributes.brand + ' • ' : ''}${fauna.attributes?.condition || 'Baru'}${fauna.attributes?.weight ? ' • ' + fauna.attributes.weight + 'g' : ''}`
+                                : fauna.product_type === 'service'
+                                ? `Durasi: ${fauna.attributes?.duration || '1 Sesi'}${fauna.attributes?.service_location ? ' • ' + fauna.attributes.service_location : ''}`
+                                : fauna.product_type === 'food'
+                                ? `Exp: ${fauna.attributes?.expired_info || '7 Hari'}${fauna.attributes?.storage_temp ? ' • ' + fauna.attributes.storage_temp : ''}`
+                                : (fauna.scientific_name && fauna.scientific_name !== 'N/A' ? <i style={{ fontStyle: 'italic' }}>{fauna.scientific_name}</i> : fauna.class)}
+                            </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
                               <div className="card-price" style={{ fontSize: '1.25rem', margin: 0, fontWeight: 800 }}>{formatRupiah(fauna.price)}</div>
                               <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.15rem' }}>
@@ -11320,7 +11714,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             paginatedAdminItems.map((item) => {
                               const itemType = (item.product_type || 'physical') as ItemCategoryType;
                               const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? '#10b981' : '#3b82f6';
-                              const typeEmoji = itemType === 'food' ? '🍔' : itemType === 'service' ? '💼' : itemType === 'digital' ? '💾' : itemType === 'fauna' ? '🐾' : '📦';
+                              const typeLabel = itemType === 'food' ? 'Food' : itemType === 'service' ? 'Jasa' : itemType === 'digital' ? 'Digital' : itemType === 'fauna' ? 'Fauna' : 'Fisik';
 
                               return (
                                 <tr key={item.id}>
@@ -11334,8 +11728,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                           e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
                                         }}
                                       />
-                                      <span style={{ position: 'absolute', bottom: '1px', right: '1px', fontSize: '0.6rem', padding: '0 2px', background: 'rgba(0,0,0,0.7)', borderRadius: '2px' }}>
-                                        {typeEmoji}
+                                      <span style={{ position: 'absolute', bottom: '2px', right: '2px', fontSize: '0.58rem', fontWeight: 700, padding: '1px 4px', background: 'rgba(0,0,0,0.8)', color: '#ffffff', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                        {typeLabel}
                                       </span>
                                     </div>
                                   </td>
@@ -12328,11 +12722,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           {/* Context Switcher Pills */}
                           <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                             {[
-                              { id: 'physical', label: '📦 Barang Fisik' },
-                              { id: 'food', label: '🍔 Kuliner' },
-                              { id: 'service', label: '💼 Jasa' },
-                              { id: 'digital', label: '💾 Digital' },
-                              { id: 'fauna', label: '🐾 Fauna' }
+                              { id: 'physical', label: 'Barang Fisik' },
+                              { id: 'food', label: 'Kuliner & F&B' },
+                              { id: 'service', label: 'Jasa & Layanan' },
+                              { id: 'digital', label: 'Produk Digital' },
+                              { id: 'fauna', label: 'Satwa & Fauna' }
                             ].map(tab => (
                               <button
                                 key={tab.id}
@@ -14682,13 +15076,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, display: 'block', marginBottom: '0.6rem' }}>
                   Pilih Tipe Item Katalog:
                 </span>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.45rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.45rem' }}>
                   {[
                     { id: 'physical', name: 'Barang Fisik', icon: Package, color: '#2563eb' },
-                    { id: 'digital', name: 'Item Digital', icon: FileCode, color: '#8b5cf6' },
-                    { id: 'fauna', name: 'Satwa / Fauna', icon: PawPrint, color: '#059669' },
+                    { id: 'property', name: 'Properti', icon: Building2, color: '#0284c7' },
+                    { id: 'food', name: 'Kuliner', icon: Utensils, color: '#dc2626' },
                     { id: 'service', name: 'Jasa & Layanan', icon: Wrench, color: '#d97706' },
-                    { id: 'food', name: 'Menu Kuliner', icon: Utensils, color: '#dc2626' }
+                    { id: 'digital', name: 'Item Digital', icon: FileCode, color: '#8b5cf6' },
+                    { id: 'fauna', name: 'Satwa / Fauna', icon: PawPrint, color: '#059669' }
                   ].map((cat) => {
                     const CatIcon = cat.icon;
                     const isSelected = crudForm.product_type === cat.id;
@@ -14757,107 +15152,119 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </div>
               </div>
 
-              <div className="modal-body-scroll">
+              <form onSubmit={handleFaunaSubmit} className="crud-form" style={{ marginTop: '1.25rem' }}>
                 {crudError && (
-                  <div className="alert-message alert-error" style={{ marginBottom: '1.5rem' }}>
+                  <div className="alert alert-error" style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', fontSize: '0.82rem' }}>
                     {crudError}
                   </div>
                 )}
 
-                <form id="crud-form" onSubmit={handleFaunaSubmit}>
-                  {/* Standar Fields: Nama & Harga */}
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">{typeConfig.nameLabel}</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder={typeConfig.namePlaceholder}
-                        required
-                        value={crudForm.name}
-                        onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
-                      />
+                {/* Grid Input Group */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  
+                  {/* Name Input */}
+                  <div className="form-group">
+                    <label className="form-label">{typeConfig.nameLabel}</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder={typeConfig.namePlaceholder}
+                      required
+                      value={crudForm.name}
+                      onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Category Dropdown with Custom Add Button */}
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>{typeConfig.categoryLabel}</label>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowCustomClassInput(!showCustomClassInput)}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                      >
+                        {showCustomClassInput ? 'Batal Tambah' : '+ Buat Kategori Baru'}
+                      </button>
                     </div>
+
+                    {showCustomClassInput ? (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ketik kategori kustom..."
+                          value={customClass}
+                          onChange={(e) => setCustomClass(e.target.value)}
+                        />
+                        <button 
+                          type="button" 
+                          className="btn-primary" 
+                          style={{ padding: '0 1rem', fontSize: '0.8rem', borderRadius: '0.35rem' }}
+                          onClick={async () => {
+                            if (!customClass.trim()) return;
+                            await handleAddMasterOption('class', customClass.trim(), (val) => {
+                              setCrudForm({ ...crudForm, class: customClass.trim() });
+                              setCustomClass(val);
+                              setShowCustomClassInput(false);
+                            });
+                          }}
+                        >
+                          Simpan
+                        </button>
+                      </div>
+                    ) : (
+                      <select 
+                        className="form-select"
+                        value={crudForm.class}
+                        onChange={(e) => setCrudForm({ ...crudForm, class: e.target.value })}
+                      >
+                        {getCategoryOptionsForType(crudForm.product_type).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Price and Min/Max Orders */}
+                  <div className="form-row" style={{ gridTemplateColumns: (crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'digital') ? '1.5fr 1fr 1fr' : '1fr' }}>
                     <div className="form-group">
                       <label className="form-label">{typeConfig.priceLabel}</label>
                       <input 
-                        type="text" 
+                        type="number" 
                         className="form-input" 
                         placeholder={typeConfig.pricePlaceholder}
                         required
-                        value={formatRupiahInput(crudForm.price)}
-                        onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
+                        value={crudForm.price || ''}
+                        onChange={(e) => setCrudForm({ ...crudForm, price: parseFloat(e.target.value) || 0 })}
                       />
                     </div>
-                  </div>
-
-                  {/* Batas Pembelian: Minimal & Maksimal Beli (Hanya untuk kategori produk terkait, dikecualikan dari Jasa) */}
-                  {typeConfig.minOrderLabel && (
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label className="form-label">{typeConfig.minOrderLabel}</label>
-                        <input 
-                          type="number" 
-                          min="1"
-                          className="form-input" 
-                          placeholder={typeConfig.minOrderPlaceholder || '1'}
-                          required
-                          value={crudForm.min_order ?? 1}
-                          onChange={(e) => setCrudForm({ ...crudForm, min_order: Math.max(1, parseInt(e.target.value) || 1) })}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">{typeConfig.maxOrderLabel || 'Maksimal Beli'}</label>
-                        <input 
-                          type="number" 
-                          min={crudForm.min_order || 1}
-                          className="form-input" 
-                          placeholder={typeConfig.maxOrderPlaceholder || 'Kosongkan jika tanpa batas'}
-                          value={crudForm.max_order ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1);
-                            setCrudForm({ ...crudForm, max_order: val });
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Kategori / Klasifikasi */}
-                  <div className="form-group">
-                    <label className="form-label">{typeConfig.categoryLabel}</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <select 
-                        className="form-select"
-                        style={{ flex: 1 }}
-                        value={showCustomClassInput ? '__NEW__' : crudForm.class}
-                        onChange={(e) => {
-                          const newClass = e.target.value;
-                          if (newClass === '__NEW__') {
-                            setShowCustomClassInput(true)
-                            setCustomClass('')
-                          } else {
-                            setShowCustomClassInput(false)
-                            setCrudForm(prev => ({ ...prev, class: newClass }))
-                          }
-                        }}
-                      >
-                        {getCategoryOptionsForType(crudForm.product_type).map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                        <option value="__NEW__">+ Tambah Kategori Baru...</option>
-                      </select>
-                    </div>
-                    {showCustomClassInput && (
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        style={{ marginTop: '0.5rem' }} 
-                        placeholder="Ketik nama kategori baru toko Anda..." 
-                        value={customClass} 
-                        onChange={(e) => setCustomClass(e.target.value)} 
-                        required 
-                      />
+                    {(crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'digital') && (
+                      <>
+                        <div className="form-group">
+                          <label className="form-label">{typeConfig.minOrderLabel || 'Minimal Beli *'}</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder={typeConfig.minOrderPlaceholder || '1'}
+                            min={1}
+                            required
+                            value={crudForm.min_order}
+                            onChange={(e) => setCrudForm({ ...crudForm, min_order: parseInt(e.target.value) || 1 })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">{typeConfig.maxOrderLabel || 'Maksimal Beli'}</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder={typeConfig.maxOrderPlaceholder || 'Opsional'}
+                            min={1}
+                            value={crudForm.max_order || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, max_order: e.target.value === '' ? '' : parseInt(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -14869,7 +15276,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {crudForm.product_type === 'physical' && (
                     <div style={{ background: 'rgba(37, 99, 235, 0.05)', border: '1px solid rgba(37, 99, 235, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                        📦 Spesifikasi Barang Fisik
+                        Spesifikasi Barang Fisik
                       </span>
                       <div className="form-row">
                         <div className="form-group">
@@ -14925,9 +15332,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {crudForm.product_type === 'digital' && (
                     <div style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid rgba(139, 92, 246, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                        💻 Atribut Spesifik Item Digital
+                        Atribut Spesifik Item Digital
                       </span>
-                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                        <div className="form-group">
+                          <label className="form-label">Format File *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: PDF / EPUB / ZIP / MP4"
+                            required
+                            value={crudForm.attributes.file_format || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, file_format: e.target.value } })}
+                          />
+                        </div>
                         <div className="form-group">
                           <label className="form-label">Ukuran File *</label>
                           <input 
@@ -14960,7 +15378,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {crudForm.product_type === 'fauna' && (
                     <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                        🦎 Atribut Spesifik Satwa &amp; Living Fauna
+                        Atribut Spesifik Satwa &amp; Living Fauna
                       </span>
                       <div className="form-row">
                         <div className="form-group">
@@ -15051,7 +15469,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {crudForm.product_type === 'service' && (
                     <div style={{ background: 'rgba(217, 119, 6, 0.05)', border: '1px solid rgba(217, 119, 6, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
-                        🔧 Atribut Spesifik Jasa &amp; Layanan
+                        Atribut Spesifik Jasa &amp; Layanan
                       </span>
                       <div className="form-row">
                         <div className="form-group">
@@ -15089,6 +15507,200 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           value={crudForm.attributes.service_area}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_area: e.target.value } })}
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. PROPERTI & REAL ESTATE */}
+                  {crudForm.product_type === 'property' && (
+                    <div style={{ background: 'rgba(2, 132, 199, 0.05)', border: '1px solid rgba(2, 132, 199, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        Spesifikasi Properti &amp; Real Estate
+                      </span>
+                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                        <div className="form-group">
+                          <label className="form-label">Tipe Transaksi *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.transaction_type || 'Dijual'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, transaction_type: e.target.value as any } })}
+                          >
+                            <option value="Dijual">Dijual (Jual Beli)</option>
+                            <option value="Disewakan (Tahunan)">Disewakan (Sewa per Tahun)</option>
+                            <option value="Disewakan (Bulanan)">Disewakan (Sewa per Bulan)</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Legalitas / Sertifikat *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certificate: e.target.value } })}
+                          >
+                            <option value="SHM (Sertifikat Hak Milik)">SHM (Sertifikat Hak Milik)</option>
+                            <option value="HGB (Hak Guna Bangunan)">HGB (Hak Guna Bangunan)</option>
+                            <option value="Strata Title / SHMRS">Strata Title / SHMRS (Apartemen)</option>
+                            <option value="AJB (Akta Jual Beli)">AJB (Akta Jual Beli)</option>
+                            <option value="Girik / Letter C">Girik / Letter C</option>
+                            <option value="Lainnya">Lainnya / PPJB</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                        <div className="form-group">
+                          <label className="form-label">Luas Tanah (m²) *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 120"
+                            value={crudForm.attributes.land_area || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, land_area: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Luas Bangunan (m²) *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 90"
+                            value={crudForm.attributes.building_area || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, building_area: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Kamar Tidur (KT)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Contoh: 3"
+                            value={crudForm.attributes.bedrooms ?? ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, bedrooms: parseInt(e.target.value) || 0 } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Kamar Mandi (KM)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Contoh: 2"
+                            value={crudForm.attributes.bathrooms ?? ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, bathrooms: parseInt(e.target.value) || 0 } })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                        <div className="form-group">
+                          <label className="form-label">Jumlah Lantai</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 2 Lantai"
+                            value={crudForm.attributes.floors || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, floors: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Kapasitas Carport</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 2 Mobil"
+                            value={crudForm.attributes.carport || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, carport: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Daya Listrik</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: 2200 VA"
+                            value={crudForm.attributes.electricity || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, electricity: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Sumber Air</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: PDAM / Sumur"
+                            value={crudForm.attributes.water_source || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, water_source: e.target.value } })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                        <div className="form-group">
+                          <label className="form-label">Kondisi Perabotan</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.furnishing || 'Unfurnished (Kosong)'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, furnishing: e.target.value } })}
+                          >
+                            <option value="Unfurnished (Kosong)">Unfurnished (Kosong)</option>
+                            <option value="Semi-Furnished">Semi-Furnished</option>
+                            <option value="Fully Furnished (Lengkap)">Fully Furnished (Lengkap)</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Arah Hadap</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Hadap Timur / Utara"
+                            value={crudForm.attributes.facing || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, facing: e.target.value } })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Lokasi / Wilayah Properti</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: BSD City, Tangerang Selatan"
+                            value={crudForm.attributes.property_location || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, property_location: e.target.value } })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 6. KULINER & MAKANAN */}
+                  {crudForm.product_type === 'food' && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.75rem' }}>
+                        Atribut Spesifik Kuliner &amp; Makanan
+                      </span>
+                      <div className="form-row" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
+                        <div className="form-group">
+                          <label className="form-label">Sertifikasi / Status Halal *</label>
+                          <select 
+                            className="form-select"
+                            value={crudForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, halal_status: e.target.value } })}
+                          >
+                            <option value="Bersertifikat Halal Resmi (BPJPH / MUI)">Bersertifikat Halal Resmi (BPJPH / MUI)</option>
+                            <option value="Halal (Bahan Baku Halal & Thayyib)">Halal (Bahan Baku Halal &amp; Thayyib)</option>
+                            <option value="Muslim Friendly / No Pork No Lard">Muslim Friendly / No Pork No Lard</option>
+                            <option value="Dalam Proses Sertifikasi Halal">Dalam Proses Sertifikasi Halal</option>
+                            <option value="Non-Halal">Non-Halal</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Pilihan Varian / Level Rasa (Opsional)</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Contoh: Pedas Sedang, Ekstra Pedas / 500gr"
+                            value={crudForm.attributes.variant || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -15231,111 +15843,274 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     />
                   )}
 
-                  {/* Link Pembelian Marketplace (Opsional) */}
+                  {/* Link Pembelian Marketplace / Platform Freelance (Opsional) - Sembunyikan untuk Properti */}
+                  {crudForm.product_type !== 'property' && (
+                    <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', letterSpacing: '0.03em', textTransform: 'uppercase', opacity: 0.85 }}>
+                            {crudForm.product_type === 'service' ? 'Link Platform Freelance / Pihak Ketiga (Opsional)' : 'Link Marketplace / Toko Online (Opsional)'}
+                          </h4>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
+                            {crudForm.product_type === 'service'
+                              ? 'Tautkan lapak jasa/profil Anda di Fastwork, Projects.co.id, Sribulancer, Fiverr, Upwork, dll. sebagai alternatif penengah pihak ketiga.'
+                              : 'Tautkan link produk spesifik dari Shopee, Tokopedia, Lazada, Bukalapak, TikTok Shop, dll.'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newLinks = [...crudForm.purchase_links, { platform: '', url: '' }]
+                            setCrudForm({ ...crudForm, purchase_links: newLinks })
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            color: 'var(--primary)',
+                            border: '1px solid rgba(16, 185, 129, 0.2)',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Plus size={12} /> Tambah Link
+                        </button>
+                      </div>
+
+                      {crudForm.purchase_links.length === 0 ? (
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0.5rem 0', fontStyle: 'italic' }}>
+                          {crudForm.product_type === 'service'
+                            ? 'Belum ada link platform freelance. Klik "+ Tambah Link" jika Anda menyediakan pemesanan jasa via Fastwork, Projects.co.id, Fiverr, dll.'
+                            : 'Belum ada link marketplace. Klik "+ Tambah Link" untuk menyertakan tautan langsung ke halaman produk di platform online.'}
+                        </p>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.5rem' }}>
+                          {crudForm.purchase_links.map((link, index) => (
+                            <div 
+                              key={index} 
+                              style={{ 
+                                padding: '0.85rem', 
+                                border: '1px solid var(--border-light)', 
+                                borderRadius: '0.5rem', 
+                                backgroundColor: 'rgba(255,255,255,0.02)',
+                                position: 'relative'
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newLinks = crudForm.purchase_links.filter((_, idx) => idx !== index)
+                                  setCrudForm({ ...crudForm, purchase_links: newLinks })
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '0.5rem',
+                                  right: '0.5rem',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem'
+                                }}
+                                title="Hapus Link"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                              
+                              <div className="form-group" style={{ marginBottom: '0.6rem', width: '85%' }}>
+                                <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>Platform / Toko *</label>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  placeholder={
+                                    crudForm.product_type === 'service' 
+                                      ? "Fastwork / Projects.co.id / Fiverr / Upwork" 
+                                      : (crudForm.product_type === 'food' 
+                                          ? "GoFood / GrabFood / ShopeeFood / Tokopedia" 
+                                          : "Shopee / Tokopedia / Lazada / TikTok Shop")
+                                  }
+                                  required
+                                  value={link.platform}
+                                  onChange={(e) => {
+                                    const newLinks = [...crudForm.purchase_links]
+                                    newLinks[index].platform = e.target.value
+                                    setCrudForm({ ...crudForm, purchase_links: newLinks })
+                                  }}
+                                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+                                />
+                              </div>
+
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>URL Link Pembelian *</label>
+                                <input
+                                  type="url"
+                                  className="form-input"
+                                  placeholder={
+                                    crudForm.product_type === 'service' 
+                                      ? "https://fastwork.id/user/..." 
+                                      : (crudForm.product_type === 'food' 
+                                          ? "https://gofood.link/... atau https://tokopedia.com/..." 
+                                          : "https://...")
+                                  }
+                                  required
+                                  value={link.url}
+                                  onChange={(e) => {
+                                    const newLinks = [...crudForm.purchase_links]
+                                    newLinks[index].url = e.target.value
+                                    setCrudForm({ ...crudForm, purchase_links: newLinks })
+                                  }}
+                                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Opsi Transaksi WhatsApp (Per Produk) */}
                   <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', letterSpacing: '0.03em', textTransform: 'uppercase', opacity: 0.85 }}>
-                        Link Marketplace / Alternatif Pesanan (Opsional)
+                    <div style={{ marginBottom: '0.85rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: 'var(--text-primary)', letterSpacing: '0.03em', textTransform: 'uppercase', opacity: 0.85 }}>
+                        {crudForm.product_type === 'property' 
+                          ? 'Kontak & Janji Survey Properti' 
+                          : (crudForm.product_type === 'service' 
+                              ? 'Opsi Transaksi & Escrow Layanan' 
+                              : (crudForm.product_type === 'food'
+                                  ? 'Opsi Transaksi Pesanan Kuliner'
+                                  : 'Opsi Transaksi WhatsApp (Per Produk)'))}
                       </h4>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newLinks = [...crudForm.purchase_links, { platform: '', url: '' }]
-                          setCrudForm({ ...crudForm, purchase_links: newLinks })
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          padding: '0.35rem 0.75rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          color: 'var(--primary)',
-                          border: '1px solid rgba(16, 185, 129, 0.2)',
-                          borderRadius: '0.25rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Plus size={12} /> Tambah Link
-                      </button>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        {crudForm.product_type === 'property' 
+                          ? 'Pengunjung akan langsung menghubungi WhatsApp Anda untuk informasi unit & jadwal survey fisik ke lokasi:' 
+                          : (crudForm.product_type === 'service'
+                              ? 'Atur ketersediaan Rekber Syariah sebagai escrow penengah aman saat pengerjaan jasa atau konsultasi WhatsApp langsung:'
+                              : (crudForm.product_type === 'food'
+                                  ? 'Atur ketersediaan Pesan Antar WhatsApp langsung atau Rekber Syariah untuk item kuliner ini:'
+                                  : 'Aktifkan atau nonaktifkan jalur pemesanan via WhatsApp khusus untuk item katalog ini:'))}
+                      </span>
                     </div>
 
-                    {crudForm.purchase_links.length === 0 ? (
-                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0.5rem 0', fontStyle: 'italic' }}>
-                        Belum ada link marketplace. Klik "Tambah Link" untuk menyertakan tautan Shopee, Tokopedia, dll.
-                      </p>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.5rem' }}>
-                        {crudForm.purchase_links.map((link, index) => (
-                          <div 
-                            key={index} 
-                            style={{ 
-                              padding: '0.85rem', 
-                              border: '1px solid var(--border-light)', 
-                              borderRadius: '0.5rem', 
-                              backgroundColor: 'rgba(255,255,255,0.02)',
-                              position: 'relative'
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newLinks = crudForm.purchase_links.filter((_, idx) => idx !== index)
-                                setCrudForm({ ...crudForm, purchase_links: newLinks })
-                              }}
-                              style={{
-                                position: 'absolute',
-                                top: '0.5rem',
-                                right: '0.5rem',
-                                background: 'none',
-                                border: 'none',
-                                color: '#ef4444',
-                                cursor: 'pointer',
-                                padding: '0.25rem'
-                              }}
-                              title="Hapus Link"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                            
-                            <div className="form-group" style={{ marginBottom: '0.6rem', width: '85%' }}>
-                              <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>Platform / Toko *</label>
-                              <input
-                                type="text"
-                                className="form-input"
-                                placeholder="Shopee / Tokopedia / Website"
-                                required
-                                value={link.platform}
-                                onChange={(e) => {
-                                  const newLinks = [...crudForm.purchase_links]
-                                  newLinks[index].platform = e.target.value
-                                  setCrudForm({ ...crudForm, purchase_links: newLinks })
-                                }}
-                                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
-                              />
-                            </div>
-
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label className="form-label" style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>URL Link Pembelian *</label>
-                              <input
-                                type="url"
-                                className="form-input"
-                                placeholder="https://..."
-                                required
-                                value={link.url}
-                                onChange={(e) => {
-                                  const newLinks = [...crudForm.purchase_links]
-                                  newLinks[index].url = e.target.value
-                                  setCrudForm({ ...crudForm, purchase_links: newLinks })
-                                }}
-                                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
-                              />
-                            </div>
-                          </div>
-                        ))}
+                    {/* Smart Tip for Food */}
+                    {crudForm.product_type === 'food' && (
+                      <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '0.75rem', fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                        💡 <strong>Tips Kuliner:</strong> Untuk makanan siap saji / instan (ready-to-eat), disarankan menggunakan <strong>Chat WA Langsung</strong> atau tautan <strong>GoFood/ShopeeFood</strong>. Opsi <strong>Rekber Syariah</strong> sangat disarankan untuk makanan beku (frozen food), snack kering, oleh-oleh tahan lama, hampers, atau pesanan katering partai besar.
                       </div>
                     )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {crudForm.product_type !== 'property' && (
+                        <label 
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'flex-start', 
+                            gap: '0.75rem', 
+                            padding: '0.85rem 1rem', 
+                            borderRadius: '0.65rem', 
+                            border: `1px solid ${crudForm.enable_wa_rekber !== false ? 'var(--primary)' : 'var(--border-light)'}`, 
+                            backgroundColor: crudForm.enable_wa_rekber !== false ? 'var(--primary-glow)' : 'rgba(255,255,255,0.02)', 
+                            cursor: 'pointer',
+                            transition: 'var(--transition-smooth)'
+                          }}
+                        >
+                          <input 
+                            type="checkbox"
+                            checked={crudForm.enable_wa_rekber !== false}
+                            onChange={(e) => setCrudForm({ ...crudForm, enable_wa_rekber: e.target.checked })}
+                            style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                {crudForm.product_type === 'service' 
+                                  ? 'Rekber Syariah (Escrow Aman)' 
+                                  : (crudForm.product_type === 'food'
+                                      ? 'Rekber Syariah (Frozen / Katering / Snack)'
+                                      : 'Chat WA & Rekber Syariah')}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setShowRekberExplainerModal(true);
+                                }}
+                                style={{
+                                  background: 'var(--primary-glow)',
+                                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                                  color: 'var(--primary)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                  padding: '0.12rem 0.4rem',
+                                  borderRadius: '0.3rem',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Pelajari pengertian & alur Rekber Syariah"
+                              >
+                                <HelpCircle size={12} /> Apa ini?
+                              </button>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.3 }}>
+                              {crudForm.product_type === 'service'
+                                ? 'Dana ditahan aman di rekening penampung syariah sampai pengerjaan tuntas & terverifikasi oleh klien.'
+                                : (crudForm.product_type === 'food'
+                                    ? 'Izinkan pesanan via Rekber Syariah untuk makanan beku, hampers, atau katering bernilai besar.'
+                                    : 'Izinkan pesanan via Rekber Syariah (rekbersyariah.com) yang aman.')}
+                            </span>
+                          </div>
+                        </label>
+                      )}
+
+                      <label 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '0.75rem', 
+                          padding: '0.85rem 1rem', 
+                          borderRadius: '0.65rem', 
+                          border: `1px solid ${crudForm.enable_wa_direct !== false ? 'var(--primary)' : 'var(--border-light)'}`, 
+                          backgroundColor: crudForm.enable_wa_direct !== false ? 'var(--primary-glow)' : 'rgba(255,255,255,0.02)', 
+                          cursor: 'pointer',
+                          transition: 'var(--transition-smooth)'
+                        }}
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={crudForm.enable_wa_direct !== false}
+                          onChange={(e) => setCrudForm({ ...crudForm, enable_wa_direct: e.target.checked })}
+                          style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                            {crudForm.product_type === 'property' 
+                              ? 'Chat WA (Janji Survey & Konsultasi)' 
+                              : (crudForm.product_type === 'service'
+                                  ? 'Chat WA (Konsultasi & Booking Langsung)'
+                                  : (crudForm.product_type === 'food'
+                                      ? 'Chat WA (Pesan Antar / Order Langsung)'
+                                      : 'Chat WA (Transaksi Langsung)'))}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.3 }}>
+                            {crudForm.product_type === 'property' 
+                              ? 'Izinkan calon pembeli/penyewa menghubungi langsung untuk konsultasi properti dan jadwal survey lokasi.' 
+                              : (crudForm.product_type === 'service'
+                                  ? 'Izinkan klien langsung berkonsultasi mengenai scope pekerjaan, deadline, & estimasi waktu.'
+                                  : (crudForm.product_type === 'food'
+                                      ? 'Izinkan pembeli langsung memesan menu, request porsi/rasa, dan konfirmasi alamat pengiriman instan.'
+                                      : 'Izinkan pembeli langsung menghubungi penjual via chat WhatsApp.'))}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Deskripsi */}
@@ -15347,8 +16122,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     value={crudForm.description}
                     onChange={(val) => setCrudForm({ ...crudForm, description: val })}
                   />
-                </form>
-              </div>
+                </div>
+              </form>
 
               <div className="modal-cta-section" style={{ justifyContent: 'flex-end', gap: '0.75rem' }}>
                 <button 
@@ -15925,249 +16700,278 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           ...(selectedFauna.detailed_info?.custom_shop_url ? [{ platform: selectedFauna.detailed_info.custom_shop_name || 'Marketplace', url: selectedFauna.detailed_info.custom_shop_url }] : [])
         ].filter(link => link.platform && link.url);
 
-        const minOrderLimit = Math.max(1, selectedFauna.min_order || selectedFauna.attributes?.min_order || 1);
-        const maxOrderLimit = (selectedFauna.max_order && selectedFauna.max_order > 0) 
-          ? selectedFauna.max_order 
-          : (selectedFauna.attributes?.max_order && selectedFauna.attributes.max_order > 0) 
-            ? selectedFauna.attributes.max_order 
-            : null;
-        const currentQty = Math.max(minOrderLimit, maxOrderLimit ? Math.min(purchaseQty, maxOrderLimit) : purchaseQty);
-        const subtotalPrice = selectedFauna.price * currentQty;
-        const unitLabel = selectedFauna.product_type === 'food' ? 'porsi' : selectedFauna.product_type === 'fauna' ? 'ekor' : selectedFauna.product_type === 'service' ? 'sesi' : 'pcs';
+        const isItemWARekberEnabled = selectedFauna.detailed_info?.enable_wa_rekber !== undefined
+          ? Boolean(selectedFauna.detailed_info.enable_wa_rekber)
+          : (selectedFauna.attributes?.enable_wa_rekber !== undefined ? Boolean(selectedFauna.attributes.enable_wa_rekber) : true);
+
+        const isItemWADirectEnabled = selectedFauna.detailed_info?.enable_wa_direct !== undefined
+          ? Boolean(selectedFauna.detailed_info.enable_wa_direct)
+          : (selectedFauna.attributes?.enable_wa_direct !== undefined ? Boolean(selectedFauna.attributes.enable_wa_direct) : true);
+
+        const isProperty = selectedFauna.product_type === 'property';
+        const hasPhone = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
+        const showRekberOption = !isProperty && hasPhone && settings.enable_wa_rekber !== false && isItemWARekberEnabled;
+        const showDirectOption = hasPhone && settings.enable_wa_direct !== false && isItemWADirectEnabled;
+        const hasAnyOptions = normalizedLinks.length > 0 || showRekberOption || showDirectOption;
 
         return (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }} onClick={() => setShowPurchaseOptions(false)}>
-            <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem', borderRadius: '1.25rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
-                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>
-                    {showMarketplacesSubMenu ? 'Pilih Marketplace' : 'Pilih Cara Pembelian'}
-                  </span>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }} onClick={() => { setShowPurchaseOptions(false); setShowMarketplacesSubMenu(false); }}>
+            <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem', borderRadius: '1.25rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, linear-gradient(180deg, var(--bg-card) 0%, var(--bg-deep) 100%))', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px var(--primary-glow)', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {showMarketplacesSubMenu 
+                      ? (selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <ShoppingCart size={20} />)
+                      : (selectedFauna.product_type === 'service' ? <ShieldCheck size={20} /> : <ShoppingBag size={20} />)}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                      {showMarketplacesSubMenu 
+                        ? (selectedFauna.product_type === 'service' ? 'Pilih Platform Freelance' : 'Pilih Marketplace')
+                        : (selectedFauna.product_type === 'property' 
+                            ? 'Pilih Opsi Survey & Kontak' 
+                            : (selectedFauna.product_type === 'service'
+                                ? 'Pilih Metode Pemesanan Jasa'
+                                : 'Pilih Cara Pembelian'))}
+                    </h3>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700 }}>
+                      {showMarketplacesSubMenu 
+                        ? (selectedFauna.product_type === 'service' 
+                            ? `${normalizedLinks.length} Platform Freelance Pihak Ketiga Tersedia` 
+                            : `${normalizedLinks.length} Toko Online Resmi Tersedia`)
+                        : (selectedFauna.product_type === 'property' 
+                            ? 'Hubungi langsung pihak properti' 
+                            : (selectedFauna.product_type === 'service'
+                                ? 'Layanan Terlindungi Escrow Syariah & Platform Terpercaya'
+                                : 'Metode Transaksi Resmi & Terverifikasi'))}
+                    </span>
+                  </div>
                 </div>
-                <button type="button" onClick={() => setShowPurchaseOptions(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+                <button type="button" onClick={() => { setShowPurchaseOptions(false); setShowMarketplacesSubMenu(false); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.25rem' }}>✕</button>
               </div>
 
-              {showMarketplacesSubMenu ? (
-                <>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
-                    Kami juga tersedia di platform marketplace resmi berikut:
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '55vh', overflowY: 'auto' }}>
-                    {normalizedLinks.map((link, index) => (
-                      <a 
-                        key={index}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                      >
-                        <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Beli di {link.platform}</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Buka halaman produk resmi di {link.platform}</span>
+              {/* Scrollable Content */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '58vh', overflowY: 'auto', paddingRight: '4px', flex: 1, minHeight: 0 }}>
+                {showMarketplacesSubMenu ? (
+                  <>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 0.25rem 0', lineHeight: 1.4 }}>
+                      {selectedFauna.product_type === 'service'
+                        ? 'Pilih platform freelance pihak ketiga resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman pemesanan jasa:'
+                        : 'Pilih toko online atau marketplace resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman produk:'}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {normalizedLinks.map((link, index) => (
+                        <a 
+                          key={index}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                        >
+                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {selectedFauna.product_type === 'service' ? `Order di ${link.platform}` : `Beli di ${link.platform}`}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {selectedFauna.product_type === 'service' ? `Buka profil / lapak jasa resmi kami di ${link.platform}` : `Buka halaman produk resmi di ${link.platform}`}
+                            </span>
+                          </div>
+                          <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 0.25rem 0', lineHeight: 1.4 }}>
+                      {selectedFauna.product_type === 'property' 
+                        ? 'Pilih jalur komunikasi langsung dengan agen / pemilik properti:' 
+                        : (selectedFauna.product_type === 'service' 
+                            ? 'Pilih jalur transaksi yang paling aman dan nyaman untuk pemesanan layanan ini:' 
+                            : 'Pilih metode transaksi resmi kami:')}
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {normalizedLinks.length === 1 && (
+                        <a 
+                          href={normalizedLinks[0].url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                        >
+                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {selectedFauna.product_type === 'service' ? `Order di ${normalizedLinks[0].platform}` : `Beli di ${normalizedLinks[0].platform}`}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                              {selectedFauna.product_type === 'service' ? `Buka profil / lapak jasa resmi kami di ${normalizedLinks[0].platform}` : `Buka transaksi resmi kami di ${normalizedLinks[0].platform}`}
+                            </span>
+                          </div>
+                          <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                        </a>
+                      )}
+
+                      {normalizedLinks.length >= 2 && (
+                        <div 
+                          onClick={() => setShowMarketplacesSubMenu(true)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', cursor: 'pointer', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                        >
+                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <ShoppingCart size={20} />}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {selectedFauna.product_type === 'service' ? 'Order via Platform Freelance Pihak Ketiga' : 'Beli via Online Shop / Marketplace'}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                              {selectedFauna.product_type === 'service' 
+                                ? `Tersedia di ${normalizedLinks.length} platform (${normalizedLinks.map(l => l.platform).join(', ')})`
+                                : `Tersedia di ${normalizedLinks.length} toko (${normalizedLinks.map(l => l.platform).join(', ')})`}
+                            </span>
+                          </div>
+                          <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
                         </div>
-                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                      </a>
-                    ))}
-                  </div>
+                      )}
+
+                      {showRekberOption && (
+                        <a 
+                          href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                            selectedFauna.product_type === 'service'
+                              ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`
+                              : selectedFauna.product_type === 'food'
+                              ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan produk kuliner/katering dengan perlindungan Rekber Syariah:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.`
+                              : `Halo *${settings.store_title || 'Catavor'}*, saya berminat membeli produk berikut:\n📦 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli). Terima kasih.`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                        >
+                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <ShieldCheck size={20} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {selectedFauna.product_type === 'service' ? 'Pesan via Rekber Syariah (Escrow Aman)' : 'Chat WA & Rekber Syariah'}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                              {selectedFauna.product_type === 'service' 
+                                ? 'Dana ditahan di rekening penampung syariah sampai pengerjaan tuntas & terverifikasi'
+                                : (selectedFauna.product_type === 'food'
+                                    ? 'Gunakan Rekening Bersama Syariah (Aman untuk pesanan frozen/katering)'
+                                    : 'Gunakan Rekening Bersama Syariah (Sangat Aman)')}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowRekberExplainerModal(true);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--primary)',
+                              cursor: 'pointer',
+                              padding: '0.35rem',
+                              borderRadius: '0.35rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: 0.85,
+                              transition: 'var(--transition-smooth)'
+                            }}
+                            title="Pelajari apa itu Rekber Syariah"
+                          >
+                            <HelpCircle size={18} />
+                          </button>
+                          <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
+                        </a>
+                      )}
+
+                      {showDirectOption && (
+                        <a 
+                          href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                            selectedFauna.product_type === 'property'
+                              ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`
+                              : selectedFauna.product_type === 'service'
+                              ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`
+                              : selectedFauna.product_type === 'food'
+                              ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin memesan menu kuliner berikut:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)} / ${getCatalogItemUnit(selectedFauna)})\n\nJumlah Pesanan: [1] ${getCatalogItemUnit(selectedFauna)}\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`
+                              : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)}) secara langsung.`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                        >
+                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <MessageCircle size={20} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {selectedFauna.product_type === 'property' 
+                                ? 'Chat WA (Janji Survey & Konsultasi)' 
+                                : (selectedFauna.product_type === 'service'
+                                    ? 'Chat WA (Konsultasi & Booking Langsung)'
+                                    : (selectedFauna.product_type === 'food'
+                                        ? 'Pesan Antar / Order via WhatsApp'
+                                        : 'Chat WA (Transaksi Langsung)'))}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                              {selectedFauna.product_type === 'property' 
+                                ? 'Hubungi langsung untuk jadwal survey lokasi & info legalitas' 
+                                : (selectedFauna.product_type === 'service'
+                                    ? 'Konsultasi scope pekerjaan, estimasi waktu, & tanya jawab teknis'
+                                    : (selectedFauna.product_type === 'food'
+                                        ? 'Pesan langsung untuk pengiriman instan / same-day / takeaway'
+                                        : 'Hubungi kami langsung via chat WhatsApp'))}
+                            </span>
+                          </div>
+                          <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
+                        </a>
+                      )}
+
+                      {!hasAnyOptions && (
+                        <div style={{ padding: '1.25rem 1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                            Metode pembelian online belum diaktifkan untuk item katalog ini.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+                {showMarketplacesSubMenu ? (
                   <button 
                     type="button" 
-                    className="btn-secondary" 
+                    className="btn-secondary"
                     onClick={() => setShowMarketplacesSubMenu(false)}
-                    style={{ width: '100%', marginTop: '1.25rem', padding: '0.7rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                    style={{ padding: '0.65rem 1.25rem', borderRadius: '0.55rem', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: 'var(--transition-smooth)' }}
                   >
-                    <ArrowLeft size={16} /> Kembali
+                    <ArrowLeft size={16} /> {selectedFauna.product_type === 'service' ? 'Kembali ke Pilihan Pemesanan' : 'Kembali ke Pilihan Beli'}
                   </button>
-                </>
-              ) : (
-                <>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '1rem' }}>
-                    {selectedFauna.product_type === 'service' ? 'Pilih metode reservasi atau transaksi resmi kami:' : 'Tentukan jumlah pesanan dan pilih metode transaksi resmi kami:'}
-                  </p>
-
-                  {/* Quantity Stepper & Subtotal Box (Hanya untuk non-jasa) */}
-                  {selectedFauna.product_type !== 'service' ? (
-                    <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                        <div>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Jumlah Pembelian</span>
-                          {(minOrderLimit > 1 || maxOrderLimit) && (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                              {minOrderLimit > 1 ? `Min: ${minOrderLimit} ` : ''}
-                              {maxOrderLimit ? `(Maks: ${maxOrderLimit})` : ''}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                          <button 
-                            type="button"
-                            disabled={currentQty <= minOrderLimit}
-                            onClick={() => setPurchaseQty(Math.max(minOrderLimit, currentQty - 1))}
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: currentQty <= minOrderLimit ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
-                              color: currentQty <= minOrderLimit ? 'var(--text-muted)' : 'var(--text-primary)',
-                              cursor: currentQty <= minOrderLimit ? 'not-allowed' : 'pointer',
-                              fontWeight: 800,
-                              fontSize: '1.1rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            -
-                          </button>
-                          <input 
-                            type="number"
-                            min={minOrderLimit}
-                            max={maxOrderLimit || 9999}
-                            value={currentQty}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || minOrderLimit;
-                              if (maxOrderLimit && val > maxOrderLimit) {
-                                setPurchaseQty(maxOrderLimit);
-                              } else if (val < minOrderLimit) {
-                                setPurchaseQty(minOrderLimit);
-                              } else {
-                                setPurchaseQty(val);
-                              }
-                            }}
-                            style={{
-                              width: '60px',
-                              height: '36px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'rgba(0,0,0,0.3)',
-                              color: 'var(--text-primary)',
-                              textAlign: 'center',
-                              fontWeight: 700,
-                              fontSize: '0.95rem'
-                            }}
-                          />
-                          <button 
-                            type="button"
-                            disabled={maxOrderLimit ? currentQty >= maxOrderLimit : false}
-                            onClick={() => setPurchaseQty(maxOrderLimit ? Math.min(maxOrderLimit, currentQty + 1) : currentQty + 1)}
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: (maxOrderLimit && currentQty >= maxOrderLimit) ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
-                              color: (maxOrderLimit && currentQty >= maxOrderLimit) ? 'var(--text-muted)' : 'var(--text-primary)',
-                              cursor: (maxOrderLimit && currentQty >= maxOrderLimit) ? 'not-allowed' : 'pointer',
-                              fontWeight: 800,
-                              fontSize: '1.1rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.08)', fontSize: '0.82rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Total Estimasi ({currentQty} {unitLabel}):</span>
-                        <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.1rem' }}>{formatRupiah(subtotalPrice)}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ padding: '0.85rem 1.15rem', borderRadius: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Tarif Layanan:</span>
-                      <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.15rem' }}>{formatRupiah(selectedFauna.price)}</span>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '48vh', overflowY: 'auto' }}>
-                    {/* Marketplace single or multi */}
-                    {normalizedLinks.length === 1 && (
-                      <a 
-                        href={normalizedLinks[0].url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                      >
-                        <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Beli di {normalizedLinks[0].platform}</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Buka transaksi resmi kami di {normalizedLinks[0].platform}</span>
-                        </div>
-                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                      </a>
-                    )}
-
-                    {normalizedLinks.length >= 2 && (
-                      <div 
-                        onClick={() => setShowMarketplacesSubMenu(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', cursor: 'pointer', transition: 'var(--transition-smooth)' }}
-                      >
-                        <ShoppingCart size={20} style={{ color: 'var(--primary)' }} />
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Beli via Online Shop / Marketplace</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Tersedia di {normalizedLinks.map(l => l.platform).join(', ')}</span>
-                        </div>
-                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                      </div>
-                    )}
-
-                    {/* WhatsApp Purchase Options */}
-                    {settings.whatsapp_number && settings.whatsapp_number.trim() ? (
-                      <>
-                        {settings.enable_wa_rekber && (
-                          <a 
-                            href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
-                              selectedFauna.product_type === 'service'
-                                ? `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk booking / reservasi jasa *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)}) menggunakan layanan Rekber Syariah (rekbersyariah.com). Mohon info ketersediaan jadwal dan prosedurnya.`
-                                : `Halo ${settings.store_title || 'Catavor'}, saya ingin membeli ${selectedFauna.name} sebanyak ${currentQty} ${unitLabel} dengan total harga ${formatRupiah(subtotalPrice)} menggunakan layanan Rekber Syariah (rekbersyariah.com). Mohon info prosedurnya.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                          >
-                            <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
-                            <div style={{ flex: 1 }}>
-                              <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Chat WA &amp; Rekber Syariah</span>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Gunakan Rekening Bersama Syariah (Sangat Aman)</span>
-                            </div>
-                            <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                          </a>
-                        )}
-
-                        {settings.enable_wa_direct && (
-                          <a 
-                            href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
-                              selectedFauna.product_type === 'service'
-                                ? `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk booking / reservasi jasa *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)}) secara langsung. Mohon info ketersediaan jadwal.`
-                                : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli ${selectedFauna.name} sebanyak ${currentQty} ${unitLabel} dengan total harga ${formatRupiah(subtotalPrice)} secara langsung.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.65rem', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#ffffff', textDecoration: 'none', transition: 'var(--transition-smooth)' }}
-                          >
-                            <MessageCircle size={20} style={{ color: 'var(--text-muted)' }} />
-                            <div style={{ flex: 1 }}>
-                              <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>Chat WA (Transaksi Langsung)</span>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Hubungi kami langsung via chat WhatsApp</span>
-                            </div>
-                            <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                          </a>
-                        )}
-                      </>
-                    ) : (
-                      <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-                          Pemilik katalog belum mencantumkan nomor WhatsApp resmi.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                ) : (
+                  <button 
+                    type="button" 
+                    className="btn-secondary"
+                    onClick={() => setShowPurchaseOptions(false)} 
+                    style={{ padding: '0.65rem 1.25rem', borderRadius: '0.55rem', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'var(--transition-smooth)' }}
+                  >
+                    Tutup
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -16583,6 +17387,140 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 }}
               >
                 {isSubmittingReport ? 'Mengirim Laporan...' : 'Kirim Laporan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REKBER SYARIAH EXPLAINER MODAL POPUP */}
+      {showRekberExplainerModal && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            backgroundColor: 'rgba(0,0,0,0.85)', 
+            backdropFilter: 'blur(10px)', 
+            zIndex: 10000, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            padding: '1.25rem' 
+          }} 
+          onClick={() => setShowRekberExplainerModal(false)}
+        >
+          <div 
+            className="glass-panel animate-scale-up" 
+            style={{ 
+              width: '100%', 
+              maxWidth: '560px', 
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '1.75rem', 
+              borderRadius: '1.25rem', 
+              border: '1px solid var(--border-light)', 
+              background: 'var(--card-bg-gradient, linear-gradient(180deg, var(--bg-card) 0%, var(--bg-deep) 100%))', 
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px var(--primary-glow)' 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                    Mengenal Layanan Rekber Syariah
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700 }}>
+                    Transparan • Amanah • Bebas Riba (rekbersyariah.com)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.55 }}>
+              {/* Intro */}
+              <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-light)' }}>
+                <p style={{ margin: 0, color: 'var(--text-primary)' }}>
+                  <strong>Rekening Bersama (Rekber) Syariah</strong> adalah pihak penengah amanah (*Escrow Syariah*) yang bertugas memegang dana transaksi pembeli secara aman sampai barang/jasa diterima dan diverifikasi sesuai pesanan sebelum diteruskan ke penjual.
+                </p>
+              </div>
+
+              {/* 4 Keunggulan Utama */}
+              <div>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em', margin: '0 0 0.6rem 0' }}>
+                  Mengapa Menggunakan Rekber Syariah?
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                      <CheckCircle2 size={15} /> 100% Anti-Penipuan
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                      Uang tidak akan diteruskan ke penjual sebelum pembeli memastikan barang diterima sesuai deskripsi.
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                      <Shield size={15} /> Aman untuk Penjual
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                      Penjual mendapatkan kepastian dana telah disetor pembeli sebelum mengirimkan barang / memulai jasa.
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                      <Scale size={15} /> Prinsip Muamalah
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                      Bebas riba dan spekulasi (*gharar*), berlandaskan akad amanah yang adil (*an taradhin*).
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                      <MessageCircle size={15} /> Grup WA Resmi
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                      Koordinasi transaksi dipandu langsung oleh admin Rekber resmi via grup WhatsApp khusus.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5 Langkah Alur Transaksi */}
+              <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
+                  Alur Transaksi 5 Langkah:
+                </h4>
+                <ol style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.76rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <li><strong>Hubungi Penjual:</strong> Pembeli mengontak WhatsApp penjual dengan format pesan resmi permohonan transaksi via Rekber Syariah (rekbersyariah.com).</li>
+                  <li><strong>Pendaftaran Transaksi:</strong> Penjual / Pembeli mendaftarkan detail transaksi ke website rekbersyariah.com atau langsung menghubungi admin resmi Rekber Syariah.</li>
+                  <li><strong>Pembuatan Grup WA Resmi:</strong> Admin Rekber Syariah membuat grup WhatsApp khusus yang beranggotakan Admin Rekber, Pembeli, dan Penjual untuk memandu transaksi.</li>
+                  <li><strong>Penyetoran Dana &amp; Pengiriman:</strong> Pembeli menyetorkan dana aman ke Rekening Bersama Syariah, lalu penjual mengirimkan barang / memulai jasa.</li>
+                  <li><strong>Verifikasi &amp; Pencairan Dana:</strong> Barang diterima dan diperiksa pembeli. Setelah sesuai kesepakatan, dana di Rekber Syariah langsung dicairkan ke rekening penjual.</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ marginTop: '1.5rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+              <button 
+                type="button" 
+                className="btn-primary"
+                onClick={() => setShowRekberExplainerModal(false)} 
+                style={{ padding: '0.6rem 1.5rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Saya Paham
               </button>
             </div>
           </div>

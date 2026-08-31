@@ -29,14 +29,20 @@ type LoginRequest struct {
 }
 
 type RegisterRequest struct {
-	Name                 string `json:"name" validate:"required,min=2,max=100"`
-	Email                string `json:"email" validate:"required,email,max=254"`
-	Password             string `json:"password" validate:"required,min=8,max=72"`
-	StoreSlug            string `json:"store_slug" validate:"required,min=3,max=50"`
+	Name                 string `json:"name"`
+	Email                string `json:"email"`
+	Password             string `json:"password"`
+	StoreSlug            string `json:"store_slug"`
+	StoreName            string `json:"store_name"`
 	StoreTitle           string `json:"store_title"`
+	GoogleID             string `json:"google_id"`
+	Avatar               string `json:"avatar"`
 	Plan                 string `json:"plan"`
+	PaymentStatus        string `json:"payment_status"`
+	PaymentProofURL      string `json:"payment_proof_url"`
 	WhatsappNumber       string `json:"whatsapp_number"`
 	RegistrationTimezone string `json:"registration_timezone"`
+	Timezone             string `json:"timezone"`
 }
 
 type GoogleAuthRequest struct {
@@ -73,14 +79,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "Format data tidak valid.",
+			"message": "Format data login tidak valid.",
 		})
 	}
 
 	if err := validate.Struct(req); err != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
-			"message": "Email atau password tidak valid.",
+			"message": "Email dan password wajib diisi.",
 		})
 	}
 
@@ -88,14 +94,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
-			"message": "Email atau password salah.",
+			"message": "Email atau kata sandi yang Anda masukkan salah.",
 		})
 	}
 
 	if !user.CheckPassword(req.Password) {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
-			"message": "Email atau password salah.",
+			"message": "Email atau kata sandi yang Anda masukkan salah.",
 		})
 	}
 
@@ -141,17 +147,25 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := validate.Struct(req); err != nil {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"success": false,
-			"message": "Mohon lengkapi semua data wajib dengan benar.",
-		})
+	if req.StoreTitle == "" && req.StoreName != "" {
+		req.StoreTitle = req.StoreName
+	}
+	if req.RegistrationTimezone == "" && req.Timezone != "" {
+		req.RegistrationTimezone = req.Timezone
 	}
 
 	req.Name = security.SanitizePlainText(req.Name, 100)
 	req.StoreTitle = security.SanitizePlainText(req.StoreTitle, 100)
 	req.StoreSlug = security.SanitizeSlug(req.StoreSlug)
 	req.WhatsappNumber = security.SanitizePhone(req.WhatsappNumber)
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
+	if req.Name == "" || req.StoreSlug == "" || req.Email == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Mohon lengkapi Nama, Email, dan Link Username Toko.",
+		})
+	}
 
 	if !security.ValidateEmail(req.Email) {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -160,11 +174,13 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := security.ValidatePassword(req.Password); err != nil {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"success": false,
-			"message": err.Error(),
-		})
+	if req.GoogleID == "" {
+		if err := security.ValidatePassword(req.Password); err != nil {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": err.Error(),
+			})
+		}
 	}
 
 	slug := req.StoreSlug
@@ -187,7 +203,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	// Check email uniqueness
 	var existingUser models.User
-	if err := database.DB.Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&existingUser).Error; err == nil {
+	if err := database.DB.Where("LOWER(email) = ?", req.Email).First(&existingUser).Error; err == nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Email sudah terdaftar. Silakan gunakan email lain atau login.",
@@ -205,14 +221,22 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	newUser := models.User{
 		Name:              req.Name,
-		Email:             strings.ToLower(req.Email),
+		Email:             req.Email,
 		IsPasswordChanged: true,
 	}
-	if err := newUser.SetPassword(req.Password); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal memproses kata sandi.",
-		})
+	if req.GoogleID != "" {
+		googleID := req.GoogleID
+		newUser.GoogleID = &googleID
+		now := time.Now()
+		newUser.EmailVerifiedAt = &now
+		_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
+	} else {
+		if err := newUser.SetPassword(req.Password); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal memproses kata sandi.",
+			})
+		}
 	}
 
 	if err := database.DB.Create(&newUser).Error; err != nil {
@@ -234,7 +258,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	paymentStatus := "free_active"
 	if plan == "pro" {
-		paymentStatus = "paid"
+		if req.PaymentStatus == "approved" || req.PaymentStatus == "paid" {
+			paymentStatus = "paid"
+		} else {
+			paymentStatus = "pending_approval"
+		}
 	}
 
 	tz := strings.TrimSpace(req.RegistrationTimezone)
