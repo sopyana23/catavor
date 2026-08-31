@@ -1069,9 +1069,11 @@
 .sheet-handle {
   width: 45px;
   height: 5px;
-  background: #202c24;
+  background: var(--primary);
+  opacity: 0.6;
   border-radius: 99px;
   margin: 0.85rem auto 0.5rem;
+  box-shadow: 0 0 10px var(--primary-glow);
 }
 
 .sheet-content {
@@ -1415,13 +1417,14 @@
 
 .bottom-sheet-confirm {
   width: 100%;
-  background-color: #0b0e0c;
-  border-top: 1px solid var(--border-light);
+  background: var(--card-bg-gradient, linear-gradient(180deg, var(--bg-card) 0%, var(--bg-deep) 100%));
+  color: var(--text-primary);
+  border-top: 2px solid var(--primary);
   border-top-left-radius: 1.5rem;
   border-top-right-radius: 1.5rem;
-  padding: 2rem 1.5rem;
+  padding: 1.75rem 1.25rem 2.5rem;
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--primary-glow);
 }
 
 /* Styled Select Options Dropdown Fallback for Dark Mode Selects */
