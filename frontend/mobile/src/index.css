@@ -86,32 +86,7 @@
   --btn-secondary-border: rgba(168, 85, 247, 0.55);
 }
 
-/* 🌅 Theme 3: Warm Sunset (Amber Gold & Coral Flame) */
-:root[data-theme="sunset"], html[data-theme="sunset"], body[data-theme="sunset"], [data-theme="sunset"] {
-  --bg-deep: #140d0b;
-  --bg-card: #221411;
-  --bg-card-hover: #361f1a;
-  --border-light: rgba(245, 158, 11, 0.2);
-  --border-hover: rgba(245, 158, 11, 0.4);
-  --primary: #f59e0b;
-  --primary-glow: rgba(245, 158, 11, 0.3);
-  --primary-hover: #d97706;
-  --secondary: #f97316;
-  --accent-blue: #fbbf24;
-  --accent-purple: #ef4444;
-  --text-primary: #ffffff;
-  --text-secondary: #fde68a;
-  --text-muted: #f59e0b;
-  --header-bg: #140d0b;
-  --card-bg-gradient: linear-gradient(135deg, rgba(34, 20, 17, 0.95) 0%, rgba(20, 13, 11, 0.98) 100%);
-  --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #ffffff 40%, #fbbf24 100%);
-  --emerald-title-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 60%, #d97706 100%);
-  --btn-secondary-bg: rgba(245, 158, 11, 0.22);
-  --btn-secondary-text: #ffffff;
-  --btn-secondary-border: rgba(245, 158, 11, 0.55);
-}
-
-/* 🌊 Theme 4: Oceanic Azure (Deep Blue & Sky Cyan) */
+/* 🌊 Theme 3: Oceanic Azure (Deep Blue & Sky Cyan) */
 :root[data-theme="ocean"], html[data-theme="ocean"], body[data-theme="ocean"], [data-theme="ocean"] {
   --bg-deep: #081021;
   --bg-card: #0f1c38;
@@ -146,9 +121,9 @@
   --primary: #e11d48;
   --primary-glow: rgba(225, 29, 72, 0.18);
   --primary-hover: #be123c;
-  --secondary: #f59e0b;
-  --accent-blue: #0284c7;
-  --accent-purple: #7c3aed;
+  --secondary: #fda4af;
+  --accent-blue: #fb7185;
+  --accent-purple: #f43f5e;
   --text-primary: #0f172a;
   --text-secondary: #334155;
   --text-muted: #64748b;
@@ -212,6 +187,56 @@
   --btn-secondary-border: rgba(142, 176, 204, 0.45);
 }
 
+/* 🌿 Theme 7: Sage & Limestone (Sage Green & Cream Limestone) */
+:root[data-theme="sage"], html[data-theme="sage"], body[data-theme="sage"], [data-theme="sage"] {
+  --bg-deep: #f4f0e8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ebe5da;
+  --border-light: rgba(82, 120, 99, 0.16);
+  --border-hover: rgba(82, 120, 99, 0.36);
+  --primary: #527863;
+  --primary-glow: rgba(82, 120, 99, 0.22);
+  --primary-hover: #41614f;
+  --secondary: #d1c2ab;
+  --accent-blue: #6b8f9e;
+  --accent-purple: #8e7e93;
+  --text-primary: #1e2922;
+  --text-secondary: #4a5b50;
+  --text-muted: #7a8c82;
+  --header-bg: #f4f0e8;
+  --card-bg-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 244, 237, 0.95) 100%);
+  --hero-title-gradient: linear-gradient(135deg, #1e2922 0%, #41614f 50%, #527863 100%);
+  --emerald-title-gradient: linear-gradient(135deg, #41614f 0%, #527863 60%, #6f9580 100%);
+  --btn-secondary-bg: rgba(82, 120, 99, 0.12);
+  --btn-secondary-text: #1e2922;
+  --btn-secondary-border: rgba(82, 120, 99, 0.32);
+}
+
+/* ⚓ Theme 7: Royal Navy (Navy Blue & Crisp White Light Mode) */
+:root[data-theme="navy"], html[data-theme="navy"], body[data-theme="navy"], [data-theme="navy"] {
+  --bg-deep: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --border-light: rgba(30, 58, 138, 0.14);
+  --border-hover: rgba(30, 58, 138, 0.32);
+  --primary: #1e3a8a;
+  --primary-glow: rgba(30, 58, 138, 0.20);
+  --primary-hover: #172554;
+  --secondary: #93c5fd;
+  --accent-blue: #3b82f6;
+  --accent-purple: #6366f1;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --header-bg: #ffffff;
+  --card-bg-gradient: linear-gradient(135deg, #ffffff 0%, #f0f5fa 100%);
+  --hero-title-gradient: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+  --emerald-title-gradient: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #60a5fa 100%);
+  --btn-secondary-bg: rgba(30, 58, 138, 0.10);
+  --btn-secondary-text: #0f172a;
+  --btn-secondary-border: rgba(30, 58, 138, 0.35);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -263,13 +288,6 @@ body::-webkit-scrollbar {
     radial-gradient(circle at 90% 60%, rgba(192, 132, 252, 0.12) 0%, transparent 45%);
 }
 
-[data-theme="sunset"] .ambient-glow-bg, :root[data-theme="sunset"] .ambient-glow-bg {
-  background-image: 
-    radial-gradient(circle at 50% -10%, rgba(245, 158, 11, 0.22) 0%, transparent 60%),
-    radial-gradient(circle at 10% 40%, rgba(249, 115, 22, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 90% 60%, rgba(239, 68, 68, 0.12) 0%, transparent 45%);
-}
-
 [data-theme="ocean"] .ambient-glow-bg, :root[data-theme="ocean"] .ambient-glow-bg {
   background-image: 
     radial-gradient(circle at 50% -10%, rgba(59, 130, 246, 0.22) 0%, transparent 60%),
@@ -279,9 +297,9 @@ body::-webkit-scrollbar {
 
 [data-theme="pastel"] .ambient-glow-bg, :root[data-theme="pastel"] .ambient-glow-bg {
   background-image: 
-    radial-gradient(circle at 50% -10%, rgba(225, 29, 72, 0.1) 0%, transparent 60%),
-    radial-gradient(circle at 10% 40%, rgba(245, 158, 11, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 90% 60%, rgba(2, 132, 199, 0.08) 0%, transparent 45%);
+    radial-gradient(circle at 50% -10%, rgba(225, 29, 72, 0.12) 0%, transparent 60%),
+    radial-gradient(circle at 10% 40%, rgba(251, 113, 133, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 90% 60%, rgba(244, 63, 94, 0.08) 0%, transparent 45%);
 }
 
 [data-theme="cream"] .ambient-glow-bg {
@@ -296,6 +314,20 @@ body::-webkit-scrollbar {
     radial-gradient(circle at 50% -10%, rgba(91, 124, 153, 0.22) 0%, transparent 60%),
     radial-gradient(circle at 10% 40%, rgba(142, 176, 204, 0.12) 0%, transparent 40%),
     radial-gradient(circle at 90% 60%, rgba(125, 163, 194, 0.12) 0%, transparent 45%);
+}
+
+[data-theme="sage"] .ambient-glow-bg, :root[data-theme="sage"] .ambient-glow-bg {
+  background-image: 
+    radial-gradient(circle at 50% -10%, rgba(82, 120, 99, 0.14) 0%, transparent 60%),
+    radial-gradient(circle at 10% 40%, rgba(209, 194, 171, 0.20) 0%, transparent 40%),
+    radial-gradient(circle at 90% 60%, rgba(107, 143, 158, 0.10) 0%, transparent 45%);
+}
+
+[data-theme="navy"] .ambient-glow-bg, :root[data-theme="navy"] .ambient-glow-bg {
+  background-image: 
+    radial-gradient(circle at 50% -10%, rgba(30, 58, 138, 0.12) 0%, transparent 60%),
+    radial-gradient(circle at 10% 40%, rgba(96, 165, 250, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 90% 60%, rgba(59, 130, 246, 0.08) 0%, transparent 45%);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -375,6 +407,8 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
 }
 
 [data-theme="pastel"] input::placeholder, [data-theme="pastel"] textarea::placeholder, [data-theme="pastel"] select::placeholder, [data-theme="pastel"] .form-input::placeholder, [data-theme="pastel"] .form-textarea::placeholder, [data-theme="pastel"] .search-input::placeholder,
+[data-theme="sage"] input::placeholder, [data-theme="sage"] textarea::placeholder, [data-theme="sage"] select::placeholder, [data-theme="sage"] .form-input::placeholder, [data-theme="sage"] .form-textarea::placeholder, [data-theme="sage"] .search-input::placeholder,
+[data-theme="navy"] input::placeholder, [data-theme="navy"] textarea::placeholder, [data-theme="navy"] select::placeholder, [data-theme="navy"] .form-input::placeholder, [data-theme="navy"] .form-textarea::placeholder, [data-theme="navy"] .search-input::placeholder,
 [data-theme="cream"] input::placeholder, [data-theme="cream"] textarea::placeholder, [data-theme="cream"] select::placeholder, [data-theme="cream"] .form-input::placeholder, [data-theme="cream"] .form-textarea::placeholder, [data-theme="cream"] .search-input::placeholder {
   color: rgba(15, 23, 42, 0.55) !important;
   font-weight: 500 !important;

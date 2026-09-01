@@ -99,9 +99,9 @@ import {
   BadgeCheck,
   LifeBuoy,
   Trees,
-  Sunset,
   Waves,
   Flower2,
+  Leaf,
   ChevronUp,
   CheckCheck,
   LayoutGrid,
@@ -7982,19 +7982,6 @@ function App() {
           trackBg: 'rgba(168, 85, 247, 0.18)',
           accent: '#a855f7'
         };
-      case 'sunset':
-        return {
-          bg: '#140d0b',
-          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(245, 158, 11, 0.22) 0%, rgba(20, 13, 11, 0.98) 70%)',
-          cardBg: '#221411',
-          logoBoxBg: '#ffffff',
-          logoBoxBorder: '1px solid rgba(245, 158, 11, 0.35)',
-          logoBoxShadow: '0 10px 30px rgba(245, 158, 11, 0.25)',
-          titleColor: '#ffffff',
-          subtitleColor: '#fde68a',
-          trackBg: 'rgba(245, 158, 11, 0.18)',
-          accent: '#f59e0b'
-        };
       case 'ocean':
         return {
           bg: '#081021',
@@ -8020,6 +8007,32 @@ function App() {
           subtitleColor: '#475569',
           trackBg: 'rgba(225, 29, 72, 0.15)',
           accent: '#e11d48'
+        };
+      case 'sage':
+        return {
+          bg: '#f4f0e8',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(82, 120, 99, 0.14) 0%, #f4f0e8 70%)',
+          cardBg: '#ffffff',
+          logoBoxBg: '#ffffff',
+          logoBoxBorder: '1px solid rgba(82, 120, 99, 0.28)',
+          logoBoxShadow: '0 10px 30px rgba(82, 120, 99, 0.15)',
+          titleColor: '#1e2922',
+          subtitleColor: '#4a5b50',
+          trackBg: 'rgba(82, 120, 99, 0.15)',
+          accent: '#527863'
+        };
+      case 'navy':
+        return {
+          bg: '#f8fafc',
+          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(30, 58, 138, 0.12) 0%, #f8fafc 70%)',
+          cardBg: '#ffffff',
+          logoBoxBg: '#ffffff',
+          logoBoxBorder: '1px solid rgba(30, 58, 138, 0.28)',
+          logoBoxShadow: '0 10px 30px rgba(30, 58, 138, 0.15)',
+          titleColor: '#0f172a',
+          subtitleColor: '#334155',
+          trackBg: 'rgba(30, 58, 138, 0.14)',
+          accent: '#1e3a8a'
         };
       case 'cream':
         return {
@@ -15455,9 +15468,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   { id: 'emerald', name: 'Midnight Emerald', desc: 'Nuansa gelap modern dengan kaca transparan & aksen hijau emerald.', bg: '#080c14', primary: '#10b981', accent: '#f59e0b', cardBg: '#0f172a', IconComponent: Trees },
                                   { id: 'nordic', name: 'Midnight Slate', desc: 'Nuansa gelap slate yang elegan & tenang dengan aksen dusty blue & pendar malam modern.', bg: '#0f141a', primary: '#5b7c99', accent: '#8eb0cc', cardBg: '#17202a', IconComponent: Moon },
                                   { id: 'cyberpunk', name: 'Cyberpunk Neon', desc: 'Gaya futuristik dengan warna ungu royal & efek neon cyan.', bg: '#0b0716', primary: '#a855f7', accent: '#06b6d4', cardBg: '#150d2a', IconComponent: Zap },
-                                  { id: 'sunset', name: 'Warm Sunset', desc: 'Tampilan mewah onyx gelap dengan aksen emas amber & coral.', bg: '#140d0b', primary: '#f59e0b', accent: '#f97316', cardBg: '#221411', IconComponent: Sunset },
                                   { id: 'ocean', name: 'Oceanic Azure', desc: 'Desain profesional biru gelap korporat & cyan segar.', bg: '#080121', primary: '#3b82f6', accent: '#38bdf8', cardBg: '#0f1c38', IconComponent: Waves },
-                                  { id: 'pastel', name: 'Pastel Bloom', desc: 'Tema terang estetik yang lembut dengan sentuhan pink rose.', bg: '#f8fafc', primary: '#e11d48', accent: '#f59e0b', cardBg: '#ffffff', light: true, IconComponent: Flower2 }
+                                  { id: 'pastel', name: 'Pastel Bloom', desc: 'Tema terang estetik yang lembut dengan sentuhan pink rose & putih.', bg: '#f8fafc', primary: '#e11d48', accent: '#fda4af', cardBg: '#ffffff', light: true, IconComponent: Flower2 },
+                                  { id: 'sage', name: 'Sage & Limestone', desc: 'Nuansa organik mewah perpaduan hijau sage menyejukkan dengan kehangatan batu kapur cream.', bg: '#f4f0e8', primary: '#527863', accent: '#d1c2ab', cardBg: '#ffffff', light: true, IconComponent: Leaf },
+                                  { id: 'navy', name: 'Royal Navy', desc: 'Tema terang estetik & elegan perpaduan biru navy klasik dan putih bersih.', bg: '#f8fafc', primary: '#1e3a8a', accent: '#93c5fd', cardBg: '#ffffff', light: true, IconComponent: Compass }
                                 ].map(t => {
                                   const isActive = (settingsForm.store_theme || 'emerald') === t.id;
                                   const IconComp = t.IconComponent;
