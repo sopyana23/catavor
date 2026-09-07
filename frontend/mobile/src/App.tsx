@@ -13699,61 +13699,29 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           aria-label="Mode Pratinjau Publik"
           style={{
             backgroundColor: 'var(--header-bg, #0f172a)',
-            backgroundImage: 'linear-gradient(90deg, var(--primary-glow) 0%, rgba(0, 0, 0, 0) 100%)',
             borderBottom: '1px solid var(--border-light)',
-            padding: '0.45rem 0.85rem',
+            padding: '0.45rem 0.9rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.5rem',
             position: 'sticky',
             top: 0,
             zIndex: 1000,
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)'
+            boxShadow: '0 1px 4px rgba(0, 0, 0, 0.15)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1 }}>
-            <div style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--primary-glow)',
-              border: '1px solid var(--primary)',
-              color: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <Eye size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+            <span style={{ 
+              fontSize: '0.78rem', 
+              fontWeight: 700, 
+              color: 'var(--text-primary)', 
+              whiteSpace: 'nowrap'
             }}>
-              <Eye size={13} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, overflow: 'hidden' }}>
-              <span style={{ 
-                fontSize: '0.74rem', 
-                fontWeight: 700, 
-                color: 'var(--text-primary)', 
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                Pratinjau Publik
-              </span>
-              <span style={{ 
-                fontSize: '0.62rem', 
-                fontWeight: 700, 
-                color: 'var(--text-secondary)',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid var(--border-light)',
-                padding: '0.1rem 0.35rem',
-                borderRadius: '4px',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}>
-                Pengunjung
-              </span>
-            </div>
+              Mode Pratinjau
+            </span>
           </div>
 
           <button
@@ -13768,24 +13736,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: '0.32rem 0.65rem',
+              padding: '0.3rem 0.7rem',
               borderRadius: '0.45rem',
               backgroundColor: 'var(--primary)',
               color: '#ffffff',
               border: 'none',
               fontSize: '0.72rem',
-              fontWeight: 800,
+              fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
-              boxShadow: '0 2px 8px var(--primary-glow)',
-              transition: 'opacity 0.2s ease',
-              lineHeight: 1.2
+              boxShadow: '0 2px 6px var(--primary-glow)',
+              transition: 'all 0.15s ease'
             }}
           >
-            <LayoutDashboard size={12} />
+            <LayoutDashboard size={13} />
             <span>Dashboard Admin</span>
-            <ArrowRight size={11} />
           </button>
         </aside>
       )}
