@@ -98,9 +98,9 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Retrieve user and their store from DB to guarantee freshest state
+		// Retrieve user and their stores from DB to guarantee freshest state
 		var user models.User
-		if err := database.DB.Preload("Store").First(&user, claims.UserID).Error; err != nil {
+		if err := database.DB.Preload("Stores").Preload("Store").First(&user, claims.UserID).Error; err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"code":    "USER_NOT_FOUND",
@@ -110,10 +110,28 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 
 		c.Locals("user", &user)
 		c.Locals("user_id", user.ID)
-		if user.Store != nil {
-			c.Locals("store", user.Store)
-			c.Locals("store_id", user.Store.ID)
-			c.Locals("store_slug", user.Store.Slug)
+
+		// Determine initial store context
+		var activeStore *models.Store
+		if claims.StoreSlug != "" {
+			for i := range user.Stores {
+				if strings.EqualFold(user.Stores[i].Slug, claims.StoreSlug) {
+					activeStore = &user.Stores[i]
+					break
+				}
+			}
+		}
+		if activeStore == nil && len(user.Stores) > 0 {
+			activeStore = &user.Stores[0]
+		}
+		if activeStore == nil {
+			activeStore = user.Store
+		}
+
+		if activeStore != nil {
+			c.Locals("store", activeStore)
+			c.Locals("store_id", activeStore.ID)
+			c.Locals("store_slug", activeStore.Slug)
 		}
 
 		return c.Next()
@@ -131,26 +149,58 @@ func StoreOwnerRequired() fiber.Handler {
 			})
 		}
 
-		targetSlug := c.Get("X-Store-Slug")
+		targetSlug := strings.TrimSpace(c.Get("X-Store-Slug"))
 		if targetSlug == "" {
-			targetSlug = c.Params("slug")
+			targetSlug = strings.TrimSpace(c.Params("slug"))
 		}
 
+		var matchedStore *models.Store
+
 		if targetSlug != "" {
-			if user.Store == nil || !strings.EqualFold(user.Store.Slug, targetSlug) {
+			// Check against user's owned stores
+			for i := range user.Stores {
+				if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
+					matchedStore = &user.Stores[i]
+					break
+				}
+			}
+
+			// If not found in preloaded slice, query database directly
+			if matchedStore == nil {
+				var dbStore models.Store
+				if err := database.DB.Where("LOWER(slug) = ? AND user_id = ?", strings.ToLower(targetSlug), user.ID).First(&dbStore).Error; err == nil {
+					matchedStore = &dbStore
+				}
+			}
+
+			if matchedStore == nil {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"success": false,
 					"message": "Akses Ditolak: Anda tidak memiliki otoritas atas toko ini.",
 				})
 			}
+		} else {
+			// Fallback to active store in context or first store
+			if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
+				matchedStore = store
+			} else if len(user.Stores) > 0 {
+				matchedStore = &user.Stores[0]
+			} else if user.Store != nil {
+				matchedStore = user.Store
+			}
 		}
 
-		if user.Store == nil {
+		if matchedStore == nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"message": "Toko Anda belum terdaftar.",
 			})
 		}
+
+		// Set the active matched store in request context
+		c.Locals("store", matchedStore)
+		c.Locals("store_id", matchedStore.ID)
+		c.Locals("store_slug", matchedStore.Slug)
 
 		return c.Next()
 	}

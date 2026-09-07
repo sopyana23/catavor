@@ -151,6 +151,12 @@ func main() {
 		authOnly.Post("/auth/refresh", authHandler.RefreshToken)
 		authOnly.Post("/logout", authHandler.Logout)
 		authOnly.Post("/profile", authHandler.UpdateProfile)
+
+		// Multi-Store User Management
+		authOnly.Get("/user/stores", storeHandler.GetMyStores)
+		authOnly.Post("/user/stores", storeHandler.CreateStore)
+		authOnly.Post("/user/stores/create", storeHandler.CreateStore)
+		authOnly.Post("/user/stores/switch", storeHandler.SwitchStore)
 	}
 
 	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)

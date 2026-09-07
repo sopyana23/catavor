@@ -620,7 +620,7 @@
 .bottom-sheet-radio.selected {
   border-color: var(--primary);
   background: var(--primary);
-  color: #000000;
+  color: #ffffff;
   box-shadow: 0 0 10px var(--primary-glow);
 }
 
@@ -628,6 +628,7 @@
   display: block;
   margin: 0 auto;
   flex-shrink: 0;
+  stroke: #ffffff;
 }
 
 /* Bottom Sheet Sticky Footer - Pinned Flush to Screen Bottom */
