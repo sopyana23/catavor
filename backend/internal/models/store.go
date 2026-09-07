@@ -16,7 +16,7 @@ type Store struct {
 	WhatsappNumber           string         `gorm:"type:text" json:"whatsapp_number"`
 	OfficialWebsite          string         `gorm:"size:255" json:"official_website"`
 	StoreLogoURL             string         `gorm:"type:text" json:"store_logo_url"`
-	StoreTheme               string         `gorm:"size:50;default:'emerald'" json:"store_theme"`
+	StoreTheme               string         `gorm:"size:50;default:'navy'" json:"store_theme"`
 	AboutTitle               string         `gorm:"size:255" json:"about_title"`
 	AboutSlogan              string         `gorm:"type:text" json:"about_slogan"`
 	AboutDescription         string         `gorm:"type:text" json:"about_description"`
@@ -27,6 +27,13 @@ type Store struct {
 	AboutDisclaimer          string         `gorm:"type:text" json:"about_disclaimer"`
 	SocialLinks              datatypes.JSON `gorm:"type:jsonb" json:"social_links"`
 	Plan                     string         `gorm:"size:50;default:'free'" json:"plan"`
+	NextPlanCode             *string        `gorm:"size:50" json:"next_plan_code,omitempty"`
+	PlanStatus               string         `gorm:"size:50;default:'active'" json:"plan_status"` // active | grace_period | expired
+	PlanExpiresAt            *time.Time     `json:"plan_expires_at,omitempty"`
+	GracePeriodUntil         *time.Time     `json:"grace_period_until,omitempty"`
+	StorageUsedBytes         int64          `gorm:"default:0" json:"storage_used_bytes"`
+	CustomDomain             *string        `gorm:"size:255;index" json:"custom_domain,omitempty"`
+	CustomDomainStatus       string         `gorm:"size:50;default:'none'" json:"custom_domain_status"` // none | pending | active | inactive_expired
 	PaymentStatus            string         `gorm:"size:50;default:'free_active'" json:"payment_status"`
 	EnableWADirect           bool           `gorm:"default:true" json:"enable_wa_direct"`
 	EnableWARekber           bool           `gorm:"default:true" json:"enable_wa_rekber"`
@@ -40,6 +47,8 @@ type Store struct {
 	UpdatedAt                time.Time      `json:"updated_at"`
 
 	// Relations
-	User   *User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Faunas []Fauna `gorm:"foreignKey:StoreID" json:"faunas,omitempty"`
+	User       *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Faunas     []Fauna    `gorm:"foreignKey:StoreID" json:"faunas,omitempty"`
+	Products   []Product  `gorm:"foreignKey:StoreID" json:"products,omitempty"`
+	Categories []Category `gorm:"foreignKey:StoreID" json:"categories,omitempty"`
 }

@@ -59,6 +59,7 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
+				"code":    "UNAUTHENTICATED",
 				"message": "Unauthenticated.",
 			})
 		}
@@ -67,6 +68,7 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
+				"code":    "INVALID_TOKEN_FORMAT",
 				"message": "Invalid authorization token format.",
 			})
 		}
@@ -83,9 +85,16 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		})
 
 		if err != nil || !token.Valid {
+			errCode := "TOKEN_EXPIRED"
+			errMsg := "Sesi login Anda telah berakhir. Silakan masuk kembali."
+			if err != nil && strings.Contains(strings.ToLower(err.Error()), "malformed") {
+				errCode = "INVALID_TOKEN"
+				errMsg = "Token otentikasi tidak valid."
+			}
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
-				"message": "Token tidak valid atau telah kedaluwarsa.",
+				"code":    errCode,
+				"message": errMsg,
 			})
 		}
 
@@ -94,7 +103,8 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		if err := database.DB.Preload("Store").First(&user, claims.UserID).Error; err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
-				"message": "Pengguna tidak ditemukan.",
+				"code":    "USER_NOT_FOUND",
+				"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
 			})
 		}
 

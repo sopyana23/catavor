@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -29,20 +31,24 @@ type LoginRequest struct {
 }
 
 type RegisterRequest struct {
-	Name                 string `json:"name"`
-	Email                string `json:"email"`
-	Password             string `json:"password"`
-	StoreSlug            string `json:"store_slug"`
-	StoreName            string `json:"store_name"`
-	StoreTitle           string `json:"store_title"`
-	GoogleID             string `json:"google_id"`
-	Avatar               string `json:"avatar"`
-	Plan                 string `json:"plan"`
-	PaymentStatus        string `json:"payment_status"`
-	PaymentProofURL      string `json:"payment_proof_url"`
-	WhatsappNumber       string `json:"whatsapp_number"`
-	RegistrationTimezone string `json:"registration_timezone"`
-	Timezone             string `json:"timezone"`
+	Name                 string  `json:"name"`
+	Email                string  `json:"email"`
+	Password             string  `json:"password"`
+	StoreSlug            string  `json:"store_slug"`
+	StoreName            string  `json:"store_name"`
+	StoreTitle           string  `json:"store_title"`
+	GoogleID             string  `json:"google_id"`
+	Avatar               string  `json:"avatar"`
+	Plan                 string  `json:"plan"`
+	BillingCycle         string  `json:"billing_cycle"`
+	PaymentMethod        string  `json:"payment_method"`
+	PaymentStatus        string  `json:"payment_status"`
+	PaymentProofURL      string  `json:"payment_proof_url"`
+	CouponCode           string  `json:"coupon_code"`
+	AmountPaid           float64 `json:"amount_paid"`
+	WhatsappNumber       string  `json:"whatsapp_number"`
+	RegistrationTimezone string  `json:"registration_timezone"`
+	Timezone             string  `json:"timezone"`
 }
 
 type GoogleAuthRequest struct {
@@ -113,12 +119,16 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	var storeSlug, storeTitle, storePlan, paymentStatus string
+	var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
 	if user.Store != nil {
 		storeSlug = user.Store.Slug
 		storeTitle = user.Store.StoreTitle
 		storePlan = user.Store.Plan
+		storeTheme = user.Store.StoreTheme
 		paymentStatus = user.Store.PaymentStatus
+	}
+	if storeTheme == "" {
+		storeTheme = "navy"
 	}
 
 	return c.JSON(fiber.Map{
@@ -132,6 +142,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			"is_password_changed": user.IsPasswordChanged,
 			"store_slug":          storeSlug,
 			"store_title":         storeTitle,
+			"store_theme":         storeTheme,
 			"store_plan":          storePlan,
 			"payment_status":      paymentStatus,
 		},
@@ -159,6 +170,18 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	req.StoreSlug = security.SanitizeSlug(req.StoreSlug)
 	req.WhatsappNumber = security.SanitizePhone(req.WhatsappNumber)
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
+	if req.GoogleID != "" && req.Name == "" {
+		if req.StoreTitle != "" {
+			req.Name = req.StoreTitle
+		} else {
+			req.Name = "Pemilik Toko"
+		}
+	}
+
+	if req.StoreSlug == "" && req.StoreTitle != "" {
+		req.StoreSlug = cleanSlug(req.StoreTitle)
+	}
 
 	if req.Name == "" || req.StoreSlug == "" || req.Email == "" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -201,15 +224,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	}
 
-	// Check email uniqueness
-	var existingUser models.User
-	if err := database.DB.Where("LOWER(email) = ?", req.Email).First(&existingUser).Error; err == nil {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"success": false,
-			"message": "Email sudah terdaftar. Silakan gunakan email lain atau login.",
-		})
-	}
-
 	// Check store slug uniqueness
 	var existingStore models.Store
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&existingStore).Error; err == nil {
@@ -219,31 +233,73 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	newUser := models.User{
-		Name:              req.Name,
-		Email:             req.Email,
-		IsPasswordChanged: true,
-	}
-	if req.GoogleID != "" {
-		googleID := req.GoogleID
-		newUser.GoogleID = &googleID
-		now := time.Now()
-		newUser.EmailVerifiedAt = &now
-		_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
-	} else {
-		if err := newUser.SetPassword(req.Password); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+	// Check email uniqueness
+	var existingUser models.User
+	var targetUser models.User
+	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", req.Email).First(&existingUser).Error; err == nil {
+		if req.GoogleID != "" {
+			if existingUser.Store != nil {
+				theme := existingUser.Store.StoreTheme
+				if theme == "" {
+					theme = "navy"
+				}
+				token, _ := middleware.GenerateToken(&existingUser, existingUser.Store, h.cfg)
+				return c.JSON(fiber.Map{
+					"success": true,
+					"message": "Akun Anda telah terdaftar sebelumnya. Selamat datang kembali!",
+					"token":   token,
+					"user": fiber.Map{
+						"id":                  existingUser.ID,
+						"name":                existingUser.Name,
+						"email":               existingUser.Email,
+						"is_password_changed": true,
+						"store_slug":          existingUser.Store.Slug,
+						"store_title":         existingUser.Store.StoreTitle,
+						"store_theme":         theme,
+						"store_plan":          existingUser.Store.Plan,
+						"payment_status":      existingUser.Store.PaymentStatus,
+					},
+				})
+			}
+			targetUser = existingUser
+			if (targetUser.GoogleID == nil || *targetUser.GoogleID == "") && req.GoogleID != "" {
+				targetUser.GoogleID = &req.GoogleID
+				database.DB.Save(&targetUser)
+			}
+		} else {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": "Gagal memproses kata sandi.",
+				"message": "Email sudah terdaftar. Silakan gunakan email lain atau login.",
 			})
 		}
-	}
+	} else {
+		newUser := models.User{
+			Name:              req.Name,
+			Email:             req.Email,
+			IsPasswordChanged: true,
+		}
+		if req.GoogleID != "" {
+			googleID := req.GoogleID
+			newUser.GoogleID = &googleID
+			now := time.Now()
+			newUser.EmailVerifiedAt = &now
+			_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
+		} else {
+			if err := newUser.SetPassword(req.Password); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal memproses kata sandi.",
+				})
+			}
+		}
 
-	if err := database.DB.Create(&newUser).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal mendaftarkan akun.",
-		})
+		if err := database.DB.Create(&newUser).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal mendaftarkan akun.",
+			})
+		}
+		targetUser = newUser
 	}
 
 	storeTitle := req.StoreTitle
@@ -251,18 +307,40 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		storeTitle = req.Name + " Store"
 	}
 
-	plan := strings.ToLower(strings.TrimSpace(req.Plan))
-	if plan != "pro" {
-		plan = "free"
+	rawPlan := strings.ToLower(strings.TrimSpace(req.Plan))
+	plan := "free"
+	if rawPlan == "pro" || rawPlan == "pro_starter" {
+		plan = "pro_starter"
+	} else if rawPlan == "pro_business" {
+		plan = "pro_business"
+	}
+
+	billingCycle := strings.ToLower(strings.TrimSpace(req.BillingCycle))
+	if billingCycle != "annual" {
+		billingCycle = "monthly"
+	}
+
+	durationMonths := 1
+	if billingCycle == "annual" {
+		durationMonths = 12
+	}
+
+	now := time.Now().UTC()
+	var planExpiresAt *time.Time
+	planStatus := "active"
+	customDomainStatus := "none"
+
+	if plan != "free" {
+		exp := now.AddDate(0, durationMonths, 0)
+		planExpiresAt = &exp
+		if plan == "pro_business" {
+			customDomainStatus = "active"
+		}
 	}
 
 	paymentStatus := "free_active"
-	if plan == "pro" {
-		if req.PaymentStatus == "approved" || req.PaymentStatus == "paid" {
-			paymentStatus = "paid"
-		} else {
-			paymentStatus = "pending_approval"
-		}
+	if plan != "free" {
+		paymentStatus = "paid"
 	}
 
 	tz := strings.TrimSpace(req.RegistrationTimezone)
@@ -277,15 +355,20 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	defaultShipping, _ := json.Marshal([]string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"})
 
 	newStore := models.Store{
-		UserID:                  newUser.ID,
+		UserID:                  targetUser.ID,
 		Slug:                    slug,
 		StoreTitle:              storeTitle,
 		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
 		WhatsappNumber:          req.WhatsappNumber,
 		Plan:                    plan,
+		PlanStatus:              planStatus,
+		PlanExpiresAt:           planExpiresAt,
+		CustomDomainStatus:      customDomainStatus,
 		PaymentStatus:           paymentStatus,
-		StoreTheme:              "emerald",
+		StoreTheme:              "navy",
 		RegistrationTimezone:    tz,
+		EnableWADirect:          true,
+		EnableWARekber:          true,
 		MasterClasses:           datatypes.JSON(defaultClasses),
 		MasterHabitats:          datatypes.JSON(defaultHabitats),
 		MasterStatuses:          datatypes.JSON(defaultStatuses),
@@ -299,19 +382,81 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	token, _ := middleware.GenerateToken(&newUser, &newStore, h.cfg)
+	// If paid plan, record initial SubscriptionOrder
+	if plan != "free" {
+		planInfo, _ := services.GetPlanByCode(database.DB, plan)
+		var origAmount float64
+		if planInfo != nil {
+			if billingCycle == "annual" {
+				origAmount = planInfo.PriceAnnual
+			} else {
+				origAmount = planInfo.PriceMonthly
+			}
+		}
+
+		finalAmount := origAmount
+		discountAmount := float64(0)
+		cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
+		if cleanCoupon == "CATAVOR100" || cleanCoupon == "GRATISPRO" {
+			discountAmount = origAmount
+			finalAmount = 0
+		} else if cleanCoupon == "DISKON10K" {
+			discountAmount = 10000
+			if discountAmount > origAmount {
+				discountAmount = origAmount
+			}
+			finalAmount = origAmount - discountAmount
+		} else if cleanCoupon == "DISKON50K" {
+			discountAmount = 50000
+			if discountAmount > origAmount {
+				discountAmount = origAmount
+			}
+			finalAmount = origAmount - discountAmount
+		}
+
+		payMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
+		if payMethod == "" {
+			payMethod = "bank"
+		}
+		if finalAmount == 0 {
+			payMethod = "coupon_free"
+		}
+
+		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), newStore.ID%10000, (time.Now().Nanosecond()/1000)%10000)
+		subOrder := models.SubscriptionOrder{
+			StoreID:         newStore.ID,
+			UserID:          targetUser.ID,
+			OrderNumber:     orderNumber,
+			Type:            "initial",
+			PlanCode:        plan,
+			BillingCycle:    billingCycle,
+			DurationMonths:  durationMonths,
+			OriginalAmount:  origAmount,
+			DiscountAmount:  discountAmount,
+			FinalAmount:     finalAmount,
+			CouponCode:      cleanCoupon,
+			PaymentMethod:   payMethod,
+			PaymentProofURL: req.PaymentProofURL,
+			PaymentStatus:   "paid",
+			PaidAt:          &now,
+		}
+		_ = database.DB.Create(&subOrder).Error
+	}
+
+	token, _ := middleware.GenerateToken(&targetUser, &newStore, h.cfg)
 
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Pendaftaran berhasil.",
 		"token":   token,
 		"user": fiber.Map{
-			"id":                  newUser.ID,
-			"name":                newUser.Name,
-			"email":               newUser.Email,
+			"id":                  targetUser.ID,
+			"name":                targetUser.Name,
+			"email":               targetUser.Email,
 			"is_password_changed": true,
 			"store_slug":          newStore.Slug,
 			"store_title":         newStore.StoreTitle,
+			"store_theme":         newStore.StoreTheme,
 			"store_plan":          newStore.Plan,
 			"payment_status":      newStore.PaymentStatus,
 		},
@@ -409,12 +554,16 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			})
 		}
 
-		var storeSlug, storeTitle, storePlan, paymentStatus string
+		var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
 		if user.Store != nil {
 			storeSlug = user.Store.Slug
 			storeTitle = user.Store.StoreTitle
 			storePlan = user.Store.Plan
+			storeTheme = user.Store.StoreTheme
 			paymentStatus = user.Store.PaymentStatus
+		}
+		if storeTheme == "" {
+			storeTheme = "navy"
 		}
 
 		return c.JSON(fiber.Map{
@@ -430,6 +579,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"avatar":              avatar,
 				"store_slug":          storeSlug,
 				"store_title":         storeTitle,
+				"store_theme":         storeTheme,
 				"store_plan":          storePlan,
 				"payment_status":      paymentStatus,
 			},
@@ -439,10 +589,6 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	// CASE B: NEW USER (REGISTRATION FLOW)
 	storeName := strings.TrimSpace(req.StoreName)
 	storeSlug := cleanSlug(req.StoreSlug)
-	plan := strings.ToLower(strings.TrimSpace(req.Plan))
-	if plan != "pro" {
-		plan = "free"
-	}
 
 	if storeName == "" || storeSlug == "" {
 		return c.JSON(fiber.Map{
@@ -496,8 +642,29 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		clientTimezone = "Asia/Jakarta"
 	}
 
+	rawPlan := strings.ToLower(strings.TrimSpace(req.Plan))
+	plan := "free"
+	if rawPlan == "pro" || rawPlan == "pro_starter" {
+		plan = "pro_starter"
+	} else if rawPlan == "pro_business" {
+		plan = "pro_business"
+	}
+
+	utcNow := time.Now().UTC()
+	var planExpiresAt *time.Time
+	planStatus := "active"
+	customDomainStatus := "none"
+
+	if plan != "free" {
+		exp := utcNow.AddDate(0, 1, 0)
+		planExpiresAt = &exp
+		if plan == "pro_business" {
+			customDomainStatus = "active"
+		}
+	}
+
 	paymentStatus := "free_active"
-	if plan == "pro" {
+	if plan != "free" {
 		paymentStatus = "paid"
 	}
 
@@ -513,8 +680,11 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		StoreTitle:              storeName,
 		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
 		Plan:                    plan,
+		PlanStatus:              planStatus,
+		PlanExpiresAt:           planExpiresAt,
+		CustomDomainStatus:      customDomainStatus,
 		PaymentStatus:           paymentStatus,
-		StoreTheme:              "emerald",
+		StoreTheme:              "navy",
 		RegistrationTimezone:    clientTimezone,
 		EnableWADirect:          true,
 		EnableWARekber:          true,
@@ -546,6 +716,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			"avatar":              avatar,
 			"store_slug":          newStore.Slug,
 			"store_title":         newStore.StoreTitle,
+			"store_theme":         newStore.StoreTheme,
 			"store_plan":          newStore.Plan,
 			"payment_status":      newStore.PaymentStatus,
 		},
@@ -580,6 +751,96 @@ func decodeGoogleJWT(jwtStr string) (email, name, googleID, avatar string) {
 		avatar = gMap.Picture
 	}
 	return
+}
+
+// VerifyToken checks token validity, returns fresh user profile & store state
+func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"code":    "USER_NOT_FOUND",
+			"message": "Pengguna tidak ditemukan.",
+		})
+	}
+
+	var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
+	if user.Store != nil {
+		storeSlug = user.Store.Slug
+		storeTitle = user.Store.StoreTitle
+		storePlan = user.Store.Plan
+		storeTheme = user.Store.StoreTheme
+		paymentStatus = user.Store.PaymentStatus
+	}
+	if storeTheme == "" {
+		storeTheme = "navy"
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"valid":   true,
+		"message": "Sesi token valid dan aktif.",
+		"user": fiber.Map{
+			"id":                  user.ID,
+			"name":                user.Name,
+			"email":               user.Email,
+			"is_password_changed": user.IsPasswordChanged,
+			"store_slug":          storeSlug,
+			"store_title":         storeTitle,
+			"store_theme":         storeTheme,
+			"store_plan":          storePlan,
+			"payment_status":      paymentStatus,
+		},
+	})
+}
+
+// RefreshToken issues a renewed JWT token with extended expiration for an active session
+func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"code":    "USER_NOT_FOUND",
+			"message": "Pengguna tidak ditemukan.",
+		})
+	}
+
+	newToken, err := middleware.GenerateToken(user, user.Store, h.cfg)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperpanjang sesi token.",
+		})
+	}
+
+	var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
+	if user.Store != nil {
+		storeSlug = user.Store.Slug
+		storeTitle = user.Store.StoreTitle
+		storePlan = user.Store.Plan
+		storeTheme = user.Store.StoreTheme
+		paymentStatus = user.Store.PaymentStatus
+	}
+	if storeTheme == "" {
+		storeTheme = "navy"
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Sesi login berhasil diperpanjang.",
+		"token":   newToken,
+		"user": fiber.Map{
+			"id":                  user.ID,
+			"name":                user.Name,
+			"email":               user.Email,
+			"is_password_changed": user.IsPasswordChanged,
+			"store_slug":          storeSlug,
+			"store_title":         storeTitle,
+			"store_theme":         storeTheme,
+			"store_plan":          storePlan,
+			"payment_status":      paymentStatus,
+		},
+	})
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
