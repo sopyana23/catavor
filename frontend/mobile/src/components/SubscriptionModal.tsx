@@ -83,6 +83,8 @@ export interface SubscriptionPageProps {
   onUpdateDomain?: (domain: string) => Promise<void>;
   onSuccessUpgrade?: () => void;
   onBack?: () => void;
+  activeView?: 'plans' | 'checkout' | 'downgrade_confirm' | 'orders';
+  onViewChange?: (view: 'plans' | 'checkout' | 'downgrade_confirm' | 'orders') => void;
   apiBase?: string;
   token?: string | null;
   isLoading?: boolean;
@@ -109,15 +111,31 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
   onUpdateDomain,
   onSuccessUpgrade,
   onBack,
+  activeView,
+  onViewChange,
   apiBase = 'http://localhost:8000/api',
   token,
   isLoading = false
 }) => {
   const effectiveQuota = currentQuota || quota;
-  const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>('plans');
+  const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(activeView || 'plans');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedTargetPlan, setSelectedTargetPlan] = useState<SubscriptionPlanData | null>(null);
   const [checkoutType, setCheckoutType] = useState<'upgrade' | 'renewal'>('upgrade');
+
+  // Sync external activeView changes
+  useEffect(() => {
+    if (activeView && activeView !== modalView) {
+      setModalView(activeView);
+    }
+  }, [activeView]);
+
+  const changeView = (nextView: 'plans' | 'checkout' | 'downgrade_confirm' | 'orders') => {
+    setModalView(nextView);
+    if (onViewChange) {
+      onViewChange(nextView);
+    }
+  };
 
   // Checkout Form State
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('bank');
@@ -139,7 +157,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
   const [internalLoading, setInternalLoading] = useState(false);
 
   useEffect(() => {
-    setModalView('plans');
+    if (!activeView) {
+      setModalView('plans');
+    }
     setActionSuccess(null);
     setActionError(null);
     setAppliedCoupon(null);
@@ -173,13 +193,13 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
     setPaymentProofUrl('');
     setProofPreview(null);
     setActionError(null);
-    setModalView('checkout');
+    changeView('checkout');
   };
 
   const openDowngradeConfirm = (targetPlan: SubscriptionPlanData) => {
     setSelectedTargetPlan(targetPlan);
     setActionError(null);
-    setModalView('downgrade_confirm');
+    changeView('downgrade_confirm');
   };
 
   const fetchOrders = async () => {
@@ -431,8 +451,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         paddingBottom: '2.5rem'
       }}
     >
-      {/* Top Segmented Navigation Tabs (Pilihan Paket vs Riwayat Tagihan) */}
-      {(modalView === 'plans' || modalView === 'orders') ? (
+      {/* Top Segmented Navigation Tabs (Pilihan Paket vs Riwayat Tagihan) - Only displayed in Plans & Orders view */}
+      {(modalView === 'plans' || modalView === 'orders') && (
         <div 
           style={{ 
             display: 'grid', 
@@ -494,53 +514,6 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
             <span>Riwayat Tagihan</span>
           </button>
         </div>
-      ) : (
-        /* Back to Plans Breadcrumb Bar for Checkout & Downgrade Confirm */
-        <div 
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            padding: '0.5rem 0.85rem', 
-            background: 'var(--card-bg-gradient, var(--bg-card))',
-            border: '1px solid var(--border-light)',
-            borderRadius: '0.85rem',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setModalView('plans')}
-            style={{
-              background: 'var(--btn-secondary-bg)',
-              border: '1px solid var(--btn-secondary-border)',
-              color: 'var(--btn-secondary-text)',
-              borderRadius: '0.5rem',
-              padding: '0.35rem 0.65rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <ChevronLeft size={16} />
-            <span>Kembali ke Paket</span>
-          </button>
-
-          <span style={{ 
-            fontSize: '0.76rem', 
-            fontWeight: 800, 
-            color: modalView === 'downgrade_confirm' ? '#f59e0b' : 'var(--primary)', 
-            padding: '0.2rem 0.6rem',
-            borderRadius: '9999px',
-            background: modalView === 'downgrade_confirm' ? 'rgba(245, 158, 11, 0.15)' : 'var(--primary-glow)',
-            border: '1px solid var(--border-light)'
-          }}>
-            {modalView === 'checkout' ? (checkoutType === 'renewal' ? 'Perpanjangan' : 'Checkout Upgrade') : 'Konfirmasi Downgrade'}
-          </span>
-        </div>
       )}
 
       {/* Main Page Content Body */}
@@ -599,37 +572,36 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
               gap: '0.45rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Clock size={16} style={{ color: '#d97706', flexShrink: 0 }} />
+                <Clock size={18} style={{ color: '#d97706', flexShrink: 0 }} />
                 <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 800 }}>
-                  Jadwal Turun ke {effectiveQuota.next_plan.name}
+                  Jadwal Turun Paket Aktif
                 </strong>
               </div>
-              <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                Akan berganti otomatis setelah sisa masa aktif saat ini berakhir.
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                Toko akan beralih ke <strong>{effectiveQuota.next_plan.name}</strong> setelah masa aktif saat ini berakhir.
               </p>
               <button
                 type="button"
                 disabled={internalLoading}
                 onClick={handleCancelDowngradeSchedule}
                 style={{
+                  alignSelf: 'flex-start',
                   marginTop: '0.25rem',
-                  padding: '0.45rem 0.85rem',
-                  borderRadius: '0.5rem',
-                  background: 'var(--bg-card)',
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '0.45rem',
+                  background: 'rgba(245, 158, 11, 0.2)',
                   border: '1px solid rgba(245, 158, 11, 0.5)',
-                  color: 'var(--text-primary)',
+                  color: '#d97706',
+                  fontSize: '0.72rem',
                   fontWeight: 800,
-                  fontSize: '0.76rem',
                   cursor: 'pointer',
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                  gap: '0.3rem'
                 }}
               >
-                <RotateCcw size={13} style={{ color: '#d97706' }} />
-                <span>{internalLoading ? 'Memproses...' : 'Batalkan Jadwal Downgrade'}</span>
+                <RotateCcw size={13} />
+                <span>Batalkan Penurunan Paket</span>
               </button>
             </div>
           )}
@@ -666,148 +638,184 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
             </div>
           )}
 
-          {/* VIEW 1: PLANS LIST */}
+          {/* VIEW 1: PLANS */}
           {modalView === 'plans' && (
             <>
-              {/* Billing Cycle Switcher */}
-              <div style={{ display: 'flex', justifyContent: 'center', margin: '0.25rem 0' }}>
-                <div style={{
-                  display: 'flex',
-                  background: 'var(--btn-secondary-bg)',
-                  padding: '3px',
-                  borderRadius: '0.65rem',
-                  border: '1px solid var(--btn-secondary-border)',
-                  width: '100%',
-                  maxWidth: '300px'
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => setBillingCycle('monthly')}
-                    style={{
-                      flex: 1,
-                      padding: '0.45rem',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      border: 'none',
-                      background: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
-                      color: billingCycle === 'monthly' ? 'var(--btn-primary-text, #ffffff)' : 'var(--btn-secondary-text)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    Bulanan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBillingCycle('annual')}
-                    style={{
-                      flex: 1,
-                      padding: '0.45rem',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      border: 'none',
-                      background: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
-                      color: billingCycle === 'annual' ? 'var(--btn-primary-text, #ffffff)' : 'var(--btn-secondary-text)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <span>Tahunan</span>
-                    <span style={{ fontSize: '0.62rem', background: '#10b981', color: '#fff', padding: '1px 5px', borderRadius: '3px', fontWeight: 900 }}>-20%</span>
-                  </button>
-                </div>
+              {/* Billing Cycle Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                padding: '0.3rem',
+                background: 'var(--card-bg-gradient, var(--bg-card))',
+                border: '1px solid var(--border-light)',
+                borderRadius: '0.75rem',
+                width: '100%'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle('monthly')}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    background: billingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
+                    color: billingCycle === 'monthly' ? '#ffffff' : 'var(--text-secondary)',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: billingCycle === 'monthly' ? '0 2px 8px var(--primary-glow)' : 'none'
+                  }}
+                >
+                  Bulanan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle('annual')}
+                  style={{
+                    flex: 1.2,
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    background: billingCycle === 'annual' ? 'var(--primary)' : 'transparent',
+                    color: billingCycle === 'annual' ? '#ffffff' : 'var(--text-secondary)',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: billingCycle === 'annual' ? '0 2px 8px var(--primary-glow)' : 'none'
+                  }}
+                >
+                  <span>Tahunan</span>
+                  <span style={{
+                    fontSize: '0.66rem',
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: '9999px',
+                    background: billingCycle === 'annual' ? 'rgba(255,255,255,0.25)' : 'rgba(16, 185, 129, 0.15)',
+                    color: billingCycle === 'annual' ? '#ffffff' : '#10b981',
+                    fontWeight: 800
+                  }}>
+                    Hemat 20%
+                  </span>
+                </button>
               </div>
 
-              {/* Plans List */}
+              {/* Plan Cards List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {plans.map(plan => {
-                  const isCurrent = plan.code === currentPlanCode;
+                {plans.map((plan) => {
+                  const isCurrent = currentPlanCode === plan.code;
                   const isProBusiness = plan.code === 'pro_business';
-                  const price = billingCycle === 'annual' ? (plan.price_annual / 12) : plan.price_monthly;
+                  const isProStarter = plan.code === 'pro_starter';
+                  const price = billingCycle === 'annual' ? plan.price_annual : plan.price_monthly;
+                  const monthlyEquivalent = billingCycle === 'annual' ? Math.round(plan.price_annual / 12) : plan.price_monthly;
 
                   return (
                     <div
                       key={plan.code}
+                      className="glass-panel"
                       style={{
-                        borderRadius: '0.85rem',
-                        padding: '1.15rem 1.25rem',
-                        background: isCurrent ? 'var(--primary-glow, rgba(16, 185, 129, 0.08))' : 'var(--card-bg, var(--bg-card, rgba(255, 255, 255, 0.02)))',
-                        border: isCurrent ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                        boxShadow: isCurrent ? '0 4px 18px var(--primary-glow)' : '0 2px 8px rgba(0,0,0,0.04)',
+                        padding: '1.1rem',
+                        borderRadius: '0.95rem',
+                        border: isCurrent ? '2px solid var(--primary)' : isProBusiness ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-light)',
+                        background: isProBusiness ? 'linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, var(--card-bg-gradient, var(--bg-card)) 100%)' : 'var(--card-bg-gradient, var(--bg-card))',
+                        position: 'relative',
+                        boxShadow: isCurrent ? '0 4px 16px var(--primary-glow)' : '0 2px 8px rgba(0,0,0,0.04)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '0.5rem'
+                        gap: '0.75rem'
                       }}
                     >
+                      {/* Top Badges */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>{plan.name}</h4>
-                          {plan.has_verified_badge && (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', background: '#3b82f6', color: '#fff' }}>
-                              ✓ Pro
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.5rem',
+                            background: isProBusiness ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : isProStarter ? 'var(--primary)' : 'var(--bg-deep)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: isProBusiness || isProStarter ? '#ffffff' : 'var(--text-secondary)'
+                          }}>
+                            {isProBusiness ? <Crown size={18} /> : isProStarter ? <Sparkles size={18} /> : <Package size={18} />}
+                          </div>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              {plan.name}
+                            </h4>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                              {plan.badge_label || (plan.code === 'free' ? 'Pemula' : 'Bisnis')}
                             </span>
-                          )}
+                          </div>
                         </div>
+
                         {isCurrent && (
-                          <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', background: 'var(--primary)', color: 'var(--btn-primary-text, #ffffff)' }}>
+                          <span style={{
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '9999px',
+                            background: 'var(--primary-glow)',
+                            color: 'var(--primary)',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            border: '1px solid var(--primary)'
+                          }}>
                             Aktif
                           </span>
                         )}
                       </div>
 
-                      <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                        {plan.description}
-                      </p>
-
-                      <div style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.2rem 0' }}>
-                        {formatRupiah(price)}
-                        {plan.price_monthly > 0 && <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>/bulan</span>}
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.78rem', margin: '0.4rem 0 0.85rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                          <Package size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>{plan.max_items === -1 ? 'Unlimited' : `${plan.max_items}`} Item Katalog</span>
+                      {/* Price Section */}
+                      <div style={{ padding: '0.4rem 0', borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+                          <span style={{ fontSize: '1.3rem', fontWeight: 900, color: isProBusiness ? '#d97706' : 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                            {formatRupiah(price)}
+                          </span>
+                          {price > 0 && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              /{billingCycle === 'annual' ? 'tahun' : 'bulan'}
+                            </span>
+                          )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                          <HardDrive size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>{formatBytes(plan.storage_limit_bytes)} Cloud Storage</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                          <ImageIcon size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>Maksimum {plan.max_images_per_item} Foto / Item</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                          <Film size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>Video Embed (YouTube, Shorts, TikTok, Reels)</span>
-                        </div>
-                        {plan.has_verified_badge && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                            <ShieldCheck size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                            <span>Lencana Toko Terverifikasi (Verified)</span>
-                          </div>
-                        )}
-                        {plan.has_custom_domain && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                            <Globe size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span>Custom Domain Sendiri (toko.com)</span>
-                          </div>
-                        )}
-                        {plan.has_priority_support && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--text-primary)' }}>
-                            <LifeBuoy size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span>Layanan Bantuan VIP Support Khusus</span>
-                          </div>
+                        {billingCycle === 'annual' && price > 0 && (
+                          <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, display: 'block', marginTop: '0.1rem' }}>
+                            Setara {formatRupiah(monthlyEquivalent)}/bulan (hemat 20%)
+                          </span>
                         )}
                       </div>
 
-                      {/* Action Buttons */}
+                      {/* Quota Highlights */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.74rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
+                          <Package size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span>Kapasitas: <strong>{plan.max_items === -1 ? 'Item Tak Terbatas' : `${plan.max_items} Item Produk`}</strong></span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
+                          <HardDrive size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span>Penyimpanan Media: <strong>{formatBytes(plan.storage_limit_bytes)}</strong></span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
+                          <ImageIcon size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span>Foto per Item: <strong>{plan.max_images_per_item === -1 ? 'Tak Terbatas' : `Hingga ${plan.max_images_per_item} Foto`}</strong></span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: plan.has_custom_domain ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                          <Globe size={13} style={{ color: plan.has_custom_domain ? '#10b981' : 'var(--text-muted)', flexShrink: 0 }} />
+                          <span>Domain Kustom Sendiri (.com/.id): <strong>{plan.has_custom_domain ? 'Didukung' : 'Tidak Tersedia'}</strong></span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: plan.has_verified_badge ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                          <ShieldCheck size={13} style={{ color: plan.has_verified_badge ? '#3b82f6' : 'var(--text-muted)', flexShrink: 0 }} />
+                          <span>Badge Toko Terverifikasi: <strong>{plan.has_verified_badge ? 'Ya (Centang Biru)' : 'Tidak'}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Action CTA Button */}
                       {isCurrent ? (
                         plan.code !== 'free' ? (
                           <button
@@ -821,10 +829,15 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                               borderRadius: '0.55rem',
                               fontWeight: 800,
                               fontSize: '0.82rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
                               cursor: 'pointer'
                             }}
                           >
-                            Perpanjang Paket Ini
+                            <RotateCcw size={14} />
+                            <span>Perpanjang Masa Aktif</span>
                           </button>
                         ) : (
                           <div style={{
@@ -858,7 +871,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                             justifyContent: 'center',
                             gap: '0.35rem',
                             cursor: 'pointer',
-                            background: isProBusiness ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : undefined
+                            background: isProBusiness ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : undefined,
+                            boxShadow: isProBusiness ? '0 4px 14px rgba(245, 158, 11, 0.35)' : undefined
                           }}
                         >
                           <Sparkles size={14} />
@@ -891,91 +905,143 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
 
           {/* VIEW 2: CHECKOUT */}
           {modalView === 'checkout' && selectedTargetPlan && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Plan Summary Card */}
-              <div style={{
-                padding: '1rem',
-                borderRadius: '0.75rem',
-                background: 'var(--btn-secondary-bg)',
-                border: '1px solid var(--btn-secondary-border)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem'
-              }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              
+              {/* 1. Selected Plan Banner Card */}
+              <div 
+                className="glass-panel" 
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: '0.85rem',
+                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                  border: '1px solid var(--border-light)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.85rem'
+                }}
+              >
                 <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '0.5rem',
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '0.75rem',
                   background: selectedTargetPlan.code === 'pro_business' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
+                  color: '#ffffff',
+                  boxShadow: selectedTargetPlan.code === 'pro_business' ? '0 4px 12px rgba(245, 158, 11, 0.35)' : '0 4px 12px var(--primary-glow)',
                   flexShrink: 0
                 }}>
-                  <Crown size={20} />
+                  <Crown size={22} />
                 </div>
+                
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{selectedTargetPlan.name}</strong>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                    <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      {selectedTargetPlan.name}
+                    </h3>
+                    <span style={{ 
+                      fontSize: '0.68rem', 
+                      fontWeight: 800, 
+                      color: selectedTargetPlan.code === 'pro_business' ? '#d97706' : 'var(--primary)',
+                      background: selectedTargetPlan.code === 'pro_business' ? 'rgba(245, 158, 11, 0.12)' : 'var(--primary-glow)',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '9999px',
+                      border: '1px solid var(--border-light)'
+                    }}>
                       {checkoutType === 'renewal' ? 'PERPANJANGAN' : 'UPGRADE'}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                    Durasi: {billingCycle === 'annual' ? '12 Bulan (Tahunan -20%)' : '1 Bulan'}
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    Durasi: {billingCycle === 'annual' ? '12 Bulan (Tahunan Diskon 20%)' : '1 Bulan (Bulanan)'}
                   </span>
                 </div>
               </div>
 
-              {/* Price Breakdown */}
+              {/* 2. Price Breakdown & Order Summary */}
               {(() => {
                 const { originalPrice, discountAmount, finalPrice } = calculateFinalCheckoutPrice();
 
                 return (
-                  <div style={{
-                    padding: '1rem',
-                    borderRadius: '0.75rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid var(--border-light)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.55rem',
-                    fontSize: '0.78rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                  <div 
+                    className="glass-panel" 
+                    style={{
+                      padding: '1.1rem',
+                      borderRadius: '0.85rem',
+                      background: 'var(--card-bg-gradient, var(--bg-card))',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.65rem',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>
+                      <Receipt size={14} style={{ color: 'var(--primary)' }} />
+                      <span>Rincian Biaya Tagihan</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       <span>Harga Paket:</span>
                       <strong style={{ color: 'var(--text-primary)' }}>Rp {originalPrice.toLocaleString('id-ID')}</strong>
                     </div>
 
                     {discountAmount > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.5rem', borderRadius: '0.4rem' }}>
-                        <span>Diskon ({appliedCoupon?.code}):</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.4rem 0.6rem', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <CheckCircle2 size={13} />
+                          <span>Kupon ({appliedCoupon?.code}):</span>
+                        </span>
                         <strong>- Rp {discountAmount.toLocaleString('id-ID')}</strong>
                       </div>
                     )}
 
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      <span>Biaya Layanan &amp; Verifikasi:</span>
+                      <span style={{ color: '#10b981', fontWeight: 700 }}>Gratis</span>
+                    </div>
+
                     <div style={{
                       borderTop: '1px dashed var(--border-light)',
-                      paddingTop: '0.65rem',
+                      paddingTop: '0.75rem',
+                      marginTop: '0.2rem',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'baseline'
                     }}>
-                      <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>Total Bayar:</span>
-                      <div style={{ fontSize: '1.35rem', fontWeight: 900, color: finalPrice === 0 ? '#10b981' : 'var(--primary)' }}>
+                      <div>
+                        <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>Total Pembayaran:</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Termasuk aktivasi instan</span>
+                      </div>
+                      <div style={{ fontSize: '1.45rem', fontWeight: 900, color: finalPrice === 0 ? '#10b981' : 'var(--primary)', letterSpacing: '-0.02em' }}>
                         Rp {finalPrice.toLocaleString('id-ID')}
-                        {finalPrice === 0 && <span style={{ fontSize: '0.68rem', color: '#10b981', marginLeft: '0.3rem' }}>(GRATIS)</span>}
+                        {finalPrice === 0 && <span style={{ fontSize: '0.72rem', color: '#10b981', marginLeft: '0.35rem' }}>(100% GRATIS)</span>}
                       </div>
                     </div>
                   </div>
                 );
               })()}
 
-              {/* Coupon Input */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)' }}>Kode Kupon:</label>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+              {/* 3. Kupon Diskon Voucher */}
+              <div 
+                className="glass-panel" 
+                style={{
+                  padding: '1rem 1.1rem',
+                  borderRadius: '0.85rem',
+                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                }}
+              >
+                <label style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Sparkles size={14} style={{ color: 'var(--primary)' }} />
+                  <span>Punya Kode Kupon Promo?</span>
+                </label>
+                <div style={{ display: 'flex', gap: '0.45rem' }}>
                   <input
                     type="text"
                     placeholder="Contoh: CATAVOR100, DISKON10K"
@@ -986,40 +1052,50 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                     }}
                     style={{
                       flex: 1,
-                      padding: '0.5rem 0.65rem',
-                      fontSize: '0.78rem',
-                      borderRadius: '0.5rem',
+                      padding: '0.55rem 0.75rem',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      borderRadius: '0.6rem',
                       background: 'var(--bg-deep)',
                       border: '1px solid var(--border-light)',
                       color: 'var(--text-primary)',
-                      textTransform: 'uppercase'
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
                     }}
                   />
                   <button
                     type="button"
                     onClick={handleApplyCoupon}
+                    className="btn-primary"
                     style={{
-                      padding: '0.5rem 0.75rem',
-                      borderRadius: '0.5rem',
-                      background: 'var(--primary-glow)',
-                      border: '1px solid var(--primary)',
-                      color: 'var(--primary)',
-                      fontSize: '0.76rem',
+                      padding: '0.55rem 0.9rem',
+                      borderRadius: '0.6rem',
+                      fontSize: '0.78rem',
                       fontWeight: 800,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     Terapkan
                   </button>
                 </div>
                 {couponMsg && (
-                  <span style={{ fontSize: '0.72rem', color: couponMsg.type === 'success' ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                    {couponMsg.text}
-                  </span>
+                  <div style={{ 
+                    fontSize: '0.74rem', 
+                    color: couponMsg.type === 'success' ? '#10b981' : '#ef4444', 
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    marginTop: '0.15rem'
+                  }}>
+                    {couponMsg.type === 'success' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                    <span>{couponMsg.text}</span>
+                  </div>
                 )}
               </div>
 
-              {/* Payment Instructions / Proof */}
+              {/* 4. Payment Method & Instructions */}
               {(() => {
                 const { finalPrice } = calculateFinalCheckoutPrice();
 
@@ -1032,12 +1108,13 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                       className="btn-primary"
                       style={{
                         width: '100%',
-                        padding: '0.75rem',
+                        padding: '0.85rem',
                         fontWeight: 800,
-                        fontSize: '0.86rem',
-                        borderRadius: '0.55rem',
+                        fontSize: '0.9rem',
+                        borderRadius: '0.75rem',
                         marginTop: '0.35rem',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 16px var(--primary-glow)'
                       }}
                     >
                       {internalLoading ? 'Mengaktifkan...' : '⚡ Aktifkan Paket Gratis Sekarang'}
@@ -1046,28 +1123,45 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                 }
 
                 return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {/* Method Switcher */}
+                  <div 
+                    className="glass-panel" 
+                    style={{
+                      padding: '1.1rem',
+                      borderRadius: '0.85rem',
+                      background: 'var(--card-bg-gradient, var(--bg-card))',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                    }}
+                  >
+                    <label style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
+                      Pilih Metode Pembayaran
+                    </label>
+
+                    {/* Method Switcher Tabs */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('bank')}
                         style={{
-                          padding: '0.55rem',
-                          borderRadius: '0.5rem',
-                          border: paymentMethod === 'bank' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                          background: paymentMethod === 'bank' ? 'var(--primary-glow)' : 'transparent',
-                          color: paymentMethod === 'bank' ? 'var(--text-primary)' : 'var(--text-muted)',
-                          fontSize: '0.76rem',
+                          padding: '0.65rem 0.5rem',
+                          borderRadius: '0.65rem',
+                          border: paymentMethod === 'bank' ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                          background: paymentMethod === 'bank' ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          color: paymentMethod === 'bank' ? 'var(--primary)' : 'var(--text-secondary)',
+                          fontSize: '0.78rem',
                           fontWeight: 800,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem',
-                          cursor: 'pointer'
+                          gap: '0.45rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
                         }}
                       >
-                        <CreditCard size={14} />
+                        <CreditCard size={15} />
                         <span>Transfer Bank</span>
                       </button>
 
@@ -1075,36 +1169,55 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         type="button"
                         onClick={() => setPaymentMethod('qris')}
                         style={{
-                          padding: '0.55rem',
-                          borderRadius: '0.5rem',
-                          border: paymentMethod === 'qris' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                          background: paymentMethod === 'qris' ? 'var(--primary-glow)' : 'transparent',
-                          color: paymentMethod === 'qris' ? 'var(--text-primary)' : 'var(--text-muted)',
-                          fontSize: '0.76rem',
+                          padding: '0.65rem 0.5rem',
+                          borderRadius: '0.65rem',
+                          border: paymentMethod === 'qris' ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                          background: paymentMethod === 'qris' ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          color: paymentMethod === 'qris' ? 'var(--primary)' : 'var(--text-secondary)',
+                          fontSize: '0.78rem',
                           fontWeight: 800,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem',
-                          cursor: 'pointer'
+                          gap: '0.45rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
                         }}
                       >
-                        <QrCode size={14} />
+                        <QrCode size={15} />
                         <span>Scan QRIS</span>
                       </button>
                     </div>
 
-                    {/* Bank Info */}
+                    {/* Bank Transfer Info Box */}
                     {paymentMethod === 'bank' && (
-                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', background: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.76rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Bank:</span>
-                          <strong style={{ color: 'var(--primary)' }}>{bankName}</strong>
+                      <div style={{ 
+                        padding: '1rem', 
+                        borderRadius: '0.75rem', 
+                        background: 'var(--bg-deep)', 
+                        border: '1px solid var(--border-light)', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '0.75rem', 
+                        fontSize: '0.78rem' 
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Tujuan Bank:</span>
+                          <strong style={{ color: 'var(--primary)', fontWeight: 800, fontSize: '0.84rem' }}>{bankName}</strong>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '0.5rem 0.65rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)' }}>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          background: 'var(--bg-card)', 
+                          padding: '0.65rem 0.85rem', 
+                          borderRadius: '0.6rem', 
+                          border: '1px solid var(--border-light)' 
+                        }}>
                           <div>
-                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>No. Rekening:</div>
-                            <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{bankAccount}</strong>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nomor Rekening:</div>
+                            <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{bankAccount}</strong>
                           </div>
                           <button
                             type="button"
@@ -1114,66 +1227,94 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                               setTimeout(() => setCopiedAccountToast(false), 2000);
                             }}
                             style={{
-                              padding: '0.3rem 0.6rem',
-                              borderRadius: '0.35rem',
-                              background: copiedAccountToast ? '#10b981' : 'var(--primary-glow)',
-                              color: copiedAccountToast ? '#000' : 'var(--primary)',
-                              border: '1px solid var(--primary)',
-                              fontSize: '0.68rem',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.5rem',
+                              background: copiedAccountToast ? '#10b981' : 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '0.72rem',
                               fontWeight: 800,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              transition: 'all 0.2s ease'
                             }}
                           >
-                            {copiedAccountToast ? 'Tersalin!' : 'Salin'}
+                            {copiedAccountToast ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
+                            <span>{copiedAccountToast ? 'Tersalin!' : 'Salin'}</span>
                           </button>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Atas Nama:</span>
-                          <strong style={{ color: 'var(--text-primary)' }}>{bankHolder}</strong>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Atas Nama Rekening:</span>
+                          <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{bankHolder}</strong>
                         </div>
                       </div>
                     )}
 
-                    {/* QRIS Info */}
+                    {/* QRIS Info Box */}
                     {paymentMethod === 'qris' && (
-                      <div style={{ padding: '0.85rem', borderRadius: '0.65rem', background: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', textAlign: 'center' }}>
-                        <div style={{ width: '130px', height: '130px', borderRadius: '8px', background: '#fff', padding: '6px', border: '2px solid var(--primary)' }}>
+                      <div style={{ 
+                        padding: '1.25rem 1rem', 
+                        borderRadius: '0.75rem', 
+                        background: 'var(--bg-deep)', 
+                        border: '1px solid var(--border-light)', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        gap: '0.75rem', 
+                        textAlign: 'center' 
+                      }}>
+                        <div style={{ width: '150px', height: '150px', borderRadius: '12px', background: '#ffffff', padding: '8px', border: '2px solid var(--primary)', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
                           <img src={qrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                         </div>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Scan dengan GoPay, OVO, BCA, Dana, atau ShopeePay</span>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                          Mendukung <strong>GoPay, OVO, BCA Mobile, Dana, LinkAja, &amp; ShopeePay</strong>
+                        </span>
                       </div>
                     )}
 
-                    {/* Proof Upload */}
+                    {/* Proof Upload Dropzone */}
                     <div>
-                      <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.35rem' }}>
-                        Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
+                      <label style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem' }}>
+                        Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
                       </label>
                       <label style={{
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.5rem',
-                        padding: '0.75rem',
-                        borderRadius: '0.55rem',
+                        gap: '0.45rem',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
                         border: '2px dashed var(--border-light)',
                         background: 'var(--bg-deep)',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
                       }}>
                         <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
                         {proofPreview ? (
-                          <span style={{ fontSize: '0.76rem', color: '#10b981', fontWeight: 700 }}>✓ Gambar Bukti Dipilih</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <img src={proofPreview} alt="Bukti" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-light)' }} />
+                            <div style={{ textAlign: 'left' }}>
+                              <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 800, display: 'block' }}>✓ Foto Bukti Dipilih</span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--primary)', textDecoration: 'underline' }}>Klik untuk mengganti foto</span>
+                            </div>
+                          </div>
                         ) : (
                           <>
-                            <Upload size={16} style={{ color: 'var(--primary)' }} />
-                            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {isUploadingProof ? 'Mengunggah...' : 'Pilih Foto Struk / Bukti'}
+                            <Upload size={22} style={{ color: 'var(--primary)' }} />
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {isUploadingProof ? 'Mengunggah...' : 'Klik untuk Unggah Struk / Screenshot'}
                             </span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Format JPG, PNG, WebP (Maks. 5MB)</span>
                           </>
                         )}
                       </label>
                     </div>
 
+                    {/* Submit Button */}
                     <button
                       type="button"
                       disabled={internalLoading || isUploadingProof}
@@ -1181,19 +1322,21 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                       className="btn-primary"
                       style={{
                         width: '100%',
-                        padding: '0.75rem',
+                        padding: '0.85rem',
                         fontWeight: 800,
-                        fontSize: '0.86rem',
-                        borderRadius: '0.55rem',
+                        fontSize: '0.88rem',
+                        borderRadius: '0.75rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.35rem'
+                        gap: '0.45rem',
+                        marginTop: '0.25rem',
+                        boxShadow: '0 4px 16px var(--primary-glow)'
                       }}
                     >
-                      <Sparkles size={15} />
-                      <span>{internalLoading ? 'Memproses...' : 'Bayar & Aktifkan Paket'}</span>
+                      <Sparkles size={16} />
+                      <span>{internalLoading ? 'Memproses Transaksi...' : `Konfirmasi Pembayaran (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
                     </button>
                   </div>
                 );
@@ -1203,10 +1346,23 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
 
           {/* VIEW 3: DOWNGRADE CONFIRMATION */}
           {modalView === 'downgrade_confirm' && selectedTargetPlan && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'center', padding: '0.5rem 0' }}>
+            <div 
+              className="glass-panel"
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '1.25rem', 
+                textAlign: 'center', 
+                padding: '1.5rem 1.25rem',
+                borderRadius: '0.85rem',
+                background: 'var(--card-bg-gradient, var(--bg-card))',
+                border: '1px solid var(--border-light)',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+              }}
+            >
               <div style={{
-                width: '48px',
-                height: '48px',
+                width: '56px',
+                height: '56px',
                 borderRadius: '50%',
                 background: 'rgba(245, 158, 11, 0.15)',
                 border: '2px solid #f59e0b',
@@ -1214,51 +1370,53 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto',
-                color: '#f59e0b'
+                color: '#f59e0b',
+                boxShadow: '0 0 20px rgba(245, 158, 11, 0.25)'
               }}>
-                <AlertTriangle size={24} />
+                <AlertTriangle size={28} />
               </div>
 
               <div>
-                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem' }}>
                   Jadwalkan Turun ke {selectedTargetPlan.name}?
-                </h4>
-                <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                  Paket aktif tidak langsung diputus. Masa aktif saat ini ({effectiveQuota?.days_remaining || 0} hari) tetap berjalan penuh sampai habis.
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Paket aktif Anda tidak langsung diputus. Masa aktif saat ini (<strong>{effectiveQuota?.days_remaining || 0} hari</strong>) tetap berjalan penuh sampai tanggal kedaluwarsa.
                 </p>
               </div>
 
+              {/* Guarantees Checklist Card */}
               <div style={{
-                background: 'rgba(255,255,255,0.02)',
+                background: 'var(--bg-deep)',
                 border: '1px solid var(--border-light)',
-                borderRadius: '0.65rem',
-                padding: '0.85rem',
+                borderRadius: '0.75rem',
+                padding: '1rem',
                 textAlign: 'left',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.5rem',
-                fontSize: '0.74rem'
+                gap: '0.65rem',
+                fontSize: '0.78rem'
               }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                  <Check size={14} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                  <span>Sisa hari ({effectiveQuota?.days_remaining || 0} hari) tidak hangus.</span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
+                  <Check size={16} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ color: 'var(--text-primary)' }}>Sisa hari aktif (<strong>{effectiveQuota?.days_remaining || 0} hari</strong>) tidak akan hangus.</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                  <Check size={14} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                  <span>Produk melebihi kuota tetap tersimpan aman (diarsipkan tanpa hapus data).</span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
+                  <Check size={16} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ color: 'var(--text-primary)' }}>Seluruh katalog produk &amp; data Anda tetap tersimpan aman (diarsipkan tanpa hapus data).</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                  <Check size={14} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                  <span>Dapat dibatalkan sewaktu-waktu.</span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
+                  <Check size={16} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ color: 'var(--text-primary)' }}>Penjadwalan penurunan ini dapat Anda batalkan sewaktu-waktu.</span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '0.65rem', marginTop: '0.25rem' }}>
                 <button
                   type="button"
                   onClick={() => setModalView('plans')}
                   className="btn-secondary"
-                  style={{ flex: 1, padding: '0.65rem', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 700 }}
+                  style={{ padding: '0.75rem', borderRadius: '0.65rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Batal
                 </button>
@@ -1267,7 +1425,15 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                   disabled={internalLoading}
                   onClick={handleConfirmDowngrade}
                   className="btn-primary"
-                  style={{ flex: 1.2, padding: '0.65rem', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 800, background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+                  style={{ 
+                    padding: '0.75rem', 
+                    borderRadius: '0.65rem', 
+                    fontSize: '0.82rem', 
+                    fontWeight: 800, 
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)',
+                    cursor: 'pointer'
+                  }}
                 >
                   {internalLoading ? 'Menjadwalkan...' : 'Konfirmasi Jadwal'}
                 </button>
