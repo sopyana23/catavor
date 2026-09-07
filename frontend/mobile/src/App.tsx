@@ -5068,11 +5068,14 @@ function App() {
   const [adminActiveFilter, setAdminActiveFilter] = useState<'all' | 'active' | 'archived'>('all')
   const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
   const [adminItemsPerPage, setAdminItemsPerPage] = useState<number>(10)
+  const [showAdminFilterSheet, setShowAdminFilterSheet] = useState<boolean>(false)
+  const [adminCategorySearch, setAdminCategorySearch] = useState<string>('')
 
   // Subscription & Dynamic Quota State (Mobile)
   const [storeQuota, setStoreQuota] = useState<StoreQuotaData | null>(null)
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlanData[]>([])
   const [showSubscriptionModal, setShowSubscriptionModal] = useState<boolean>(false)
+  const [mobileSubPageView, setMobileSubPageView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>('plans')
 
   // Available categories for admin inventory scoped to active product type
   const availableAdminCategories = useMemo(() => {
@@ -13549,6 +13552,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               window.history.pushState({}, '', `/${slug}/admin`);
                             }
                           }
+                        } else if (adminSubTab === 'subscription') {
+                          if (mobileSubPageView !== 'plans') {
+                            setMobileSubPageView('plans');
+                          } else {
+                            setAdminSubTab('menu');
+                            if (slug) {
+                              window.history.pushState({}, '', `/${slug}/admin`);
+                            }
+                          }
                         } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
                           setMobileSettingsTab('menu');
                           if (slug) {
@@ -13593,7 +13605,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         {adminSubTab === 'profile' && 'Profil Admin'}
                         {adminSubTab === 'policies' && 'Legal & Kebijakan'}
                         {adminSubTab === 'notifications' && 'Notifikasi & Aktivitas'}
-                        {adminSubTab === 'subscription' && 'Paket & Langganan'}
+                        {adminSubTab === 'subscription' && (
+                          mobileSubPageView === 'checkout' ? 'Checkout Langganan' :
+                          mobileSubPageView === 'downgrade_confirm' ? 'Konfirmasi Downgrade' :
+                          mobileSubPageView === 'orders' ? 'Riwayat Tagihan & Faktur' : 'Paket & Langganan'
+                        )}
                         {adminSubTab === 'help' && (
                           isCreatingTicket ? 'Buat Tiket Support Baru' :
                           selectedTicket ? 'Detail Tiket' : 'Pusat Bantuan & Support'
@@ -15251,19 +15267,35 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                     {/* Row 2: Status & Metric Metadata Bar */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
-                      <span style={{ 
-                        fontSize: '0.62rem', 
-                        fontWeight: 900, 
-                        padding: '0.15rem 0.55rem', 
-                        borderRadius: '20px', 
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                        backgroundColor: settings.plan === 'free' ? 'rgba(245, 158, 11, 0.15)' : 'var(--primary-glow)',
-                        color: settings.plan === 'free' ? '#f59e0b' : 'var(--primary)',
-                        border: settings.plan === 'free' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-light)'
-                      }}>
-                        {settings.plan === 'free' ? 'PLAN FREE' : 'PLAN PRO'}
-                      </span>
+                      {(() => {
+                        const planCode = storeQuota?.plan?.code || settings.plan || 'free';
+                        const planName = storeQuota?.plan?.name || (
+                          planCode === 'pro_business' ? 'Pro Bisnis' :
+                          planCode === 'pro_starter' ? 'Pro Starter' :
+                          planCode === 'pro' ? 'Pro' : 'Gratis'
+                        );
+                        const isPro = planCode === 'pro_business' || planCode === 'pro_starter' || planCode === 'pro';
+
+                        return (
+                          <span style={{ 
+                            fontSize: '0.62rem', 
+                            fontWeight: 900, 
+                            padding: '0.18rem 0.6rem', 
+                            borderRadius: '20px', 
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            backgroundColor: isPro ? 'var(--primary-glow)' : 'var(--bg-deep, rgba(255, 255, 255, 0.06))',
+                            color: isPro ? 'var(--primary)' : 'var(--text-secondary)',
+                            border: isPro ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            transition: 'all 0.2s ease'
+                          }}>
+                            {`PLAN ${planName}`}
+                          </span>
+                        );
+                      })()}
 
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                         {faunas.length} Data Terdaftar
@@ -15513,21 +15545,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <Crown size={22} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Paket &amp; Langganan</h3>
-                          <span style={{ 
-                            fontSize: '0.62rem', 
-                            fontWeight: 900, 
-                            padding: '0.12rem 0.5rem', 
-                            borderRadius: '999px', 
-                            backgroundColor: settings.plan === 'free' ? 'rgba(245, 158, 11, 0.15)' : 'var(--primary-glow)', 
-                            color: settings.plan === 'free' ? '#f59e0b' : 'var(--primary)', 
-                            border: settings.plan === 'free' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-light)',
-                            textTransform: 'uppercase'
-                          }}>
-                            {storeQuota?.plan?.name || (settings.plan === 'free' ? 'Gratis Terbatas' : 'Pro')}
-                          </span>
-                        </div>
+                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Paket &amp; Langganan</h3>
                         <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
                           Kapasitas Item, Cloud Storage &amp; Tagihan
                         </span>
@@ -15763,74 +15781,66 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     }}
                   />
 
-                  {/* 1. TOP SEARCH BAR & FILTERS (Hanya tampil jika sudah ada data item inventaris) */}
+                  {/* 1. TOP SEARCH BAR & FILTERS (Menggunakan konsep yang sama dengan Public Catalog) */}
                   {faunas.length > 0 && (
                     <>
-                      <div style={{ position: 'relative', width: '100%' }}>
-                        <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        <input 
-                          type="text"
-                          className="form-input"
-                          placeholder="Cari nama item, kategori, atau deskripsi..."
-                          value={adminSearch}
-                          onChange={(e) => {
-                            setAdminSearch(e.target.value);
-                            setItemsPage(1);
-                          }}
-                          style={{
-                            paddingLeft: '2.35rem',
-                            paddingRight: adminSearch ? '2.2rem' : '0.85rem',
-                            height: '40px',
-                            fontSize: '0.82rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'var(--card-bg-gradient)',
-                            border: '1px solid var(--border-light)',
-                            color: 'var(--text-primary)'
-                          }}
-                        />
-                        {adminSearch && (
-                          <button
-                            type="button"
-                            onClick={() => { setAdminSearch(''); setItemsPage(1); }}
-                            style={{
-                              position: 'absolute',
-                              right: '0.65rem',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              background: 'var(--border-light)',
-                              border: 'none',
-                              color: 'var(--text-secondary)',
-                              borderRadius: '50%',
-                              width: '20px',
-                              height: '20px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              fontSize: '0.7rem'
+                      {/* Row 1: Search Input + Unified Advanced Filter Trigger Button */}
+                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', width: '100%' }}>
+                        <div className="search-wrapper" style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                          <Search className="search-icon" />
+                          <input 
+                            type="text" 
+                            className="search-input" 
+                            placeholder="Cari nama item, kategori, atau deskripsi..."
+                            value={adminSearch}
+                            onChange={(e) => {
+                              setAdminSearch(e.target.value);
+                              setItemsPage(1);
                             }}
-                          >
-                            ✕
-                          </button>
-                        )}
+                          />
+                          {adminSearch && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdminSearch(''); setItemsPage(1); }}
+                              className="search-clear-btn"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Unified Industry-Standard Filter Lanjutan & Urutkan Trigger Button */}
+                        <button
+                          type="button"
+                          className={`advanced-filter-trigger-btn ${(adminClassFilter !== 'all' || adminSortBy !== 'newest' || adminActiveFilter !== 'all' || adminProductTypeFilter !== 'all') ? 'active' : ''}`}
+                          onClick={() => setShowAdminFilterSheet(true)}
+                          title="Filter Kategori & Urutan Inventaris"
+                        >
+                          <SlidersHorizontal size={14} />
+                          <span>Filter</span>
+                          {(adminClassFilter !== 'all' || adminSortBy !== 'newest' || adminActiveFilter !== 'all' || adminProductTypeFilter !== 'all') && (
+                            <span className="filter-badge-dot" />
+                          )}
+                        </button>
                       </div>
 
-                      {/* Active vs Archived Filter Bar */}
-                      <div style={{ display: 'flex', gap: '0.25rem', padding: '0.15rem', backgroundColor: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                      {/* Row 2: Status & Type Quick Filter Pills (Horizontal Scrollable) */}
+                      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem', marginTop: '0.15rem', marginBottom: '0.15rem', WebkitOverflowScrolling: 'touch' }}>
                         <button
                           type="button"
                           onClick={() => { setAdminActiveFilter('all'); setItemsPage(1); }}
                           style={{
-                            flex: 1,
-                            padding: '0.25rem 0.4rem',
-                            borderRadius: '6px',
+                            padding: '0.32rem 0.75rem',
+                            borderRadius: '20px',
                             fontSize: '0.72rem',
                             fontWeight: 700,
-                            border: 'none',
-                            backgroundColor: adminActiveFilter === 'all' ? 'var(--primary)' : 'transparent',
-                            color: adminActiveFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                            border: adminActiveFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                             cursor: 'pointer',
-                            textAlign: 'center'
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminActiveFilter === 'all' ? 'var(--primary)' : 'var(--bg-deep)',
+                            color: adminActiveFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: adminActiveFilter === 'all' ? '0 2px 8px var(--primary-glow)' : 'none',
+                            transition: 'all 0.2s ease'
                           }}
                         >
                           Semua ({faunas.length})
@@ -15839,16 +15849,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           type="button"
                           onClick={() => { setAdminActiveFilter('active'); setItemsPage(1); }}
                           style={{
-                            flex: 1,
-                            padding: '0.25rem 0.4rem',
-                            borderRadius: '6px',
+                            padding: '0.32rem 0.75rem',
+                            borderRadius: '20px',
                             fontSize: '0.72rem',
                             fontWeight: 700,
-                            border: 'none',
-                            backgroundColor: adminActiveFilter === 'active' ? '#10b981' : 'transparent',
-                            color: adminActiveFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                            border: adminActiveFilter === 'active' ? '1px solid #10b981' : '1px solid var(--border-light)',
                             cursor: 'pointer',
-                            textAlign: 'center'
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminActiveFilter === 'active' ? '#10b981' : 'var(--bg-deep)',
+                            color: adminActiveFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: adminActiveFilter === 'active' ? '0 2px 8px rgba(16, 185, 129, 0.25)' : 'none',
+                            transition: 'all 0.2s ease'
                           }}
                         >
                           ✓ Aktif ({faunas.filter(f => (f as any).is_active !== false).length})
@@ -15857,184 +15868,76 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           type="button"
                           onClick={() => { setAdminActiveFilter('archived'); setItemsPage(1); }}
                           style={{
-                            flex: 1,
-                            padding: '0.25rem 0.4rem',
-                            borderRadius: '6px',
+                            padding: '0.32rem 0.75rem',
+                            borderRadius: '20px',
                             fontSize: '0.72rem',
                             fontWeight: 700,
-                            border: 'none',
-                            backgroundColor: adminActiveFilter === 'archived' ? '#ef4444' : 'transparent',
-                            color: adminActiveFilter === 'archived' ? '#ffffff' : 'var(--text-secondary)',
+                            border: adminActiveFilter === 'archived' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
                             cursor: 'pointer',
-                            textAlign: 'center'
+                            whiteSpace: 'nowrap',
+                            backgroundColor: adminActiveFilter === 'archived' ? '#f59e0b' : 'var(--bg-deep)',
+                            color: adminActiveFilter === 'archived' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: adminActiveFilter === 'archived' ? '0 2px 8px rgba(245, 158, 11, 0.25)' : 'none',
+                            transition: 'all 0.2s ease'
                           }}
                         >
                           🔒 Arsip ({faunas.filter(f => (f as any).is_active === false).length})
                         </button>
+
+                        {/* Hybrid Store Multi-Type Quick Pills */}
+                        {isHybridStore && availableProductTypes.map(t => {
+                          const isSelected = adminProductTypeFilter === t;
+                          const typeCount = faunas.filter(f => (f.product_type || 'physical') === t).length;
+                          const typeLabel = t === 'physical' ? 'Barang' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => {
+                                setAdminProductTypeFilter(isSelected ? 'all' : t as any);
+                                setAdminClassFilter('all');
+                                setItemsPage(1);
+                              }}
+                              style={{
+                                padding: '0.32rem 0.75rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: isSelected ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              {typeLabel} ({typeCount})
+                            </button>
+                          );
+                        })}
                       </div>
 
-                      {/* 2. LEVEL-1 QUICK-PILLS: TIPE PRODUK */}
-                      {isHybridStore && (
-                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', marginBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
-                          <button
-                            type="button"
-                            onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
-                            style={{
-                              padding: '0.35rem 0.65rem',
-                              borderRadius: '20px',
-                              fontSize: '0.72rem',
-                              fontWeight: 800,
-                              border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'var(--card-bg-gradient)',
-                              color: adminProductTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
-                            }}
-                          >
-                            Semua ({faunas.length})
-                          </button>
-                          {availableProductTypes.includes('physical') && (
-                            <button
-                              type="button"
-                              onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setItemsPage(1); }}
-                              style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '20px',
-                                fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                                backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'var(--card-bg-gradient)',
-                                color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
-                              }}
-                            >
-                              Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
-                            </button>
-                          )}
-                          {availableProductTypes.includes('food') && (
-                            <button
-                              type="button"
-                              onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setItemsPage(1); }}
-                              style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '20px',
-                                fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                                backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'var(--card-bg-gradient)',
-                                color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
-                              }}
-                            >
-                              Kuliner ({faunas.filter(f => f.product_type === 'food').length})
-                            </button>
-                          )}
-                          {availableProductTypes.includes('service') && (
-                            <button
-                              type="button"
-                              onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setItemsPage(1); }}
-                              style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '20px',
-                                fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                                backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'var(--card-bg-gradient)',
-                                color: adminProductTypeFilter === 'service' ? '#ffffff' : 'var(--text-secondary)'
-                              }}
-                            >
-                              Jasa ({faunas.filter(f => f.product_type === 'service').length})
-                            </button>
-                          )}
-                          {availableProductTypes.includes('digital') && (
-                            <button
-                              type="button"
-                              onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setItemsPage(1); }}
-                              style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '20px',
-                                fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                                backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'var(--card-bg-gradient)',
-                                color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
-                              }}
-                            >
-                              Digital ({faunas.filter(f => f.product_type === 'digital').length})
-                            </button>
-                          )}
-                          {availableProductTypes.includes('fauna') && (
-                            <button
-                              type="button"
-                              onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setItemsPage(1); }}
-                              style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '20px',
-                                fontSize: '0.72rem',
-                                fontWeight: 800,
-                                border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                                backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'var(--card-bg-gradient)',
-                                color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
-                              }}
-                            >
-                              Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 3. LEVEL-2 SECONDARY FILTER & SORT ROW */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
-                        <select
-                          className="form-select"
-                          value={adminClassFilter}
-                          onChange={(e) => { setAdminClassFilter(e.target.value); setItemsPage(1); }}
-                          style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
-                        >
-                          <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
-                          {availableAdminCategories.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-
-                        <select
-                          className="form-select"
-                          value={adminSortBy}
-                          onChange={(e) => { setAdminSortBy(e.target.value as any); setItemsPage(1); }}
-                          style={{ height: '36px', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
-                        >
-                          <option value="newest">Terbaru</option>
-                          <option value="oldest">Terlama</option>
-                          <option value="name_asc">Nama (A-Z)</option>
-                          <option value="price_asc">Harga Terendah</option>
-                          <option value="price_desc">Harga Tertinggi</option>
-                        </select>
-                      </div>
-
-                      {/* 4. SUMMARY BAR */}
+                      {/* Row 3: Summary & Active Filter Tags */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.1rem 0.2rem' }}>
                         <span>
                           Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{filteredAdminItems.length}</strong> item
+                          {adminClassFilter !== 'all' && (
+                            <span style={{ marginLeft: '0.35rem', color: 'var(--primary)', fontWeight: 700 }}>• Kategori: {adminClassFilter}</span>
+                          )}
                         </span>
-                        {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
+                        {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all' || adminActiveFilter !== 'all' || adminSortBy !== 'newest') && (
                           <button
                             type="button"
                             onClick={() => {
                               setAdminSearch('');
                               setAdminProductTypeFilter('all');
                               setAdminClassFilter('all');
+                              setAdminActiveFilter('all');
                               setAdminSortBy('newest');
                               setItemsPage(1);
                             }}
-                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
                           >
                             Reset Filter
                           </button>
@@ -18868,6 +18771,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     currentQuota={storeQuota}
                     plans={subscriptionPlans}
                     settings={settings}
+                    activeView={mobileSubPageView}
+                    onViewChange={(v) => setMobileSubPageView(v)}
                     onSuccessUpgrade={() => {
                       fetchMyQuota();
                       loadData();
@@ -20233,6 +20138,316 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
               >
                 Terapkan ({filteredFaunas.length} Produk)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN INVENTORY ADVANCED FILTER BOTTOM SHEET (Same Concept as Public Filter Sheet) */}
+      {showAdminFilterSheet && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setShowAdminFilterSheet(false)}
+        >
+          <div 
+            className="bottom-sheet-content filter-modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '86vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '0.65rem 0 0 0'
+            }}
+          >
+            {/* Smooth Drag Handle Area */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('filter')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('filter')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+            
+            {/* Header */}
+            <div 
+              className="bottom-sheet-header"
+              style={{ padding: '0 1.25rem 0.65rem' }}
+            >
+              <div className="bottom-sheet-title-box">
+                <SlidersHorizontal size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <div>
+                  <h3 className="bottom-sheet-title">Filter &amp; Urutkan Inventaris</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Container */}
+            <div style={{ padding: '0.75rem 1.25rem 0.5rem', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              
+              {/* SECTION 1: STATUS ITEM (Aktif vs Arsip) */}
+              <div style={{ marginBottom: '1rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Status Katalog
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                  {[
+                    { key: 'all', label: `Semua (${faunas.length})` },
+                    { key: 'active', label: `✓ Aktif (${faunas.filter(f => (f as any).is_active !== false).length})` },
+                    { key: 'archived', label: `🔒 Arsip (${faunas.filter(f => (f as any).is_active === false).length})` }
+                  ].map((s) => {
+                    const isSelected = adminActiveFilter === s.key;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => {
+                          setAdminActiveFilter(s.key as any);
+                          setItemsPage(1);
+                        }}
+                        style={{
+                          padding: '0.5rem 0.6rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.73rem',
+                          fontWeight: isSelected ? 800 : 600,
+                          textAlign: 'center',
+                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION 2: URUTKAN (SORT BY) */}
+              <div style={{ marginBottom: '1rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Urutkan Berdasarkan
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.45rem' }}>
+                  {[
+                    { key: 'newest', label: 'Terbaru' },
+                    { key: 'price_asc', label: 'Harga: Termurah' },
+                    { key: 'price_desc', label: 'Harga: Tertinggi' },
+                    { key: 'name_asc', label: 'Nama: A - Z' },
+                    { key: 'oldest', label: 'Terlama' }
+                  ].map((s) => {
+                    const isSelected = adminSortBy === s.key;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => {
+                          setAdminSortBy(s.key as any);
+                          setItemsPage(1);
+                        }}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.75rem',
+                          fontWeight: isSelected ? 800 : 600,
+                          textAlign: 'left',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <span>{s.label}</span>
+                        {isSelected && <Check size={14} strokeWidth={3} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION 3: TIPE PRODUK (Khusus Toko Hybrid / Multi-Type) */}
+              {isHybridStore && (
+                <div style={{ marginBottom: '1rem', flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Tipe Item Inventaris
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.45rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setItemsPage(1); }}
+                      style={{
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '0.65rem',
+                        fontSize: '0.74rem',
+                        fontWeight: adminProductTypeFilter === 'all' ? 800 : 600,
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                        backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        color: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'var(--text-primary)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>Semua Tipe</span>
+                      {adminProductTypeFilter === 'all' && <Check size={14} strokeWidth={3} />}
+                    </button>
+                    {availableProductTypes.map(t => {
+                      const isSelected = adminProductTypeFilter === t;
+                      const label = t === 'physical' ? 'Barang' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => { setAdminProductTypeFilter(t as any); setAdminClassFilter('all'); setItemsPage(1); }}
+                          style={{
+                            padding: '0.5rem 0.65rem',
+                            borderRadius: '0.65rem',
+                            fontSize: '0.74rem',
+                            fontWeight: isSelected ? 800 : 600,
+                            textAlign: 'left',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                            backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                            color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span>{label}</span>
+                          {isSelected && <Check size={14} strokeWidth={3} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4: KATEGORI PRODUK */}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Kategori Item ({availableAdminCategories.length})
+                  </span>
+                  {adminClassFilter !== 'all' && (
+                    <button 
+                      type="button" 
+                      onClick={() => { setAdminClassFilter('all'); setItemsPage(1); }} 
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Pilih Semua
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Category Search */}
+                {availableAdminCategories.length > 5 && (
+                  <div className="category-search-input-box" style={{ flexShrink: 0, marginBottom: '0.5rem' }}>
+                    <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      className="category-search-input"
+                      placeholder="Cari kategori cepat..."
+                      value={adminCategorySearch}
+                      onChange={(e) => setAdminCategorySearch(e.target.value)}
+                    />
+                    {adminCategorySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminCategorySearch('')}
+                        style={{ position: 'absolute', right: '0.55rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.7rem' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Category List */}
+                <div className="unified-category-list-scroll-box">
+                  <button
+                    type="button"
+                    className={`unified-category-item ${adminClassFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => { setAdminClassFilter('all'); setItemsPage(1); }}
+                  >
+                    <div className="unified-category-left">
+                      <span className="unified-category-name">Semua Kategori</span>
+                    </div>
+                    <div className="unified-category-right">
+                      <span className="unified-category-badge">
+                        {adminProductTypeFilter === 'all' ? faunas.length : faunas.filter(f => (f.product_type || 'physical') === adminProductTypeFilter).length} item
+                      </span>
+                      <div className={`unified-category-radio ${adminClassFilter === 'all' ? 'selected' : ''}`}>
+                        {adminClassFilter === 'all' && <Check size={12} strokeWidth={3.5} />}
+                      </div>
+                    </div>
+                  </button>
+
+                  {availableAdminCategories
+                    .filter(cat => !adminCategorySearch.trim() || cat.toLowerCase().includes(adminCategorySearch.toLowerCase()))
+                    .map((cat) => {
+                      const count = faunas.filter(f => f.class === cat && (adminProductTypeFilter === 'all' || (f.product_type || 'physical') === adminProductTypeFilter)).length;
+                      const isSelected = adminClassFilter === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`unified-category-item ${isSelected ? 'active' : ''}`}
+                          onClick={() => { setAdminClassFilter(cat); setItemsPage(1); }}
+                        >
+                          <div className="unified-category-left">
+                            <span className="unified-category-name">{cat}</span>
+                          </div>
+                          <div className="unified-category-right">
+                            <span className="unified-category-badge">{count} item</span>
+                            <div className={`unified-category-radio ${isSelected ? 'selected' : ''}`}>
+                              {isSelected && <Check size={12} strokeWidth={3.5} />}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Bottom Sticky Actions */}
+            <div className="bottom-sheet-sticky-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setAdminClassFilter('all');
+                  setAdminProductTypeFilter('all');
+                  setAdminActiveFilter('all');
+                  setAdminSortBy('newest');
+                  setItemsPage(1);
+                }}
+                style={{ flex: 1, padding: '0.75rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem' }}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowAdminFilterSheet(false)}
+                style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
+              >
+                Terapkan ({filteredAdminItems.length} Item)
               </button>
             </div>
           </div>
