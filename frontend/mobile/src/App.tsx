@@ -15899,311 +15899,495 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                   )}
 
-                  {/* MENU GRID SECTION */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    
-                    {/* Item 1: Kelola Kategori */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => {
-                        setAdminSubTab('items');
-                        const slug = getStoreSlug();
-                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                      }}
-                      style={{ 
-                        padding: '1rem 1.15rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer', 
-                        border: '1px solid var(--border-light)', 
-                        borderRadius: '0.9rem', 
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                    >
-                      <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.75rem', 
-                        background: 'var(--primary-glow)', 
-                        border: '1px solid var(--border-light)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        color: 'var(--primary)',
-                        flexShrink: 0
+                  {/* 4-COLUMN APP-STYLE QUICK GRID (Modern Mobile Merchant Hub) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div className="glass-panel" style={{
+                      padding: '1rem 0.65rem 0.85rem',
+                      borderRadius: '1rem',
+                      border: '1px solid var(--border-light)',
+                      background: 'var(--card-bg-gradient)',
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0 0.5rem 0.75rem',
+                        marginBottom: '0.65rem',
+                        borderBottom: '1px solid var(--border-light)'
                       }}>
-                        <Database size={22} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Kelola Kategori</h3>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                          {faunas.length} Data Terdaftar
+                        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
+                          PENGELOLAAN KATALOG
+                        </span>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          8 Menu Pintas
                         </span>
                       </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: '0.9rem 0.35rem'
+                      }}>
+                        {/* 1. Kategori */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('items');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <Database size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Kategori
+                          </span>
+                        </button>
+
+                        {/* 2. Artikel */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('articles');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/articles`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <FileText size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Artikel
+                          </span>
+                        </button>
+
+                        {/* 3. Notifikasi */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('notifications');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            position: 'relative',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            position: 'relative',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <Bell size={21} />
+                            {unreadCount > 0 && (
+                              <span style={{
+                                position: 'absolute',
+                                top: '-3px',
+                                right: '-3px',
+                                minWidth: '17px',
+                                height: '17px',
+                                borderRadius: '9px',
+                                backgroundColor: 'var(--danger, #ef4444)',
+                                color: '#ffffff',
+                                fontSize: '0.6rem',
+                                fontWeight: 800,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '0 3px',
+                                border: '2px solid var(--bg-card)',
+                                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                              }}>
+                                {unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Notifikasi
+                          </span>
+                        </button>
+
+                        {/* 4. Langganan */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('subscription');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <Crown size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Langganan
+                          </span>
+                        </button>
+
+                        {/* 5. Tema Visual */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('settings');
+                            setMobileSettingsTab('theme');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/theme`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <Palette size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Tema Toko
+                          </span>
+                        </button>
+
+                        {/* 6. Pengaturan */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('settings');
+                            setMobileSettingsTab('menu');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <Settings size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Pengaturan
+                          </span>
+                        </button>
+
+                        {/* 7. Bantuan */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('help');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <HelpCircle size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Bantuan
+                          </span>
+                        </button>
+
+                        {/* 8. Legal */}
+                        <button
+                          type="button"
+                          onClick={() => { 
+                            setAdminSubTab('policies'); 
+                            fetchPolicies(); 
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            WebkitTapHighlightColor: 'transparent',
+                            touchAction: 'manipulation'
+                          }}
+                        >
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary)',
+                            boxShadow: '0 2px 8px var(--primary-glow)',
+                            transition: 'transform 0.15s ease'
+                          }}>
+                            <ShieldCheck size={21} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Legal
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Item 1.2: Paket & Langganan Toko */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => {
-                        setAdminSubTab('subscription');
-                        const slug = getStoreSlug();
-                        if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
-                      }}
-                      style={{ 
-                        padding: '1rem 1.15rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer', 
-                        border: '1px solid var(--border-light)', 
-                        borderRadius: '0.9rem', 
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                    >
-                      <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.75rem', 
-                        background: 'var(--primary-glow)', 
-                        border: '1px solid var(--border-light)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        color: 'var(--primary)',
-                        flexShrink: 0
-                      }}>
-                        <Crown size={22} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Paket &amp; Langganan</h3>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                          Kapasitas Item, Cloud Storage &amp; Tagihan
-                        </span>
-                      </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
-                    </div>
-
-                    {/* Item 1.5: Notifikasi & Aktivitas */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => {
-                        setAdminSubTab('notifications');
-                        const slug = getStoreSlug();
-                        if (slug) {
-                          window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                        }
-                      }}
-                      style={{ 
-                        padding: '1rem 1.15rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer', 
-                        border: '1px solid var(--border-light)', 
-                        borderRadius: '0.9rem', 
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                    >
-                      <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.75rem', 
-                        background: 'var(--primary-glow)', 
-                        border: '1px solid var(--border-light)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        color: 'var(--primary)',
-                        flexShrink: 0,
-                        position: 'relative'
-                      }}>
-                        <Bell size={22} />
-                        {unreadCount > 0 && (
-                          <span style={{
-                            position: 'absolute',
-                            top: '-2px',
-                            right: '-2px',
-                            width: '9px',
-                            height: '9px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--primary)',
-                            boxShadow: '0 0 8px var(--primary)'
-                          }} />
-                        )}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Notifikasi &amp; Aktivitas</h3>
-                          {unreadCount > 0 && (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: '9999px', background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
-                              {unreadCount} Baru
-                            </span>
-                          )}
+                    {/* COMPACT STORE OPERATIONAL STATUS CARD */}
+                    <div className="glass-panel" style={{
+                      padding: '0.9rem 1rem',
+                      borderRadius: '0.9rem',
+                      border: '1px solid var(--border-light)',
+                      background: 'var(--card-bg-gradient)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <Package size={15} style={{ color: 'var(--primary)' }} />
+                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            Status &amp; Kapasitas Toko
+                          </span>
                         </div>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                          Pesanan, Komentar, &amp; Info Sistem
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('subscription');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                          }}
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            color: 'var(--primary)',
+                            backgroundColor: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '0.4rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Kelola Paket &rarr;
+                        </button>
                       </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
-                    </div>
 
-                    {/* Item 2: Pengaturan */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => {
-                        setAdminSubTab('settings');
-                        setMobileSettingsTab('menu');
-                        const slug = getStoreSlug();
-                        if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
-                      }}
-                      style={{ 
-                        padding: '1rem 1.15rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer', 
-                        border: '1px solid var(--border-light)', 
-                        borderRadius: '0.9rem', 
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                    >
-                      <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.75rem', 
-                        background: 'var(--primary-glow)', 
-                        border: '1px solid var(--border-light)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        color: 'var(--primary)',
-                        flexShrink: 0
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '0.6rem',
+                        backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                        padding: '0.65rem 0.75rem',
+                        borderRadius: '0.65rem',
+                        border: '1px solid var(--border-light)'
                       }}>
-                        <Settings size={22} />
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block' }}>Kapasitas Item</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {faunas.length} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>/ {storeQuota?.max_items || 100}</span>
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block' }}>Cloud Storage</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {((storeQuota?.storage_used_bytes || 0) / (1024 * 1024)).toFixed(1)} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>MB</span>
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Pengaturan</h3>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                          Informasi Toko &amp; Akun Admin
-                        </span>
-                      </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
-                    </div>
 
-                    {/* Item 3: Legal & Kebijakan */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => { 
-                        setAdminSubTab('policies'); 
-                        fetchPolicies(); 
-                        const slug = getStoreSlug();
-                        if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
-                      }}
-                      style={{ 
-                        padding: '1rem 1.15rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer', 
-                        border: '1px solid var(--border-light)', 
-                        borderRadius: '0.9rem', 
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                    >
-                      <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.75rem', 
-                        background: 'var(--primary-glow)', 
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
                         border: '1px solid var(--border-light)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        color: 'var(--primary)',
-                        flexShrink: 0
+                        fontSize: '0.72rem'
                       }}>
-                        <ShieldCheck size={22} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, overflow: 'hidden' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Link:</span>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            catavor.com/{storeSlug || getStoreSlug()}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${window.location.origin}/${storeSlug || getStoreSlug()}`;
+                            navigator.clipboard.writeText(url);
+                            showToast('Link toko berhasil disalin!');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontWeight: 700,
+                            fontSize: '0.7rem',
+                            flexShrink: 0
+                          }}
+                        >
+                          <Copy size={12} /> Salin
+                        </button>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Legal &amp; Kebijakan</h3>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                          Syarat &amp; Privasi Platform
-                        </span>
-                      </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
                     </div>
-
-                    {/* Item 4: Pusat Bantuan & Support */}
-                    <div 
-                      className="glass-panel" 
-                      onClick={() => {
-                        setAdminSubTab('help');
-                        const slug = getStoreSlug();
-                        if (slug) {
-                          window.history.pushState({}, '', `/${slug}/admin/help`);
-                        }
-                      }}
-                      style={{ 
-                        padding: '1rem 1.15rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer', 
-                        border: '1px solid var(--border-light)', 
-                        borderRadius: '0.9rem', 
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
-                        transition: 'all 0.2s ease',
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                    >
-                      <div style={{ 
-                        width: '44px', 
-                        height: '44px', 
-                        borderRadius: '0.75rem', 
-                        background: 'var(--primary-glow)', 
-                        border: '1px solid var(--border-light)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        color: 'var(--primary)',
-                        flexShrink: 0
-                      }}>
-                        <HelpCircle size={22} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Pusat Bantuan &amp; Support</h3>
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-                          Kontak Admin WA, Email &amp; FAQ
-                        </span>
-                      </div>
-                      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
-                    </div>
-
                   </div>
                 </div>
               )}
