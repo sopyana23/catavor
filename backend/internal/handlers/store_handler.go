@@ -5,7 +5,9 @@ import (
 	"strconv"
 	"strings"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
@@ -851,4 +853,296 @@ func removeJSONString(jsonBytes datatypes.JSON, val string) datatypes.JSON {
 	}
 	b, _ := json.Marshal(newArr)
 	return datatypes.JSON(b)
+}
+
+// GetMyStores returns all store catalog profiles owned by the logged-in user
+func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
+	user := c.Locals("user").(*models.User)
+	var stores []models.Store
+	if err := database.DB.Where("user_id = ?", user.ID).Order("id asc").Find(&stores).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengambil daftar katalog toko.",
+		})
+	}
+
+	var result []fiber.Map
+	for _, s := range stores {
+		theme := s.StoreTheme
+		if theme == "" {
+			theme = "navy"
+		}
+		var itemCount int64
+		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&itemCount)
+
+		result = append(result, fiber.Map{
+			"id":              s.ID,
+			"slug":            s.Slug,
+			"store_title":     s.StoreTitle,
+			"store_slogan":    s.StoreSlogan,
+			"store_theme":     theme,
+			"store_logo_url":  s.StoreLogoURL,
+			"plan":            s.Plan,
+			"payment_status":  s.PaymentStatus,
+			"whatsapp_number": s.WhatsappNumber,
+			"item_count":      itemCount,
+			"created_at":      s.CreatedAt,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"stores":  result,
+		"data":    result,
+	})
+}
+
+type CreateStoreRequest struct {
+	StoreTitle     string `json:"store_title"`
+	StoreName      string `json:"store_name"`
+	StoreSlug      string `json:"store_slug"`
+	Slug           string `json:"slug"`
+	StoreSlogan    string `json:"store_slogan"`
+	WhatsappNumber string `json:"whatsapp_number"`
+	StoreTheme     string `json:"store_theme"`
+}
+
+// CreateStore creates a new store profile under the logged-in user
+func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
+	user := c.Locals("user").(*models.User)
+
+	var req CreateStoreRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	if req.StoreTitle == "" && req.StoreName != "" {
+		req.StoreTitle = req.StoreName
+	}
+	if req.StoreSlug == "" && req.Slug != "" {
+		req.StoreSlug = req.Slug
+	}
+
+	req.StoreTitle = security.SanitizePlainText(req.StoreTitle, 100)
+	req.StoreSlug = security.SanitizeSlug(req.StoreSlug)
+	req.StoreSlogan = security.SanitizePlainText(req.StoreSlogan, 255)
+	req.WhatsappNumber = security.SanitizePhone(req.WhatsappNumber)
+	if req.StoreTheme == "" {
+		req.StoreTheme = "navy"
+	}
+
+	if req.StoreTitle == "" || req.StoreSlug == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Nama profil katalog dan link username (slug) wajib diisi.",
+		})
+	}
+
+	if len(req.StoreSlug) < 3 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Link username minimal 3 karakter huruf atau angka.",
+		})
+	}
+
+	reservedWords := []string{"admin", "api", "sanctum", "desktop", "mobile", "assets", "login", "register", "terms", "privacy", "acceptable-use", "settings"}
+	for _, r := range reservedWords {
+		if req.StoreSlug == r {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Link username ini telah digunakan oleh sistem.",
+			})
+		}
+	}
+
+	// Check slug uniqueness
+	var count int64
+	database.DB.Model(&models.Store{}).Where("LOWER(slug) = ?", req.StoreSlug).Count(&count)
+	if count > 0 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Link username toko sudah terpakai. Silakan pilih nama lain.",
+		})
+	}
+
+	// Master data defaults
+	defaultMasterCategories := datatypes.JSON([]byte(`{
+		"physical": ["Pakaian & Fashion", "Aksesoris & Gadget", "Elektronik & Komputer", "Perlengkapan Rumah", "Kerajinan & Kriya", "Koleksi & Hobi", "Lainnya"],
+		"digital": ["E-Book & Publikasi", "Template & Dokumen", "Desain Grafis & UI Kit", "Source Code & Skrip", "Audio, Musik & SFX", "Preset, Filter & LUTs", "Video & Aset 3D", "Software & Tool", "Kursus & Modul", "Lainnya"],
+		"fauna": ["Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Tanaman Hias & Flora", "Invertebrata & Serangga", "Lainnya"],
+		"service": ["Perawatan & Grooming", "Servis & Reparasi", "Desain Grafis & Kreatif", "Fotografi & Videografi", "Kursus & Pelatihan", "Konsultasi & Jasa Ahli", "Kebersihan & Maintenance"],
+		"food": ["Makanan Utama (Main Course)", "Dessert & Manisan", "Minuman & Olahan Kopi", "Camilan & Kudapan (Appetizer)", "Bakery, Roti & Pastry", "Makanan Beku (Frozen)", "Paket Hemat & Bundling", "Lainnya"],
+		"property": ["Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"]
+	}`))
+
+	newStore := models.Store{
+		UserID:               user.ID,
+		Slug:                 req.StoreSlug,
+		StoreTitle:           req.StoreTitle,
+		StoreSlogan:          req.StoreSlogan,
+		WhatsappNumber:       req.WhatsappNumber,
+		StoreTheme:           req.StoreTheme,
+		Plan:                 "free",
+		PlanStatus:           "active",
+		PaymentStatus:        "free_active",
+		EnableWADirect:       true,
+		EnableWARekber:       true,
+		RegistrationTimezone: "Asia/Jakarta",
+		MasterCategories:     defaultMasterCategories,
+	}
+
+	if err := database.DB.Create(&newStore).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal membuat profil katalog baru.",
+		})
+	}
+
+	cfg := config.LoadConfig()
+	newToken, _ := middleware.GenerateToken(user, &newStore, cfg)
+
+	// Fetch all stores of user
+	var allStores []models.Store
+	database.DB.Where("user_id = ?", user.ID).Order("id asc").Find(&allStores)
+	var storeSummaries []fiber.Map
+	for _, s := range allStores {
+		theme := s.StoreTheme
+		if theme == "" {
+			theme = "navy"
+		}
+		var itemCount int64
+		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		storeSummaries = append(storeSummaries, fiber.Map{
+			"id":              s.ID,
+			"slug":            s.Slug,
+			"store_title":     s.StoreTitle,
+			"store_slogan":    s.StoreSlogan,
+			"store_theme":     theme,
+			"store_logo_url":  s.StoreLogoURL,
+			"plan":            s.Plan,
+			"payment_status":  s.PaymentStatus,
+			"whatsapp_number": s.WhatsappNumber,
+			"item_count":      itemCount,
+		})
+	}
+
+	activeStoreSummary := fiber.Map{
+		"id":              newStore.ID,
+		"slug":            newStore.Slug,
+		"store_title":     newStore.StoreTitle,
+		"store_slogan":    newStore.StoreSlogan,
+		"store_theme":     newStore.StoreTheme,
+		"store_logo_url":  newStore.StoreLogoURL,
+		"plan":            newStore.Plan,
+		"payment_status":  newStore.PaymentStatus,
+		"whatsapp_number": newStore.WhatsappNumber,
+	}
+
+	return c.JSON(fiber.Map{
+		"success":      true,
+		"message":      "Profil katalog baru berhasil dibuat!",
+		"token":        newToken,
+		"stores":       storeSummaries,
+		"data":         storeSummaries,
+		"store":        activeStoreSummary,
+		"active_store": activeStoreSummary,
+	})
+}
+
+type SwitchStoreRequest struct {
+	Slug      string `json:"slug"`
+	StoreSlug string `json:"store_slug"`
+}
+
+// SwitchStore issues a fresh token with claims pinned to target store
+func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
+	user := c.Locals("user").(*models.User)
+
+	var req SwitchStoreRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	targetSlug := strings.ToLower(strings.TrimSpace(req.Slug))
+	if targetSlug == "" {
+		targetSlug = strings.ToLower(strings.TrimSpace(req.StoreSlug))
+	}
+	if targetSlug == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Slug toko tujuan wajib diisi.",
+		})
+	}
+
+	var targetStore models.Store
+	if err := database.DB.Where("LOWER(slug) = ? AND user_id = ?", targetSlug, user.ID).First(&targetStore).Error; err != nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Anda tidak memiliki akses ke profil katalog ini.",
+		})
+	}
+
+	cfg := config.LoadConfig()
+	newToken, err := middleware.GenerateToken(user, &targetStore, cfg)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghasilkan sesi login baru.",
+		})
+	}
+
+	theme := targetStore.StoreTheme
+	if theme == "" {
+		theme = "navy"
+	}
+
+	// Fetch all stores of user
+	var allStores []models.Store
+	database.DB.Where("user_id = ?", user.ID).Order("id asc").Find(&allStores)
+	var storeSummaries []fiber.Map
+	for _, s := range allStores {
+		th := s.StoreTheme
+		if th == "" {
+			th = "navy"
+		}
+		var itemCount int64
+		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		storeSummaries = append(storeSummaries, fiber.Map{
+			"id":              s.ID,
+			"slug":            s.Slug,
+			"store_title":     s.StoreTitle,
+			"store_slogan":    s.StoreSlogan,
+			"store_theme":     th,
+			"store_logo_url":  s.StoreLogoURL,
+			"plan":            s.Plan,
+			"payment_status":  s.PaymentStatus,
+			"whatsapp_number": s.WhatsappNumber,
+			"item_count":      itemCount,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Berhasil beralih profil katalog.",
+		"token":   newToken,
+		"stores":  storeSummaries,
+		"data":    storeSummaries,
+		"active_store": fiber.Map{
+			"id":              targetStore.ID,
+			"slug":            targetStore.Slug,
+			"store_title":     targetStore.StoreTitle,
+			"store_slogan":    targetStore.StoreSlogan,
+			"store_theme":     theme,
+			"store_logo_url":  targetStore.StoreLogoURL,
+			"plan":            targetStore.Plan,
+			"payment_status":  targetStore.PaymentStatus,
+			"whatsapp_number": targetStore.WhatsappNumber,
+		},
+	})
 }

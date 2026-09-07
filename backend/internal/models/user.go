@@ -20,7 +20,8 @@ type User struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 
 	// Relations
-	Store *Store `gorm:"foreignKey:UserID" json:"store,omitempty"`
+	Store  *Store  `gorm:"foreignKey:UserID" json:"store,omitempty"`
+	Stores []Store `gorm:"foreignKey:UserID" json:"stores,omitempty"`
 }
 
 func (u *User) SetPassword(plainPassword string) error {

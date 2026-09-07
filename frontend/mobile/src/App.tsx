@@ -113,7 +113,8 @@ import {
   MoreVertical,
   MoreHorizontal,
   Flag,
-  Award
+  Award,
+  LayoutDashboard
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -121,6 +122,19 @@ import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput } from './components/VideoEmbed'
 import { SubscriptionPage, SubscriptionModal, MobileQuotaWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
+
+export interface UserStoreSummary {
+  id: number;
+  slug: string;
+  store_title: string;
+  store_slogan?: string;
+  store_theme?: string;
+  store_logo_url?: string;
+  plan?: string;
+  payment_status?: string;
+  whatsapp_number?: string;
+  item_count?: number;
+}
 
 // Top-level Store Slug Resolver (Accessible before component mount)
 function getStoreSlug(): string | null {
@@ -4959,7 +4973,7 @@ function App() {
     }
   };
 
-  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown') => {
+  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store') => {
     if (!isSheetDragging) return;
     setIsSheetDragging(false);
     if (sheetDragY > 75) {
@@ -4970,6 +4984,8 @@ function App() {
       if (type === 'report') setReportModalData(null);
       if (type === 'rekber_explainer') setShowRekberExplainerModal(false);
       if (type === 'crud_dropdown') setCrudDropdownPicker(null);
+      if (type === 'stores') setShowStoreSwitcherModal(false);
+      if (type === 'create_store') setShowCreateStoreModal(false);
       if (type === 'purchase_options') {
         setShowPurchaseOptions(false);
         setShowMarketplacesSubMenu(false);
@@ -5131,7 +5147,7 @@ function App() {
   const paginatedArticles = articles.slice((articlesPage - 1) * ARTICLES_PER_PAGE, articlesPage * ARTICLES_PER_PAGE)
   const [loadingMore, setLoadingMore] = useState<boolean>(false)
 
-  // Authentication State
+  // Authentication & Multi-Store State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
   const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
@@ -5139,6 +5155,28 @@ function App() {
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(
     localStorage.getItem('catavor_password_changed') === 'true'
   )
+  const [userStores, setUserStores] = useState<UserStoreSummary[]>(() => {
+    try {
+      const raw = localStorage.getItem('catavor_stores');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(false);
+  const [showCreateStoreModal, setShowCreateStoreModal] = useState<boolean>(false);
+  const [createStoreForm, setCreateStoreForm] = useState({
+    store_name: '',
+    store_slug: '',
+    store_slogan: '',
+    whatsapp_number: '',
+    store_theme: 'navy'
+  });
+  const [createStoreLoading, setCreateStoreLoading] = useState<boolean>(false);
+  const [createStoreError, setCreateStoreError] = useState<string | null>(null);
+  const [createStoreSlugChecking, setCreateStoreSlugChecking] = useState<boolean>(false);
+  const [createStoreSlugStatus, setCreateStoreSlugStatus] = useState<{ available: boolean; message: string } | null>(null);
 
   const isStoreOwner = Boolean(
     token &&
@@ -5146,9 +5184,173 @@ function App() {
     storeSlug &&
     (
       (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
-      ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase())
+      ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
+      (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
     )
   );
+
+  const fetchMyStores = async () => {
+    const currentToken = token || localStorage.getItem('catavor_token');
+    if (!currentToken) return;
+    try {
+      const res = await fetch(`${API_BASE}/user/stores`, {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'Accept': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.stores)) {
+        setUserStores(data.stores);
+        try {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Failed to fetch user stores:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchMyStores();
+    }
+  }, [token]);
+
+  const handleSwitchStore = async (targetSlug: string) => {
+    if (!token || !targetSlug) return;
+    if (storeSlug && targetSlug.toLowerCase() === storeSlug.toLowerCase()) {
+      setShowStoreSwitcherModal(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/user/stores/switch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ slug: targetSlug })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
+        if (data.user) {
+          localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          setAdminUser(data.user);
+        }
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
+        
+        const newTheme = data.active_store?.store_theme || data.user?.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
+
+        setStoreSlug(targetSlug);
+        setShowStoreSwitcherModal(false);
+        window.history.pushState({}, '', `/${targetSlug}/admin`);
+        await loadData(targetSlug);
+        showToast(`Beralih ke katalog "${data.active_store?.store_title || targetSlug}"`, 'success');
+      } else {
+        showToast(data.message || 'Gagal beralih katalog', 'error');
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi saat beralih katalog', 'error');
+    }
+  };
+
+  const checkCreateStoreSlug = (slug: string) => {
+    const clean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    setCreateStoreForm(prev => ({ ...prev, store_slug: clean }));
+    if (clean.length < 3) {
+      setCreateStoreSlugStatus(null);
+      setCreateStoreSlugChecking(false);
+      return;
+    }
+    setCreateStoreSlugChecking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/check-slug/${clean}`);
+        const data = await res.json();
+        setCreateStoreSlugStatus({
+          available: data.available,
+          message: data.message || (data.available ? 'Username tersedia' : 'Username sudah digunakan')
+        });
+      } catch {
+        setCreateStoreSlugStatus(null);
+      } finally {
+        setCreateStoreSlugChecking(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  };
+
+  const handleCreateStoreSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createStoreForm.store_name.trim() || !createStoreForm.store_slug.trim()) {
+      setCreateStoreError('Nama katalog dan username link wajib diisi.');
+      return;
+    }
+    if (createStoreSlugStatus && !createStoreSlugStatus.available) {
+      setCreateStoreError('Username link katalog sudah digunakan. Silakan pilih username lain.');
+      return;
+    }
+    setCreateStoreLoading(true);
+    setCreateStoreError(null);
+    try {
+      const res = await fetch(`${API_BASE}/user/stores/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(createStoreForm)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
+        if (data.user) {
+          localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          setAdminUser(data.user);
+        }
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
+        const newSlug = data.store?.slug || createStoreForm.store_slug;
+        const newTheme = data.store?.store_theme || createStoreForm.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
+
+        setStoreSlug(newSlug);
+        setShowCreateStoreModal(false);
+        setShowStoreSwitcherModal(false);
+        setCreateStoreForm({ store_name: '', store_slug: '', store_slogan: '', whatsapp_number: '', store_theme: 'navy' });
+        setCreateStoreSlugStatus(null);
+        window.history.pushState({}, '', `/${newSlug}/admin`);
+        await loadData(newSlug);
+        showToast(`Profil katalog baru "${data.store?.store_title || newSlug}" berhasil dibuat!`, 'success');
+      } else {
+        setCreateStoreError(data.message || 'Gagal membuat profil katalog baru');
+      }
+    } catch (err) {
+      setCreateStoreError('Koneksi terputus. Gagal membuat profil katalog.');
+    } finally {
+      setCreateStoreLoading(false);
+    }
+  };
 
   const TICKET_CATEGORIES = [
     { value: 'billing', label: 'Pembayaran & Paket Pro', desc: 'Konfirmasi transfer, kupon promo, invoice, aktivasi paket', badge: 'Billing' },
@@ -6191,12 +6393,14 @@ function App() {
     }
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_stores');
     localStorage.removeItem('catavor_password_changed');
     localStorage.removeItem('catavor_settings');
     document.documentElement.setAttribute('data-theme', 'navy');
     document.body.setAttribute('data-theme', 'navy');
     setToken(null);
     setAdminUser(null);
+    setUserStores([]);
     setIsPasswordChanged(true);
     setActiveTab('admin');
     setAdminSubTab('menu');
@@ -6217,7 +6421,7 @@ function App() {
 
   // Get headers helper
   const getAuthHeaders = () => {
-    const slug = getStoreSlug();
+    const slug = storeSlug || getStoreSlug() || adminUser?.store_slug;
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -6276,7 +6480,7 @@ function App() {
     if (!headers.has('Accept')) {
       headers.set('Accept', 'application/json');
     }
-    const slug = getStoreSlug();
+    const slug = storeSlug || getStoreSlug() || adminUser?.store_slug;
     if (slug && !headers.has('X-Store-Slug')) {
       headers.set('X-Store-Slug', slug);
     }
@@ -6327,6 +6531,18 @@ function App() {
             ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
             : 'Sesi login tidak valid. Silakan login kembali.';
           handleUnauthorized(msg);
+        } else if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.success) {
+            if (data.stores && Array.isArray(data.stores)) {
+              setUserStores(data.stores);
+              localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+            }
+            if (data.user) {
+              setAdminUser(data.user);
+              localStorage.setItem('catavor_user', JSON.stringify(data.user));
+            }
+          }
         }
       } catch (err) {
         // Network offline or error - do not force logout on temporary network drop
@@ -7025,6 +7241,10 @@ function App() {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
           localStorage.setItem('catavor_token', data.token);
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          if (data.stores && Array.isArray(data.stores)) {
+            localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+            setUserStores(data.stores);
+          }
           localStorage.setItem('catavor_password_changed', 'true');
           const userTheme = data.user.store_theme || 'navy';
           document.documentElement.setAttribute('data-theme', userTheme);
@@ -7224,6 +7444,10 @@ function App() {
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
         localStorage.setItem('catavor_password_changed', 'true');
         
         const initialTheme = data.user?.store_theme || 'navy';
@@ -7306,6 +7530,10 @@ function App() {
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
         localStorage.setItem('catavor_password_changed', 'true');
 
         const initialTheme = data.user?.store_theme || 'navy';
@@ -7456,6 +7684,10 @@ function App() {
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token)
         localStorage.setItem('catavor_user', JSON.stringify(data.user))
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
         localStorage.setItem('catavor_password_changed', data.is_password_changed ? 'true' : 'false')
         
         const loginTheme = data.user?.store_theme || 'navy';
@@ -13461,6 +13693,103 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       ) : (
         <>
           <div className="animate-fade-in" style={{ paddingBottom: '80px' }}>
+      {/* Store Owner Public Preview Mode Top Banner */}
+      {isStoreOwner && !error && (activeTab === 'catalog' || activeTab === 'about' || activeTab === 'articles') && (
+        <aside 
+          aria-label="Mode Pratinjau Publik"
+          style={{
+            backgroundColor: 'var(--header-bg, #0f172a)',
+            backgroundImage: 'linear-gradient(90deg, var(--primary-glow) 0%, rgba(0, 0, 0, 0) 100%)',
+            borderBottom: '1px solid var(--border-light)',
+            padding: '0.45rem 0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1000,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1 }}>
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '6px',
+              backgroundColor: 'var(--primary-glow)',
+              border: '1px solid var(--primary)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Eye size={13} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, overflow: 'hidden' }}>
+              <span style={{ 
+                fontSize: '0.74rem', 
+                fontWeight: 700, 
+                color: 'var(--text-primary)', 
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                Pratinjau Publik
+              </span>
+              <span style={{ 
+                fontSize: '0.62rem', 
+                fontWeight: 700, 
+                color: 'var(--text-secondary)',
+                backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid var(--border-light)',
+                padding: '0.1rem 0.35rem',
+                borderRadius: '4px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}>
+                Pengunjung
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              const slug = storeSlug || getStoreSlug();
+              if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.32rem 0.65rem',
+              borderRadius: '0.45rem',
+              backgroundColor: 'var(--primary)',
+              color: '#ffffff',
+              border: 'none',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              boxShadow: '0 2px 8px var(--primary-glow)',
+              transition: 'opacity 0.2s ease',
+              lineHeight: 1.2
+            }}
+          >
+            <LayoutDashboard size={12} />
+            <span>Dashboard Admin</span>
+            <ArrowRight size={11} />
+          </button>
+        </aside>
+      )}
+
       {/* Mobile Top Header (Shows Catavor brand header on 404 error pages, and store header on valid pages) */}
       {error ? (
         <header className="mobile-header sticky-header">
@@ -15350,6 +15679,64 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         >
                           <LogOut size={16} />
                         </button>
+                      </div>
+                    </div>
+
+                    {/* Active Store Switcher Trigger Button */}
+                    <div 
+                      onClick={() => {
+                        fetchMyStores();
+                        setShowStoreSwitcherModal(true);
+                      }}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--primary-glow)',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          flexShrink: 0,
+                          overflow: 'hidden'
+                        }}>
+                          {settings.store_logo_url ? (
+                            <img src={settings.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <Layers size={18} />
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {settings.store_title || storeSlug || 'Katalog Saya'}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            catavor.com/{storeSlug}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, paddingLeft: '0.5rem' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+                          {userStores.length > 1 ? `${userStores.length} Katalog ▾` : 'Ganti Katalog ▾'}
+                        </span>
+                        <ChevronDown size={14} style={{ color: 'var(--text-secondary)' }} />
                       </div>
                     </div>
 
@@ -19016,41 +19403,87 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
 
       {/* Fixed Bottom Navigation Bar */}
-      {!error && !(activeTab === 'admin' && adminSubTab !== 'menu') && !(activeTab === 'articles' && selectedArticle) && !(settings.plan === 'free' && !isStoreOwner) && !(activeTab === 'about' && aboutSubView === 'qrcode') && (
+      {!error && !(activeTab === 'articles' && selectedArticle) && !(settings.plan === 'free' && !isStoreOwner && activeTab !== 'admin') && !(activeTab === 'about' && aboutSubView === 'qrcode') && (
         <nav className="bottom-nav">
-          <button 
-            className={`nav-item ${activeTab === 'catalog' ? 'active' : ''}`}
-            onClick={goToCatalog}
-          >
-            <BookOpen size={20} />
-            <span>Katalog</span>
-          </button>
-          {settings.plan !== 'free' && (
-            <button 
-              className={`nav-item ${activeTab === 'about' ? 'active' : ''}`}
-              onClick={goToAbout}
-            >
-              <Info size={20} />
-              <span>Tentang Kami</span>
-            </button>
-          )}
-          {false && settings.articles_enabled !== '0' && (
-            <button 
-              className={`nav-item ${activeTab === 'articles' ? 'active' : ''}`}
-              onClick={goToArticles}
-            >
-              <FileText size={20} />
-              <span>Artikel</span>
-            </button>
-          )}
-          {isStoreOwner && (
-            <button 
-              className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
-              onClick={() => setActiveTab('admin')}
-            >
-              <Settings size={20} />
-              <span>Admin</span>
-            </button>
+          {activeTab === 'admin' && token && isStoreOwner ? (
+            /* MERCHANT ADMIN BOTTOM BAR (NATIVE APP STYLE) */
+            <>
+              <button 
+                type="button"
+                className={`nav-item ${adminSubTab === 'menu' ? 'active' : ''}`}
+                onClick={() => setAdminSubTab('menu')}
+              >
+                <LayoutDashboard size={20} />
+                <span>Menu</span>
+              </button>
+              <button 
+                type="button"
+                className={`nav-item ${adminSubTab === 'items' ? 'active' : ''}`}
+                onClick={() => {
+                  setAdminSubTab('items');
+                  setEditId(null);
+                }}
+              >
+                <Layers size={20} />
+                <span>Inventaris</span>
+              </button>
+              <button 
+                type="button"
+                className={`nav-item ${adminSubTab === 'settings' ? 'active' : ''}`}
+                onClick={() => setAdminSubTab('settings')}
+              >
+                <Settings size={20} />
+                <span>Pengaturan</span>
+              </button>
+              <button 
+                type="button"
+                className="nav-item"
+                onClick={() => {
+                  setActiveTab('catalog');
+                  window.history.pushState({}, '', `/${storeSlug}`);
+                }}
+                style={{ color: 'var(--primary)' }}
+              >
+                <ExternalLink size={20} />
+                <span>Lihat Katalog</span>
+              </button>
+            </>
+          ) : (
+            /* PUBLIC STOREFRONT BOTTOM BAR */
+            <>
+              <button 
+                type="button"
+                className={`nav-item ${activeTab === 'catalog' ? 'active' : ''}`}
+                onClick={goToCatalog}
+              >
+                <BookOpen size={20} />
+                <span>Katalog</span>
+              </button>
+              {settings.plan !== 'free' && (
+                <button 
+                  type="button"
+                  className={`nav-item ${activeTab === 'about' ? 'active' : ''}`}
+                  onClick={goToAbout}
+                >
+                  <Info size={20} />
+                  <span>Tentang Kami</span>
+                </button>
+              )}
+              {isStoreOwner && (
+                <button 
+                  type="button"
+                  className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('menu');
+                    window.history.pushState({}, '', `/${storeSlug}/admin`);
+                  }}
+                >
+                  <LayoutDashboard size={20} />
+                  <span>Admin</span>
+                </button>
+              )}
+            </>
           )}
         </nav>
       )}
@@ -21346,8 +21779,375 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           </div>
         </div>
       )}
+
+      {/* ==========================================================
+         STORE SWITCHER BOTTOM SHEET (MOBILE STANDARD WITH DRAG)
+         ========================================================== */}
+      {showStoreSwitcherModal && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => setShowStoreSwitcherModal(false)}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '82vh'
+            }}
+          >
+            {/* Smooth Drag Handle Area */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('stores')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('stores')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header */}
+            <div 
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('stores')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('stores')}
+            >
+              <div className="bottom-sheet-title-box">
+                <Layers size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <h3 className="bottom-sheet-title">Profil Katalog Saya</h3>
+              </div>
+            </div>
+
+            {/* Scrollable Store List */}
+            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '52vh' }}>
+              {userStores.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                  Memuat daftar katalog...
+                </div>
+              ) : (
+                userStores.map((st) => {
+                  const isActive = st.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      className={`bottom-sheet-item ${isActive ? 'active' : ''}`}
+                      style={{
+                        backgroundColor: isActive ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                      onClick={() => {
+                        if (!isActive) {
+                          handleSwitchStore(st.slug);
+                        }
+                      }}
+                    >
+                      <div className="bottom-sheet-item-left">
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '0.55rem',
+                          backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-card-hover)',
+                          color: '#ffffff',
+                          border: isActive ? 'none' : '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          flexShrink: 0,
+                          overflow: 'hidden'
+                        }}>
+                          {st.store_logo_url ? (
+                            <img src={st.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            st.store_title ? st.store_title.charAt(0).toUpperCase() : st.slug.charAt(0).toUpperCase()
+                          )}
+                        </div>
+
+                        <div className="bottom-sheet-item-col">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <span className="bottom-sheet-item-name" style={{ color: 'var(--text-primary)', fontWeight: 800 }}>
+                              {st.store_title || st.slug}
+                            </span>
+                            <span style={{
+                              fontSize: '0.58rem',
+                              fontWeight: 800,
+                              padding: '0.08rem 0.35rem',
+                              borderRadius: '4px',
+                              backgroundColor: st.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.18)' : st.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.18)' : 'var(--primary-glow)',
+                              color: st.plan === 'pro_business' ? '#d97706' : st.plan === 'pro_starter' ? '#0284c7' : 'var(--primary)',
+                              border: st.plan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.35)' : st.plan === 'pro_starter' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid var(--primary)',
+                              textTransform: 'uppercase'
+                            }}>
+                              {st.plan === 'pro_business' ? 'Bisnis' : st.plan === 'pro_starter' ? 'Starter' : 'Free'}
+                            </span>
+                          </div>
+                          <span className="bottom-sheet-item-desc" style={{ color: 'var(--text-secondary)' }}>
+                            catavor.com/{st.slug} {st.item_count !== undefined ? `• ${st.item_count} item` : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className={`bottom-sheet-radio ${isActive ? 'selected' : ''}`} style={{
+                        backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                        borderColor: isActive ? 'var(--primary)' : 'var(--border-light)'
+                      }}>
+                        {isActive && (
+                          <Check size={12} strokeWidth={3.5} style={{ color: '#ffffff', stroke: '#ffffff', display: 'block', margin: 'auto' }} />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Sticky Bottom Action */}
+            <div className="bottom-sheet-sticky-footer">
+              <button 
+                type="button" 
+                className="btn-primary btn-full"
+                onClick={() => {
+                  setShowStoreSwitcherModal(false);
+                  setShowCreateStoreModal(true);
+                }}
+                style={{ padding: '0.8rem', fontSize: '0.85rem', fontWeight: 800, borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
+              >
+                <Plus size={16} />
+                <span>Buat Profil Katalog Baru</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================
+         CREATE NEW STORE BOTTOM SHEET (MOBILE STANDARD WITH DRAG)
+         ========================================================== */}
+      {showCreateStoreModal && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          onClick={() => {
+            if (!createStoreLoading) setShowCreateStoreModal(false);
+          }}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '88vh'
+            }}
+          >
+            {/* Smooth Drag Handle Area */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('create_store')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('create_store')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header */}
+            <div 
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('create_store')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('create_store')}
+            >
+              <div className="bottom-sheet-title-box">
+                <Plus size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <div>
+                  <h3 className="bottom-sheet-title">Buat Profil Katalog Baru</h3>
+                </div>
+              </div>
+            </div>
+
+            {createStoreError && (
+              <div style={{ margin: '0.5rem 1.25rem 0', padding: '0.65rem 0.85rem', borderRadius: '0.6rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: '0.75rem', fontWeight: 600 }}>
+                {createStoreError}
+              </div>
+            )}
+
+            {/* Scrollable Form Body */}
+            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '60vh', padding: '0.75rem 1.25rem' }}>
+              <form id="create-store-mobile-form" onSubmit={handleCreateStoreSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {/* Nama Usaha */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
+                    Nama Katalog / Brand / Usaha *
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    required
+                    placeholder="Contoh: Studio Foto Kayu, Kedai Kopi Dua"
+                    value={createStoreForm.store_name}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const autoSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                      setCreateStoreForm(prev => ({
+                        ...prev,
+                        store_name: name,
+                        store_slug: autoSlug
+                      }));
+                      if (autoSlug) checkCreateStoreSlug(autoSlug);
+                    }}
+                    style={{ fontSize: '0.85rem', padding: '0.65rem 0.85rem', borderRadius: '0.6rem' }}
+                  />
+                </div>
+
+                {/* URL Toko / Slug */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
+                    Link / URL Katalog *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      required
+                      placeholder="nama-katalog"
+                      value={createStoreForm.store_slug}
+                      onChange={(e) => {
+                        const slugVal = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                        setCreateStoreForm(prev => ({ ...prev, store_slug: slugVal }));
+                        if (slugVal) checkCreateStoreSlug(slugVal);
+                      }}
+                      style={{
+                        fontSize: '0.85rem',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.6rem',
+                        borderColor: createStoreSlugStatus?.available === true ? 'var(--primary)' : createStoreSlugStatus?.available === false ? 'var(--danger)' : undefined
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.68rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      catavor.com/<strong>{createStoreForm.store_slug || 'nama-katalog'}</strong>
+                    </span>
+                    {createStoreSlugChecking && <span style={{ color: 'var(--text-secondary)' }}>Mengecek...</span>}
+                    {!createStoreSlugChecking && createStoreSlugStatus?.available === true && <span style={{ color: 'var(--primary)', fontWeight: 700 }}>✓ Tersedia</span>}
+                    {!createStoreSlugChecking && createStoreSlugStatus?.available === false && <span style={{ color: 'var(--danger)', fontWeight: 700 }}>✕ Sudah dipakai</span>}
+                  </div>
+                </div>
+
+                {/* Slogan */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
+                    Slogan / Deskripsi Singkat
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Contoh: Jasa Pemotretan & Event Kreatif"
+                    value={createStoreForm.store_slogan}
+                    onChange={(e) => setCreateStoreForm(prev => ({ ...prev, store_slogan: e.target.value }))}
+                    style={{ fontSize: '0.85rem', padding: '0.65rem 0.85rem', borderRadius: '0.6rem' }}
+                  />
+                </div>
+
+                {/* Nomor WhatsApp */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.3rem' }}>
+                    Nomor WhatsApp Bisnis
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="081234567890"
+                    value={createStoreForm.whatsapp_number}
+                    onChange={(e) => setCreateStoreForm(prev => ({ ...prev, whatsapp_number: e.target.value }))}
+                    style={{ fontSize: '0.85rem', padding: '0.65rem 0.85rem', borderRadius: '0.6rem' }}
+                  />
+                </div>
+
+                {/* Tema Visual Toko */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                    Tema Warna Tampilan
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
+                    {[
+                      { id: 'navy', label: 'Navy', color: '#1d4ed8' },
+                      { id: 'emerald', label: 'Emerald', color: '#10b981' },
+                      { id: 'nordic', label: 'Slate', color: '#5b7c99' },
+                      { id: 'ocean', label: 'Ocean', color: '#3b82f6' },
+                      { id: 'cyberpunk', label: 'Cyber', color: '#a855f7' },
+                      { id: 'pastel', label: 'Pastel', color: '#e11d48' },
+                      { id: 'sage', label: 'Sage', color: '#527863' }
+                    ].map(tm => (
+                      <button
+                        key={tm.id}
+                        type="button"
+                        onClick={() => setCreateStoreForm(prev => ({ ...prev, store_theme: tm.id }))}
+                        style={{
+                          padding: '0.45rem 0.3rem',
+                          borderRadius: '0.5rem',
+                          border: createStoreForm.store_theme === tm.id ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: createStoreForm.store_theme === tm.id ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: tm.color }} />
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-primary)' }}>{tm.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Sticky Bottom Actions */}
+            <div className="bottom-sheet-sticky-footer">
+              <button 
+                type="button" 
+                className="btn-secondary"
+                onClick={() => setShowCreateStoreModal(false)}
+                disabled={createStoreLoading}
+                style={{ flex: 1, padding: '0.75rem', borderRadius: '0.75rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Batal
+              </button>
+              <button 
+                type="submit" 
+                form="create-store-mobile-form"
+                className="btn-primary"
+                disabled={createStoreLoading || (createStoreSlugStatus !== null && !createStoreSlugStatus.available)}
+                style={{ flex: 2, padding: '0.75rem', borderRadius: '0.75rem', fontSize: '0.84rem', fontWeight: 800, cursor: 'pointer' }}
+              >
+                {createStoreLoading ? 'Membuat Profil...' : 'Buat Katalog & Buka'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
 
 export default App
+
+

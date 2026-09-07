@@ -72,6 +72,71 @@ type UpdateProfileRequest struct {
 	ConfirmPassword string `json:"confirm_password"`
 }
 
+type StoreSummary struct {
+	ID             uint   `json:"id"`
+	Slug           string `json:"slug"`
+	StoreTitle     string `json:"store_title"`
+	StoreSlogan    string `json:"store_slogan"`
+	StoreTheme     string `json:"store_theme"`
+	StoreLogoURL   string `json:"store_logo_url"`
+	Plan           string `json:"plan"`
+	PaymentStatus  string `json:"payment_status"`
+	WhatsappNumber string `json:"whatsapp_number"`
+}
+
+func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targetSlug string) ([]StoreSummary, StoreSummary) {
+	var list []StoreSummary
+	for _, s := range stores {
+		theme := s.StoreTheme
+		if theme == "" {
+			theme = "navy"
+		}
+		list = append(list, StoreSummary{
+			ID:             s.ID,
+			Slug:           s.Slug,
+			StoreTitle:     s.StoreTitle,
+			StoreSlogan:    s.StoreSlogan,
+			StoreTheme:     theme,
+			StoreLogoURL:   s.StoreLogoURL,
+			Plan:           s.Plan,
+			PaymentStatus:  s.PaymentStatus,
+			WhatsappNumber: s.WhatsappNumber,
+		})
+	}
+	if len(list) == 0 && singleStore != nil {
+		theme := singleStore.StoreTheme
+		if theme == "" {
+			theme = "navy"
+		}
+		summary := StoreSummary{
+			ID:             singleStore.ID,
+			Slug:           singleStore.Slug,
+			StoreTitle:     singleStore.StoreTitle,
+			StoreSlogan:    singleStore.StoreSlogan,
+			StoreTheme:     theme,
+			StoreLogoURL:   singleStore.StoreLogoURL,
+			Plan:           singleStore.Plan,
+			PaymentStatus:  singleStore.PaymentStatus,
+			WhatsappNumber: singleStore.WhatsappNumber,
+		}
+		list = append(list, summary)
+		return list, summary
+	}
+
+	if len(list) > 0 {
+		if targetSlug != "" {
+			for _, item := range list {
+				if strings.EqualFold(item.Slug, targetSlug) {
+					return list, item
+				}
+			}
+		}
+		return list, list[0]
+	}
+
+	return list, StoreSummary{StoreTheme: "navy"}
+}
+
 type AuthHandler struct {
 	cfg *config.Config
 }
@@ -97,7 +162,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	if err := database.DB.Preload("Store").Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&user).Error; err != nil {
+	if err := database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"message": "Email atau kata sandi yang Anda masukkan salah.",
@@ -111,7 +176,16 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	token, err := middleware.GenerateToken(&user, user.Store, h.cfg)
+	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, "")
+
+	var primaryStore *models.Store
+	if len(user.Stores) > 0 {
+		primaryStore = &user.Stores[0]
+	} else {
+		primaryStore = user.Store
+	}
+
+	token, err := middleware.GenerateToken(&user, primaryStore, h.cfg)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -119,32 +193,22 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
-	if user.Store != nil {
-		storeSlug = user.Store.Slug
-		storeTitle = user.Store.StoreTitle
-		storePlan = user.Store.Plan
-		storeTheme = user.Store.StoreTheme
-		paymentStatus = user.Store.PaymentStatus
-	}
-	if storeTheme == "" {
-		storeTheme = "navy"
-	}
-
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Login berhasil.",
-		"token":   token,
+		"success":      true,
+		"message":      "Login berhasil.",
+		"token":        token,
+		"stores":       storeList,
+		"active_store": activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
 			"email":               user.Email,
 			"is_password_changed": user.IsPasswordChanged,
-			"store_slug":          storeSlug,
-			"store_title":         storeTitle,
-			"store_theme":         storeTheme,
-			"store_plan":          storePlan,
-			"payment_status":      paymentStatus,
+			"store_slug":          activeStore.Slug,
+			"store_title":         activeStore.StoreTitle,
+			"store_theme":         activeStore.StoreTheme,
+			"store_plan":          activeStore.Plan,
+			"payment_status":      activeStore.PaymentStatus,
 		},
 	})
 }
@@ -445,10 +509,23 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	token, _ := middleware.GenerateToken(&targetUser, &newStore, h.cfg)
 
+	singleSummary := StoreSummary{
+		ID:             newStore.ID,
+		Slug:           newStore.Slug,
+		StoreTitle:     newStore.StoreTitle,
+		StoreSlogan:    newStore.StoreSlogan,
+		StoreTheme:     newStore.StoreTheme,
+		Plan:           newStore.Plan,
+		PaymentStatus:  newStore.PaymentStatus,
+		WhatsappNumber: newStore.WhatsappNumber,
+	}
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Pendaftaran berhasil.",
-		"token":   token,
+		"success":      true,
+		"message":      "Pendaftaran berhasil.",
+		"token":        token,
+		"stores":       []StoreSummary{singleSummary},
+		"active_store": singleSummary,
 		"user": fiber.Map{
 			"id":                  targetUser.ID,
 			"name":                targetUser.Name,
@@ -532,9 +609,9 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// Check if user already exists
 	var user models.User
-	query := database.DB.Preload("Store").Where("LOWER(email) = ?", email)
+	query := database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ?", email)
 	if googleID != "" {
-		query = database.DB.Preload("Store").Where("LOWER(email) = ? OR google_id = ?", email, googleID)
+		query = database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ? OR google_id = ?", email, googleID)
 	}
 
 	err := query.First(&user).Error
@@ -546,24 +623,21 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			database.DB.Save(&user)
 		}
 
-		token, err := middleware.GenerateToken(&user, user.Store, h.cfg)
+		storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, "")
+
+		var primaryStore *models.Store
+		if len(user.Stores) > 0 {
+			primaryStore = &user.Stores[0]
+		} else {
+			primaryStore = user.Store
+		}
+
+		token, err := middleware.GenerateToken(&user, primaryStore, h.cfg)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
 				"message": "Gagal membuat sesi login.",
 			})
-		}
-
-		var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
-		if user.Store != nil {
-			storeSlug = user.Store.Slug
-			storeTitle = user.Store.StoreTitle
-			storePlan = user.Store.Plan
-			storeTheme = user.Store.StoreTheme
-			paymentStatus = user.Store.PaymentStatus
-		}
-		if storeTheme == "" {
-			storeTheme = "navy"
 		}
 
 		return c.JSON(fiber.Map{
@@ -572,16 +646,18 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			"message":             "Login Google berhasil!",
 			"token":               token,
 			"is_password_changed": true,
+			"stores":              storeList,
+			"active_store":        activeStore,
 			"user": fiber.Map{
 				"id":                  user.ID,
 				"name":                user.Name,
 				"email":               user.Email,
 				"avatar":              avatar,
-				"store_slug":          storeSlug,
-				"store_title":         storeTitle,
-				"store_theme":         storeTheme,
-				"store_plan":          storePlan,
-				"payment_status":      paymentStatus,
+				"store_slug":          activeStore.Slug,
+				"store_title":         activeStore.StoreTitle,
+				"store_theme":         activeStore.StoreTheme,
+				"store_plan":          activeStore.Plan,
+				"payment_status":      activeStore.PaymentStatus,
 			},
 		})
 	}
@@ -764,32 +840,30 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 		})
 	}
 
-	var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
-	if user.Store != nil {
-		storeSlug = user.Store.Slug
-		storeTitle = user.Store.StoreTitle
-		storePlan = user.Store.Plan
-		storeTheme = user.Store.StoreTheme
-		paymentStatus = user.Store.PaymentStatus
+	targetSlug := c.Get("X-Store-Slug")
+	if targetSlug == "" {
+		if s, ok := c.Locals("store_slug").(string); ok && s != "" {
+			targetSlug = s
+		}
 	}
-	if storeTheme == "" {
-		storeTheme = "navy"
-	}
+	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
 
 	return c.JSON(fiber.Map{
-		"success": true,
-		"valid":   true,
-		"message": "Sesi token valid dan aktif.",
+		"success":      true,
+		"valid":        true,
+		"message":      "Sesi token valid dan aktif.",
+		"stores":       storeList,
+		"active_store": activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
 			"email":               user.Email,
 			"is_password_changed": user.IsPasswordChanged,
-			"store_slug":          storeSlug,
-			"store_title":         storeTitle,
-			"store_theme":         storeTheme,
-			"store_plan":          storePlan,
-			"payment_status":      paymentStatus,
+			"store_slug":          activeStore.Slug,
+			"store_title":         activeStore.StoreTitle,
+			"store_theme":         activeStore.StoreTheme,
+			"store_plan":          activeStore.Plan,
+			"payment_status":      activeStore.PaymentStatus,
 		},
 	})
 }
@@ -805,7 +879,23 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
-	newToken, err := middleware.GenerateToken(user, user.Store, h.cfg)
+	targetSlug := c.Get("X-Store-Slug")
+	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+
+	var currentStore *models.Store
+	if activeStore.ID > 0 {
+		for i := range user.Stores {
+			if user.Stores[i].ID == activeStore.ID {
+				currentStore = &user.Stores[i]
+				break
+			}
+		}
+	}
+	if currentStore == nil {
+		currentStore = user.Store
+	}
+
+	newToken, err := middleware.GenerateToken(user, currentStore, h.cfg)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -813,32 +903,22 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
-	var storeSlug, storeTitle, storePlan, storeTheme, paymentStatus string
-	if user.Store != nil {
-		storeSlug = user.Store.Slug
-		storeTitle = user.Store.StoreTitle
-		storePlan = user.Store.Plan
-		storeTheme = user.Store.StoreTheme
-		paymentStatus = user.Store.PaymentStatus
-	}
-	if storeTheme == "" {
-		storeTheme = "navy"
-	}
-
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Sesi login berhasil diperpanjang.",
-		"token":   newToken,
+		"success":      true,
+		"message":      "Sesi login berhasil diperpanjang.",
+		"token":        newToken,
+		"stores":       storeList,
+		"active_store": activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
 			"email":               user.Email,
 			"is_password_changed": user.IsPasswordChanged,
-			"store_slug":          storeSlug,
-			"store_title":         storeTitle,
-			"store_theme":         storeTheme,
-			"store_plan":          storePlan,
-			"payment_status":      paymentStatus,
+			"store_slug":          activeStore.Slug,
+			"store_title":         activeStore.StoreTitle,
+			"store_theme":         activeStore.StoreTheme,
+			"store_plan":          activeStore.Plan,
+			"payment_status":      activeStore.PaymentStatus,
 		},
 	})
 }

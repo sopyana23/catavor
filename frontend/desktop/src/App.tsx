@@ -113,7 +113,8 @@ import {
   MoreVertical,
   MoreHorizontal,
   Crown,
-  Flag
+  Flag,
+  LayoutDashboard
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -121,6 +122,20 @@ import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput, parseVideoUrl } from './components/VideoEmbed'
 import { SubscriptionModal, SubscriptionPage, QuotaDashboardWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
+
+export interface UserStoreSummary {
+  id: number;
+  slug: string;
+  store_title: string;
+  store_slogan?: string;
+  store_theme?: string;
+  store_logo_url?: string;
+  plan?: string;
+  payment_status?: string;
+  whatsapp_number?: string;
+  item_count?: number;
+}
+
 
 // Top-level Store Slug Resolver (Accessible before component mount)
 function getStoreSlug(): string | null {
@@ -4893,6 +4908,29 @@ function App() {
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(
     localStorage.getItem('catavor_password_changed') === 'true'
   )
+  const [userStores, setUserStores] = useState<UserStoreSummary[]>(() => {
+    try {
+      const raw = localStorage.getItem('catavor_stores');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [showStoreDropdown, setShowStoreDropdown] = useState<boolean>(false);
+  const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(false);
+  const [showCreateStoreModal, setShowCreateStoreModal] = useState<boolean>(false);
+  const [createStoreForm, setCreateStoreForm] = useState({
+    store_name: '',
+    store_slug: '',
+    store_slogan: '',
+    whatsapp_number: '',
+    store_theme: 'navy'
+  });
+  const [createStoreLoading, setCreateStoreLoading] = useState<boolean>(false);
+  const [createStoreError, setCreateStoreError] = useState<string | null>(null);
+  const [createStoreSlugChecking, setCreateStoreSlugChecking] = useState<boolean>(false);
+  const [createStoreSlugStatus, setCreateStoreSlugStatus] = useState<{ available: boolean; message: string } | null>(null);
 
   const isStoreOwner = Boolean(
     token &&
@@ -4900,9 +4938,177 @@ function App() {
     storeSlug &&
     (
       (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
-      ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase())
+      ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
+      (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
     )
   );
+
+  const fetchMyStores = async () => {
+    const currentToken = token || localStorage.getItem('catavor_token');
+    if (!currentToken) return;
+    try {
+      const res = await fetch(`${API_BASE}/user/stores`, {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'Accept': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.stores)) {
+        setUserStores(data.stores);
+        try {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Failed to fetch user stores:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchMyStores();
+    }
+  }, [token]);
+
+  const handleSwitchStore = async (targetSlug: string) => {
+    if (!token || !targetSlug) return;
+    if (storeSlug && targetSlug.toLowerCase() === storeSlug.toLowerCase()) {
+      setShowStoreDropdown(false);
+      setShowStoreSwitcherModal(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/user/stores/switch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ slug: targetSlug })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
+        if (data.user) {
+          localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          setAdminUser(data.user);
+        }
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
+        
+        const newTheme = data.active_store?.store_theme || data.user?.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
+
+        setStoreSlug(targetSlug);
+        setShowStoreDropdown(false);
+        setShowStoreSwitcherModal(false);
+        window.history.pushState({}, '', `/${targetSlug}/admin/items`);
+        await loadData(targetSlug);
+        showToast(`Beralih ke katalog "${data.active_store?.store_title || targetSlug}"`, 'success');
+      } else {
+        showToast(data.message || 'Gagal beralih katalog', 'error');
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi saat beralih katalog', 'error');
+    }
+  };
+
+  const checkCreateStoreSlug = (slug: string) => {
+    const clean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    setCreateStoreForm(prev => ({ ...prev, store_slug: clean }));
+    if (clean.length < 3) {
+      setCreateStoreSlugStatus(null);
+      setCreateStoreSlugChecking(false);
+      return;
+    }
+    setCreateStoreSlugChecking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/check-slug/${clean}`);
+        const data = await res.json();
+        setCreateStoreSlugStatus({
+          available: data.available,
+          message: data.message || (data.available ? 'Username tersedia' : 'Username sudah digunakan')
+        });
+      } catch {
+        setCreateStoreSlugStatus(null);
+      } finally {
+        setCreateStoreSlugChecking(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  };
+
+  const handleCreateStoreSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createStoreForm.store_name.trim() || !createStoreForm.store_slug.trim()) {
+      setCreateStoreError('Nama katalog dan username link wajib diisi.');
+      return;
+    }
+    if (createStoreSlugStatus && !createStoreSlugStatus.available) {
+      setCreateStoreError('Username link katalog sudah digunakan. Silakan pilih username lain.');
+      return;
+    }
+    setCreateStoreLoading(true);
+    setCreateStoreError(null);
+    try {
+      const res = await fetch(`${API_BASE}/user/stores/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(createStoreForm)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
+        if (data.user) {
+          localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          setAdminUser(data.user);
+        }
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
+        const newSlug = data.store?.slug || createStoreForm.store_slug;
+        const newTheme = data.store?.store_theme || createStoreForm.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
+
+        setStoreSlug(newSlug);
+        setShowCreateStoreModal(false);
+        setShowStoreDropdown(false);
+        setShowStoreSwitcherModal(false);
+        setCreateStoreForm({ store_name: '', store_slug: '', store_slogan: '', whatsapp_number: '', store_theme: 'navy' });
+        setCreateStoreSlugStatus(null);
+        window.history.pushState({}, '', `/${newSlug}/admin/items`);
+        await loadData(newSlug);
+        showToast(`Profil katalog baru "${data.store?.store_title || newSlug}" berhasil dibuat!`, 'success');
+      } else {
+        setCreateStoreError(data.message || 'Gagal membuat profil katalog baru');
+      }
+    } catch (err) {
+      setCreateStoreError('Koneksi terputus. Gagal membuat profil katalog.');
+    } finally {
+      setCreateStoreLoading(false);
+    }
+  };
+
 
   // Support Ticket System State (Desktop)
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -5780,12 +5986,14 @@ function App() {
     }
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_stores');
     localStorage.removeItem('catavor_password_changed');
     localStorage.removeItem('catavor_settings');
     document.documentElement.setAttribute('data-theme', 'navy');
     document.body.setAttribute('data-theme', 'navy');
     setToken(null);
     setAdminUser(null);
+    setUserStores([]);
     setIsPasswordChanged(true);
     setView('admin');
     setAdminTab('items');
@@ -6391,6 +6599,10 @@ function App() {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
           localStorage.setItem('catavor_token', data.token);
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
+          if (data.stores) {
+            localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+            setUserStores(data.stores);
+          }
           localStorage.setItem('catavor_password_changed', 'true');
           const userTheme = data.user.store_theme || 'navy';
           document.documentElement.setAttribute('data-theme', userTheme);
@@ -6587,6 +6799,10 @@ function App() {
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          setUserStores(data.stores);
+        }
         localStorage.setItem('catavor_password_changed', 'true');
         
         const initialTheme = data.user?.store_theme || 'navy';
@@ -6817,6 +7033,10 @@ function App() {
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token)
         localStorage.setItem('catavor_user', JSON.stringify(data.user))
+        if (data.stores) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores))
+          setUserStores(data.stores)
+        }
         localStorage.setItem('catavor_password_changed', data.is_password_changed ? 'true' : 'false')
         
         const loginTheme = data.user?.store_theme || 'navy';
@@ -10933,6 +11153,89 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         </header>
       )}
 
+      {/* Store Owner Preview Banner for Public Storefront View */}
+      {isStoreOwner && view === 'catalog' && (
+        <aside 
+          aria-label="Mode Pratinjau Publik"
+          style={{
+            backgroundColor: 'var(--header-bg, #0f172a)',
+            backgroundImage: 'linear-gradient(90deg, var(--primary-glow) 0%, rgba(0, 0, 0, 0) 100%)',
+            borderBottom: '1px solid var(--border-light)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 999,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          <div style={{
+            maxWidth: '1280px',
+            margin: '0 auto',
+            padding: '0.5rem 2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '7px',
+                backgroundColor: 'var(--primary-glow)',
+                border: '1px solid var(--primary)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Eye size={15} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Mode Pratinjau Katalog Publik
+                </span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                  — Ini adalah tampilan langsung yang dilihat oleh pengunjung/pelanggan Anda.
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setView('admin');
+                const slug = getStoreSlug();
+                if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+              }}
+              style={{
+                backgroundColor: 'var(--primary)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.42rem 0.95rem',
+                borderRadius: '0.5rem',
+                fontWeight: 800,
+                fontSize: '0.78rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                boxShadow: '0 2px 8px var(--primary-glow)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <LayoutDashboard size={14} />
+              <span>Kembali ke Dashboard Admin</span>
+              <ArrowRight size={13} />
+            </button>
+          </div>
+        </aside>
+      )}
+
       {/* Main Container */}
       <main className="container" style={{ paddingBottom: '4rem' }}>
         {view === 'catalog' ? (
@@ -11924,16 +12227,229 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           ) : (
             /* ADMIN DASHBOARD (LOGGED IN & PASSWORD CHANGED) */
             <div className="glass-panel animate-fade-in" style={{ padding: '2rem', marginTop: '2rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    Panel Administrator
-                  </h2>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                    Selamat datang, <strong>{adminUser?.name}</strong> ({adminUser?.email}). Kelola toko dan postingan Anda.
-                  </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                  {/* Store Switcher Dropdown Anchor */}
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowStoreDropdown(!showStoreDropdown)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.6rem 0.9rem',
+                        borderRadius: '0.75rem',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        textAlign: 'left'
+                      }}
+                      title="Ganti Profil Katalog"
+                    >
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '8px',
+                        background: 'var(--primary-glow)',
+                        border: '1px solid var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                        fontWeight: 800,
+                        fontSize: '1rem',
+                        overflow: 'hidden',
+                        flexShrink: 0
+                      }}>
+                        {settings.store_logo_url ? (
+                          <img src={settings.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          (settings.store_title || storeSlug || 'C').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div style={{ minWidth: '120px', maxWidth: '200px' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {settings.store_title || storeSlug || 'Katalog'}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>@{storeSlug}</span>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '4px',
+                            background: settings.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.2)' : settings.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                            color: settings.plan === 'pro_business' ? '#f59e0b' : settings.plan === 'pro_starter' ? '#38bdf8' : '#34d399'
+                          }}>
+                            {settings.plan === 'pro_business' ? 'PRO BISNIS' : settings.plan === 'pro_starter' ? 'STARTER' : 'FREE'}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronDown size={16} style={{ color: 'var(--text-muted)', transform: showStoreDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </button>
+
+                    {/* Store Switcher Dropdown Popover */}
+                    {showStoreDropdown && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 8px)',
+                        left: 0,
+                        width: '320px',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.85rem',
+                        boxShadow: '0 12px 36px rgba(0,0,0,0.35)',
+                        padding: '0.65rem',
+                        zIndex: 1000,
+                        animation: 'fadeIn 0.15s ease',
+                        color: 'var(--text-primary)'
+                      }}>
+                        <div style={{ padding: '0.4rem 0.6rem 0.6rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Profil Katalog Anda ({userStores.length})
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            {adminUser?.email}
+                          </span>
+                        </div>
+
+                        <div style={{ maxHeight: '240px', overflowY: 'auto', padding: '0.4rem 0', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {userStores.map((s) => {
+                            const isCurrent = s.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                            return (
+                              <div
+                                key={s.id}
+                                onClick={() => handleSwitchStore(s.slug)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '0.55rem 0.65rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: isCurrent ? 'var(--primary-glow)' : 'transparent',
+                                  border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
+                                  cursor: isCurrent ? 'default' : 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
+                                onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                                  <div style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '6px',
+                                    backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                    color: isCurrent ? '#ffffff' : 'var(--text-primary)',
+                                    border: isCurrent ? 'none' : '1px solid var(--border-light)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 800,
+                                    fontSize: '0.85rem',
+                                    flexShrink: 0,
+                                    overflow: 'hidden'
+                                  }}>
+                                    {s.store_logo_url ? (
+                                      <img src={s.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                      s.store_title ? s.store_title.charAt(0).toUpperCase() : s.slug.charAt(0).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {s.store_title || s.slug}
+                                    </div>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                      @{s.slug} {s.item_count !== undefined ? `• ${s.item_count} item` : ''}
+                                    </div>
+                                  </div>
+                                </div>
+                                {isCurrent ? (
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                    <Check size={14} /> Aktif
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                    Beralih &rarr;
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowStoreDropdown(false);
+                              setShowCreateStoreModal(true);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '0.6rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--primary-glow)',
+                              border: '1px dashed var(--primary)',
+                              color: 'var(--primary)',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.45rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Plus size={15} />
+                            <span>Buat Profil Katalog Baru</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h2 style={{ fontSize: '1.4rem', margin: 0, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+                      Dashboard Administrator
+                    </h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0.15rem 0 0' }}>
+                      Pengelola: <strong>{adminUser?.name}</strong> • Akun Multi-Katalog
+                    </p>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+
+                <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Public Storefront Preview Button */}
+                  <button
+                    type="button"
+                    onClick={goToCatalog}
+                    style={{
+                      padding: '0.55rem 0.95rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#ffffff',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Buka tampilan katalog yang dilihat pengunjung"
+                  >
+                    <Eye size={15} />
+                    <span>Lihat Katalog Publik</span>
+                    <ExternalLink size={13} style={{ opacity: 0.6 }} />
+                  </button>
+
                   {/* Notification Bell Button */}
                   <button 
                     type="button" 
@@ -11948,8 +12464,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       position: 'relative', 
                       background: 'rgba(255,255,255,0.06)', 
                       border: '1px solid rgba(255,255,255,0.12)', 
-                      borderRadius: '0.6rem', 
-                      padding: '0.65rem 0.85rem', 
+                      borderRadius: '0.5rem', 
+                      padding: '0.55rem 0.85rem', 
                       cursor: 'pointer', 
                       color: '#fff', 
                       display: 'flex', 
@@ -11960,7 +12476,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       transition: 'all 0.2s ease'
                     }}
                   >
-                    <Bell size={18} style={{ color: notifications.some(n => !n.read) ? '#f59e0b' : '#9ca3af' }} />
+                    <Bell size={16} style={{ color: notifications.some(n => !n.read) ? '#f59e0b' : '#9ca3af' }} />
                     <span>Notifikasi</span>
                     {notifications.filter(n => !n.read).length > 0 && (
                       <span style={{ backgroundColor: '#ef4444', color: '#fff', fontSize: '0.62rem', fontWeight: 900, borderRadius: '9999px', padding: '0.1rem 0.45rem', border: '1.5px solid #0f172a' }}>
@@ -11976,21 +12492,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       const slug = getStoreSlug();
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
                     }} 
-                    style={{ padding: '0.65rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', border: '1px solid var(--primary)', color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', fontWeight: 700 }}
+                    style={{ padding: '0.55rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', border: '1px solid var(--primary)', color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 700 }}
                   >
-                    <Crown size={16} />
+                    <Crown size={15} />
                     <span>Paket &amp; Langganan</span>
                   </button>
 
                   {adminTab === 'items' && (
-                    <button className="btn-primary" onClick={() => openCreateModal('physical')}>
-                      <Plus size={18} />
-                      Tambah Item Baru
+                    <button className="btn-primary" onClick={() => openCreateModal('physical')} style={{ padding: '0.55rem 1rem', fontSize: '0.8rem', fontWeight: 700 }}>
+                      <Plus size={16} />
+                      Tambah Item
                     </button>
                   )}
-                  <button className="btn-danger" onClick={handleLogout} style={{ padding: '0.65rem 1rem' }}>
-                    <LogOut size={16} />
-                    Logout
+                  <button className="btn-danger" onClick={handleLogout} style={{ padding: '0.55rem 0.9rem', fontSize: '0.8rem' }}>
+                    <LogOut size={15} />
+                    Keluar
                   </button>
                 </div>
               </div>
@@ -19191,6 +19707,209 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 Saya Paham
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Create Store Modal */}
+      {showCreateStoreModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '560px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
+            color: 'var(--text-primary)',
+            padding: '2rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                  <Store size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Buat Profil Katalog Baru
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Tambah katalog untuk lini produk, brand, atau jasa baru di akun Anda
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateStoreModal(false)}
+                style={{ background: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-secondary)', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {createStoreError && (
+              <div style={{ padding: '0.75rem 1rem', borderRadius: '0.6rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: '0.82rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{createStoreError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateStoreSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.4rem' }}>
+                  Nama Katalog / Usaha *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Studio Foto Kreatif, Toko Roti Enak"
+                  value={createStoreForm.store_name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const autoSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30);
+                    setCreateStoreForm(prev => ({
+                      ...prev,
+                      store_name: name,
+                      store_slug: prev.store_slug === '' || prev.store_slug === autoSlug.slice(0, -1) ? autoSlug : prev.store_slug
+                    }));
+                    if (!createStoreForm.store_slug || createStoreForm.store_slug === autoSlug.slice(0, -1)) {
+                      checkCreateStoreSlug(autoSlug);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.6rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.4rem' }}>
+                  Username Link Katalog (Slug URL) *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
+                    catavor.com/
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="nama-katalog"
+                    value={createStoreForm.store_slug}
+                    onChange={(e) => checkCreateStoreSlug(e.target.value)}
+                    style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 7.5rem', borderRadius: '0.6rem', backgroundColor: 'var(--bg-deep)', border: `1px solid ${createStoreSlugStatus?.available === true ? 'var(--primary)' : createStoreSlugStatus?.available === false ? 'var(--danger)' : 'var(--border-light)'}`, color: 'var(--text-primary)', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                  />
+                  {createStoreSlugChecking && (
+                    <span style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                      Memeriksa...
+                    </span>
+                  )}
+                </div>
+                {createStoreSlugStatus && (
+                  <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: createStoreSlugStatus.available ? 'var(--primary)' : 'var(--danger)' }}>
+                    {createStoreSlugStatus.available ? '✓ ' : '✕ '}
+                    {createStoreSlugStatus.message}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.4rem' }}>
+                  Slogan Singkat (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Solusi fotografi profesional dan estetik"
+                  value={createStoreForm.store_slogan}
+                  onChange={(e) => setCreateStoreForm(prev => ({ ...prev, store_slogan: e.target.value }))}
+                  style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.6rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.4rem' }}>
+                  Nomor WhatsApp Bisnis (Opsional)
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Contoh: 6281234567890"
+                  value={createStoreForm.whatsapp_number}
+                  onChange={(e) => setCreateStoreForm(prev => ({ ...prev, whatsapp_number: e.target.value }))}
+                  style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.6rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.4rem' }}>
+                  Pilihan Tema Visual Katalog
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                  {[
+                    { id: 'navy', name: 'Royal Navy', color: '#1d4ed8' },
+                    { id: 'emerald', name: 'Emerald', color: '#10b981' },
+                    { id: 'nordic', name: 'Slate', color: '#5b7c99' },
+                    { id: 'cyberpunk', name: 'Cyberpunk', color: '#a855f7' },
+                    { id: 'ocean', name: 'Oceanic', color: '#3b82f6' },
+                    { id: 'pastel', name: 'Pastel', color: '#e11d48' },
+                    { id: 'sage', name: 'Sage', color: '#527863' }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setCreateStoreForm(prev => ({ ...prev, store_theme: t.id }))}
+                      style={{
+                        padding: '0.55rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: createStoreForm.store_theme === t.id ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                        border: createStoreForm.store_theme === t.id ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: t.color, display: 'inline-block' }}></span>
+                      <span>{t.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateStoreModal(false)}
+                  style={{ flex: 1, padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={createStoreLoading || (createStoreSlugStatus !== null && !createStoreSlugStatus.available)}
+                  className="btn-portal-primary"
+                  style={{ flex: 1.5, padding: '0.75rem', borderRadius: '0.65rem', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem', cursor: 'pointer', backgroundColor: 'var(--primary)', color: '#ffffff', border: 'none', boxShadow: '0 4px 12px var(--primary-glow)' }}
+                >
+                  {createStoreLoading ? 'Membuat Profil...' : 'Buat Katalog Sekarang'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
