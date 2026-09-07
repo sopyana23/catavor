@@ -686,6 +686,11 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 		habitats = []string{"Freshly Cooked", "Frozen Food", "Kemasan Tahan Lama"}
 		statuses = []string{"Menu Tersedia", "Habis untuk Hari Ini", "Menu Spesial Musiman"}
 		shipping = []string{"Kurir Instan / Sameday", "Dine-In & Take Away", "Bisa Kirim Luar Kota (Frozen)"}
+	case "property":
+		classes = []string{"Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"}
+		habitats = []string{"Siap Huni (Ready)", "Indent / Under Construction", "Secondary / Butuh Renovasi"}
+		statuses = []string{"Tersedia (Available)", "Terpesan (Booked / UTJ)", "Terjual / Tersewa (Sold / Rented)"}
+		shipping = []string{"Survey Lokasi / Janji Temu", "Notaris & Serah Terima Kunci", "Konsultasi Legalitas & KPR"}
 	default:
 		classes = []string{"Kategori Utama", "Koleksi Populer", "Item Unggulan", "Varian Baru", "Promo Spesial"}
 		habitats = []string{"Standar", "Koleksi Terbatas", "Edisi Khusus"}
