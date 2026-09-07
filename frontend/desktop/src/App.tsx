@@ -18,6 +18,7 @@ import {
   Lock,
   LogOut,
   Upload,
+  Paperclip,
   ZoomIn,
   ZoomOut,
   ChevronLeft,
@@ -111,12 +112,15 @@ import {
   Columns,
   MoreVertical,
   MoreHorizontal,
+  Crown,
   Flag
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
+import { VideoPlayerEmbed, VideoPreviewInput, parseVideoUrl } from './components/VideoEmbed'
+import { SubscriptionModal, SubscriptionPage, QuotaDashboardWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
 
 // Top-level Store Slug Resolver (Accessible before component mount)
 function getStoreSlug(): string | null {
@@ -218,6 +222,30 @@ export function isNonEmptyValue(val: any): boolean {
   if (typeof val === 'object') return Object.keys(val).length > 0;
   return false;
 }
+
+// Industry-standard JWT expiration validator with clock-skew buffer (5 seconds)
+export function isTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(payloadBase64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const parsed = JSON.parse(jsonPayload);
+    if (!parsed || typeof parsed.exp !== 'number') return false;
+    const currentTime = Math.floor(Date.now() / 1000);
+    // Expired if exp timestamp is less than current time + 5s buffer
+    return parsed.exp < (currentTime + 5);
+  } catch {
+    return true;
+  }
+}
+
 
 export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property';
 
@@ -689,29 +717,42 @@ interface Fauna {
   }
 }
 
+interface TicketAttachment {
+  id?: number | string;
+  file_url: string;
+  storage_key?: string;
+  file_name: string;
+  file_size?: number;
+  file_type?: string;
+}
+
 interface TicketMessage {
-  id: string;
-  sender: 'user' | 'support';
-  sender_name: string;
+  id: string | number;
+  sender: 'user' | 'support' | 'agent' | 'system';
+  sender_name?: string;
   message: string;
-  timestamp: string;
+  timestamp?: string;
+  created_at?: string;
+  attachments?: TicketAttachment[];
 }
 
 interface SupportTicket {
-  id: string;
+  id: string | number;
+  ticket_number?: string;
   subject: string;
-  category: 'payment' | 'technical' | 'account' | 'feature' | 'other';
-  priority: 'normal' | 'high' | 'urgent';
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  category: string;
+  priority: string;
+  status: string;
   created_at: string;
   updated_at: string;
+  last_message_at?: string;
   messages: TicketMessage[];
 }
 
 const INITIAL_TICKETS: SupportTicket[] = [
   {
     id: 'TK-9402',
-    subject: 'Verifikasi Upgrade Paket Pro Toko Catavor',
+    subject: 'Verifikasi Aktivasi Paket Pro Akun Catavor',
     category: 'payment',
     priority: 'high',
     status: 'in_progress',
@@ -721,22 +762,22 @@ const INITIAL_TICKETS: SupportTicket[] = [
       {
         id: 'msg-1',
         sender: 'user',
-        sender_name: 'Admin Toko',
-        message: 'Halo Tim Catavor, saya sudah melakukan pembayaran transaksi upgrade ke Paket Pro via QRIS. Mohon bantuannya untuk verifikasi agar fitur Pro aktif.',
+        sender_name: 'Pengelola Katalog',
+        message: 'Halo Tim Catavor, saya sudah melakukan pembayaran transaksi aktivasi ke Paket Pro via QRIS. Mohon bantuannya untuk verifikasi agar fitur Pro aktif.',
         timestamp: '28 Jul 2026, 14:20'
       },
       {
         id: 'msg-2',
         sender: 'support',
         sender_name: 'Catavor Official Support',
-        message: 'Halo Admin Toko! Terima kasih telah melakukan upgrade. Tim Billing kami sedang memverifikasi mutasi transaksi Anda. Paket Pro akan diaktifkan secara otomatis dalam 5-10 menit.',
+        message: 'Halo! Terima kasih telah melakukan aktivasi Paket Pro. Tim Billing kami sedang memverifikasi mutasi transaksi Anda. Paket Pro akan diaktifkan secara otomatis dalam 5-10 menit.',
         timestamp: '28 Jul 2026, 14:35'
       }
     ]
   },
   {
     id: 'TK-8291',
-    subject: 'Kustomisasi Domain Slug Toko',
+    subject: 'Kustomisasi URL Slug Katalog',
     category: 'technical',
     priority: 'normal',
     status: 'resolved',
@@ -746,15 +787,15 @@ const INITIAL_TICKETS: SupportTicket[] = [
       {
         id: 'msg-10',
         sender: 'user',
-        sender_name: 'Admin Toko',
-        message: 'Bagaimana cara mengubah URL toko saya agar lebih ringkas?',
+        sender_name: 'Pengelola Katalog',
+        message: 'Bagaimana cara mengubah URL slug katalog saya agar lebih ringkas?',
         timestamp: '25 Jul 2026, 09:15'
       },
       {
         id: 'msg-11',
         sender: 'support',
         sender_name: 'Catavor Official Support',
-        message: 'Halo! Anda dapat menyesuaikan slug toko pada menu Pengaturan Toko > Informasi Toko. Pastikan slug yang digunakan huruf kecil tanpa spasi dan belum dipakai oleh toko lain.',
+        message: 'Halo! Anda dapat menyesuaikan slug katalog pada menu Pengaturan > Informasi Identitas. Pastikan slug yang digunakan huruf kecil tanpa spasi dan belum dipakai oleh katalog lain.',
         timestamp: '25 Jul 2026, 09:40'
       }
     ]
@@ -4242,7 +4283,8 @@ function App() {
       const savedPlan = sessionStorage.getItem('catavor_register_plan');
       const savedForm = sessionStorage.getItem('catavor_register_form');
 
-      const finalPlan = (urlPlan || savedPlan || 'free') as 'free' | 'pro';
+      const rawPlan = urlPlan || savedPlan || 'free';
+      const finalPlan = (rawPlan === 'pro' ? 'pro_starter' : rawPlan) as 'free' | 'pro_starter' | 'pro_business';
       const finalForm = savedForm ? JSON.parse(savedForm) : { name: '', email: '', password: '', store_name: '', store_slug: '' };
 
       return {
@@ -4264,7 +4306,10 @@ function App() {
   const initialRegState = loadSavedRegistrationState();
 
   const [portalTab, setPortalTab] = useState<'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use'>(initialRegState.tab as any);
-  const [registerPlan, setRegisterPlan] = useState<'free' | 'pro'>(initialRegState.plan);
+  const [registerPlan, setRegisterPlan] = useState<'free' | 'pro_starter' | 'pro_business'>(
+    (initialRegState.plan as any) === 'pro' ? 'pro_starter' : (initialRegState.plan as any) || 'free'
+  );
+  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(initialRegState.step);
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('bank');
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
@@ -4439,13 +4484,6 @@ function App() {
     sessionStorage.removeItem('catavor_register_form');
     sessionStorage.removeItem('catavor_register_plan');
   };
-
-  // Auto reset Google SSO & register form cache whenever returning to Step 1
-  useEffect(() => {
-    if (portalTab === 'register' && registerStep === 1 && registerForm.google_id) {
-      resetRegisterFormState();
-    }
-  }, [portalTab, registerStep]);
 
   // Store username (slug) real-time availability check state
   const [slugChecking, setSlugChecking] = useState<boolean>(false);
@@ -4624,7 +4662,7 @@ function App() {
       articles_enabled: '1',
       store_title: 'Catavor',
       store_logo_url: '',
-      store_theme: 'emerald',
+      store_theme: 'navy',
       default_is_comments_enabled: '1',
       default_require_comment_approval: '0',
       default_require_comment_email: '0',
@@ -4653,7 +4691,7 @@ function App() {
 
   // Navigation: 'catalog' or 'admin' or 'article-editor'
   const [view, setView] = useState<'catalog' | 'admin' | 'article-editor'>('catalog')
-  const [adminTab, setAdminTab] = useState<'items' | 'notifications' | 'settings' | 'profile' | 'articles' | 'policies' | 'help'>('items')
+  const [adminTab, setAdminTab] = useState<'items' | 'notifications' | 'settings' | 'profile' | 'articles' | 'policies' | 'help' | 'subscription'>('items')
 
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
@@ -4662,53 +4700,7 @@ function App() {
     return notifications;
   }, [notifications, notifFilter]);
 
-  // Support Ticket System State (Desktop)
-  const [tickets, setTickets] = useState<SupportTicket[]>(() => {
-    try {
-      const saved = localStorage.getItem('catavor_support_tickets');
-      return saved ? JSON.parse(saved) : INITIAL_TICKETS;
-    } catch (e) {
-      return INITIAL_TICKETS;
-    }
-  });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('catavor_support_tickets', JSON.stringify(tickets));
-    } catch (e) {}
-  }, [tickets]);
-
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
-  const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
-  const [ticketSearch, setTicketSearch] = useState<string>('');
-  const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
-  const [ticketReplyText, setTicketReplyText] = useState<string>('');
-
-  const [newTicketForm, setNewTicketForm] = useState<{
-    subject: string;
-    category: SupportTicket['category'];
-    priority: SupportTicket['priority'];
-    message: string;
-  }>({
-    subject: '',
-    category: 'payment',
-    priority: 'normal',
-    message: ''
-  });
-
-  const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
-      const matchesSearch = !ticketSearch.trim() || 
-        t.subject.toLowerCase().includes(ticketSearch.toLowerCase()) || 
-        t.id.toLowerCase().includes(ticketSearch.toLowerCase());
-
-      if (!matchesSearch) return false;
-
-      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'in_progress';
-      if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
-      return true;
-    });
-  }, [tickets, ticketFilter, ticketSearch]);
 
   // Articles state
   const [articles, setArticles] = useState<Article[]>([])
@@ -4836,9 +4828,15 @@ function App() {
   const [adminSearch, setAdminSearch] = useState<string>('')
   const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna'>('all')
   const [adminClassFilter, setAdminClassFilter] = useState<string>('all')
+  const [adminActiveFilter, setAdminActiveFilter] = useState<'all' | 'active' | 'archived'>('all')
   const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
   const [adminPage, setAdminPage] = useState<number>(1)
   const [adminPerPage, setAdminPerPage] = useState<number>(10)
+
+  // Subscription & Dynamic Quota State (Desktop)
+  const [storeQuota, setStoreQuota] = useState<StoreQuotaData | null>(null)
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlanData[]>([])
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState<boolean>(false)
 
   // Available categories for desktop admin inventory scoped to active product type
   const availableAdminCategories = useMemo(() => {
@@ -4861,8 +4859,11 @@ function App() {
 
       const matchesType = adminProductTypeFilter === 'all' || itemType === adminProductTypeFilter;
       const matchesClass = adminClassFilter === 'all' || item.class === adminClassFilter;
+      const matchesActive = adminActiveFilter === 'all'
+        || (adminActiveFilter === 'active' && (item as any).is_active !== false)
+        || (adminActiveFilter === 'archived' && (item as any).is_active === false);
 
-      return matchesSearch && matchesType && matchesClass;
+      return matchesSearch && matchesType && matchesClass && matchesActive;
     });
 
     // Sorting
@@ -4875,7 +4876,7 @@ function App() {
     });
 
     return result;
-  }, [faunas, adminSearch, adminProductTypeFilter, adminClassFilter, adminSortBy]);
+  }, [faunas, adminSearch, adminProductTypeFilter, adminClassFilter, adminActiveFilter, adminSortBy]);
 
   const totalAdminPages = Math.max(1, Math.ceil(filteredAdminItems.length / adminPerPage));
   const paginatedAdminItems = useMemo(() => {
@@ -4885,7 +4886,7 @@ function App() {
   // Authentication State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
   const isPopStateRef = useRef<boolean>(false)
-  const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_plan?: string} | null>(
+  const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(
@@ -4901,6 +4902,249 @@ function App() {
       ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase())
     )
   );
+
+  // Support Ticket System State (Desktop)
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState<boolean>(false);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
+  const [ticketSearch, setTicketSearch] = useState<string>('');
+  const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
+  const [ticketReplyText, setTicketReplyText] = useState<string>('');
+
+  // Screenshot Attachment Upload States
+  const [ticketNewAttachments, setTicketNewAttachments] = useState<TicketAttachment[]>([]);
+  const [ticketReplyAttachments, setTicketReplyAttachments] = useState<TicketAttachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState<boolean>(false);
+  const [isSubmittingReply, setIsSubmittingReply] = useState<boolean>(false);
+
+  // Support Ticket In-App Lightbox Gallery State (Desktop)
+  const [attachmentLightbox, setAttachmentLightbox] = useState<{
+    isOpen: boolean;
+    images: { file_url: string; file_name?: string }[];
+    currentIndex: number;
+  } | null>(null);
+
+  const openAttachmentLightbox = (images?: { file_url: string; file_name?: string }[], index: number = 0) => {
+    if (!images || images.length === 0) return;
+    setAttachmentLightbox({
+      isOpen: true,
+      images,
+      currentIndex: Math.max(0, Math.min(index, images.length - 1))
+    });
+    setZoomScale(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const closeAttachmentLightbox = () => {
+    setAttachmentLightbox(null);
+    setZoomScale(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const handleDownloadAttachmentImage = (url: string, filename?: string) => {
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || 'lampiran-tiket.jpg';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.open(url, '_blank');
+    }
+  };
+
+  useEffect(() => {
+    if (!attachmentLightbox?.isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeAttachmentLightbox();
+      } else if (e.key === 'ArrowLeft') {
+        setAttachmentLightbox(prev => {
+          if (!prev || prev.images.length <= 1) return prev;
+          const nextIdx = (prev.currentIndex - 1 + prev.images.length) % prev.images.length;
+          return { ...prev, currentIndex: nextIdx };
+        });
+        setZoomScale(1);
+        setPanPosition({ x: 0, y: 0 });
+      } else if (e.key === 'ArrowRight') {
+        setAttachmentLightbox(prev => {
+          if (!prev || prev.images.length <= 1) return prev;
+          const nextIdx = (prev.currentIndex + 1) % prev.images.length;
+          return { ...prev, currentIndex: nextIdx };
+        });
+        setZoomScale(1);
+        setPanPosition({ x: 0, y: 0 });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [attachmentLightbox?.isOpen, attachmentLightbox?.images?.length]);
+
+  const [newTicketForm, setNewTicketForm] = useState<{
+    subject: string;
+    category: string;
+    priority: string;
+    message: string;
+  }>({
+    subject: '',
+    category: 'technical',
+    priority: 'medium',
+    message: ''
+  });
+
+  // Fetch tickets from backend API
+  const fetchSupportTickets = async () => {
+    if (!token) return;
+    try {
+      setLoadingTickets(true);
+      const res = await fetch(`${API_BASE}/support/tickets`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        const mappedTickets: SupportTicket[] = data.data.map((t: any) => ({
+          id: t.id,
+          ticket_number: t.ticket_number,
+          subject: t.subject,
+          category: t.category,
+          priority: t.priority,
+          status: t.status,
+          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+          updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
+            id: m.id,
+            sender: m.sender_type || 'user',
+            sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
+            message: m.message,
+            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            attachments: Array.isArray(m.attachments) ? m.attachments : []
+          })) : []
+        }));
+        setTickets(mappedTickets);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil daftar tiket support:", e);
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  // Fetch single ticket details with preloaded messages & attachments
+  const fetchTicketDetails = async (ticketId: number | string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/support/tickets/${ticketId}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const t = data.data;
+        const mapped: SupportTicket = {
+          id: t.id,
+          ticket_number: t.ticket_number,
+          subject: t.subject,
+          category: t.category,
+          priority: t.priority,
+          status: t.status,
+          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+          updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
+            id: m.id,
+            sender: m.sender_type || 'user',
+            sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
+            message: m.message,
+            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            attachments: Array.isArray(m.attachments) ? m.attachments : []
+          })) : []
+        };
+        setSelectedTicket(mapped);
+      }
+    } catch (e) {
+      console.error("Gagal memuat detail tiket:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (adminTab === 'help' && token) {
+      fetchSupportTickets();
+    }
+  }, [adminTab, token]);
+
+  // Upload attachment helper for screenshots
+  const handleUploadSupportAttachment = async (files: FileList | null, isReply: boolean = false) => {
+    if (!files || files.length === 0) return;
+    const currentAttachments = isReply ? ticketReplyAttachments : ticketNewAttachments;
+    if (currentAttachments.length + files.length > 5) {
+      showToast('Maksimum 5 file screenshot/gambar per pengiriman.', 'error');
+      return;
+    }
+
+    setIsUploadingAttachment(true);
+    try {
+      const uploaded: TicketAttachment[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.size > 10 * 1024 * 1024) {
+          showToast(`File ${file.name} melebihi batas 10MB.`, 'error');
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const res = await fetch(`${API_BASE}/storage/upload?category=support`, {
+          method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          body: formData
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          uploaded.push({
+            file_url: data.url,
+            storage_key: data.storage_key || '',
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type || 'image/jpeg'
+          });
+        } else {
+          showToast(data.message || `Gagal mengunggah ${file.name}`, 'error');
+        }
+      }
+
+      if (uploaded.length > 0) {
+        if (isReply) {
+          setTicketReplyAttachments(prev => [...prev, ...uploaded]);
+        } else {
+          setTicketNewAttachments(prev => [...prev, ...uploaded]);
+        }
+        showToast(`${uploaded.length} screenshot berhasil diunggah!`);
+      }
+    } catch (err) {
+      console.error("Error uploading attachment:", err);
+      showToast('Terjadi kesalahan saat mengunggah gambar screenshot.', 'error');
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const filteredTickets = useMemo(() => {
+    return tickets.filter(t => {
+      const searchStr = ticketSearch.toLowerCase().trim();
+      const matchesSearch = !searchStr || 
+        t.subject.toLowerCase().includes(searchStr) || 
+        String(t.ticket_number || t.id).toLowerCase().includes(searchStr);
+
+      if (!matchesSearch) return false;
+
+      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'waiting_agent' || t.status === 'in_progress';
+      if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
+      return true;
+    });
+  }, [tickets, ticketFilter, ticketSearch]);
 
   const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
   const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')
@@ -5008,7 +5252,7 @@ function App() {
     about_disclaimer: '',
     store_title: '',
     store_logo_url: '',
-    store_theme: (settings as any)?.store_theme || 'emerald',
+    store_theme: (settings as any)?.store_theme || 'navy',
     default_is_comments_enabled: '1',
     default_require_comment_approval: '0',
     default_require_comment_email: '0',
@@ -5016,11 +5260,42 @@ function App() {
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [settingsSubTab, setSettingsSubTabState] = useState<'general' | 'contact' | 'about' | 'theme' | 'master'>('general')
+  const [settingsSubTab, setSettingsSubTabState] = useState<'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain'>('general')
 
-  const setSettingsSubTab = (sub: 'general' | 'contact' | 'about' | 'theme' | 'master') => {
+  const setSettingsSubTab = (sub: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain') => {
     setSettingsSubTabState(sub);
     try { sessionStorage.setItem('catavor_last_settings_subtab', sub); } catch (e) {}
+  };
+
+  const [customDomainInput, setCustomDomainInput] = useState<string>('');
+  const [customDomainLoading, setCustomDomainLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (storeQuota?.custom_domain) {
+      setCustomDomainInput(storeQuota.custom_domain);
+    }
+  }, [storeQuota?.custom_domain]);
+
+  const handleCustomDomainSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomDomainLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE}/subscription/custom-domain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custom_domain: customDomainInput })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal menyimpan custom domain');
+      }
+      showToast(data.message || 'Pengaturan custom domain berhasil disimpan!', 'success');
+      fetchMyQuota();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menyimpan custom domain', 'error');
+    } finally {
+      setCustomDomainLoading(false);
+    }
   };
 
   // First-time User Onboarding Notification for "Halaman Tentang Kami"
@@ -5063,15 +5338,16 @@ function App() {
 
   // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
   useEffect(() => {
-    if (storeSlug) {
-      const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || 'emerald';
+    const currentActiveSlug = storeSlug || getStoreSlug() || adminUser?.store_slug;
+    if (currentActiveSlug) {
+      const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || adminUser?.store_theme || 'navy';
       document.documentElement.setAttribute('data-theme', activeTheme);
       document.body.setAttribute('data-theme', activeTheme);
     } else {
-      document.documentElement.setAttribute('data-theme', 'emerald');
-      document.body.setAttribute('data-theme', 'emerald');
+      document.documentElement.setAttribute('data-theme', 'navy');
+      document.body.setAttribute('data-theme', 'navy');
     }
-  }, [storeSlug, (settings as any)?.store_theme, (settingsForm as any)?.store_theme]);
+  }, [storeSlug, (settings as any)?.store_theme, (settingsForm as any)?.store_theme, adminUser?.store_theme]);
 
   // Detect & parse URL path on mount (Desktop)
   useEffect(() => {
@@ -5123,11 +5399,11 @@ function App() {
             let mappedSec = sec ? sec.toLowerCase().trim() : '';
             if (mappedSec === 'social') mappedSec = 'contact';
             if (mappedSec === 'features') mappedSec = 'general';
-            if (['general', 'contact', 'about', 'theme', 'master'].includes(mappedSec)) {
+            if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
               setSettingsSubTab(mappedSec as any);
             } else {
               const saved = sessionStorage.getItem('catavor_last_settings_subtab');
-              if (saved && ['general', 'contact', 'about', 'theme', 'master'].includes(saved)) {
+              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(saved)) {
                 setSettingsSubTab(saved as any);
               } else {
                 setSettingsSubTab('general');
@@ -5136,6 +5412,7 @@ function App() {
           } else if (pageSub === 'profile') setAdminTab('profile');
           else if (pageSub === 'policies') setAdminTab('policies');
           else if (pageSub === 'notifications') setAdminTab('notifications');
+          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
             setAdminTab('help');
             const ticketParam = urlParams.get('ticket');
@@ -5185,11 +5462,11 @@ function App() {
             let mappedSec = sec ? sec.toLowerCase().trim() : '';
             if (mappedSec === 'social') mappedSec = 'contact';
             if (mappedSec === 'features') mappedSec = 'general';
-            if (['general', 'contact', 'about', 'theme', 'master'].includes(mappedSec)) {
+            if (['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(mappedSec)) {
               setSettingsSubTab(mappedSec as any);
             } else {
               const saved = sessionStorage.getItem('catavor_last_settings_subtab');
-              if (saved && ['general', 'contact', 'about', 'theme', 'master'].includes(saved)) {
+              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'domain'].includes(saved)) {
                 setSettingsSubTab(saved as any);
               } else {
                 setSettingsSubTab('general');
@@ -5198,6 +5475,7 @@ function App() {
           } else if (pageSub === 'profile') setAdminTab('profile');
           else if (pageSub === 'policies') setAdminTab('policies');
           else if (pageSub === 'notifications') setAdminTab('notifications');
+          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
             setAdminTab('help');
             const ticketParam = urlParams.get('ticket');
@@ -5381,6 +5659,9 @@ function App() {
             } else if (pageSub === 'notifications') {
               setAdminTab('notifications');
               setView('admin');
+            } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
+              setAdminTab('subscription');
+              setView('admin');
             } else if (pageSub === 'help' || pageSub === 'bantuan') {
               setAdminTab('help');
               setView('admin');
@@ -5427,7 +5708,9 @@ function App() {
       } else if (path === '/register/step-3') {
         setPortalTab('register');
         setRegisterStep(3);
-        if (urlPlan === 'free' || urlPlan === 'pro') setRegisterPlan(urlPlan);
+        if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+          setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+        }
       } else if (path === '/terms' || path === '/syarat-ketentuan') {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
@@ -5471,6 +5754,45 @@ function App() {
     document.documentElement.scrollTop = 0;
   }, [view, adminTab, settingsSubTab, selectedTicket]);
 
+  // Reset Auth & Industry-standard session expiration handler
+  const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', preserveRedirect = true) => {
+    if (preserveRedirect && typeof window !== 'undefined') {
+      try {
+        const currentPath = window.location.pathname + window.location.search;
+        sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({
+          path: currentPath,
+          view: view,
+          tab: adminTab,
+          settingsSubTab: settingsSubTab
+        }));
+      } catch (e) {}
+    }
+    localStorage.removeItem('catavor_token');
+    localStorage.removeItem('catavor_user');
+    localStorage.removeItem('catavor_password_changed');
+    localStorage.removeItem('catavor_settings');
+    document.documentElement.setAttribute('data-theme', 'navy');
+    document.body.setAttribute('data-theme', 'navy');
+    setToken(null);
+    setAdminUser(null);
+    setIsPasswordChanged(true);
+    setView('admin');
+    setAdminTab('items');
+    setLoginForm({ email: '', password: '' });
+    showToast(msg, 'error');
+  };
+
+  const checkAuthResponse = (res: Response, data?: any) => {
+    if (res.status === 401 || (data && (data.message === 'Unauthenticated.' || data.message === 'Unauthenticated' || data.code === 'TOKEN_EXPIRED' || data.code === 'INVALID_TOKEN' || data.code === 'UNAUTHENTICATED'))) {
+      const msg = data?.code === 'TOKEN_EXPIRED'
+        ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
+        : (data?.message || 'Sesi login tidak valid. Silakan login kembali.');
+      handleUnauthorized(msg);
+      return false;
+    }
+    return true;
+  };
+
   // Fetch headers helper
   const getAuthHeaders = () => {
     const slug = getStoreSlug();
@@ -5479,8 +5801,135 @@ function App() {
       'Accept': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       ...(slug ? { 'X-Store-Slug': slug } : {})
+    };
+  };
+
+  // Subscription Plans & Merchant Quota Fetchers
+  const fetchMyQuota = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/subscription/my-quota`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setStoreQuota(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch quota data:', err);
     }
-  }
+  };
+
+  const fetchSubscriptionPlans = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/subscription/plans`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setSubscriptionPlans(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch subscription plans:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchSubscriptionPlans();
+    if (token) {
+      fetchMyQuota();
+    }
+  }, [token]);
+
+  // Industry-standard centralized authFetch wrapper with pre-flight check and 401 interception
+  const authFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const currentToken = localStorage.getItem('catavor_token');
+    if (!currentToken || isTokenExpired(currentToken)) {
+      handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+      throw new Error('TOKEN_EXPIRED');
+    }
+
+    const headers = new Headers(init?.headers || {});
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${currentToken}`);
+    }
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
+    const slug = getStoreSlug();
+    if (slug && !headers.has('X-Store-Slug')) {
+      headers.set('X-Store-Slug', slug);
+    }
+
+    const response = await fetch(input, {
+      ...init,
+      headers
+    });
+
+    if (response.status === 401) {
+      try {
+        const clone = response.clone();
+        const data = await clone.json();
+        const msg = data?.code === 'TOKEN_EXPIRED'
+          ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
+          : (data?.message || 'Sesi login tidak valid. Silakan login kembali.');
+        handleUnauthorized(msg);
+      } catch {
+        handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+      }
+    }
+
+    return response;
+  };
+
+  // Proactive token verification & expired session check
+  useEffect(() => {
+    const checkTokenValidity = async () => {
+      const currentToken = localStorage.getItem('catavor_token');
+      if (!currentToken) return;
+
+      if (isTokenExpired(currentToken)) {
+        handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/verify`, {
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (res.status === 401) {
+          const data = await res.json().catch(() => ({}));
+          const msg = data.code === 'TOKEN_EXPIRED'
+            ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
+            : 'Sesi login tidak valid. Silakan login kembali.';
+          handleUnauthorized(msg);
+        }
+      } catch (err) {
+        // Network offline or error - do not force logout on temporary network drop
+      }
+    };
+
+    if (token) {
+      checkTokenValidity();
+    }
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' && localStorage.getItem('catavor_token')) {
+        checkTokenValidity();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [token]);
+
 
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
@@ -5503,17 +5952,11 @@ function App() {
   };
 
   // Load Initial Data
-  const loadData = async () => {
+  const loadData = async (overrideSlug?: string) => {
     setLoading(true);
     setError(null);
 
-    if (isInvalidRoute()) {
-      setError('Halaman / Tautan Tidak Ditemukan.');
-      setLoading(false);
-      return;
-    }
-
-    const slug = getStoreSlug();
+    const slug = overrideSlug || getStoreSlug() || storeSlug || adminUser?.store_slug;
     
     try {
       if (slug) {
@@ -5543,7 +5986,7 @@ function App() {
             official_website: store.official_website || '',
             store_title: store.store_title || 'Catavor',
             store_logo_url: store.store_logo_url || '',
-            store_theme: store.store_theme || 'emerald',
+            store_theme: store.store_theme || 'navy',
             default_is_comments_enabled: '0',
             default_require_comment_approval: '0',
             default_require_comment_email: '0',
@@ -5594,8 +6037,8 @@ function App() {
           if (store.master_statuses) setMasterStatuses(store.master_statuses);
           if (store.master_shipping_coverages) setMasterShippingCoverages(store.master_shipping_coverages);
 
-          // Fetch store-scoped fauna catalog (Load complete store inventory into master state)
-          const faunaRes = await fetch(`${API_BASE}/u/${slug}/fauna`);
+          // Fetch store-scoped products catalog (Load complete store inventory into master state)
+          const faunaRes = await fetch(`${API_BASE}/u/${slug}/products`);
           const faunaData = await faunaRes.json();
           if (faunaData.success) {
             setFaunas(faunaData.data);
@@ -5793,10 +6236,12 @@ function App() {
         targetPath += `/admin/policies`;
       } else if (adminTab === 'notifications') {
         targetPath += `/admin/notifications`;
+      } else if (adminTab === 'subscription') {
+        targetPath += `/admin/subscription`;
       } else if (adminTab === 'help') {
         targetPath += `/admin/help`;
         if (selectedTicket) {
-          params.set('ticket', selectedTicket.id);
+          params.set('ticket', selectedTicket.id.toString());
         }
       } else {
         targetPath += `/admin/items`;
@@ -5913,28 +6358,6 @@ function App() {
     }
   }, [adminUser])
 
-  // Auth check helper & Industry-standard session expiration handler
-  const handleUnauthorized = (msg = 'Sesi Anda telah berakhir. Silakan login kembali.') => {
-    localStorage.removeItem('catavor_token')
-    localStorage.removeItem('catavor_user')
-    localStorage.removeItem('catavor_password_changed')
-    setToken(null)
-    setAdminUser(null)
-    setIsPasswordChanged(true)
-    setView('admin')
-    setAdminTab('items')
-    setLoginForm({ email: '', password: '' })
-    showToast(msg, 'error')
-  }
-
-  const checkAuthResponse = (res: Response, data?: any) => {
-    if (res.status === 401 || (data && (data.message === 'Unauthenticated.' || data.message === 'Unauthenticated'))) {
-      handleUnauthorized()
-      return false
-    }
-    return true
-  }
-
   // Real Google OAuth 2.0 SSO Handler (Google Accounts Popup Window & GSI API)
   const processGoogleUserPayload = async (googleUser: { email: string; name: string; google_id: string; avatar?: string }) => {
     try {
@@ -5957,15 +6380,42 @@ function App() {
           localStorage.setItem('catavor_token', data.token);
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           localStorage.setItem('catavor_password_changed', 'true');
+          const userTheme = data.user.store_theme || 'navy';
+          document.documentElement.setAttribute('data-theme', userTheme);
+          document.body.setAttribute('data-theme', userTheme);
           setToken(data.token);
           setAdminUser(data.user);
           setIsPasswordChanged(true);
           setStoreSlug(data.user.store_slug);
-          window.history.pushState({}, '', `/${data.user.store_slug}`);
-          setView('admin');
-          setPortalTab('home');
+
+          // Restore redirect destination if returning from expired session
+          let redirectRestored = false;
+          try {
+            const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
+            if (savedRedirect) {
+              sessionStorage.removeItem('catavor_auth_redirect');
+              const parsed = JSON.parse(savedRedirect);
+              if (parsed.path && parsed.path.includes('/admin')) {
+                window.history.pushState({}, '', parsed.path);
+                setView('admin');
+                if (parsed.tab) {
+                  setAdminTab(parsed.tab);
+                }
+                if (parsed.settingsSubTab) {
+                  setSettingsSubTab(parsed.settingsSubTab);
+                }
+                redirectRestored = true;
+              }
+            }
+          } catch (e) {}
+
+          if (!redirectRestored) {
+            window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+            setView('admin');
+            setAdminTab('items');
+            setPortalTab('home');
+          }
           showToast('Selamat datang kembali! Akun Google Anda telah terdaftar, otomatis masuk ke Dashboard.', 'success');
-          sessionStorage.clear();
         } else {
           // New User OR User without completed store_slug -> Redirect to Store Setup Screen (Step 2)
           if (data.token && data.user) {
@@ -5979,15 +6429,19 @@ function App() {
           const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id;
           const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar;
 
-          setRegisterForm((prev: any) => ({
-            ...prev,
-            email: userEmail,
+          const updatedForm = {
             name: userName,
+            email: userEmail,
+            password: '',
             google_id: userGoogleId,
             avatar: userAvatar,
-            store_name: prev.store_name || '',
-            store_slug: prev.store_slug || ''
-          }));
+            store_name: '',
+            store_slug: ''
+          };
+          setRegisterForm(updatedForm);
+          try {
+            sessionStorage.setItem('catavor_register_form', JSON.stringify(updatedForm));
+          } catch {}
           setStoreSlug('');
           setRegisterStep(2);
           setPortalTab('register');
@@ -6098,7 +6552,7 @@ function App() {
       return;
     }
     setAgreeTermsError(false);
-    if (registerPlan === 'pro') {
+    if (registerPlan === 'pro_starter' || registerPlan === 'pro_business') {
       // Defer API registration & token storage until checkout submission!
       setPortalTab('checkout');
       return;
@@ -6123,12 +6577,21 @@ function App() {
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
         localStorage.setItem('catavor_password_changed', 'true');
         
+        const initialTheme = data.user?.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', initialTheme);
+        document.body.setAttribute('data-theme', initialTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: initialTheme }));
+
         setToken(data.token);
         setAdminUser(data.user);
         setIsPasswordChanged(true);
         setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
         setStoreSlug(data.user.store_slug);
+        setPortalTab('home');
         setView('admin');
+        setAdminTab('items');
+        window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+        loadData(data.user.store_slug);
 
         // Dynamic Notifications for FREE Plan Registration
         setNotifications([
@@ -6143,7 +6606,7 @@ function App() {
           {
             id: Date.now() + 2,
             title: 'ℹ️ Informasi Paket: Plan Free',
-            message: 'Akun Anda saat ini menggunakan Plan Free (maksimal 10 postingan produk). Anda dapat melakukan upgrade ke Plan Pro kapan saja.',
+            message: 'Akun Anda saat ini menggunakan Plan Free (maksimal 15 postingan produk). Anda dapat melakukan upgrade ke Plan Pro Starter / Bisnis kapan saja.',
             time: 'Baru saja',
             read: false,
             type: 'info'
@@ -6159,7 +6622,7 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      setRegisterError('Koneksi terputus. Pastikan server backend Laravel aktif.');
+      setRegisterError('Koneksi terputus. Pastikan server backend Catavor aktif.');
     } finally {
       setRegisterLoading(false);
     }
@@ -6171,7 +6634,10 @@ function App() {
     try {
       const payload = {
         ...registerForm,
-        plan: 'pro',
+        plan: registerPlan,
+        billing_cycle: registerBillingCycle,
+        coupon_code: appliedCoupon?.code || '',
+        payment_method: paymentMethod,
         payment_status: isFreeCoupon ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeCoupon ? null : paymentProofPreview,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta'
@@ -6192,17 +6658,31 @@ function App() {
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
         localStorage.setItem('catavor_password_changed', 'true');
 
+        const initialTheme = data.user?.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', initialTheme);
+        document.body.setAttribute('data-theme', initialTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: initialTheme }));
+
         setToken(data.token);
         setAdminUser(data.user);
         setIsPasswordChanged(true);
+        if (data.user?.store_slug) {
+          setStoreSlug(data.user.store_slug);
+          window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+          loadData(data.user.store_slug);
+        }
+        setPortalTab('home');
+        setView('admin');
+        setAdminTab('items');
         setShowPaymentSuccessModal(true);
 
+        const planName = registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter';
         const newNotifs: any[] = [
           {
             id: Date.now() + 1,
             title: '🎉 Selamat Datang di Catavor!',
             message: isFreeCoupon 
-              ? 'Akun usaha Anda berhasil dibuat! Selamat menikmati seluruh fitur premium platform Catavor.'
+              ? `Akun usaha Anda berhasil dibuat! Selamat menikmati seluruh fitur premium paket ${planName}.`
               : 'Akun usaha Anda berhasil dibuat! Selamat datang di platform katalog digital Catavor.',
             time: 'Baru saja',
             read: false,
@@ -6222,14 +6702,17 @@ function App() {
             });
             newNotifs.push({
               id: Date.now() + 3,
-              title: '⚡ Aktivasi Paket Pro Berhasil (100% Gratis)',
-              message: 'Selamat! Paket Pro Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati postingan produk unlimited dan fitur toko eksklusif.',
+              title: `⚡ Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
+              message: `Selamat! Paket ${planName} Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati akses eksklusif dan fitur toko premium.`,
               time: 'Baru saja',
               read: false,
               type: 'success'
             });
           } else {
-            const finalPrice = Math.max(0, 30000 - appliedCoupon.discount);
+            const basePrice = registerPlan === 'pro_business' 
+              ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
+              : (registerBillingCycle === 'annual' ? 490000 : 49000);
+            const finalPrice = Math.max(0, basePrice - appliedCoupon.discount);
             newNotifs.push({
               id: Date.now() + 2,
               title: `🏷️ Kupon Diskon Diterapkan: ${appliedCoupon.code}`,
@@ -6257,10 +6740,13 @@ function App() {
           }
         } else {
           // Bayar biasa tanpa kupon
+          const basePrice = registerPlan === 'pro_business' 
+            ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
+            : (registerBillingCycle === 'annual' ? 490000 : 49000);
           newNotifs.push({
             id: Date.now() + 2,
             title: '⏳ Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
-            message: 'Bukti pembayaran sebesar Rp 30.000 telah kami terima. Tim Admin akan melakukan verifikasi transaksi dalam maksimal 1x24 jam.',
+            message: `Bukti pembayaran sebesar Rp ${basePrice.toLocaleString('id-ID')} untuk paket ${planName} telah kami terima. Tim Admin akan melakukan verifikasi transaksi dalam maksimal 1x24 jam.`,
             time: 'Baru saja',
             read: false,
             type: 'warning'
@@ -6286,7 +6772,7 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      alert('Koneksi terputus. Pastikan server backend Laravel aktif.');
+      alert('Koneksi terputus. Pastikan server backend Catavor aktif.');
     } finally {
       setRegisterLoading(false);
     }
@@ -6321,19 +6807,48 @@ function App() {
         localStorage.setItem('catavor_user', JSON.stringify(data.user))
         localStorage.setItem('catavor_password_changed', data.is_password_changed ? 'true' : 'false')
         
+        const loginTheme = data.user?.store_theme || 'navy';
+        document.documentElement.setAttribute('data-theme', loginTheme);
+        document.body.setAttribute('data-theme', loginTheme);
+        setSettingsForm(prev => ({ ...prev, store_theme: loginTheme }));
+
         setToken(data.token)
         setAdminUser(data.user)
         setIsPasswordChanged(data.is_password_changed)
         setLoginForm({ email: '', password: '' })
         
-        // If login succeeded on landing portal, redirect context to user's store
-        const currentSlug = getStoreSlug();
-        if (!currentSlug && data.user.store_slug) {
-          
-          setStoreSlug(data.user.store_slug);
-          setView('admin');
-        } else {
-          setView('admin');
+        // If login succeeded, restore previous redirect destination if returning from expired session
+        let redirectRestored = false;
+        try {
+          const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
+          if (savedRedirect) {
+            sessionStorage.removeItem('catavor_auth_redirect');
+            const parsed = JSON.parse(savedRedirect);
+            if (parsed.path && parsed.path.includes('/admin')) {
+              window.history.pushState({}, '', parsed.path);
+              setView('admin');
+              if (parsed.tab) {
+                setAdminTab(parsed.tab);
+              }
+              if (parsed.settingsSubTab) {
+                setSettingsSubTab(parsed.settingsSubTab);
+              }
+              redirectRestored = true;
+            }
+          }
+        } catch (e) {}
+
+        if (!redirectRestored) {
+          if (data.user.store_slug) {
+            setStoreSlug(data.user.store_slug);
+            setPortalTab('home');
+            setView('admin');
+            setAdminTab('items');
+            window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+            loadData(data.user.store_slug);
+          } else {
+            setView('admin');
+          }
         }
       } else {
         setLoginError(data.message || 'Email atau password salah.')
@@ -6538,7 +7053,7 @@ function App() {
           official_website: store.official_website || '',
           store_title: store.store_title || 'Catavor',
           store_logo_url: store.store_logo_url || '',
-          store_theme: store.store_theme || settingsForm.store_theme || 'emerald'
+          store_theme: store.store_theme || settingsForm.store_theme || 'navy'
         }
         setSettings(updated)
         setSettingsForm(updated)
@@ -6675,18 +7190,37 @@ function App() {
     }
   }
 
-  // Open CRUD modal for create
+  // Open CRUD modal for create with dynamic quota guard
   const openCreateModal = (initialType: ItemCategoryType = 'physical') => {
-    if (settings.plan === 'free' && faunas.length >= 10) {
-      showToast('Batas listing Plan Gratis (Maksimal 10 item) telah tercapai. Silakan upgrade ke Plan Pro!', 'error')
-      return
+    const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
+    const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
+    if (maxActive !== -1 && currentActive >= maxActive) {
+      showToast(`Batas katalog aktif untuk paket ${storeQuota?.plan?.name || 'Anda'} (${maxActive} item) telah tercapai. Silakan upgrade paket langganan!`, 'error');
+      setView('admin');
+      setAdminTab('subscription');
+      const slug = getStoreSlug();
+      if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+      return;
     }
-    resetCrudState(initialType)
-    setShowCrudModal(true)
-  }
+    resetCrudState(initialType);
+    setShowCrudModal(true);
+  };
 
-  // Open CRUD modal for edit
+  // Open CRUD modal for edit with Anti-Cheat reactivate protection
   const openEditModal = (item: Fauna) => {
+    if ((item as any).is_active === false) {
+      const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
+      const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
+      if (maxActive !== -1 && currentActive >= maxActive) {
+        showToast(`Produk ini berstatus DIARSIPKAN. Kuota aktif toko Anda (${currentActive}/${maxActive}) sudah penuh. Upgrade paket atau arsipkan produk lain untuk mengedit/mengaktifkan item ini.`, 'error');
+        setView('admin');
+        setAdminTab('subscription');
+        const slug = getStoreSlug();
+        if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+        return;
+      }
+    }
+
     const itemType = (item.product_type || 'physical') as ItemCategoryType;
     const typeConfig = getItemTypeFormConfig(itemType);
     const minOrderVal = item.min_order ?? item.attributes?.min_order ?? 1;
@@ -6859,8 +7393,8 @@ function App() {
 
     try {
       const url = crudMode === 'create' 
-        ? `${API_BASE}/fauna` 
-        : `${API_BASE}/fauna/${editId}`
+        ? `${API_BASE}/products` 
+        : `${API_BASE}/products/${editId}`
       const method = crudMode === 'create' ? 'POST' : 'PUT'
 
       const res = await fetch(url, {
@@ -7285,31 +7819,31 @@ function App() {
     }
   }
 
-  // Handle Fauna Delete
+  // Handle Fauna/Product Delete
   const handleFaunaDelete = async (id: number): Promise<boolean> => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus postingan hewan ini?')) return false
+    if (!window.confirm('Apakah Anda yakin ingin menghapus postingan item ini?')) return false
 
     try {
-      const res = await fetch(`${API_BASE}/fauna/${id}`, {
+      const res = await fetch(`${API_BASE}/products/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       })
       const data = await res.json()
       if (res.ok && data.success) {
         loadData()
-        showToast('Data satwa berhasil dihapus!')
+        showToast('Data produk berhasil dihapus!')
         return true
       } else {
         if (res.status === 401) {
           handleUnauthorized()
         } else {
-          showToast(data.message || 'Gagal menghapus data satwa.', 'error')
+          showToast(data.message || 'Gagal menghapus data produk.', 'error')
         }
         return false
       }
     } catch (err) {
       console.error(err)
-      showToast('Koneksi terputus. Gagal menghapus data satwa.', 'error')
+      showToast('Koneksi terputus. Gagal menghapus data produk.', 'error')
       return false
     }
   }
@@ -7317,7 +7851,7 @@ function App() {
   // Fetch details
   const fetchDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/fauna/${id}`)
+      const res = await fetch(`${API_BASE}/products/${id}`)
       const data = await res.json()
       if (data.success) {
         setSelectedFauna(data.data)
@@ -7365,7 +7899,7 @@ function App() {
         accent: '#2563eb'
       };
     }
-    const theme = (themeName || 'emerald').toLowerCase();
+    const theme = (themeName || 'navy').toLowerCase();
     switch (theme) {
       case 'nordic':
         return {
@@ -7433,6 +7967,7 @@ function App() {
           accent: '#527863'
         };
       case 'navy':
+      default:
         return {
           bg: '#f8fafc',
           bgGradient: 'radial-gradient(circle at 50% 35%, rgba(30, 58, 138, 0.12) 0%, #f8fafc 70%)',
@@ -7445,21 +7980,7 @@ function App() {
           trackBg: 'rgba(30, 58, 138, 0.14)',
           accent: '#1e3a8a'
         };
-      case 'cream':
-        return {
-          bg: '#faf7f2',
-          bgGradient: 'radial-gradient(circle at 50% 35%, rgba(15, 81, 50, 0.12) 0%, #faf7f2 70%)',
-          cardBg: '#ffffff',
-          logoBoxBg: '#ffffff',
-          logoBoxBorder: '1px solid rgba(15, 81, 50, 0.28)',
-          logoBoxShadow: '0 10px 30px rgba(15, 81, 50, 0.15)',
-          titleColor: '#1c2a24',
-          subtitleColor: '#4a5d54',
-          trackBg: 'rgba(15, 81, 50, 0.15)',
-          accent: '#0f5132'
-        };
       case 'emerald':
-      default:
         return {
           bg: '#080c14',
           bgGradient: 'radial-gradient(circle at 50% 35%, rgba(16, 185, 129, 0.22) 0%, rgba(8, 12, 20, 0.98) 70%)',
@@ -7479,7 +8000,7 @@ function App() {
   if (isAppInitializing) {
     const currentSlug = getStoreSlug();
     const isPortalLanding = !currentSlug;
-    let themeFromCache = 'emerald';
+    let themeFromCache = 'navy';
     if (currentSlug) {
       try {
         const storeCached = localStorage.getItem(`catavor_store_${currentSlug.toLowerCase()}`);
@@ -7493,7 +8014,7 @@ function App() {
     }
     const activeTheme = isPortalLanding 
       ? 'portal' 
-      : ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'emerald');
+      : ((settings as any)?.store_theme || (settingsForm as any)?.store_theme || themeFromCache || 'navy');
     const themeStyles = getThemeGateStyles(activeTheme, isPortalLanding);
     const displayLogo = isPortalLanding ? (logoHeaderImg || APP_LOGO_BASE64) : (initialGateLogoRef.current || APP_LOGO_BASE64);
     const displayTitle = (currentSlug && settings.store_title && settings.store_title !== 'Catavor')
@@ -8220,62 +8741,89 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                 </div>
 
-                <div className="pricing-grid-2col">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', maxWidth: '1100px', margin: '0 auto' }}>
                   {/* Free Plan Card */}
-                  <div className="portal-card" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: '1rem', background: '#ffffff', border: '1px solid #e2e8f0' }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan Starter</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '999px' }}>GRATIS</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Gratis</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '0.2rem 0.6rem', borderRadius: '999px' }}>Rp 0</span>
                       </div>
-                      <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1.25rem 0' }}>
-                        Rp 0 <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 500 }}>/ selamanya</span>
+                      <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1rem 0' }}>
+                        Rp 0 <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>/ selamanya</span>
                       </div>
-                      <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-                        Cocok untuk usaha rintisan atau warung yang baru memulai digitalisasi produk.
+                      <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                        Cocok untuk usaha rintisan yang baru memulai digitalisasi produk &amp; katalog online.
                       </p>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.88rem', color: '#334155' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal 10 postingan produk</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Subdomain kustom (catavor.com/tokomu)</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> WhatsApp Direct Order 1-klik</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Download QR Code toko siap cetak</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark "Free by Catavor" aktif</li>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#334155' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal 15 item produk</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> 100 MB Storage &amp; 5 foto/item</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Subdomain kustom (catavor.com/toko)</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> WhatsApp Direct Order</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark Catavor aktif</li>
                       </ul>
                     </div>
-                    <button className="btn-portal-secondary" style={{ width: '100%', padding: '0.85rem', marginTop: '2.25rem', justifyContent: 'center' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
-                      Daftar Plan Gratis
+                    <button className="btn-portal-secondary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                      Daftar Gratis Sekarang
                     </button>
                   </div>
 
-                  {/* Pro Plan Card */}
-                  <div className="portal-card" style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #2563eb', background: '#ffffff', boxShadow: '0 20px 40px -10px rgba(37, 99, 235, 0.15)', position: 'relative' }}>
-                    <div style={{ position: 'absolute', top: '-0.8rem', right: '2rem', background: '#2563eb', color: '#ffffff', fontSize: '0.72rem', fontWeight: 800, padding: '0.25rem 0.85rem', borderRadius: '999px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)' }}>
-                      PALING DIREKOMENDASIKAN
+                  {/* Pro Starter Plan Card */}
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #0284c7', background: '#ffffff', boxShadow: '0 20px 40px -10px rgba(2, 132, 199, 0.15)', position: 'relative', borderRadius: '1rem' }}>
+                    <div style={{ position: 'absolute', top: '-0.75rem', right: '1.5rem', background: '#0284c7', color: '#ffffff', fontSize: '0.68rem', fontWeight: 800, padding: '0.2rem 0.75rem', borderRadius: '999px' }}>
+                      POPULER
                     </div>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan Pro Unlimited</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pro Starter</span>
                       </div>
-                      <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1.25rem 0', display: 'flex', alignItems: 'baseline', gap: '0.65rem' }}>
-                        {pricingBillingCycle === 'yearly' && (
-                          <span style={{ fontSize: '1.35rem', color: '#94a3b8', textDecoration: 'line-through', fontWeight: 600 }}>Rp 30rb</span>
-                        )}
-                        <span style={{ color: '#2563eb' }}>{pricingBillingCycle === 'monthly' ? 'Rp 30.000' : 'Rp 24.000'}</span>
-                        <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
+                      <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1rem 0', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                        <span style={{ color: '#0284c7' }}>{pricingBillingCycle === 'monthly' ? 'Rp 49.000' : 'Rp 40.833'}</span>
+                        <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
                       </div>
-                      <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-                        Untuk bisnis aktif, restoran, butik, dan profesional yang membutuhkan fitur tak terbatas.
+                      <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                        Untuk toko aktif &amp; UKM berkembang dengan kuota item besar &amp; branding mandiri.
                       </p>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.88rem', color: '#0f172a' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> <strong>Unlimited</strong> postingan produk &amp; jasa</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> Halaman <strong>"Tentang Kami" kustom</strong></li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> <strong>100% Bebas Watermark</strong> Catavor</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> Multi-marketplace link (Shopee, Tokopedia)</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#2563eb' }} /> Akses seluruh 5 palet tema warna toko</li>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#0f172a' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>150 item produk aktif</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>2 GB Storage &amp; 8 foto/item</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Lencana Toko Terverifikasi</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Halaman "Tentang Kami" kustom</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>100% Bebas Watermark</strong></li>
                       </ul>
                     </div>
-                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.85rem', marginTop: '2.25rem', justifyContent: 'center', fontSize: '0.95rem' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro'); setPortalTab('register'); }}>
-                      <span>Daftar Plan Pro Sekarang</span>
+                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.9rem', background: '#0284c7' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_starter'); setRegisterBillingCycle(pricingBillingCycle === 'yearly' ? 'annual' : 'monthly'); setPortalTab('register'); }}>
+                      <span>Pilih Pro Starter</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+
+                  {/* Pro Business Plan Card */}
+                  <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #f59e0b', background: '#ffffff', boxShadow: '0 20px 40px -10px rgba(245, 158, 11, 0.2)', position: 'relative', borderRadius: '1rem' }}>
+                    <div style={{ position: 'absolute', top: '-0.75rem', right: '1.5rem', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.68rem', fontWeight: 900, padding: '0.2rem 0.75rem', borderRadius: '999px' }}>
+                      👑 UNLIMITED + DOMAIN
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pro Bisnis</span>
+                      </div>
+                      <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1rem 0', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                        <span style={{ color: '#d97706' }}>{pricingBillingCycle === 'monthly' ? 'Rp 129.000' : 'Rp 107.500'}</span>
+                        <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                        Solusi terlengkap dengan postingan tak terbatas dan alamat website domain Anda sendiri.
+                      </p>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#0f172a' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>Unlimited Produk &amp; Jasa</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>10 GB Storage &amp; 10 foto/item</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>Custom Domain (toko.com)</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> Lencana Toko Terverifikasi</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> Prioritas VIP Support 24/7</li>
+                      </ul>
+                    </div>
+                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.9rem', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontWeight: 900 }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_business'); setRegisterBillingCycle(pricingBillingCycle === 'yearly' ? 'annual' : 'monthly'); setPortalTab('register'); }}>
+                      <span>Pilih Pro Bisnis</span>
                       <ArrowRight size={16} />
                     </button>
                   </div>
@@ -8900,16 +9448,62 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </form>
               )}
 
-              {/* STEP 3: Plan Selection (Free vs Pro) */}
+              {/* STEP 3: Plan Selection (Free vs Pro Starter vs Pro Bisnis) */}
               {registerStep === 3 && (
                 <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f3f4f6', margin: '0 0 0.25rem 0' }}>
-                      Langkah 3: Pilih Paket untuk <strong>{registerForm.store_name}</strong>
+                  <div style={{ textAlign: 'center', marginBottom: '0.15rem' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f3f4f6', margin: '0 0 0.25rem 0' }}>
+                      Langkah 3: Pilih Paket Berlangganan
                     </h3>
-                    <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0 }}>
-                      Pilih paket yang paling sesuai dengan kebutuhan usaha Anda
+                    <p style={{ fontSize: '0.78rem', color: '#9ca3af', margin: 0 }}>
+                      Pilih paket terbaik untuk toko <strong>{registerForm.store_name}</strong>. Anda dapat mengubah paket kapan saja.
                     </p>
+                  </div>
+
+                  {/* Billing Cycle Selector Switcher */}
+                  <div style={{ display: 'flex', justifyContent: 'center', margin: '0.25rem 0' }}>
+                    <div style={{ display: 'inline-flex', padding: '0.25rem', borderRadius: '0.75rem', backgroundColor: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <button
+                        type="button"
+                        onClick={() => setRegisterBillingCycle('monthly')}
+                        style={{
+                          padding: '0.45rem 1rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.78rem',
+                          fontWeight: registerBillingCycle === 'monthly' ? 800 : 600,
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: registerBillingCycle === 'monthly' ? 'var(--primary)' : 'transparent',
+                          color: registerBillingCycle === 'monthly' ? '#ffffff' : '#9ca3af',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        Bulanan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegisterBillingCycle('annual')}
+                        style={{
+                          padding: '0.45rem 1rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.78rem',
+                          fontWeight: registerBillingCycle === 'annual' ? 800 : 600,
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: registerBillingCycle === 'annual' ? 'var(--primary)' : 'transparent',
+                          color: registerBillingCycle === 'annual' ? '#ffffff' : '#9ca3af',
+                          transition: 'all 0.2s ease',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <span>Tahunan</span>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 900, padding: '0.1rem 0.4rem', borderRadius: '999px', backgroundColor: '#10b981', color: '#000000' }}>
+                          Hemat 2 Bulan
+                        </span>
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -8929,68 +9523,116 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: registerPlan === 'free' ? '5px solid #10b981' : '2px solid #6b7280', backgroundColor: registerPlan === 'free' ? '#000' : 'transparent', transition: 'all 0.2s ease' }} />
-                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'free' ? '#10b981' : '#ffffff' }}>Plan Gratis (Free)</span>
+                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'free' ? '#10b981' : '#ffffff' }}>Gratis (Free)</span>
                         </div>
                         <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff' }}>Rp 0 <small style={{ fontSize: '0.65rem', color: '#9ca3af' }}>/selamanya</small></span>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingLeft: '1.65rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.75rem', paddingLeft: '1.65rem' }}>
                         <div style={{ fontSize: '0.72rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={13} style={{ color: '#10b981', flexShrink: 0 }} /> Maksimal 10 postingan produk
+                          <Check size={13} style={{ color: '#10b981', flexShrink: 0 }} /> Maksimal 15 item produk
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#10b981', flexShrink: 0 }} /> 100 MB Storage &amp; 5 foto/item
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <Check size={13} style={{ color: '#10b981', flexShrink: 0 }} /> Katalog interaktif &amp; WhatsApp
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#d1d5db', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={13} style={{ color: '#10b981', flexShrink: 0 }} /> Watermark "Free by Catavor"
+                          <Check size={13} style={{ color: '#10b981', flexShrink: 0 }} /> Watermark Catavor
                         </div>
                       </div>
                     </div>
 
-                    {/* Plan Pro Option Card */}
+                    {/* Plan Pro Starter Option Card */}
                     <div 
-                      onClick={() => setRegisterPlan('pro')}
+                      onClick={() => setRegisterPlan('pro_starter')}
                       style={{ 
                         padding: '1rem 1.15rem', 
                         borderRadius: '0.75rem', 
-                        border: registerPlan === 'pro' ? '2px solid #f59e0b' : '1px solid rgba(245, 158, 11, 0.3)', 
-                        backgroundColor: registerPlan === 'pro' ? 'rgba(245, 158, 11, 0.09)' : 'rgba(245, 158, 11, 0.03)', 
+                        border: registerPlan === 'pro_starter' ? '2px solid #38bdf8' : '1px solid rgba(56, 189, 248, 0.3)', 
+                        backgroundColor: registerPlan === 'pro_starter' ? 'rgba(56, 189, 248, 0.09)' : 'rgba(56, 189, 248, 0.03)', 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ position: 'absolute', top: '-10px', right: '14px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', fontSize: '0.58rem', fontWeight: 900, padding: '0.15rem 0.55rem', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: '0 2px 8px rgba(56,189,248,0.4)' }}>
+                        ⚡ Paling Populer
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: registerPlan === 'pro_starter' ? '5px solid #38bdf8' : '2px solid #6b7280', backgroundColor: registerPlan === 'pro_starter' ? '#000' : 'transparent', transition: 'all 0.2s ease' }} />
+                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#38bdf8' : '#ffffff' }}>Pro Starter</span>
+                        </div>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ color: '#38bdf8', fontWeight: 800 }}>
+                            {registerBillingCycle === 'annual' ? 'Rp 490.000' : 'Rp 49.000'}
+                          </span>
+                          <small style={{ fontSize: '0.65rem', color: '#9ca3af' }}>{registerBillingCycle === 'annual' ? '/tahun' : '/bulan'}</small>
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.75rem', paddingLeft: '1.65rem' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#38bdf8', flexShrink: 0 }} /> 150 item produk aktif
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#38bdf8', flexShrink: 0 }} /> 2 GB Storage &amp; 8 foto/item
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#38bdf8', flexShrink: 0 }} /> Lencana Toko Terverifikasi
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#38bdf8', flexShrink: 0 }} /> Bebas Watermark Catavor
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Plan Pro Business Option Card */}
+                    <div 
+                      onClick={() => setRegisterPlan('pro_business')}
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        borderRadius: '0.75rem', 
+                        border: registerPlan === 'pro_business' ? '2px solid #f59e0b' : '1px solid rgba(245, 158, 11, 0.3)', 
+                        backgroundColor: registerPlan === 'pro_business' ? 'rgba(245, 158, 11, 0.09)' : 'rgba(245, 158, 11, 0.03)', 
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         position: 'relative'
                       }}
                     >
                       <div style={{ position: 'absolute', top: '-10px', right: '14px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.58rem', fontWeight: 900, padding: '0.15rem 0.55rem', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: '0 2px 8px rgba(245,158,11,0.4)' }}>
-                        🔥 Rekomendasi Utama
+                        👑 Fitur Lengkap &amp; Unlimited
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: registerPlan === 'pro' ? '5px solid #f59e0b' : '2px solid #6b7280', backgroundColor: registerPlan === 'pro' ? '#000' : 'transparent', transition: 'all 0.2s ease' }} />
-                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'pro' ? '#f59e0b' : '#ffffff' }}>Plan Pro (Premium)</span>
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: registerPlan === 'pro_business' ? '5px solid #f59e0b' : '2px solid #6b7280', backgroundColor: registerPlan === 'pro_business' ? '#000' : 'transparent', transition: 'all 0.2s ease' }} />
+                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#f59e0b' : '#ffffff' }}>Pro Bisnis</span>
                         </div>
                         <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '0.75rem', fontWeight: 500 }}>Rp 50rb</span>
-                          <span style={{ color: '#f59e0b', fontWeight: 800 }}>Rp 30rb</span>
-                          <small style={{ fontSize: '0.65rem', color: '#9ca3af' }}>/bln</small>
+                          <span style={{ color: '#f59e0b', fontWeight: 800 }}>
+                            {registerBillingCycle === 'annual' ? 'Rp 1.290.000' : 'Rp 129.000'}
+                          </span>
+                          <small style={{ fontSize: '0.65rem', color: '#9ca3af' }}>{registerBillingCycle === 'annual' ? '/tahun' : '/bulan'}</small>
                         </span>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingLeft: '1.65rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.75rem', paddingLeft: '1.65rem' }}>
                         <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> Postingan produk Unlimited
+                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> <strong>Unlimited Produk</strong>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> Halaman "Tentang Kami" kustom
+                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> 10 GB Storage &amp; 10 foto/item
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> Bebas watermark Catavor
+                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> <strong>Custom Domain (toko.com)</strong>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#e5e7eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> Kontrol tombol beli
+                          <Check size={13} style={{ color: '#f59e0b', flexShrink: 0 }} /> Prioritas VIP Support 24/7
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ margin: '1rem 0 0.35rem 0', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div style={{ margin: '0.75rem 0 0.25rem 0', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.5, backgroundColor: agreeTermsError && !agreeTerms ? 'rgba(239, 68, 68, 0.12)' : 'rgba(0,0,0,0.25)', padding: '0.75rem 0.85rem', borderRadius: '0.6rem', border: agreeTermsError && !agreeTerms ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.08)', transition: 'all 0.2s ease' }}>
                       <input 
                         type="checkbox" 
@@ -9031,10 +9673,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         cursor: 'pointer',
                         fontWeight: 600
                       }}
-                      onClick={() => window.history.back()}
+                      onClick={() => setRegisterStep(2)}
                     >
                       <ChevronLeft size={16} />
-                      <span>Edit Toko</span>
+                      <span>Edit Info Toko</span>
                     </button>
                     <button 
                       type="submit" 
@@ -9051,12 +9693,18 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '0.5rem',
-                        background: registerPlan === 'pro' ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        boxShadow: registerPlan === 'pro' ? '0 4px 15px rgba(245, 158, 11, 0.35)' : '0 4px 15px rgba(16, 185, 129, 0.35)'
+                        background: registerPlan === 'free' 
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                          : (registerPlan === 'pro_business' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'),
+                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.35)'
                       }}
                       disabled={registerLoading}
                     >
-                      <span>{registerLoading ? 'Mendaftarkan Toko...' : 'Selesaikan & Buka Toko'}</span>
+                      <span>
+                        {registerLoading 
+                          ? 'Mendaftarkan Toko...' 
+                          : (registerPlan === 'free' ? 'Selesaikan & Buka Toko' : 'Lanjut ke Pembayaran')}
+                      </span>
                       <CheckCircle size={16} />
                     </button>
                   </div>
@@ -9072,18 +9720,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
         {portalTab === 'checkout' && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3.5rem 1.5rem', animation: 'fadeIn 0.3s ease-in-out' }}>
-            <div style={{ width: '100%', maxWidth: '820px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ width: '100%', maxWidth: '840px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               {/* Header Title Checkout */}
               <div style={{ textAlign: 'center' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.85rem', borderRadius: '9999px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', marginBottom: '0.85rem' }}>
                   <Sparkles size={14} style={{ color: '#f59e0b' }} />
-                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>CHECKOUT PEMBAYARAN PLAN PRO</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    CHECKOUT PEMBAYARAN {registerPlan === 'pro_business' ? 'PRO BISNIS' : 'PRO STARTER'}
+                  </span>
                 </div>
                 <h2 style={{ fontSize: '1.85rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.02em', margin: '0 0 0.5rem 0' }}>
                   Selesaikan Pembayaran Aktivasi Paket
                 </h2>
                 <p style={{ color: '#9ca3af', fontSize: '0.88rem', margin: 0 }}>
-                  Transfer sesuai nominal berikut untuk langsung mengaktifkan fitur Unlimited produk &amp; biolink kustom.
+                  Transfer sesuai nominal berikut untuk langsung mengaktifkan fitur premium toko Anda.
                 </p>
               </div>
 
@@ -9093,13 +9743,28 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(15, 23, 42, 0.75)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.85rem' }}>
                     <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff' }}>Rincian Pesanan</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '9999px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>PAKET PRO</span>
+                    <span style={{ 
+                      fontSize: '0.68rem', 
+                      fontWeight: 700, 
+                      padding: '0.2rem 0.6rem', 
+                      borderRadius: '9999px', 
+                      background: registerPlan === 'pro_business' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)', 
+                      color: registerPlan === 'pro_business' ? '#f59e0b' : '#38bdf8', 
+                      border: registerPlan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(56, 189, 248, 0.3)' 
+                    }}>
+                      {registerPlan === 'pro_business' ? 'PRO BISNIS' : 'PRO STARTER'}
+                    </span>
                   </div>
 
                   {/* Price Calculations */}
                   {(() => {
-                    const originalPrice = 30000;
-                    const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? 30000 : appliedCoupon.discount) : 0;
+                    const originalPrice = registerPlan === 'pro_business'
+                      ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
+                      : (registerBillingCycle === 'annual' ? 490000 : 49000);
+                    const normalPrice = registerPlan === 'pro_business'
+                      ? (registerBillingCycle === 'annual' ? 1548000 : 150000)
+                      : (registerBillingCycle === 'annual' ? 588000 : 65000);
+                    const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount) : 0;
                     const finalPrice = Math.max(0, originalPrice - discountAmount);
 
                     return (
@@ -9107,15 +9772,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.82rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
                             <span>Paket Berlangganan:</span>
-                            <strong style={{ color: '#ffffff' }}>Plan Pro / Premium (1 Bulan)</strong>
+                            <strong style={{ color: '#ffffff' }}>
+                              {registerPlan === 'pro_business' ? 'Pro Bisnis (Unlimited)' : 'Pro Starter (150 Produk)'}
+                            </strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
+                            <span>Siklus Pembayaran:</span>
+                            <strong style={{ color: '#ffffff' }}>
+                              {registerBillingCycle === 'annual' ? '1 Tahun (12 Bulan)' : '1 Bulan'}
+                            </strong>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
                             <span>Harga Normal:</span>
-                            <span style={{ textDecoration: 'line-through', color: '#64748b' }}>Rp 50.000</span>
+                            <span style={{ textDecoration: 'line-through', color: '#64748b' }}>Rp {normalPrice.toLocaleString('id-ID')}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af' }}>
-                            <span>Diskon Promo Plan:</span>
-                            <strong style={{ color: '#34d399' }}>- Rp 20.000</strong>
+                            <span>Diskon Paket:</span>
+                            <strong style={{ color: '#34d399' }}>- Rp {(normalPrice - originalPrice).toLocaleString('id-ID')}</strong>
                           </div>
                           {appliedCoupon && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.08)', padding: '0.45rem 0.6rem', borderRadius: '0.4rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
@@ -9136,7 +9809,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <input 
                               type="text" 
                               className="form-input" 
-                              placeholder="Contoh: CATAVOR100, DISKON10K" 
+                              placeholder="Contoh: CATAVOR100, GRATISPRO" 
                               value={couponInput} 
                               onChange={(e) => {
                                 setCouponInput(e.target.value.toUpperCase());
@@ -9145,22 +9818,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               style={{ flex: 1, padding: '0.5rem 0.75rem', fontSize: '0.78rem', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.5rem', color: '#fff', textTransform: 'uppercase' }}
                             />
                             <button 
-                              type="button"
+                              type="button" 
                               onClick={() => {
                                 const cleanCode = couponInput.trim().toUpperCase();
                                 if (!cleanCode) {
                                   setCouponMsg({ type: 'error', text: 'Masukkan kode kupon terlebih dahulu.' });
                                   return;
                                 }
-                                let masterCoupons = [];
+                                let masterCoupons: any[] = [];
                                 try {
                                   if (settings.master_coupons) masterCoupons = JSON.parse(settings.master_coupons);
                                 } catch {}
                                 if (!masterCoupons.length) {
                                   masterCoupons = [
-                                    { code: 'CATAVOR100', type: 'free', discount: 30000, label: 'Gratis 100% Plan Pro (1 Bulan)' },
-                                    { code: 'GRATISPRO', type: 'free', discount: 30000, label: 'Gratis Uji Coba Plan Pro' },
-                                    { code: 'DISKON10K', type: 'discount', discount: 10000, label: 'Potongan Harga Rp 10.000' }
+                                    { code: 'CATAVOR100', type: 'free', discount: originalPrice, label: 'Gratis 100% Pendaftaran' },
+                                    { code: 'GRATISPRO', type: 'free', discount: originalPrice, label: 'Gratis Uji Coba Pro' },
+                                    { code: 'DISKON10K', type: 'discount', discount: 10000, label: 'Potongan Harga Rp 10.000' },
+                                    { code: 'DISKON50K', type: 'discount', discount: 50000, label: 'Potongan Harga Rp 50.000' }
                                   ];
                                 }
                                 const found = masterCoupons.find((c: any) => c.code.toUpperCase() === cleanCode);
@@ -9212,8 +9886,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Right Card: Payment Method Switcher & Details */}
                 <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.1)', background: 'linear-gradient(180deg, rgba(17, 24, 21, 0.95) 0%, rgba(9, 14, 12, 0.98) 100%)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {(() => {
-                    const originalPrice = 30000;
-                    const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? 30000 : appliedCoupon.discount) : 0;
+                    const originalPrice = registerPlan === 'pro_business'
+                      ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
+                      : (registerBillingCycle === 'annual' ? 490000 : 49000);
+                    const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount) : 0;
                     const finalPrice = Math.max(0, originalPrice - discountAmount);
 
                     if (finalPrice === 0) {
@@ -9225,7 +9901,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div>
                             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.35rem 0' }}>Aktivasi 100% Gratis!</h3>
                             <p style={{ fontSize: '0.8rem', color: '#9ca3af', margin: 0, lineHeight: 1.45 }}>
-                              Kupon Anda berhasil menggratiskan paket berlangganan Pro. Klik tombol di bawah ini untuk langsung membuka Dashboard.
+                              Kupon Anda berhasil menggratiskan paket berlangganan {registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter'}. Klik tombol di bawah ini untuk langsung membuka Dashboard.
                             </p>
                           </div>
                           <button 
@@ -9249,7 +9925,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             disabled={registerLoading}
                           >
                             <Sparkles size={18} />
-                            <span>{registerLoading ? 'Mengaktifkan Akun...' : 'Aktifkan Paket Pro Gratis Sekarang'}</span>
+                            <span>{registerLoading ? 'Mengaktifkan Akun...' : 'Aktifkan Paket Sekarang (Gratis)'}</span>
                           </button>
 
                           <button 
@@ -9336,7 +10012,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         {paymentMethod === 'bank' && (
                           <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#9ca3af' }}>Nama Bank Perusahaan:</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#9ca3af' }}>Nama Bank:</span>
                               <strong style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 800 }}>{settings.payment_bank_name || 'Bank Central Asia (BCA)'}</strong>
                             </div>
 
@@ -9357,7 +10033,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   borderRadius: '0.4rem', 
                                   backgroundColor: copiedAccountToast ? '#10b981' : 'rgba(16, 185, 129, 0.15)', 
                                   border: '1px solid rgba(16, 185, 129, 0.3)', 
-                                  color: copiedAccountToast ? '#000' : '#34d399',
+                                  color: copiedAccountToast ? '#000' : '#34d399', 
                                   fontSize: '0.72rem',
                                   fontWeight: 800,
                                   cursor: 'pointer',
@@ -9467,9 +10143,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div className="form-group">
                             <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 600, color: '#e5e7eb' }}>Nomor WhatsApp / Catatan Pengirim (Opsional)</label>
                             <input 
-                            type="text" 
+                              type="text" 
                               className="form-input" 
-                              placeholder="Contoh: WA 08123456789 - a.n Dzikri" 
+                              placeholder="Contoh: WA 08123456789 - a.n Budi" 
                               value={paymentProofNote} 
                               onChange={(e) => setPaymentProofNote(e.target.value)}
                               style={{ borderRadius: '0.5rem', padding: '0.65rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}
@@ -9894,20 +10570,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Important Information with Dynamic Contextual Action Buttons */}
                 <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
-                {/* YouTube Video Embed */}
-                {selectedFauna.video_url && getYoutubeEmbedUrl(selectedFauna.video_url) && (
-                  <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                      {selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Hasil Kerja' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing'))))}
-                    </h3>
-                    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
-                      <iframe 
-                        src={getYoutubeEmbedUrl(selectedFauna.video_url)} 
-                        title={selectedFauna.name}
-                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                        allowFullScreen
-                      ></iframe>
-                    </div>
+                {/* Universal Multi-Platform Video Embed (YouTube, Shorts, TikTok, IG Reels) */}
+                {selectedFauna.video_url && (
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <VideoPlayerEmbed 
+                      url={selectedFauna.video_url} 
+                      title={selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Portofolio' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing'))))} 
+                    />
                   </div>
                 )}
               </div>
@@ -10403,6 +11072,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       }}
                     >
                       <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Halaman Ini
+                      {settings.plan === 'free' && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'var(--btn-secondary-bg)', color: 'var(--primary)', border: '1px solid var(--border-light)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          Free by Catavor
+                        </span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -10410,29 +11084,42 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             })()
           ) : (
           <>
-            {/* Catavor SaaS Floating Banner for Free Plan Stores */}
+            {/* Free Plan Branding Banner (Desktop) */}
             {settings.plan === 'free' && (
-              <div 
+              <div
                 className="glass-panel animate-fade-in"
                 style={{
                   padding: '0.75rem 1.25rem',
-                  borderRadius: '0.75rem',
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%)',
-                  border: '1px solid rgba(16, 185, 129, 0.28)',
+                  borderRadius: '0.85rem',
+                  background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--bg-card) 100%)',
+                  border: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '1rem',
                   marginBottom: '1.5rem',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
+                  boxShadow: '0 4px 20px var(--primary-glow)',
+                  backdropFilter: 'blur(12px)',
+                  transition: 'all 0.3s ease'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', flexShrink: 0 }}>
+                  <div style={{ 
+                    width: '34px', 
+                    height: '34px', 
+                    borderRadius: '50%', 
+                    backgroundColor: 'var(--btn-secondary-bg)', 
+                    border: '1px solid var(--border-light)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: 'var(--primary)', 
+                    flexShrink: 0 
+                  }}>
                     <Sparkles size={16} />
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#e5e7eb' }}>
-                    <span>Ingin membuat katalog digital seperti <strong>{settings.store_title || 'toko ini'}</strong>?</span>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                    <span>Ingin membuat katalog digital seperti <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{settings.store_title || 'toko ini'}</strong>?</span>
                   </div>
                 </div>
                 <button
@@ -10443,19 +11130,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     setRegisterStep(1);
                   }}
                   style={{
-                    padding: '0.45rem 1rem',
-                    fontSize: '0.8rem',
+                    padding: '0.5rem 1.15rem',
+                    fontSize: '0.82rem',
                     fontWeight: 800,
-                    borderRadius: '0.5rem',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderRadius: '0.6rem',
+                    background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                    boxShadow: '0 2px 10px var(--primary-glow)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
                   }}
                 >
-                  Buat Katalog Anda Gratis ⚡
+                  <span>Buat Katalog Gratis</span>
+                  <span>⚡</span>
                 </button>
               </div>
             )}
@@ -11242,6 +11934,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     )}
                   </button>
 
+                  <button 
+                    className="btn-secondary" 
+                    onClick={() => {
+                      setAdminTab('subscription');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                    }} 
+                    style={{ padding: '0.65rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', border: '1px solid var(--primary)', color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', fontWeight: 700 }}
+                  >
+                    <Crown size={16} />
+                    <span>Paket &amp; Langganan</span>
+                  </button>
+
                   {adminTab === 'items' && (
                     <button className="btn-primary" onClick={() => openCreateModal('physical')}>
                       <Plus size={18} />
@@ -11442,6 +12147,30 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <span>Daftar Item Katalog</span>
                 </button>
                 <button 
+                  className={`admin-tab ${adminTab === 'subscription' ? 'active' : ''}`}
+                  onClick={() => {
+                    setAdminTab('subscription');
+                    const slug = getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                >
+                  <Crown size={16} />
+                  <span>Paket &amp; Langganan</span>
+                  <span style={{ 
+                    fontSize: '0.62rem', 
+                    fontWeight: 900, 
+                    padding: '0.1rem 0.4rem', 
+                    borderRadius: '999px', 
+                    backgroundColor: settings.plan === 'free' ? 'rgba(245, 158, 11, 0.2)' : 'var(--primary-glow)', 
+                    color: settings.plan === 'free' ? '#f59e0b' : 'var(--primary)', 
+                    border: '1px solid var(--border-light)',
+                    textTransform: 'uppercase'
+                  }}>
+                    {storeQuota?.plan?.name || (settings.plan === 'free' ? 'Gratis' : 'Pro')}
+                  </span>
+                </button>
+                <button 
                   className={`admin-tab ${adminTab === 'notifications' ? 'active' : ''}`}
                   onClick={() => {
                     setAdminTab('notifications');
@@ -11528,7 +12257,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} className="animate-fade-in">
                     
-                    {/* Top Control Bar: Search & Level-1 Type Pills (Hanya tampil jika sudah ada data item inventaris) */}
+                    {/* Live Quota Dashboard Widget */}
+                    <QuotaDashboardWidget
+                      quota={storeQuota}
+                      onOpenUpgrade={() => {
+                        setAdminTab('subscription');
+                        const slug = getStoreSlug();
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                      }}
+                    />
+
+                    {/* Top Control Bar: Search & Active/Archived Filter */}
                     {faunas.length > 0 && (
                       <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                         
@@ -11585,136 +12324,192 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </select>
                         </div>
 
-                        {/* Level-1 Type Pills (Hanya muncul jika toko memiliki > 1 jenis kategori item) */}
-                        {isHybridStore && (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {/* Level-1 Type Pills & Active/Archived Filter Switcher */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* Active vs Archived Filters */}
+                            <div style={{ display: 'flex', gap: '0.25rem', padding: '0.15rem', backgroundColor: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                               <button
                                 type="button"
-                                onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                onClick={() => { setAdminActiveFilter('all'); setAdminPage(1); }}
                                 style={{
-                                  padding: '0.35rem 0.8rem',
-                                  borderRadius: '20px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 800,
-                                  border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                  cursor: 'pointer',
-                                  backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'var(--card-bg-gradient)',
-                                  color: adminProductTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                                  padding: '0.25rem 0.65rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  border: 'none',
+                                  backgroundColor: adminActiveFilter === 'all' ? 'var(--primary)' : 'transparent',
+                                  color: adminActiveFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                                  cursor: 'pointer'
                                 }}
                               >
                                 Semua ({faunas.length})
                               </button>
-                              {availableProductTypes.includes('physical') && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                  style={{
-                                    padding: '0.35rem 0.8rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 800,
-                                    border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
-                                    cursor: 'pointer',
-                                    backgroundColor: adminProductTypeFilter === 'physical' ? '#3b82f6' : 'var(--card-bg-gradient)',
-                                    color: adminProductTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
-                                  }}
-                                >
-                                  Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})
-                                </button>
-                              )}
-                              {availableProductTypes.includes('food') && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                  style={{
-                                    padding: '0.35rem 0.8rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 800,
-                                    border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                                    cursor: 'pointer',
-                                    backgroundColor: adminProductTypeFilter === 'food' ? '#ef4444' : 'var(--card-bg-gradient)',
-                                    color: adminProductTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
-                                  }}
-                                >
-                                  Kuliner ({faunas.filter(f => f.product_type === 'food').length})
-                                </button>
-                              )}
-                              {availableProductTypes.includes('service') && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                  style={{
-                                    padding: '0.35rem 0.8rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 800,
-                                    border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
-                                    cursor: 'pointer',
-                                    backgroundColor: adminProductTypeFilter === 'service' ? '#f59e0b' : 'var(--card-bg-gradient)',
-                                    color: adminProductTypeFilter === 'service' ? '#ffffff' : 'var(--text-secondary)'
-                                  }}
-                                >
-                                  Jasa ({faunas.filter(f => f.product_type === 'service').length})
-                                </button>
-                              )}
-                              {availableProductTypes.includes('digital') && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                  style={{
-                                    padding: '0.35rem 0.8rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 800,
-                                    border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
-                                    cursor: 'pointer',
-                                    backgroundColor: adminProductTypeFilter === 'digital' ? '#8b5cf6' : 'var(--card-bg-gradient)',
-                                    color: adminProductTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
-                                  }}
-                                >
-                                  Digital ({faunas.filter(f => f.product_type === 'digital').length})
-                                </button>
-                              )}
-                              {availableProductTypes.includes('fauna') && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setAdminPage(1); }}
-                                  style={{
-                                    padding: '0.35rem 0.8rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.76rem',
-                                    fontWeight: 800,
-                                    border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
-                                    cursor: 'pointer',
-                                    backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'var(--card-bg-gradient)',
-                                    color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
-                                  }}
-                                >
-                                  Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Reset filter button */}
-                            {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all') && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setAdminSearch('');
-                                  setAdminProductTypeFilter('all');
-                                  setAdminClassFilter('all');
-                                  setAdminSortBy('newest');
-                                  setAdminPage(1);
+                                onClick={() => { setAdminActiveFilter('active'); setAdminPage(1); }}
+                                style={{
+                                  padding: '0.25rem 0.65rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  border: 'none',
+                                  backgroundColor: adminActiveFilter === 'active' ? '#10b981' : 'transparent',
+                                  color: adminActiveFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                                  cursor: 'pointer'
                                 }}
-                                style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer' }}
                               >
-                                Reset Filter
+                                ✓ Aktif ({faunas.filter(f => (f as any).is_active !== false).length})
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => { setAdminActiveFilter('archived'); setAdminPage(1); }}
+                                style={{
+                                  padding: '0.25rem 0.65rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  border: 'none',
+                                  backgroundColor: adminActiveFilter === 'archived' ? '#ef4444' : 'transparent',
+                                  color: adminActiveFilter === 'archived' ? '#ffffff' : 'var(--text-secondary)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🔒 Diarsipkan ({faunas.filter(f => (f as any).is_active === false).length})
+                              </button>
+                            </div>
+
+                            {isHybridStore && (
+                              <>
+                                <span style={{ color: 'var(--border-light)', margin: '0 0.2rem' }}>|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => { setAdminProductTypeFilter('all'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                  style={{
+                                    padding: '0.3rem 0.75rem',
+                                    borderRadius: '20px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    border: adminProductTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    backgroundColor: adminProductTypeFilter === 'all' ? 'var(--primary-glow)' : 'transparent',
+                                    color: adminProductTypeFilter === 'all' ? 'var(--primary)' : 'var(--text-secondary)'
+                                  }}
+                                >
+                                  Tipe: Semua
+                                </button>
+                                {availableProductTypes.includes('physical') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAdminProductTypeFilter('physical'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                    style={{
+                                      padding: '0.3rem 0.75rem',
+                                      borderRadius: '20px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: adminProductTypeFilter === 'physical' ? '1px solid #3b82f6' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      backgroundColor: adminProductTypeFilter === 'physical' ? 'rgba(59,130,246,0.15)' : 'transparent',
+                                      color: adminProductTypeFilter === 'physical' ? '#60a5fa' : 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    Barang
+                                  </button>
+                                )}
+                                {availableProductTypes.includes('food') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAdminProductTypeFilter('food'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                    style={{
+                                      padding: '0.3rem 0.75rem',
+                                      borderRadius: '20px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: adminProductTypeFilter === 'food' ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      backgroundColor: adminProductTypeFilter === 'food' ? 'rgba(239,68,68,0.15)' : 'transparent',
+                                      color: adminProductTypeFilter === 'food' ? '#f87171' : 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    Kuliner
+                                  </button>
+                                )}
+                                {availableProductTypes.includes('service') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAdminProductTypeFilter('service'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                    style={{
+                                      padding: '0.3rem 0.75rem',
+                                      borderRadius: '20px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: adminProductTypeFilter === 'service' ? '1px solid #f59e0b' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      backgroundColor: adminProductTypeFilter === 'service' ? 'rgba(245,158,11,0.15)' : 'transparent',
+                                      color: adminProductTypeFilter === 'service' ? '#fbbf24' : 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    Jasa
+                                  </button>
+                                )}
+                                {availableProductTypes.includes('digital') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAdminProductTypeFilter('digital'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                    style={{
+                                      padding: '0.3rem 0.75rem',
+                                      borderRadius: '20px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: adminProductTypeFilter === 'digital' ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      backgroundColor: adminProductTypeFilter === 'digital' ? 'rgba(139,92,246,0.15)' : 'transparent',
+                                      color: adminProductTypeFilter === 'digital' ? '#c084fc' : 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    Digital
+                                  </button>
+                                )}
+                                {availableProductTypes.includes('fauna') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAdminProductTypeFilter('fauna'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                    style={{
+                                      padding: '0.3rem 0.75rem',
+                                      borderRadius: '20px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      backgroundColor: adminProductTypeFilter === 'fauna' ? 'rgba(16,185,129,0.15)' : 'transparent',
+                                      color: adminProductTypeFilter === 'fauna' ? '#34d399' : 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    Fauna
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
-                        )}
+
+                          {/* Reset filter button */}
+                          {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all' || adminActiveFilter !== 'all') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAdminSearch('');
+                                setAdminProductTypeFilter('all');
+                                setAdminClassFilter('all');
+                                setAdminActiveFilter('all');
+                                setAdminSortBy('newest');
+                                setAdminPage(1);
+                              }}
+                              style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer' }}
+                            >
+                              Reset Filter
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -11768,7 +12563,25 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     </div>
                                   </td>
                                   <td>
-                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>{item.name}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                      <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>{item.name}</span>
+                                      {(item as any).is_active === false && (
+                                        <span style={{ 
+                                          display: 'inline-flex', 
+                                          alignItems: 'center', 
+                                          gap: '0.2rem', 
+                                          fontSize: '0.62rem', 
+                                          fontWeight: 800, 
+                                          padding: '0.1rem 0.45rem', 
+                                          borderRadius: '4px', 
+                                          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                                          color: '#f87171', 
+                                          border: '1px solid rgba(239, 68, 68, 0.3)' 
+                                        }}>
+                                          <Lock size={10} /> DIARSIPKAN
+                                        </span>
+                                      )}
+                                    </div>
                                     <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
                                       {itemType === 'food' && (
                                         <span>{item.attributes?.portion_size ? `Porsi: ${item.attributes.portion_size}` : 'Fresh Daily'}{item.attributes?.prep_time ? ` • PO: ${item.attributes.prep_time}` : ''}</span>
@@ -12036,6 +12849,37 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <Database size={15} />
                       <span>Master Data Katalog</span>
                     </button>
+                    {storeQuota?.plan?.has_custom_domain && (
+                      <button
+                        type="button"
+                        className={`btn-secondary ${settingsSubTab === 'domain' ? 'active' : ''}`}
+                        onClick={() => setSettingsSubTab('domain')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          padding: '0.55rem 1.1rem',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          borderRadius: '20px',
+                          cursor: 'pointer',
+                          backgroundColor: settingsSubTab === 'domain' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                          color: settingsSubTab === 'domain' ? '#fff' : 'var(--text-secondary)',
+                          border: settingsSubTab === 'domain' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                        }}
+                      >
+                        <Globe size={15} style={{ color: settingsSubTab === 'domain' ? '#fff' : 'var(--primary)' }} />
+                        <span>Custom Domain</span>
+                        <span style={{
+                          fontSize: '0.6rem',
+                          fontWeight: 900,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: settingsSubTab === 'domain' ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
+                          color: '#ffffff'
+                        }}>PRO</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* 1. TEMA & TAMPILAN SUB-TAB */}
@@ -12058,7 +12902,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           { id: 'sage', name: 'Sage & Limestone', desc: 'Nuansa organik mewah perpaduan hijau sage menyejukkan dengan kehangatan batu kapur cream.', bg: '#f4f0e8', primary: '#527863', accent: '#d1c2ab', cardBg: '#ffffff', light: true, IconComponent: Leaf },
                           { id: 'navy', name: 'Royal Navy', desc: 'Tema terang estetik & elegan perpaduan biru navy klasik dan putih bersih.', bg: '#f8fafc', primary: '#1e3a8a', accent: '#93c5fd', cardBg: '#ffffff', light: true, IconComponent: Compass }
                         ].map(t => {
-                          const isActive = (settingsForm.store_theme || 'emerald') === t.id;
+                          const isActive = (settingsForm.store_theme || 'navy') === t.id;
                           const IconComp = t.IconComponent;
                           return (
                             <div 
@@ -12139,7 +12983,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   )}
 
                   {/* FORM SUB-TABS (General, Contact, About) */}
-                  {settingsSubTab !== 'theme' && settingsSubTab !== 'master' && (
+                  {settingsSubTab !== 'theme' && settingsSubTab !== 'master' && settingsSubTab !== 'domain' && (
                     <form onSubmit={handleSettingsSave} style={{ maxWidth: '600px', marginTop: '1rem' }} className="animate-fade-in">
                       {settingsSuccess && (
                         <div className="alert-message alert-success">
@@ -12625,6 +13469,155 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </button>
                       </div>
                     </form>
+                  )}
+
+                  {/* Custom Domain Settings Section */}
+                  {settingsSubTab === 'domain' && storeQuota?.plan?.has_custom_domain && (
+                    <div style={{ maxWidth: '650px', marginTop: '1rem' }} className="animate-fade-in">
+                      <div style={{ paddingBottom: '0.75rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            backgroundColor: 'var(--primary-glow)',
+                            color: 'var(--primary)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <Globe size={18} style={{ color: 'var(--primary)' }} />
+                          </div>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                            Konfigurasi Custom Domain Toko
+                          </h3>
+                          <span style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 900,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: 'var(--primary)',
+                            color: '#ffffff'
+                          }}>
+                            PRO BISNIS
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                          Gunakan domain Anda sendiri (misal: <code>tokosaya.com</code> atau <code>katalog.brand.com</code>) sebagai alamat website resmi katalog Anda.
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleCustomDomainSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontWeight: 800 }}>Nama Domain Kustom</label>
+                          <div style={{ display: 'flex', gap: '0.65rem' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Contoh: tokosaya.com atau shop.brand.com"
+                              value={customDomainInput}
+                              onChange={(e) => setCustomDomainInput(e.target.value)}
+                              style={{ flex: 1, fontSize: '0.88rem' }}
+                            />
+                            <button
+                              type="submit"
+                              disabled={customDomainLoading}
+                              className="btn-primary"
+                              style={{
+                                padding: '0 1.5rem',
+                                borderRadius: '0.5rem',
+                                fontWeight: 800,
+                                fontSize: '0.84rem',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {customDomainLoading ? 'Menyimpan...' : 'Simpan Domain'}
+                            </button>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem' }}>
+                            * Masukkan nama domain tanpa http:// atau https://. Kosongkan lalu simpan jika ingin menghapus custom domain.
+                          </span>
+                        </div>
+
+                        {storeQuota?.custom_domain && (
+                          <div style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.65rem',
+                            background: 'var(--primary-glow)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '1rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <CheckCircle2 size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                              <div>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>Domain Terhubung: </span>
+                                <strong style={{ fontSize: '0.84rem', color: 'var(--primary)' }}>{storeQuota.custom_domain}</strong>
+                              </div>
+                            </div>
+                            <a
+                              href={`https://${storeQuota.custom_domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: '0.76rem',
+                                fontWeight: 800,
+                                color: 'var(--primary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                textDecoration: 'none'
+                              }}
+                            >
+                              Buka Domain <ExternalLink size={12} />
+                            </a>
+                          </div>
+                        )}
+
+                        {/* DNS Configuration Guide Card */}
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '0.75rem',
+                          background: 'var(--card-bg-gradient, var(--bg-card))',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <FileCode size={16} style={{ color: 'var(--primary)' }} />
+                            Petunjuk DNS di Registrar (Niagahoster, DomaiNesia, Cloudflare, dll)
+                          </h4>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                            Buka pengaturan DNS Domain Anda di tempat Anda membeli domain, lalu tambahkan 1 baris record berikut:
+                          </p>
+
+                          <div style={{
+                            background: 'var(--bg-deep)',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '0.5rem',
+                            fontFamily: 'monospace',
+                            fontSize: '0.84rem',
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 2fr',
+                            gap: '0.5rem',
+                            border: '1px solid var(--border-light)'
+                          }}>
+                            <div><strong style={{ color: 'var(--text-secondary)' }}>Tipe:</strong> <span style={{ color: 'var(--primary)', fontWeight: 800 }}>CNAME</span></div>
+                            <div><strong style={{ color: 'var(--text-secondary)' }}>Host:</strong> <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>@</span> atau <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>katalog</span></div>
+                            <div><strong style={{ color: 'var(--text-secondary)' }}>Target:</strong> <span style={{ color: 'var(--primary)', fontWeight: 800 }}>cname.catavor.com</span></div>
+                          </div>
+
+                          <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                            * Setelah DNS diarahkan, domain Anda akan aktif dalam 10-60 menit tergantung propagasi DNS global.
+                          </p>
+                        </div>
+                      </form>
+                    </div>
                   )}
 
                   {/* Master Data Management Section */}
@@ -13583,7 +14576,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                       <div>
                         <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Pusat Tiket Support Catavor</h3>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Interaksi Langsung & Monitoring Kendala Toko Online Anda</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog</span>
                       </div>
                     </div>
 
@@ -13726,33 +14719,43 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   boxShadow: isSelected ? '0 4px 15px rgba(0,0,0,0.3)' : 'none'
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{ticket.id}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
+                                    <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                      {ticket.ticket_number || ticket.id}
+                                    </span>
+                                  </div>
+
                                   <span style={{
                                     fontSize: '0.65rem',
                                     fontWeight: 800,
-                                    padding: '0.15rem 0.55rem',
+                                    padding: '0.18rem 0.55rem',
                                     borderRadius: '999px',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
                                     backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                    color: isResolved ? '#10b981' : isInProgress ? '#f59e0b' : '#3b82f6'
+                                    color: isResolved ? '#10b981' : isInProgress ? '#f59e0b' : '#3b82f6',
+                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : isInProgress ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
                                   }}>
-                                    {isResolved ? 'Selesai' : isInProgress ? 'Proses' : 'Open'}
+                                    {isResolved ? '✓ Selesai' : isInProgress ? '● Proses' : '● Open'}
                                   </span>
                                 </div>
 
-                                <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.3 }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
                                   {ticket.subject}
                                 </h4>
 
                                 {lastMsg && (
                                   <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#10b981' }}>{lastMsg.sender_name}:</strong> {lastMsg.message}
+                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : 'var(--text-primary)' }}>{lastMsg.sender_name}:</strong> {lastMsg.message}
                                   </p>
                                 )}
 
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                  <span>{ticket.messages.length} Pesan</span>
-                                  <span>{ticket.updated_at}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                  <span style={{ fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                    {ticket.category === 'billing' || ticket.category === 'payment' ? 'Pembayaran' : ticket.category === 'technical' ? 'Teknis' : ticket.category === 'catalog_help' ? 'Katalog' : ticket.category === 'account' ? 'Akun' : 'Umum'}
+                                  </span>
+                                  <span>{ticket.messages.length} Pesan &bull; {ticket.updated_at}</span>
                                 </div>
                               </div>
                             );
@@ -13763,18 +14766,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
 
                     {/* RIGHT PANEL: TICKET DETAIL & THREAD */}
-                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '560px' }}>
                       {selectedTicket ? (
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', gap: '1.25rem' }}>
                           
                           {/* Ticket Details Header */}
                           <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', padding: '0.2rem 0.6rem', borderRadius: '0.4rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)' }}>
-                                  {selectedTicket.id}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.65rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: '0.02em', wordBreak: 'break-all' }}>
+                                  {selectedTicket.ticket_number || `TCK-#${selectedTicket.id}`}
                                 </span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Dibuat: {selectedTicket.created_at}</span>
                               </div>
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -13783,54 +14785,35 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   fontWeight: 800,
                                   padding: '0.25rem 0.75rem',
                                   borderRadius: '999px',
-                                  backgroundColor: selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                  color: selectedTicket.status === 'resolved' ? '#10b981' : selectedTicket.status === 'in_progress' ? '#f59e0b' : '#3b82f6',
+                                  backgroundColor: selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' : selectedTicket.status === 'waiting_agent' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                  color: selectedTicket.status === 'resolved' ? '#10b981' : selectedTicket.status === 'in_progress' ? '#f59e0b' : selectedTicket.status === 'waiting_agent' ? '#a855f7' : '#3b82f6',
                                   border: `1px solid ${selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.3)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
                                 }}>
-                                  {selectedTicket.status === 'resolved' ? '✓ Tiket Selesai' : selectedTicket.status === 'in_progress' ? '● Dalam Proses' : '● Tiket Open'}
+                                  {selectedTicket.status === 'resolved' ? '✓ Tiket Selesai' : selectedTicket.status === 'in_progress' ? '● Dalam Proses' : selectedTicket.status === 'waiting_agent' ? '● Menunggu Agen CS' : '● Tiket Open'}
                                 </span>
-
-                                {selectedTicket.status !== 'resolved' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setTickets(prev => prev.map(t => t.id === selectedTicket.id ? { ...t, status: 'resolved', updated_at: 'Baru saja' } : t));
-                                      setSelectedTicket(prev => prev ? { ...prev, status: 'resolved' } : null);
-                                      showToast('Tiket berhasil ditandai Selesai.');
-                                    }}
-                                    style={{
-                                      padding: '0.35rem 0.75rem',
-                                      borderRadius: '0.5rem',
-                                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                                      color: '#10b981',
-                                      fontSize: '0.75rem',
-                                      fontWeight: 700,
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    ✓ Tandai Selesai
-                                  </button>
-                                )}
                               </div>
                             </div>
 
-                            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.55rem 0', lineHeight: 1.35, wordBreak: 'break-word' }}>
                               {selectedTicket.subject}
                             </h3>
 
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                                Kategori: {selectedTicket.category === 'payment' ? 'Pembayaran & Paket Pro' : selectedTicket.category === 'technical' ? 'Pengaturan Toko & Domain' : selectedTicket.category === 'account' ? 'Kendala Akun' : 'Lainnya'}
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                Dibuat: {selectedTicket.created_at}
                               </span>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: selectedTicket.priority === 'urgent' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)', color: selectedTicket.priority === 'urgent' ? '#ef4444' : 'var(--text-secondary)' }}>
-                                Urgensi: {selectedTicket.priority.toUpperCase()}
+                              <span style={{ fontSize: '0.72rem', color: 'var(--border-light)' }}>&bull;</span>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                Kategori: {selectedTicket.category === 'payment' || selectedTicket.category === 'billing' ? 'Pembayaran & Paket' : selectedTicket.category === 'technical' ? 'Kendala Teknis' : selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog' : selectedTicket.category === 'account' ? 'Akun & Profil' : 'Umum'}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)', color: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? '#ef4444' : 'var(--text-secondary)' }}>
+                                Urgensi: {String(selectedTicket.priority).toUpperCase()}
                               </span>
                             </div>
                           </div>
 
                           {/* Discussion Thread Messages */}
-                          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '0.5rem', maxHeight: '350px' }}>
+                          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.1rem', paddingRight: '0.5rem', maxHeight: '380px' }}>
                             {selectedTicket.messages.map((msg) => {
                               const isUser = msg.sender === 'user';
                               return (
@@ -13843,32 +14826,128 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   }}
                                 >
                                   <div style={{
-                                    maxWidth: '82%',
+                                    maxWidth: '85%',
                                     padding: '1rem 1.15rem',
-                                    borderRadius: isUser ? '1.1rem 1.1rem 0.2rem 1.1rem' : '1.1rem 1.1rem 1.1rem 0.2rem',
-                                    backgroundColor: isUser ? 'var(--primary-glow)' : 'rgba(15, 23, 42, 0.9)',
-                                    border: isUser ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                    boxShadow: '0 4px 20px rgba(0,0,0,0.25)'
+                                    borderRadius: isUser ? '1.1rem 1.1rem 0.25rem 1.1rem' : '1.1rem 1.1rem 1.1rem 0.25rem',
+                                    background: isUser ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)' : 'var(--bg-card, rgba(15, 23, 42, 0.95))',
+                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                    border: isUser ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid var(--border-light)',
+                                    boxShadow: isUser ? '0 4px 20px var(--primary-glow, rgba(0,0,0,0.25))' : '0 4px 20px rgba(0,0,0,0.1)'
                                   }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', marginBottom: '0.45rem' }}>
-                                      <strong style={{ fontSize: '0.82rem', color: isUser ? 'var(--primary)' : '#10b981', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        {!isUser && <ShieldCheck size={16} color="#10b981" />}
-                                        {msg.sender_name}
+                                      <strong style={{ fontSize: '0.82rem', color: isUser ? '#ffffff' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
+                                        {!isUser && <ShieldCheck size={16} color="var(--primary)" />}
+                                        {msg.sender_name || (isUser ? (adminUser?.name || 'Saya (Pengelola)') : 'Catavor Official Support')}
                                       </strong>
-                                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
+                                      <span style={{ fontSize: '0.68rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
                                     </div>
-                                    <p style={{ fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                    <p style={{ fontSize: '0.88rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                                       {msg.message}
                                     </p>
+
+                                    {/* ATTACHMENT IMAGES / SCREENSHOTS GALLERY */}
+                                    {msg.attachments && msg.attachments.length > 0 && (
+                                      <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: isUser ? '1px dashed rgba(255,255,255,0.35)' : '1px dashed var(--border-light)' }}>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isUser ? 'rgba(255,255,255,0.95)' : 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                          <Paperclip size={13} color={isUser ? '#ffffff' : 'var(--primary)'} /> {msg.attachments.length} Lampiran Screenshot / Bukti Foto:
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.6rem' }}>
+                                          {msg.attachments.map((att, idx) => (
+                                            <div
+                                              key={idx}
+                                              onClick={() => openAttachmentLightbox(msg.attachments, idx)}
+                                              style={{
+                                                position: 'relative',
+                                                borderRadius: '0.65rem',
+                                                overflow: 'hidden',
+                                                border: isUser ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-light)',
+                                                aspectRatio: '1',
+                                                display: 'block',
+                                                backgroundColor: 'rgba(0,0,0,0.4)',
+                                                cursor: 'pointer',
+                                                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                                              }}
+                                              title="Klik untuk memperbesar gambar"
+                                            >
+                                              <img
+                                                src={att.file_url}
+                                                alt={att.file_name || 'Screenshot'}
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.25s ease' }}
+                                                onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+                                                onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1.0)')}
+                                              />
+                                              <div style={{
+                                                position: 'absolute',
+                                                bottom: 0,
+                                                left: 0,
+                                                right: 0,
+                                                padding: '0.22rem 0.45rem',
+                                                backgroundColor: 'rgba(0,0,0,0.75)',
+                                                backdropFilter: 'blur(4px)',
+                                                fontSize: '0.65rem',
+                                                color: '#ffffff',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
+                                              }}>
+                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.file_name || `Gambar ${idx + 1}`}</span>
+                                                <ZoomIn size={12} style={{ opacity: 0.85, flexShrink: 0, marginLeft: '4px' }} />
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
 
-                          {/* Reply Input Form */}
+                          {/* Reply Input Form with Multi-Image Screenshot Upload */}
                           {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
                             <div className="glass-panel" style={{ padding: '1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'rgba(0,0,0,0.3)' }}>
+                              
+                              {/* Attached Screenshots Preview Chips */}
+                              {ticketReplyAttachments.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.5rem', borderRadius: '0.6rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)' }}>
+                                  {ticketReplyAttachments.map((att, idx) => (
+                                    <div key={idx} style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--primary)' }}>
+                                      <img src={att.file_url} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      <button
+                                        type="button"
+                                        onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                        style={{
+                                          position: 'absolute',
+                                          top: '2px',
+                                          right: '2px',
+                                          width: '18px',
+                                          height: '18px',
+                                          borderRadius: '50%',
+                                          backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                                          color: '#ffffff',
+                                          border: 'none',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontSize: '0.65rem',
+                                          cursor: 'pointer',
+                                          padding: 0
+                                        }}
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '0.25rem' }}>
+                                    {ticketReplyAttachments.length} Foto screenshot terlampir
+                                  </div>
+                                </div>
+                              )}
+
                               <textarea
                                 rows={3}
                                 className="form-input"
@@ -13877,51 +14956,72 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 onChange={(e) => setTicketReplyText(e.target.value)}
                                 style={{ resize: 'none', marginBottom: '0.75rem', fontSize: '0.85rem' }}
                               />
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <input
+                                    type="file"
+                                    id="desktop-ticket-reply-file"
+                                    multiple
+                                    accept="image/png, image/jpeg, image/webp"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => handleUploadSupportAttachment(e.target.files, true)}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    disabled={isUploadingAttachment || ticketReplyAttachments.length >= 5}
+                                    onClick={() => document.getElementById('desktop-ticket-reply-file')?.click()}
+                                    style={{
+                                      padding: '0.45rem 0.85rem',
+                                      borderRadius: '0.55rem',
+                                      fontSize: '0.78rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    {isUploadingAttachment ? (
+                                      <Loader size={14} className="animate-spin" />
+                                    ) : (
+                                      <Paperclip size={14} />
+                                    )}
+                                    <span>Lampirkan Screenshot</span>
+                                  </button>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Maks 5 foto (10MB/foto)</span>
+                                </div>
+
                                 <button
                                   type="button"
                                   className="btn-primary"
-                                  disabled={!ticketReplyText.trim()}
-                                  onClick={() => {
-                                    if (!ticketReplyText.trim()) return;
-                                    const userMsg: TicketMessage = {
-                                      id: `msg-${Date.now()}`,
-                                      sender: 'user',
-                                      sender_name: 'Admin Toko',
-                                      message: ticketReplyText.trim(),
-                                      timestamp: 'Baru saja'
-                                    };
-
-                                    const updatedMessages = [...selectedTicket.messages, userMsg];
-                                    const updatedTicket = {
-                                      ...selectedTicket,
-                                      messages: updatedMessages,
-                                      updated_at: 'Baru saja',
-                                      status: 'in_progress' as const
-                                    };
-
-                                    setTickets(prev => prev.map(t => t.id === selectedTicket.id ? updatedTicket : t));
-                                    setSelectedTicket(updatedTicket);
-                                    setTicketReplyText('');
-                                    showToast('Balasan Anda telah terkirim!');
-
-                                    // Auto CS response simulation
-                                    setTimeout(() => {
-                                      const csReply: TicketMessage = {
-                                        id: `msg-${Date.now() + 1}`,
-                                        sender: 'support',
-                                        sender_name: 'Catavor Official Support',
-                                        message: 'Pesan Anda telah diterima oleh Tim Support. Kami sedang mengecek detail permintaan ini.',
-                                        timestamp: 'Baru saja'
-                                      };
-                                      setTickets(prev => prev.map(t => {
-                                        if (t.id === selectedTicket.id) {
-                                          return { ...t, messages: [...t.messages, csReply] };
-                                        }
-                                        return t;
-                                      }));
-                                      setSelectedTicket(prev => prev ? { ...prev, messages: [...prev.messages, csReply] } : null);
-                                    }, 1500);
+                                  disabled={(!ticketReplyText.trim() && ticketReplyAttachments.length === 0) || isSubmittingReply}
+                                  onClick={async () => {
+                                    if (!ticketReplyText.trim() && ticketReplyAttachments.length === 0) return;
+                                    setIsSubmittingReply(true);
+                                    try {
+                                      const res = await fetch(`${API_BASE}/support/tickets/${selectedTicket.id}/reply`, {
+                                        method: 'POST',
+                                        headers: getAuthHeaders(),
+                                        body: JSON.stringify({
+                                          message: ticketReplyText.trim(),
+                                          attachments: ticketReplyAttachments
+                                        })
+                                      });
+                                      const data = await res.json();
+                                      if (res.ok && data.success) {
+                                        setTicketReplyText('');
+                                        setTicketReplyAttachments([]);
+                                        showToast('Balasan Anda telah terkirim!');
+                                        fetchTicketDetails(selectedTicket.id);
+                                        fetchSupportTickets();
+                                      } else {
+                                        showToast(data.message || 'Gagal mengirim balasan tiket.', 'error');
+                                      }
+                                    } catch (err) {
+                                      showToast('Koneksi terputus. Gagal mengirim balasan.', 'error');
+                                    } finally {
+                                      setIsSubmittingReply(false);
+                                    }
                                   }}
                                   style={{
                                     padding: '0.55rem 1.25rem',
@@ -13933,7 +15033,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     gap: '0.45rem'
                                   }}
                                 >
-                                  <Send size={15} /> Kirim Balasan
+                                  {isSubmittingReply ? <Loader size={15} className="animate-spin" /> : <Send size={15} />}
+                                  <span>Kirim Balasan</span>
                                 </button>
                               </div>
                             </div>
@@ -13956,7 +15057,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <button
                             type="button"
                             className="btn-primary"
-                            onClick={() => setShowCreateTicketModal(true)}
+                            onClick={() => {
+                              setTicketNewAttachments([]);
+                              setShowCreateTicketModal(true);
+                            }}
                             style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', borderRadius: '0.65rem' }}
                           >
                             + Buat Tiket Support Baru
@@ -13967,7 +15071,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                   </div>
 
-                  {/* DESKTOP MODAL: CREATE TICKET */}
+                  {/* DESKTOP MODAL: CREATE TICKET WITH MULTI-IMAGE ATTACHMENT */}
                   {showCreateTicketModal && (
                     <div style={{
                       position: 'fixed',
@@ -13982,12 +15086,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     }}>
                       <div className="glass-panel animate-scale-up" style={{
                         width: '100%',
-                        maxWidth: '560px',
+                        maxWidth: '580px',
                         backgroundColor: 'var(--card-bg-gradient)',
                         borderRadius: '1.25rem',
                         padding: '1.75rem',
                         border: '1px solid var(--border-light)',
-                        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)'
+                        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)',
+                        maxHeight: '92vh',
+                        overflowY: 'auto'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
                           <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -14002,38 +15108,42 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </button>
                         </div>
 
-                        <form onSubmit={(e) => {
+                        <form onSubmit={async (e) => {
                           e.preventDefault();
                           if (!newTicketForm.subject.trim() || !newTicketForm.message.trim()) {
                             showToast('Mohon isi Judul dan Detail Kendala.', 'error');
                             return;
                           }
 
-                          const newId = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
-                          const createdTicket: SupportTicket = {
-                            id: newId,
-                            subject: newTicketForm.subject.trim(),
-                            category: newTicketForm.category,
-                            priority: newTicketForm.priority,
-                            status: 'open',
-                            created_at: 'Baru saja',
-                            updated_at: 'Baru saja',
-                            messages: [
-                              {
-                                id: `msg-${Date.now()}`,
-                                sender: 'user',
-                                sender_name: 'Admin Toko',
+                          setIsSubmittingTicket(true);
+                          try {
+                            const res = await fetch(`${API_BASE}/support/tickets`, {
+                              method: 'POST',
+                              headers: getAuthHeaders(),
+                              body: JSON.stringify({
+                                subject: newTicketForm.subject.trim(),
+                                category: newTicketForm.category,
+                                priority: newTicketForm.priority,
                                 message: newTicketForm.message.trim(),
-                                timestamp: 'Baru saja'
-                              }
-                            ]
-                          };
-
-                          setTickets(prev => [createdTicket, ...prev]);
-                          setSelectedTicket(createdTicket);
-                          setShowCreateTicketModal(false);
-                          setNewTicketForm({ subject: '', category: 'payment', priority: 'normal', message: '' });
-                          showToast(`Tiket ${newId} berhasil dibuat!`);
+                                attachments: ticketNewAttachments
+                              })
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.success && data.data) {
+                              showToast(`Tiket #${data.data.ticket_number || data.data.id} berhasil dibuat!`);
+                              setShowCreateTicketModal(false);
+                              setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
+                              setTicketNewAttachments([]);
+                              fetchSupportTickets();
+                              fetchTicketDetails(data.data.id);
+                            } else {
+                              showToast(data.message || 'Gagal membuat tiket bantuan.', 'error');
+                            }
+                          } catch (err) {
+                            showToast('Koneksi terputus. Gagal mengirim tiket bantuan.', 'error');
+                          } finally {
+                            setIsSubmittingTicket(false);
+                          }
                         }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                           <div className="form-group">
@@ -14054,13 +15164,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <select
                                 className="form-input"
                                 value={newTicketForm.category}
-                                onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value as any })}
+                                onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value })}
                               >
-                                <option value="payment">Pembayaran & Paket Pro</option>
-                                <option value="technical">Pengaturan Toko / Domain</option>
-                                <option value="account">Kendala Akun</option>
-                                <option value="feature">Pertanyaan Fitur</option>
-                                <option value="other">Lainnya</option>
+                                <option value="billing">Pembayaran & Paket Pro</option>
+                                <option value="technical">Kendala Teknis & Fitur</option>
+                                <option value="catalog_help">Bantuan Pengelolaan Katalog</option>
+                                <option value="account">Kendala Akun & Profil</option>
+                                <option value="general">Lainnya / Pertanyaan Umum</option>
                               </select>
                             </div>
 
@@ -14069,11 +15179,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <select
                                 className="form-input"
                                 value={newTicketForm.priority}
-                                onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value as any })}
+                                onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
                               >
-                                <option value="normal">Normal</option>
-                                <option value="high">Tinggi</option>
-                                <option value="urgent">Urgent</option>
+                                <option value="low">Rendah (Pertanyaan Umum)</option>
+                                <option value="medium">Sedang (Kendala Standar)</option>
+                                <option value="high">Tinggi (Fitur Bermasalah)</option>
+                                <option value="urgent">Mendesak (Katalog Error / Darurat)</option>
                               </select>
                             </div>
                           </div>
@@ -14081,14 +15192,80 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div className="form-group">
                             <label className="form-label">Detail Pesan & Pertanyaan *</label>
                             <textarea
-                              rows={5}
+                              rows={4}
                               className="form-input"
-                              placeholder="Jelaskan detail kendala Anda selengkap mungkin..."
+                              placeholder="Jelaskan detail pertanyaan atau kendala Anda selengkap mungkin..."
                               value={newTicketForm.message}
                               onChange={(e) => setNewTicketForm({ ...newTicketForm, message: e.target.value })}
                               required
                               style={{ resize: 'none' }}
                             />
+                          </div>
+
+                          {/* SCREENSHOT ATTACHMENTS SECTION */}
+                          <div className="form-group" style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                              <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
+                                <Paperclip size={15} color="var(--primary)" />
+                                <span>Lampirkan Screenshot / Bukti Foto ({ticketNewAttachments.length}/5)</span>
+                              </label>
+
+                              <input
+                                type="file"
+                                id="desktop-ticket-new-file"
+                                multiple
+                                accept="image/png, image/jpeg, image/webp"
+                                style={{ display: 'none' }}
+                                onChange={(e) => handleUploadSupportAttachment(e.target.files, false)}
+                              />
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={isUploadingAttachment || ticketNewAttachments.length >= 5}
+                                onClick={() => document.getElementById('desktop-ticket-new-file')?.click()}
+                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                              >
+                                {isUploadingAttachment ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
+                                <span>+ Unggah Foto</span>
+                              </button>
+                            </div>
+
+                            {ticketNewAttachments.length > 0 ? (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '0.65rem' }}>
+                                {ticketNewAttachments.map((att, idx) => (
+                                  <div key={idx} style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                    <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <button
+                                      type="button"
+                                      onClick={() => setTicketNewAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                      style={{
+                                        position: 'absolute',
+                                        top: '3px',
+                                        right: '3px',
+                                        width: '20px',
+                                        height: '20px',
+                                        borderRadius: '50%',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '0.7rem',
+                                        cursor: 'pointer',
+                                        padding: 0
+                                      }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                                Belum ada screenshot yang dilampirkan. Anda dapat mengunggah hingga 5 gambar format JPG/PNG/WEBP (Maks 10MB per foto).
+                              </p>
+                            )}
                           </div>
 
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
@@ -14103,9 +15280,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="submit"
                               className="btn-primary"
-                              style={{ padding: '0.65rem 1.5rem', borderRadius: '0.6rem', fontSize: '0.85rem', fontWeight: 800 }}
+                              disabled={isSubmittingTicket}
+                              style={{ padding: '0.65rem 1.5rem', borderRadius: '0.6rem', fontSize: '0.85rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.45rem' }}
                             >
-                              Kirim Tiket Support
+                              {isSubmittingTicket ? <Loader size={15} className="animate-spin" /> : <Send size={15} />}
+                              <span>Kirim Tiket Support</span>
                             </button>
                           </div>
                         </form>
@@ -14471,6 +15650,29 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       })()}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB 8: PAKET & LANGGANAN TOKO (FULL-PAGE VIEW) */}
+              {adminTab === 'subscription' && (
+                <div className="animate-fade-in" style={{ padding: '0.25rem 0 2rem 0' }}>
+                  <SubscriptionPage
+                    currentQuota={storeQuota}
+                    plans={subscriptionPlans}
+                    settings={settings}
+                    onSuccessUpgrade={() => {
+                      fetchMyQuota();
+                      loadData();
+                      showToast('Status langganan dan kuota berhasil diperbarui!', 'success');
+                    }}
+                    apiBase={API_BASE}
+                    token={token}
+                    onBack={() => {
+                      setAdminTab('items');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -15741,112 +16943,115 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                   )}
 
-                  {/* Multi-image section */}
-                  <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                          {typeConfig.photoLabel}
-                        </h3>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-                          {typeConfig.photoHelper}
-                        </p>
-                      </div>
-                      {crudImages.length < 5 && (
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.35rem' }}
-                          onClick={() => setCrudImages([...crudImages, ''])}
-                        >
-                          + Tambah Foto
-                        </button>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {crudImages.map((imgUrl, index) => (
-                        <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
-                          {/* Preview Thumbnail */}
-                          <div style={{ width: '54px', height: '54px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                            {imgUrl ? (
-                              <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
-                            ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                <Image size={16} style={{ color: 'var(--primary)' }} />
-                                <span style={{ fontSize: '0.58rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
-                              </div>
-                            )}
-                            {uploadingIndex === index && (
-                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Loader className="animate-spin" size={14} style={{ color: 'var(--primary)' }} />
-                              </div>
-                            )}
+                  {/* Multi-image section with Dynamic Tier Photo Limit */}
+                  {(() => {
+                    const maxPhotosAllowed = storeQuota?.plan?.max_images_per_item || (adminUser?.store_plan === 'pro_business' ? 10 : adminUser?.store_plan === 'pro_starter' ? 8 : 5);
+                    return (
+                      <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                              Foto Produk (1-{maxPhotosAllowed} Foto - Kuota Paket {storeQuota?.plan?.name || 'Free'})
+                            </h3>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                              Unggah hingga {maxPhotosAllowed} foto beresolusi jelas untuk menampilkan detail terbaik.
+                            </p>
                           </div>
-
-                          {/* Input & Upload Controls */}
-                          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <input
-                                type="text"
-                                className="form-input"
-                                placeholder={`Tautan Foto ${index === 0 ? 'Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
-                                value={imgUrl}
-                                onChange={(e) => {
-                                  const newImages = [...crudImages]
-                                  newImages[index] = e.target.value
-                                  setCrudImages(newImages)
-                                }}
-                                required={index === 0}
-                                style={{ height: '38px', fontSize: '0.85rem' }}
-                              />
-                              
-                              {/* Device File Upload Button */}
-                              <label className="btn-secondary" style={{ padding: '0.5rem 0.85rem', height: '38px', borderRadius: '0.35rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                <Upload size={14} />
-                                Upload File
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  style={{ display: 'none' }}
-                                  onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                      handleImageUpload(index, e.target.files[0])
-                                    }
-                                  }}
-                                />
-                              </label>
-                            </div>
-                          </div>
-
-                          {/* Delete Row Button */}
-                          {crudImages.length > 1 && (
+                          {crudImages.length < maxPhotosAllowed && (
                             <button
                               type="button"
-                              className="btn-secondary"
-                              style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-border)', height: '38px', borderRadius: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              onClick={() => {
-                                const newImages = crudImages.filter((_, i) => i !== index)
-                                setCrudImages(newImages)
-                              }}
+                              className="btn-primary"
+                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.35rem' }}
+                              onClick={() => setCrudImages([...crudImages, ''])}
                             >
-                              <Trash2 size={16} />
+                              + Tambah Foto
                             </button>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Video URL */}
-                  <div className="form-group">
-                    <label className="form-label">{typeConfig.videoLabel}</label>
-                    <input 
-                      type="url" 
-                      className="form-input" 
-                      placeholder={typeConfig.videoPlaceholder}
-                      value={crudForm.video_url}
-                      onChange={(e) => setCrudForm({ ...crudForm, video_url: e.target.value })}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {crudImages.map((imgUrl, index) => (
+                            <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                              {/* Preview Thumbnail */}
+                              <div style={{ width: '54px', height: '54px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                {imgUrl ? (
+                                  <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                    <Image size={16} style={{ color: 'var(--primary)' }} />
+                                    <span style={{ fontSize: '0.58rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                                  </div>
+                                )}
+                                {uploadingIndex === index && (
+                                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Loader className="animate-spin" size={14} style={{ color: 'var(--primary)' }} />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Input & Upload Controls */}
+                              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    placeholder={`Tautan Foto ${index === 0 ? 'Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
+                                    value={imgUrl}
+                                    onChange={(e) => {
+                                      const newImages = [...crudImages]
+                                      newImages[index] = e.target.value
+                                      setCrudImages(newImages)
+                                    }}
+                                    required={index === 0}
+                                    style={{ height: '38px', fontSize: '0.85rem' }}
+                                  />
+                                  
+                                  {/* Device File Upload Button */}
+                                  <label className="btn-secondary" style={{ padding: '0.5rem 0.85rem', height: '38px', borderRadius: '0.35rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                    <Upload size={14} />
+                                    Upload File
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                          handleImageUpload(index, e.target.files[0])
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+
+                              {/* Delete Row Button */}
+                              {crudImages.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-border)', height: '38px', borderRadius: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  onClick={() => {
+                                    const newImages = crudImages.filter((_, i) => i !== index)
+                                    setCrudImages(newImages)
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Universal Multi-Platform Video Embed Input (YouTube, Shorts, TikTok, IG Reels) */}
+                  <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                    <VideoPreviewInput
+                      value={crudForm.video_url || ''}
+                      onChange={(val) => setCrudForm(prev => ({ ...prev, video_url: val }))}
+                      label="Video Showcase / Review (YouTube, Shorts, TikTok, IG Reels - Opsional)"
+                      placeholder="Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels..."
                     />
                   </div>
 
@@ -16369,6 +17574,371 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           )}
         </div>
       )}
+
+      {/* SUPPORT TICKET ATTACHMENTS GALLERY LIGHTBOX MODAL (DESKTOP) */}
+      {attachmentLightbox?.isOpen && attachmentLightbox.images.length > 0 && (() => {
+        const currentImg = attachmentLightbox.images[attachmentLightbox.currentIndex] || attachmentLightbox.images[0];
+        const total = attachmentLightbox.images.length;
+        const currentIdx = attachmentLightbox.currentIndex;
+
+        return (
+          <div 
+            className="animate-fade-in"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99999,
+              backgroundColor: 'rgba(5, 8, 15, 0.96)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              userSelect: 'none'
+            }}
+            onClick={closeAttachmentLightbox}
+          >
+            {/* Top Header Bar */}
+            <div 
+              style={{
+                padding: '1rem 2rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                zIndex: 10,
+                gap: '1.5rem'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: 1 }}>
+                <span style={{
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  padding: '0.25rem 0.85rem',
+                  borderRadius: '999px',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  border: '1px solid var(--border-light)',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}>
+                  {currentIdx + 1} / {total} Foto Lampiran
+                </span>
+                <span style={{
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {currentImg.file_name || `Lampiran_${currentIdx + 1}`}
+                </span>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  title="Download Foto Lampiran"
+                  onClick={() => handleDownloadAttachmentImage(currentImg.file_url, currentImg.file_name)}
+                  style={{
+                    padding: '0.45rem 0.95rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Download size={16} /> Unduh
+                </button>
+
+                <a
+                  href={currentImg.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Buka File Asli di Tab Baru"
+                  style={{
+                    padding: '0.45rem 0.95rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ExternalLink size={16} /> Tab Baru
+                </a>
+
+                <button
+                  type="button"
+                  title="Tutup (Esc)"
+                  onClick={closeAttachmentLightbox}
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                    border: 'none',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 12px rgba(239, 68, 68, 0.4)'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Image Stage with Zoom & Pan */}
+            <div 
+              style={{
+                flex: 1,
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '1.5rem'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Left Nav Button (if multiple images) */}
+              {total > 1 && (
+                <button
+                  type="button"
+                  title="Foto Sebelumnya (←)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + total) % total } : null);
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: '2rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0,0,0,0.65)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 20,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ChevronLeft size={26} />
+                </button>
+              )}
+
+              {/* Right Nav Button (if multiple images) */}
+              {total > 1 && (
+                <button
+                  type="button"
+                  title="Foto Berikutnya (→)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % total } : null);
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '2rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0,0,0,0.65)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 20,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ChevronRight size={26} />
+                </button>
+              )}
+
+              {/* Center Canvas */}
+              <div
+                style={{
+                  maxWidth: '85vw',
+                  maxHeight: '75vh',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
+                  transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  cursor: zoomScale > 1 ? 'grab' : 'zoom-in'
+                }}
+                onDoubleClick={() => {
+                  if (zoomScale > 1) {
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  } else {
+                    setZoomScale(2);
+                  }
+                }}
+              >
+                <img
+                  src={currentImg.file_url}
+                  alt={currentImg.file_name || 'Screenshot'}
+                  style={{
+                    maxWidth: '80vw',
+                    maxHeight: '72vh',
+                    objectFit: 'contain',
+                    borderRadius: '0.85rem',
+                    boxShadow: '0 16px 50px rgba(0,0,0,0.9)',
+                    border: '1px solid rgba(255,255,255,0.12)'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Bottom Thumbnail Strip & Zoom Bar */}
+            <div
+              style={{
+                padding: '1rem 2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem',
+                background: 'linear-gradient(0deg, rgba(0,0,0,0.92) 0%, transparent 100%)',
+                zIndex: 10
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Zoom Controls Pill */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.85rem',
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                padding: '0.4rem 1rem',
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <button
+                  type="button"
+                  title="Zoom Out"
+                  disabled={zoomScale <= 0.75}
+                  onClick={() => setZoomScale(prev => Math.max(prev - 0.25, 0.75))}
+                  style={{ background: 'none', border: 'none', color: zoomScale <= 0.75 ? 'rgba(255,255,255,0.3)' : '#ffffff', cursor: zoomScale <= 0.75 ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#ffffff', minWidth: '45px', textAlign: 'center' }}>
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  title="Zoom In"
+                  disabled={zoomScale >= 4}
+                  onClick={() => setZoomScale(prev => Math.min(prev + 0.25, 4))}
+                  style={{ background: 'none', border: 'none', color: zoomScale >= 4 ? 'rgba(255,255,255,0.3)' : '#ffffff', cursor: zoomScale >= 4 ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <ZoomIn size={16} />
+                </button>
+                <button
+                  type="button"
+                  title="Reset Zoom (100%)"
+                  onClick={() => {
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(255,255,255,0.12)',
+                    border: 'none',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+
+              {/* Thumbnail Preview Strip (if > 1 image) */}
+              {total > 1 && (
+                <div style={{
+                  display: 'flex',
+                  gap: '0.65rem',
+                  overflowX: 'auto',
+                  maxWidth: '100%',
+                  padding: '0.25rem',
+                  justifyContent: 'center'
+                }}>
+                  {attachmentLightbox.images.map((att, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: idx } : null);
+                        setZoomScale(1);
+                        setPanPosition({ x: 0, y: 0 });
+                      }}
+                      style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '0.5rem',
+                        overflow: 'hidden',
+                        border: currentIdx === idx ? '2.5px solid var(--primary)' : '1px solid rgba(255,255,255,0.25)',
+                        padding: 0,
+                        cursor: 'pointer',
+                        backgroundColor: 'transparent',
+                        transform: currentIdx === idx ? 'scale(1.1)' : 'scale(1)',
+                        transition: 'all 0.2s ease',
+                        flexShrink: 0
+                      }}
+                    >
+                      <img src={att.file_url} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* IMAGE SETTINGS DIALOG MODAL */}
       {showImageSettingsModal && selectedEditorImage && (

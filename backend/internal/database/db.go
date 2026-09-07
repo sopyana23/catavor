@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/services"
 
 	"github.com/glebarez/sqlite"
 	"github.com/rs/zerolog/log"
@@ -48,11 +50,19 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
-	// Auto-Migrate Schemas to PostgreSQL
+	// 1. Run Pre-Migration Checks (Safe table renaming faunas -> products)
+	runPreMigrationRenames(db)
+
+	// 2. Auto-Migrate Schemas to PostgreSQL
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Store{},
-		&models.Fauna{},
+		&models.SubscriptionPlan{},
+		&models.SubscriptionOrder{},
+		&models.Category{},
+		&models.Product{},
+		&models.ProductImage{},
+		&models.ProductVariant{},
 		&models.Sighting{},
 		&models.Article{},
 		&models.Comment{},
@@ -61,13 +71,25 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.PolicyAuditLog{},
 		&models.UserPolicyAgreement{},
 		&models.Report{},
+		&models.SupportTicket{},
+		&models.SupportMessage{},
+		&models.SupportAttachment{},
+		&models.HelpArticle{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
 	}
 
+	// 3. Post-Migration Optimizations & Compatibility VIEWs
+	runPostMigrationOptimizations(db)
+
+	// 4. Seed Dynamic Subscription Plans
+	if err := services.SeedSubscriptionPlans(db); err != nil {
+		log.Warn().Err(err).Msg("Failed to seed default subscription plans")
+	}
+
 	DB = db
-	log.Info().Msg("PostgreSQL connected and schemas auto-migrated successfully")
+	log.Info().Msg("PostgreSQL connected, normalized schemas auto-migrated, and GIN indexes verified successfully")
 
 	// Seed or Import Data from SQLite
 	seedOrImportFromSQLite(db, cfg.SQLiteSourcePath)
@@ -277,8 +299,118 @@ func importFromSQLite(pgDB *gorm.DB, sqlitePath string) error {
 	return nil
 }
 
+func runPreMigrationRenames(db *gorm.DB) {
+	// Check if 'faunas' is a base table and 'products' does not exist yet
+	var faunasTableCount int64
+	_ = db.Raw("SELECT count(*) FROM information_schema.tables WHERE table_name = 'faunas' AND table_type = 'BASE TABLE'").Scan(&faunasTableCount).Error
+
+	var productsTableCount int64
+	_ = db.Raw("SELECT count(*) FROM information_schema.tables WHERE table_name = 'products'").Scan(&productsTableCount).Error
+
+	if faunasTableCount > 0 && productsTableCount == 0 {
+		log.Info().Msg("Executing zero-downtime database migration: Renaming 'faunas' table to 'products'...")
+		if err := db.Exec("ALTER TABLE faunas RENAME TO products;").Error; err != nil {
+			log.Warn().Err(err).Msg("Failed to rename 'faunas' to 'products'")
+		} else {
+			log.Info().Msg("Database table 'faunas' successfully renamed to 'products'")
+		}
+	}
+}
+
+func runPostMigrationOptimizations(db *gorm.DB) {
+	// 1. Create Compatibility VIEW 'faunas' pointing to 'products'
+	_ = db.Exec("CREATE OR REPLACE VIEW faunas AS SELECT * FROM products;").Error
+
+	// 2. Create High-Performance Indexes on products table
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_store_active ON products(store_id, is_active);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_price ON products(store_id, price);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
+
+	// 3. Create Support & Help Center Indexes
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON support_tickets(user_id, status);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_status_prio ON support_tickets(status, priority, last_message_at DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_ticket_date ON support_messages(ticket_id, created_at ASC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON support_attachments(message_id);").Error
+
+	// 4. Auto-populate categories from store master_classes if categories table is empty
+	var catCount int64
+	db.Model(&models.Category{}).Count(&catCount)
+	if catCount == 0 {
+		var stores []models.Store
+		if err := db.Find(&stores).Error; err == nil {
+			for _, st := range stores {
+				if len(st.MasterClasses) > 0 {
+					var classNames []string
+					if err := json.Unmarshal(st.MasterClasses, &classNames); err == nil {
+						for idx, cName := range classNames {
+							cName = strings.TrimSpace(cName)
+							if cName != "" {
+								slug := strings.ToLower(cName)
+								slug = strings.ReplaceAll(slug, " & ", "-")
+								slug = strings.ReplaceAll(slug, " ", "-")
+								cat := models.Category{
+									StoreID:     st.ID,
+									Name:        cName,
+									Slug:        slug,
+									ProductType: "physical",
+									SortOrder:   idx,
+									IsActive:    true,
+								}
+								db.Create(&cat)
+							}
+						}
+					}
+				}
+			}
+			log.Info().Msg("Auto-populated categories table from store master_classes")
+		}
+	}
+
+	// 5. Seed Default Help Center Articles if table is empty
+	var helpCount int64
+	db.Model(&models.HelpArticle{}).Count(&helpCount)
+	if helpCount == 0 {
+		defaultHelpArticles := []models.HelpArticle{
+			{
+				Category:    "Memulai Toko",
+				Title:       "Panduan Lengkap Membuat & Mengaktifkan Katalog Digital",
+				Slug:        "panduan-lengkap-membuat-katalog-digital",
+				Content:     "Langkah mudah memulai bisnis di Catavor: 1. Daftar akun merchant gratis. 2. Atur nama toko dan slug unik Anda. 3. Masukkan nomor WhatsApp bisnis untuk menerima pesanan. 4. Unggah produk pertama Anda lengkap dengan foto dan harga promo.",
+				SortOrder:   1,
+				IsPublished: true,
+			},
+			{
+				Category:    "Pesanan & WhatsApp",
+				Title:       "Cara Kerja Fitur Pesan Direct WhatsApp & Rekber",
+				Slug:        "cara-kerja-pesan-direct-whatsapp-rekber",
+				Content:     "Catavor menyediakan integrasi WhatsApp checkout otomatis. Ketika pembeli menekan tombol 'Pesan via WhatsApp', sistem secara otomatis menyusun format pesan lengkap dengan nama produk, jumlah, varian, dan total harga ke nomor WhatsApp Anda.",
+				SortOrder:   2,
+				IsPublished: true,
+			},
+			{
+				Category:    "Paket & Pembayaran",
+				Title:       "Keuntungan Upgrade ke Akun Pro & Metode Pembayaran",
+				Slug:        "keuntungan-upgrade-akun-pro",
+				Content:     "Paket Pro Catavor membuka kapasitas posting tanpa batas (unlimited items), custom tema toko eksklusif, prioritas pencarian, dan verifikasi lencana centang resmi.",
+				SortOrder:   3,
+				IsPublished: true,
+			},
+		}
+		for _, art := range defaultHelpArticles {
+			db.Create(&art)
+		}
+		log.Info().Msg("Default Help Center articles seeded successfully")
+	}
+}
+
 func resetSequences(db *gorm.DB) {
-	tables := []string{"users", "stores", "faunas", "articles", "comments", "settings", "policy_versions", "policy_audit_logs"}
+	tables := []string{
+		"users", "stores", "subscription_plans", "subscription_orders", "products", "categories", "product_images", "product_variants",
+		"articles", "comments", "settings", "policy_versions", "policy_audit_logs", "reports",
+		"support_tickets", "support_messages", "support_attachments", "help_articles",
+	}
 	for _, tbl := range tables {
 		_ = db.Exec(fmt.Sprintf("SELECT setval(pg_get_serial_sequence('%s', 'id'), coalesce(max(id),0) + 1, false) FROM %s;", tbl, tbl)).Error
 	}
@@ -306,7 +438,7 @@ func seedDefaultData(db *gorm.DB) {
 		WhatsappNumber:          "081234567890",
 		Plan:                    "pro",
 		PaymentStatus:           "paid",
-		StoreTheme:              "emerald",
+		StoreTheme:              "navy",
 		MasterClasses:           datatypes.JSON(defaultClasses),
 		MasterHabitats:          datatypes.JSON(defaultHabitats),
 		MasterStatuses:          datatypes.JSON(defaultStatuses),
@@ -316,3 +448,4 @@ func seedDefaultData(db *gorm.DB) {
 
 	log.Info().Msg("Default Catavor admin and adidas store created")
 }
+

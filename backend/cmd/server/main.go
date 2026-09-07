@@ -11,6 +11,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/handlers"
 	"catavor-backend/internal/middleware"
+	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
@@ -55,12 +56,30 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(cfg)
 	storeHandler := handlers.NewStoreHandler()
+	subscriptionHandler := handlers.NewSubscriptionHandler()
+	productHandler := handlers.NewProductHandler(cfg)
+	categoryHandler := handlers.NewCategoryHandler()
 	faunaHandler := handlers.NewFaunaHandler(cfg)
 	articleHandler := handlers.NewArticleHandler()
 	settingHandler := handlers.NewSettingHandler()
 	reportHandler := handlers.NewReportHandler()
+	supportHandler := handlers.NewSupportHandler(cfg)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg)
+
+	// Start Background Subscription Lifecycle Worker (Runs on boot and every 1 hour)
+	go func() {
+		if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
+			log.Warn().Err(err).Msg("Initial subscription lifecycle check failed")
+		}
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
+				log.Warn().Err(err).Msg("Subscription lifecycle periodic check failed")
+			}
+		}
+	}()
 
 	// 7. Static Asset Directories with Hardened Security Headers
 	app.Static("/storage", cfg.StorageLocalRoot, fiber.Static{
@@ -81,10 +100,21 @@ func main() {
 	// 8. Register API Endpoints
 	api := app.Group("/api")
 
-	// Public Endpoints
-	api.Get("/fauna", faunaHandler.Index)
-	api.Get("/fauna/:id", faunaHandler.Show)
-	api.Get("/fauna/:id/recommendations", faunaHandler.GetRecommendations)
+	// Public Modern Product & Category Endpoints
+	api.Get("/products", productHandler.Index)
+	api.Get("/products/:id", productHandler.Show)
+	api.Get("/products/:id/recommendations", productHandler.GetRecommendations)
+	api.Get("/categories", categoryHandler.Index)
+
+	// Public Help Center / Knowledge Base Endpoints
+	api.Get("/help/articles", supportHandler.GetHelpArticles)
+	api.Get("/help/articles/:slug", supportHandler.GetHelpArticleBySlug)
+	api.Post("/help/articles/:id/helpful", supportHandler.VoteHelpful)
+
+	// Public Legacy Endpoints (Maintained for Backward Compatibility)
+	api.Get("/fauna", productHandler.Index)
+	api.Get("/fauna/:id", productHandler.Show)
+	api.Get("/fauna/:id/recommendations", productHandler.GetRecommendations)
 	api.Get("/taxonomy/culinary", faunaHandler.GetCulinaryTaxonomy)
 	api.Get("/culinary-taxonomy", faunaHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)
@@ -101,36 +131,79 @@ func main() {
 	api.Get("/stores/featured", storeHandler.FeaturedStores)
 	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
 	api.Get("/u/:slug", storeHandler.ShowStore)
-	api.Get("/u/:slug/fauna", storeHandler.IndexFauna)
+	api.Get("/u/:slug/products", storeHandler.IndexProducts)
+	api.Get("/u/:slug/categories", categoryHandler.Index)
+	api.Get("/u/:slug/fauna", storeHandler.IndexProducts) // Backward-compatible alias
+
+	// Public Subscription Plans
+	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
 
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
 	api.Post("/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/google", middleware.AuthRateLimiter(), authHandler.GoogleAuth)
 
-	// Guarded Admin Endpoints (Requires JWT Token & Store Ownership)
+	// User Auth-Guarded Endpoints (Requires valid JWT Token)
+	authOnly := api.Group("", middleware.AuthRequired(cfg))
+	{
+		authOnly.Get("/auth/verify", authHandler.VerifyToken)
+		authOnly.Get("/auth/me", authHandler.VerifyToken)
+		authOnly.Post("/auth/refresh", authHandler.RefreshToken)
+		authOnly.Post("/logout", authHandler.Logout)
+		authOnly.Post("/profile", authHandler.UpdateProfile)
+	}
+
+	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)
 	guarded := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired())
 	{
-		guarded.Post("/logout", authHandler.Logout)
-		guarded.Post("/profile", authHandler.UpdateProfile)
 
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
 		guarded.Post("/storage/upload", storageHandler.Upload)
 		guarded.Delete("/storage/file", storageHandler.DeleteFile)
 		guarded.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
 
-		// CRUD Item Catalog
-		guarded.Post("/fauna", faunaHandler.Store)
-		guarded.Put("/fauna/:id", faunaHandler.Update)
-		guarded.Delete("/fauna/:id", faunaHandler.Destroy)
+		// CRUD Modern Product & Category
+		guarded.Post("/products", productHandler.Store)
+		guarded.Put("/products/:id", productHandler.Update)
+		guarded.Delete("/products/:id", productHandler.Destroy)
+
+		guarded.Get("/admin/categories", categoryHandler.Index)
+		guarded.Post("/categories", categoryHandler.Store)
+		guarded.Put("/categories/:id", categoryHandler.Update)
+		guarded.Delete("/categories/:id", categoryHandler.Destroy)
+
+		// Support Tickets & Live Chat Conversations (with normalized attachments)
+		guarded.Get("/support/tickets", supportHandler.ListMyTickets)
+		guarded.Get("/support/tickets/:id", supportHandler.GetTicketDetails)
+		guarded.Post("/support/tickets", supportHandler.CreateTicket)
+		guarded.Post("/support/tickets/:id/reply", supportHandler.ReplyTicket)
+
+		// Admin Support Moderation
+		guarded.Get("/admin/support/tickets", supportHandler.ListAllTickets)
+		guarded.Post("/admin/support/tickets/:id/reply", supportHandler.ReplyAsAdmin)
+		guarded.Put("/admin/support/tickets/:id/status", supportHandler.UpdateTicketStatus)
+
+		// CRUD Item Catalog (Legacy Aliases)
+		guarded.Post("/fauna", productHandler.Store)
+		guarded.Put("/fauna/:id", productHandler.Update)
+		guarded.Delete("/fauna/:id", productHandler.Destroy)
 
 		// Multi-Tenant Store Settings & Two-Tier Master Data
 		guarded.Post("/stores/update", storeHandler.UpdateStore)
-		guarded.Post("/stores/upgrade-plan", storeHandler.UpgradePlan)
+		guarded.Post("/stores/upgrade-plan", subscriptionHandler.UpgradePlan)
 		guarded.Post("/stores/add-master-option", storeHandler.AddMasterOption)
 		guarded.Post("/stores/rename-master-option", storeHandler.RenameMasterOption)
 		guarded.Post("/stores/delete-master-option", storeHandler.DeleteMasterOption)
 		guarded.Post("/stores/apply-master-preset", storeHandler.ApplyMasterPreset)
+
+		// Multi-Tier Subscription, Quota & Custom Domain Management
+		guarded.Get("/subscription/my-quota", subscriptionHandler.GetStoreQuota)
+		guarded.Post("/subscription/upgrade", subscriptionHandler.UpgradePlan)
+		guarded.Post("/subscription/schedule-downgrade", subscriptionHandler.ScheduleDowngrade)
+		guarded.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
+		guarded.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
+		guarded.Post("/subscription/order", subscriptionHandler.CreateOrder)
+		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 
 		// Settings & Policies
 		guarded.Post("/settings", settingHandler.Store)

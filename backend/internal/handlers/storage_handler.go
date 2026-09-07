@@ -15,6 +15,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
 
 	"github.com/disintegration/imaging"
@@ -125,11 +126,13 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		category = "branding"
 	case "articles", "article", "blog":
 		category = "articles"
+	case "support", "tickets", "ticket", "screenshots", "screenshot":
+		category = "support"
 	default:
 		category = "products"
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	uniqueID := uuid.New().String()
 	var objectKey string
 
@@ -138,10 +141,36 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		storeID = storeVal.ID
 	}
 
-	if category == "articles" || storeID == 0 {
+	var userID uint = 0
+	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
+		userID = userVal.ID
+	}
+
+	// Validate Storage Quota for Store Media (excluding pure support tickets)
+	if storeID > 0 && category != "support" {
+		if allowed, msg := services.CanUploadStorage(h.db, storeID, int64(buf.Len())); !allowed {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": msg,
+			})
+		}
+	}
+
+	// Structure: stores/:id/:category/YYYY/MM/uuid.ext or support/users/:id/YYYY/MM/uuid.ext
+	if category == "support" {
+		if storeID > 0 {
+			objectKey = fmt.Sprintf("stores/%d/support/%d/%02d/%s%s", storeID, now.Year(), now.Month(), uniqueID, ext)
+		} else if userID > 0 {
+			objectKey = fmt.Sprintf("support/users/%d/%d/%02d/%s%s", userID, now.Year(), now.Month(), uniqueID, ext)
+		} else {
+			objectKey = fmt.Sprintf("support/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+		}
+	} else if category == "articles" {
 		objectKey = fmt.Sprintf("articles/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
-	} else {
+	} else if storeID > 0 {
 		objectKey = fmt.Sprintf("stores/%d/%s/%d/%02d/%s%s", storeID, category, now.Year(), now.Month(), uniqueID, ext)
+	} else {
+		objectKey = fmt.Sprintf("general/%s/%d/%02d/%s%s", category, now.Year(), now.Month(), uniqueID, ext)
 	}
 
 	// 7. Store via Abstracted Storage Service (Local / S3 / MinIO)
@@ -154,10 +183,20 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		})
 	}
 
+	// Atomically increment store storage_used_bytes
+	if storeID > 0 {
+		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", int64(buf.Len())))
+	}
+
+	origFileName := filepath.Base(file.Filename)
+
 	return c.JSON(fiber.Map{
 		"success":        true,
 		"key":            objectKey,
 		"url":            fileURL,
+		"file_name":      origFileName,
+		"file_size":      file.Size,
+		"file_type":      contentType,
 		"category":       category,
 		"storage_driver": h.storage.GetDriverName(),
 	})
