@@ -841,8 +841,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         pricePlaceholder: 'Contoh: 150.000',
         photoLabel: 'Foto Barang (1-5 Foto) *',
         photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
-        videoLabel: 'Video Review / Unboxing (YouTube URL - Opsional)',
-        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        videoLabel: 'Video Review / Unboxing (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
         deliveryOptions: ['Bisa Kirim se-Indonesia', 'Khusus Pulau Jawa / Satu Wilayah', 'Ambil Sendiri di Toko (No Shipping)', 'Kurir Instan / Sameday Only'],
         deliveryTermsLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
@@ -875,8 +875,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
         photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
         photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
-        videoLabel: 'Video Preview / Demo Item Digital (YouTube URL - Opsional)',
-        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        videoLabel: 'Video Preview / Demo Item Digital (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Panduan Akses File Digital',
         deliveryOptions: ['Akses Instan Otomatis (Link Cloud)', 'Kirim via Email Pembeli', 'Kirim via WhatsApp Admin', 'Akses Member Area'],
         deliveryTermsLabel: 'Pengiriman & Panduan Akses File Digital',
@@ -909,8 +909,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         pricePlaceholder: 'Contoh: 350.000',
         photoLabel: 'Foto Satwa & Kondisi Nyata (1-5 Foto) *',
         photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
-        videoLabel: 'Video Satwa / Feeding Video (YouTube URL - Opsional)',
-        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        videoLabel: 'Video Satwa / Feeding Video (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
         deliveryOptions: ['Bisa Kirim se-Indonesia (Legal & Berizin)', 'Khusus Pulau Jawa / Jalur Kereta', 'Ambil Sendiri di Toko (Pickup Only)', 'Kurir Instan Hewan (Gojek/Grab)'],
         deliveryTermsLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
@@ -943,8 +943,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         pricePlaceholder: 'Contoh: 120.000 / Mulai dari Rp 100.000',
         photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-5 Foto) *',
         photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
-        videoLabel: 'Video Dokumentasi / Hasil Kerja (YouTube URL - Opsional)',
-        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        videoLabel: 'Video Dokumentasi / Hasil Kerja (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Area Layanan, Reservasi & Ketentuan Pengerjaan',
         deliveryOptions: ['Booking Jadwal via WhatsApp', 'Datang Langsung ke Toko (Walk-in)', 'Reservasi DP 50% di Awal', 'Konsultasi Online Terlebih Dahulu'],
         deliveryTermsLabel: 'Area Layanan, Reservasi & Ketentuan Pengerjaan',
@@ -980,8 +980,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         pricePlaceholder: 'Contoh: 35.000',
         photoLabel: 'Foto Produk / Penyajian (1-5 Foto) *',
         photoHelper: 'Unggah 1 hingga 5 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
-        videoLabel: 'Video Produk / Penyajian (YouTube URL - Opsional)',
-        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        videoLabel: 'Video Produk / Penyajian (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
         deliveryOptions: [
           'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
@@ -1027,8 +1027,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         pricePlaceholder: 'Contoh: 850.000.000 (Jual) / 35.000.000 (Sewa/Tahun)',
         photoLabel: 'Foto Properti & Interior (1-5 Foto) *',
         photoHelper: 'Unggah 1 hingga 5 foto fasad depan, ruang keluarga, kamar tidur, dapur, dan lingkungan.',
-        videoLabel: 'Video Virtual Tour Properti (YouTube URL - Opsional)',
-        videoPlaceholder: 'Contoh: https://www.youtube.com/watch?v=...',
+        videoLabel: 'Video Virtual Tour / Showcase Properti (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Akses & Ketentuan Booking / Survey Lokasi',
         deliveryOptions: [
           'Jadwalkan Survey via WhatsApp',
@@ -4984,6 +4984,7 @@ function App() {
       case 'fauna': return 'Semua Asal / Habitat';
       case 'service': return 'Semua Model Layanan';
       case 'digital': return 'Semua Format / Lisensi';
+      case 'property': return 'Semua Tipe Properti';
       default: return 'Semua Tipe / Variasi';
     }
   };
@@ -5063,7 +5064,7 @@ function App() {
 
   // Admin Inventory State & Server/Client-Side Filtering
   const [adminSearch, setAdminSearch] = useState<string>('')
-  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna'>('all')
+  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property'>('all')
   const [adminClassFilter, setAdminClassFilter] = useState<string>('all')
   const [adminActiveFilter, setAdminActiveFilter] = useState<'all' | 'active' | 'archived'>('all')
   const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
@@ -5446,7 +5447,7 @@ function App() {
   } | null>(null)
 
   const [presetModalData, setPresetModalData] = useState<{
-    key: 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'general'
+    key: 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property' | 'general'
     title: string
     desc: string
     sampleCategories: string[]
@@ -5658,8 +5659,8 @@ function App() {
             setAdminSubTab('items');
             if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
               const prodType = parts[4];
-              if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
-                setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+              if (['physical', 'digital', 'service', 'food', 'fauna', 'property'].includes(prodType)) {
+                resetCrudState(prodType as any);
                 setCrudMode('create');
                 setView('fauna-editor');
                 setShowProductTypeSelector(false);
@@ -5670,11 +5671,13 @@ function App() {
             } else if (subSub === 'edit' && paramId) {
               let actualId = paramId;
               let prodType = 'physical';
-              if (parts.length >= 5) {
-                prodType = parts[3];
+              if (parts.length >= 6) {
+                prodType = parts[4];
+                actualId = parts[5];
+              } else if (parts.length >= 5) {
                 actualId = parts[4];
               }
-              setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+              setCrudForm(prev => ({ ...prev, product_type: (prodType as any) || 'physical' }));
               setCrudMode('edit');
               setEditId(parseInt(actualId, 10));
               setView('fauna-editor');
@@ -5936,7 +5939,7 @@ function App() {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
     if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
-      const targetId = parseInt(parts[4], 10);
+      const targetId = parts.length >= 6 ? parseInt(parts[5], 10) : parseInt(parts[4], 10);
       const found = faunas.find(f => f.id === targetId);
       if (found && (!showCrudSheet || editId !== targetId)) {
         openEditSheet(found);
@@ -5996,8 +5999,8 @@ function App() {
               setAdminSubTab('items');
               if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
                 const prodType = parts[4];
-                if (['physical', 'digital', 'service', 'food', 'fauna'].includes(prodType)) {
-                  setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+                if (['physical', 'digital', 'service', 'food', 'fauna', 'property'].includes(prodType)) {
+                  resetCrudState(prodType as any);
                   setCrudMode('create');
                   setView('fauna-editor');
                   setShowProductTypeSelector(false);
@@ -6008,11 +6011,13 @@ function App() {
               } else if (subSub === 'edit' && paramId) {
                 let actualId = paramId;
                 let prodType = 'physical';
-                if (parts.length >= 5) {
-                  prodType = parts[3];
+                if (parts.length >= 6) {
+                  prodType = parts[4];
+                  actualId = parts[5];
+                } else if (parts.length >= 5) {
                   actualId = parts[4];
                 }
-                setCrudForm(prev => ({ ...prev, product_type: prodType as any }));
+                setCrudForm(prev => ({ ...prev, product_type: (prodType as any) || 'physical' }));
                 setCrudMode('edit');
                 setEditId(parseInt(actualId, 10));
                 setView('fauna-editor');
@@ -12590,32 +12595,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
 
                 {/* Video Embed Section with Instant Multi-Platform Preview */}
-                <VideoPreviewInput
-                  value={crudForm.video_url || ''}
-                  onChange={(val: string) => setCrudForm(prev => ({ ...prev, video_url: val }))}
-                  label={typeConfig.videoLabel || "Video Showcase / Review (YouTube, Shorts, TikTok, IG Reels - Opsional)"}
-                  placeholder={typeConfig.videoPlaceholder || "Tempel link YouTube, Shorts, TikTok, atau Instagram Reels..."}
-                />
-
-                {/* Unified Single Pengiriman & Ketentuan Packing Field */}
-                {/* Unified Single Pengiriman & Ketentuan Packing Field */}
-                <RichTextarea
-                  label={typeConfig.deliveryTermsLabel}
-                  rows={3}
-                  placeholder={typeConfig.deliveryTermsPlaceholder}
-                  value={crudForm.shipping_terms}
-                  onChange={(val) => setCrudForm({ ...crudForm, shipping_terms: val })}
-                />
-
-                {typeConfig.warrantyLabel && (
-                  <RichTextarea
-                    label={typeConfig.warrantyLabel}
-                    rows={3}
-                    placeholder={typeConfig.warrantyPlaceholder}
-                    value={crudForm.warranty_info}
-                    onChange={(val) => setCrudForm({ ...crudForm, warranty_info: val })}
+                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                  <VideoPreviewInput
+                    value={crudForm.video_url || ''}
+                    onChange={(val: string) => setCrudForm(prev => ({ ...prev, video_url: val }))}
+                    label={typeConfig.videoLabel || "Video Showcase / Review (Opsional)"}
+                    placeholder={typeConfig.videoPlaceholder || "Tempel link video YouTube, Shorts, TikTok, atau Instagram Reels..."}
                   />
-                )}
+                </div>
 
                 {/* Link Pembelian Marketplace / Platform Freelance (Opsional) - Sembunyikan untuk Properti */}
                 {crudForm.product_type !== 'property' && (
@@ -12800,10 +12787,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         }}
                       >
                         <input 
-                          type="checkbox"
-                          checked={crudForm.enable_wa_rekber !== false}
-                          onChange={(e) => setCrudForm({ ...crudForm, enable_wa_rekber: e.target.checked })}
-                          style={{ marginTop: '0.15rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                          type="checkbox" 
+                          checked={crudForm.enable_wa_rekber !== false} 
+                          onChange={(e) => setCrudForm({ ...crudForm, enable_wa_rekber: e.target.checked })} 
+                          style={{ marginTop: '0.15rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }} 
                         />
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
@@ -12864,10 +12851,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       }}
                     >
                       <input 
-                        type="checkbox"
-                        checked={crudForm.enable_wa_direct !== false}
-                        onChange={(e) => setCrudForm({ ...crudForm, enable_wa_direct: e.target.checked })}
-                        style={{ marginTop: '0.15rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                        type="checkbox" 
+                        checked={crudForm.enable_wa_direct !== false} 
+                        onChange={(e) => setCrudForm({ ...crudForm, enable_wa_direct: e.target.checked })} 
+                        style={{ marginTop: '0.15rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }} 
                       />
                       <div>
                         <span style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
@@ -12893,14 +12880,41 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 </div>
 
-                <RichTextarea
-                  label={typeConfig.descLabel}
-                  rows={6}
-                  placeholder={typeConfig.descPlaceholder}
-                  required={crudForm.product_type !== 'food'}
-                  value={crudForm.description}
-                  onChange={(val) => setCrudForm({ ...crudForm, description: val })}
-                />
+                {/* Unified Single Pengiriman & Ketentuan Packing Field / Garansi / Legalitas (Textarea Section) */}
+                <div style={{ marginTop: '1.25rem', borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
+                  <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                    <RichTextarea
+                      label={typeConfig.deliveryTermsLabel}
+                      rows={3}
+                      placeholder={typeConfig.deliveryTermsPlaceholder}
+                      value={crudForm.shipping_terms}
+                      onChange={(val) => setCrudForm({ ...crudForm, shipping_terms: val })}
+                    />
+                  </div>
+
+                  {typeConfig.warrantyLabel && (
+                    <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                      <RichTextarea
+                        label={typeConfig.warrantyLabel}
+                        rows={3}
+                        placeholder={typeConfig.warrantyPlaceholder}
+                        value={crudForm.warranty_info}
+                        onChange={(val) => setCrudForm({ ...crudForm, warranty_info: val })}
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                    <RichTextarea
+                      label={typeConfig.descLabel}
+                      rows={6}
+                      placeholder={typeConfig.descPlaceholder}
+                      required={crudForm.product_type !== 'food'}
+                      value={crudForm.description}
+                      onChange={(val) => setCrudForm({ ...crudForm, description: val })}
+                    />
+                  </div>
+                </div>
 
                 <button 
                   type="submit" 
@@ -14115,6 +14129,59 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 </div>
 
+                {/* 6. Properti & Real Estate */}
+                <div 
+                  onClick={() => handleSelectProductType('property')}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
+                >
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(2, 132, 199, 0.15)', 
+                    border: '1px solid rgba(2, 132, 199, 0.3)',
+                    boxShadow: '0 4px 15px rgba(2, 132, 199, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#0284c7', 
+                    flexShrink: 0 
+                  }}>
+                    <Building2 size={24} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Properti & Real Estate
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+                        Listing Properti
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      Rumah, Apartemen, Tanah, Ruko, Villa, Kost, & Ruang Usaha.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: SHM, LT/LB, KT/KM, Listrik, Virtual Tour
+                    </div>
+                  </div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(2, 132, 199, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#0284c7' }} />
+                  </div>
+                </div>
+
               </div>
 
               {/* Bottom Cancel Action */}
@@ -14484,6 +14551,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               }}
                             >
                               Fauna ({faunas.filter(f => f.product_type === 'fauna').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('property') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('property'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.32rem 0.75rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'property' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'property' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'property' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'property' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              Properti ({faunas.filter(f => f.product_type === 'property').length})
                             </button>
                           )}
                         </div>
@@ -15888,7 +15976,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         {isHybridStore && availableProductTypes.map(t => {
                           const isSelected = adminProductTypeFilter === t;
                           const typeCount = faunas.filter(f => (f.product_type || 'physical') === t).length;
-                          const typeLabel = t === 'physical' ? 'Barang' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
+                          const typeLabel = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
                           return (
                             <button
                               key={t}
@@ -20307,7 +20395,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </button>
                     {availableProductTypes.map(t => {
                       const isSelected = adminProductTypeFilter === t;
-                      const label = t === 'physical' ? 'Barang' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
+                      const label = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
                       return (
                         <button
                           key={t}

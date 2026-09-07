@@ -289,22 +289,21 @@ export const VideoPreviewInput: React.FC<{
 }> = ({
   value,
   onChange,
-  label = 'Link Video Produk (YouTube / TikTok / IG Reels - Gratis)',
-  placeholder = 'Contoh: https://www.youtube.com/watch?v=... atau link TikTok / IG Reels'
+  label = 'Link Video Showcase / Review (Opsional)',
+  placeholder = 'Tempel link video YouTube, Shorts, TikTok, atau Instagram Reels...'
 }) => {
   const parsed = useMemo(() => parseVideoUrl(value), [value]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.5rem' }}>
-      <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <Film size={14} style={{ color: 'var(--primary)' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <label className="form-label" style={{ margin: 0, fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
           {label}
+        </label>
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+          YouTube • Shorts • TikTok • IG Reels
         </span>
-        <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700 }}>
-          ✨ Tersedia di Semua Plan (0 Byte Storage)
-        </span>
-      </label>
+      </div>
       
       <div style={{ position: 'relative' }}>
         <input
@@ -313,7 +312,7 @@ export const VideoPreviewInput: React.FC<{
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ width: '100%', fontSize: '0.84rem', paddingRight: parsed?.isValid ? '90px' : '1rem' }}
+          style={{ width: '100%', fontSize: '0.84rem', paddingRight: parsed?.isValid ? '100px' : '1rem' }}
         />
         {parsed?.isValid && (
           <span style={{
@@ -322,26 +321,41 @@ export const VideoPreviewInput: React.FC<{
             top: '50%',
             transform: 'translateY(-50%)',
             fontSize: '0.68rem',
-            fontWeight: 800,
-            padding: '2px 8px',
+            fontWeight: 700,
+            padding: '3px 8px',
             borderRadius: '4px',
-            background: parsed.platform === 'youtube' ? '#ff0000' : parsed.platform === 'tiktok' ? '#000000' : '#8b5cf6',
-            color: '#ffffff'
+            background: parsed.platform === 'youtube' ? 'rgba(239, 68, 68, 0.15)' : parsed.platform === 'tiktok' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(168, 85, 247, 0.15)',
+            border: `1px solid ${parsed.platform === 'youtube' ? 'rgba(239, 68, 68, 0.3)' : parsed.platform === 'tiktok' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(168, 85, 247, 0.3)'}`,
+            color: parsed.platform === 'youtube' ? '#f87171' : parsed.platform === 'tiktok' ? '#e5e7eb' : '#c084fc',
+            letterSpacing: '0.02em'
           }}>
             {parsed.platformLabel}
           </span>
         )}
       </div>
 
-      <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '0 0 0.25rem' }}>
-        Mendukung link video dari <strong>YouTube</strong>, <strong>YouTube Shorts</strong>, <strong>TikTok</strong>, dan <strong>Instagram Reels</strong>.
-      </p>
+      <div style={{
+        padding: '0.55rem 0.75rem',
+        borderRadius: '0.5rem',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        border: '1px solid var(--border-light)',
+        fontSize: '0.73rem',
+        color: 'var(--text-secondary)',
+        lineHeight: 1.45
+      }}>
+        <div style={{ marginBottom: '0.15rem' }}>
+          <strong>Platform Didukung:</strong> Tautan video reguler & Shorts dari <strong>YouTube</strong>, video <strong>TikTok</strong>, dan <strong>Instagram Reels</strong>.
+        </div>
+        <div style={{ color: 'var(--text-muted)' }}>
+          <strong>Ketentuan Visibilitas:</strong> Pastikan video disetel ke <strong>Publik</strong> atau <strong>Tidak Publik (Unlisted)</strong> agar dapat diputar langsung oleh calon pembeli (jangan disetel <em>Pribadi / Private</em>).
+        </div>
+      </div>
 
       {/* Live Video Preview in Form */}
       {parsed?.isValid && (
-        <div style={{ marginTop: '0.5rem', padding: '0.75rem', borderRadius: '0.65rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <Play size={12} style={{ color: 'var(--primary)' }} /> Pratinjau Pemutar Video Langsung:
+        <div style={{ marginTop: '0.35rem', padding: '0.75rem', borderRadius: '0.65rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+            Pratinjau Pemutar Video Langsung:
           </div>
           <VideoPlayerEmbed url={value} title="Pratinjau Video Produk" />
         </div>
