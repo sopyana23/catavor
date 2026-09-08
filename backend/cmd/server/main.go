@@ -140,7 +140,9 @@ func main() {
 
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
+	api.Post("/auth/login", middleware.AuthRateLimiter(), authHandler.Login)
 	api.Post("/register", middleware.AuthRateLimiter(), authHandler.Register)
+	api.Post("/auth/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/google", middleware.AuthRateLimiter(), authHandler.GoogleAuth)
 
 	// User Auth-Guarded Endpoints (Requires valid JWT Token)

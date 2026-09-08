@@ -2824,7 +2824,6 @@ interface ShopSettings {
   whatsapp_number: string
   store_slogan: string
   promo_banner?: string
-  articles_enabled?: string
   about_title?: string
   about_slogan?: string
   about_description?: string
@@ -4674,7 +4673,6 @@ function App() {
       whatsapp_number: '',
       store_slogan: 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis. & Pengiriman Seluruh Indonesia',
       promo_banner: '',
-      articles_enabled: '1',
       store_title: 'Catavor',
       store_logo_url: '',
       store_theme: 'navy',
@@ -4685,8 +4683,7 @@ function App() {
     };
   })
   const [selectedFauna, setSelectedFauna] = useState<Fauna | null>(null)
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
-  const [activePublicTab, setActivePublicTab] = useState<'catalog' | 'about' | 'sightings' | 'articles'>('catalog')
+  const [activePublicTab, setActivePublicTab] = useState<'catalog' | 'about' | 'sightings'>('catalog')
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
@@ -4704,9 +4701,9 @@ function App() {
     }, 3500);
   }
 
-  // Navigation: 'catalog' or 'admin' or 'article-editor'
-  const [view, setView] = useState<'catalog' | 'admin' | 'article-editor'>('catalog')
-  const [adminTab, setAdminTab] = useState<'items' | 'notifications' | 'settings' | 'profile' | 'articles' | 'policies' | 'help' | 'subscription'>('items')
+  // Navigation: 'catalog' or 'admin'
+  const [view, setView] = useState<'catalog' | 'admin'>('catalog')
+  const [adminTab, setAdminTab] = useState<'items' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription'>('items')
 
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
@@ -4714,39 +4711,6 @@ function App() {
     if (notifFilter === 'unread') return notifications.filter(n => !n.read);
     return notifications;
   }, [notifications, notifFilter]);
-
-
-
-  // Articles state
-  const [articles, setArticles] = useState<Article[]>([])
-  const [articlesLoading, setArticlesLoading] = useState<boolean>(false)
-  const [editingArticle, setEditingArticle] = useState<Article | null>(null)
-  const [articleTabState, setArticleTabState] = useState<'hub' | 'articles' | 'comments'>('hub')
-  const [adminComments, setAdminComments] = useState<CommentItem[]>([])
-  const [loadingComments, setLoadingComments] = useState<boolean>(false)
-  const [commentFilter, setCommentFilter] = useState<'all' | 'pending' | 'approved'>('all')
-  const [commentsFilter, setCommentsFilter] = useState<'all' | 'pending' | 'approved'>('all')
-  const [articleForm, setArticleForm] = useState({
-    title: '',
-    content: '',
-    image_url: '',
-    author: 'Admin Catavor',
-    read_time: '5 mnt baca',
-    slug: '',
-    meta_description: '',
-    is_comments_enabled: true,
-    require_comment_approval: false,
-    require_comment_email: false,
-    verify_comment_email_domain: false
-  })
-  const [editorTab, setEditorTab] = useState<'compose' | 'html' | 'preview'>('compose')
-
-  // Blogger-style Image Formatting states
-  const [selectedEditorImage, setSelectedEditorImage] = useState<HTMLImageElement | null>(null)
-  const [showImageSettingsModal, setShowImageSettingsModal] = useState<boolean>(false)
-  const [imageAltText, setImageAltText] = useState<string>('')
-  const [imageCaptionText, setImageCaptionText] = useState<string>('')
-  const [imageSizeSelection, setImageSizeSelection] = useState<'kecil' | 'sedang' | 'besar' | 'ekstrabesar' | 'asli'>('sedang')
 
   // Search & Filters (Multi-Type Hybrid Catalog Support)
   const [search, setSearch] = useState<string>('')
@@ -5449,7 +5413,6 @@ function App() {
     whatsapp_number: '',
     store_slogan: '',
     promo_banner: '',
-    articles_enabled: '1',
     about_title: '',
     about_slogan: '',
     about_description: '',
@@ -5597,14 +5560,6 @@ function App() {
               setEditId(parseInt(actualId, 10));
               setShowCrudModal(true);
             }
-          } else if (pageSub === 'articles') {
-            setAdminTab('articles');
-            if (subSub === 'comments') {
-              setArticleTabState('comments');
-            } else if (subSub === 'create' || subSub === 'new') {
-              setView('article-editor');
-              setEditingArticle(null);
-            }
           } else if (pageSub === 'settings') {
             setAdminTab('settings');
             const sec = subSub || urlParams.get('section');
@@ -5657,9 +5612,6 @@ function App() {
         } else if (sub === 'sightings') {
           setView('catalog');
           setActivePublicTab('sightings');
-        } else if (sub === 'articles') {
-          setView('catalog');
-          setActivePublicTab('articles');
         }
       } else {
         const qTab = urlParams.get('tab');
@@ -5667,7 +5619,6 @@ function App() {
           setView('admin');
           const pageSub = urlParams.get('sub');
           if (pageSub === 'items') setAdminTab('items');
-          else if (pageSub === 'articles') setAdminTab('articles');
           else if (pageSub === 'settings') {
             setAdminTab('settings');
             const sec = urlParams.get('section');
@@ -5706,7 +5657,6 @@ function App() {
           }
         } else if (qTab === 'about') { setView('catalog'); setActivePublicTab('about'); }
         else if (qTab === 'sightings') { setView('catalog'); setActivePublicTab('sightings'); }
-        else if (qTab === 'articles') { setView('catalog'); setActivePublicTab('articles'); }
         else { setView('catalog'); setActivePublicTab('catalog'); }
       }
     }
@@ -5744,37 +5694,6 @@ function App() {
       if (found) setSelectedFauna(found);
     }
   }, [faunas]);
-
-  // Auto-open article modal if ?article=ID_OR_SLUG is in URL or /admin/articles/edit/ID
-  useEffect(() => {
-    if (!articles || articles.length === 0) return;
-    const path = window.location.pathname.toLowerCase();
-    const parts = path.split('/').filter(Boolean);
-    if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'articles' && parts[3] === 'edit') {
-      const artId = parts[4];
-      const found = articles.find(a => a.id.toString() === artId || a.slug === artId);
-      if (found && (!editingArticle || editingArticle.id !== found.id)) {
-        openEditArticleModal(found);
-      }
-      return;
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const articleId = urlParams.get('article');
-    if (articleId && !selectedArticle) {
-      const found = articles.find(a => a.id.toString() === articleId || a.slug === articleId);
-      if (found) setSelectedArticle(found);
-    }
-  }, [articles]);
-
-  // Redirect if article module is disabled
-  useEffect(() => {
-    if (settings.articles_enabled === '0') {
-      if (adminTab === 'articles') {
-        setAdminTab('items')
-      }
-    }
-  }, [settings.articles_enabled, adminTab])
 
   // Lock scroll when modals are open
   useEffect(() => {
@@ -5832,24 +5751,6 @@ function App() {
               } else {
                 setShowCrudModal(false);
               }
-            } else if (pageSub === 'articles') {
-              setAdminTab('articles');
-              if (subSub === 'comments') {
-                setArticleTabState('comments');
-                setView('admin');
-              } else if (subSub === 'create' || subSub === 'new') {
-                setView('article-editor');
-                setEditingArticle(null);
-              } else if (subSub === 'edit' && paramId) {
-                const found = articles.find(a => a.id.toString() === paramId || a.slug === paramId);
-                if (found) {
-                  setView('article-editor');
-                  setEditingArticle(found);
-                }
-              } else {
-                setView('admin');
-                setArticleTabState('articles');
-              }
             } else if (pageSub === 'settings') {
               setAdminTab('settings');
               setView('admin');
@@ -5901,7 +5802,6 @@ function App() {
             }
           } else if (sub === 'about') { setView('catalog'); setActivePublicTab('about'); }
           else if (sub === 'sightings') { setView('catalog'); setActivePublicTab('sightings'); }
-          else if (sub === 'articles') { setView('catalog'); setActivePublicTab('articles'); }
           else { setView('catalog'); setActivePublicTab('catalog'); }
         } else {
           setView('catalog');
@@ -6161,7 +6061,7 @@ function App() {
     
     if (!reservedPortal.includes(parts[0])) {
       const storeSub = parts[1];
-      const validStoreSubs = ['admin', 'about', 'sightings', 'articles'];
+      const validStoreSubs = ['admin', 'about', 'sightings'];
       if (validStoreSubs.includes(storeSub)) {
         return false;
       }
@@ -6192,7 +6092,6 @@ function App() {
             whatsapp_number: store.whatsapp_number || '',
             store_slogan: store.store_slogan || 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
             promo_banner: store.promo_banner || '',
-            articles_enabled: '0', // force articles module hidden
             about_title: store.about_title || '',
             about_slogan: store.about_slogan || '',
             about_description: store.about_description || '',
@@ -6284,20 +6183,6 @@ function App() {
     }
   };
 
-  const fetchArticles = async () => {
-    setArticlesLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/articles`)
-      const data = await res.json()
-      if (data.success) {
-        setArticles(data.data)
-      }
-    } catch (err) {
-      console.error('Error fetching articles:', err)
-    } finally {
-      setArticlesLoading(false)
-    }
-  }
   // Share store link (direct to Share / QR modal)
   const handleShareStore = () => {
     setView('catalog');
@@ -6335,81 +6220,6 @@ function App() {
     }
   }, [faunas]);
 
-
-  const fetchAdminComments = async () => {
-    setLoadingComments(true)
-    try {
-      const res = await fetch(`${API_BASE}/admin/comments`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const data = await res.json()
-      if (!checkAuthResponse(res, data)) return
-      if (data.success) {
-        setAdminComments(data.data)
-      }
-    } catch (err) {
-      console.error('Error fetching admin comments:', err)
-    } finally {
-      setLoadingComments(false)
-    }
-  }
-
-  const handleDeleteComment = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus komentar ini?')) return
-    try {
-      const res = await fetch(`${API_BASE}/admin/comments/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const data = await res.json()
-      if (!checkAuthResponse(res, data)) return
-      if (data.success) {
-        showToast('Komentar berhasil dihapus!')
-        await fetchAdminComments()
-      } else {
-        showToast(data.message || 'Gagal menghapus komentar.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal menghapus komentar.', 'error')
-    }
-  }
-
-  const handleApproveComment = async (id: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/admin/comments/${id}/approve`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const data = await res.json()
-      if (!checkAuthResponse(res, data)) return
-      if (data.success) {
-        showToast('Komentar berhasil disetujui!')
-        await fetchAdminComments()
-      } else {
-        showToast(data.message || 'Gagal menyetujui komentar.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal menyetujui komentar.', 'error')
-    }
-  }
-
-  // Synchronize article editor visual contenteditable
-  useEffect(() => {
-    if (view === 'article-editor' && editorTab === 'compose' && editorRef.current) {
-      if (editorRef.current.innerHTML !== articleForm.content) {
-        editorRef.current.innerHTML = articleForm.content
-      }
-    }
-  }, [view, editorTab, articleForm.content])
-
   // Trigger loading store data
   useEffect(() => {
     loadData()
@@ -6421,13 +6231,7 @@ function App() {
     let targetPath = `/${storeSlug}`;
     const params = new URLSearchParams();
 
-    if (view === 'article-editor') {
-      if (editingArticle) {
-        targetPath += `/admin/articles/edit/${editingArticle.id}`;
-      } else {
-        targetPath += `/admin/articles/create`;
-      }
-    } else if (view === 'admin') {
+    if (view === 'admin') {
       if (adminTab === 'items') {
         if (showCrudModal) {
           const prodType = crudForm.product_type || 'physical';
@@ -6440,12 +6244,6 @@ function App() {
           }
         } else {
           targetPath += `/admin/items`;
-        }
-      } else if (adminTab === 'articles') {
-        if (articleTabState === 'comments') {
-          targetPath += `/admin/articles/comments`;
-        } else {
-          targetPath += `/admin/articles`;
         }
       } else if (adminTab === 'settings') {
         const sec = settingsSubTab || 'general';
@@ -6475,15 +6273,11 @@ function App() {
         }
       } else if (activePublicTab === 'sightings') {
         targetPath += `/sightings`;
-      } else if (activePublicTab === 'articles') {
-        targetPath += `/articles`;
       }
     }
 
     if (selectedFauna && !showCrudModal) {
       params.set('item', selectedFauna.id.toString());
-    } else if (selectedArticle && view !== 'article-editor') {
-      params.set('article', selectedArticle.slug || selectedArticle.id.toString());
     }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
@@ -6493,19 +6287,19 @@ function App() {
       if (isPopStateRef.current) {
         isPopStateRef.current = false;
         window.history.replaceState(
-          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, article: selectedArticle?.id, ticket: selectedTicket?.id },
+          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id },
           '',
           fullTarget
         );
       } else {
         window.history.pushState(
-          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, article: selectedArticle?.id, ticket: selectedTicket?.id },
+          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id },
           '',
           fullTarget
         );
       }
     }
-  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, editingArticle, articleTabState, activePublicTab, selectedFauna, selectedArticle, selectedTicket, storeSlug, error]);
+  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, selectedFauna, selectedTicket, storeSlug, error]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
@@ -7272,7 +7066,6 @@ function App() {
           whatsapp_number: store.whatsapp_number || '',
           store_slogan: store.store_slogan || '',
           promo_banner: store.promo_banner || '',
-          articles_enabled: '0',
           about_title: store.about_title || '',
           about_slogan: store.about_slogan || '',
           about_description: store.about_description || '',
@@ -7734,201 +7527,6 @@ function App() {
 
   const getUniqueShippingCoverages = () => {
     return Array.isArray(masterShippingCoverages) ? masterShippingCoverages : []
-  }
-
-  const handleTitleChange = (newTitle: string) => {
-    const generatedSlug = newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-    setArticleForm(prev => ({
-      ...prev,
-      title: newTitle,
-      slug: editingArticle ? prev.slug : generatedSlug
-    }))
-  }
-
-  const handleVisualInput = () => {
-    if (editorRef.current) {
-      setArticleForm(prev => ({ ...prev, content: editorRef.current!.innerHTML }))
-    }
-  }
-
-  const preventDefaultOnDesktop = (e: React.MouseEvent) => {
-    if (!('ontouchstart' in window)) {
-      e.preventDefault()
-    }
-  }
-
-  const execFormat = (cmd: string, val: string = '') => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-    }
-    restoreSelection()
-    document.execCommand(cmd, false, val)
-    handleVisualInput()
-    saveSelection()
-  }
-
-  const insertImageUrl = () => {
-    if (imageInputRef.current) {
-      imageInputRef.current.click()
-    }
-  }
-
-  const handleArticleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setArticlesLoading(true)
-    const formData = new FormData()
-    formData.append('image', file)
-
-    try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=articles`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      })
-
-      if (res.status === 401) {
-        showToast('Sesi Anda berakhir. Silakan login kembali untuk mengunggah gambar.', 'error')
-        return
-      }
-
-      const data = await res.json()
-      if (data.success && data.url) {
-        if (editorRef.current) {
-          editorRef.current.focus()
-        }
-        const imgHtml = `<img src="${data.url}" alt="Gambar Artikel" style="max-width:100%; height:auto; border-radius:0.5rem; margin:1rem 0; border: 1px solid var(--border-light);" />`
-        execFormat('insertHTML', imgHtml)
-        showToast('Gambar berhasil diunggah dan disisipkan!')
-      } else {
-        showToast(data.message || 'Gagal mengunggah gambar.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Terjadi kesalahan saat mengunggah gambar. Silakan login ulang.', 'error')
-    } finally {
-      setArticlesLoading(false)
-      e.target.value = ''
-    }
-  }
-
-  const insertLinkUrl = () => {
-    const url = prompt('Masukkan URL Tautan:', 'https://')
-    if (url) {
-      if (editorRef.current) {
-        editorRef.current.focus()
-      }
-      execFormat('createLink', url)
-    }
-  }
-
-  const clearFormatting = () => {
-    execFormat('removeFormat')
-  }
-
-  const openAddArticleModal = () => {
-    setEditingArticle(null)
-    setArticleForm({
-      title: '',
-      content: '',
-      image_url: '',
-      author: 'Admin Catavor',
-      read_time: '5 mnt baca',
-      slug: '',
-      meta_description: '',
-      is_comments_enabled: settings.default_is_comments_enabled !== '0',
-      require_comment_approval: settings.default_require_comment_approval === '1',
-      require_comment_email: settings.default_require_comment_email === '1',
-      verify_comment_email_domain: settings.default_verify_comment_email_domain === '1'
-    })
-    setView('article-editor')
-  }
-
-  const openEditArticleModal = (article: Article) => {
-    setEditingArticle(article)
-    setArticleForm({
-      title: article.title,
-      content: article.content,
-      image_url: article.image_url || '',
-      author: article.author || 'Admin Catavor',
-      read_time: article.read_time || '5 mnt baca',
-      slug: article.slug || '',
-      meta_description: article.meta_description || '',
-      is_comments_enabled: article.is_comments_enabled !== undefined ? article.is_comments_enabled : true,
-      require_comment_approval: article.require_comment_approval !== undefined ? article.require_comment_approval : false,
-      require_comment_email: article.require_comment_email !== undefined ? article.require_comment_email : false,
-      verify_comment_email_domain: article.verify_comment_email_domain !== undefined ? article.verify_comment_email_domain : false
-    })
-    setView('article-editor')
-  }
-
-  const handleSaveArticle = async (e: React.FormEvent, customPayload?: typeof articleForm) => {
-    if (e) e.preventDefault()
-    setArticlesLoading(true)
-    const payload = customPayload || articleForm
-    try {
-      const url = editingArticle 
-        ? `${API_BASE}/articles/${editingArticle.id}` 
-        : `${API_BASE}/articles`
-      const method = editingArticle ? 'PUT' : 'POST'
-      
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      })
-      
-      const data = await res.json()
-      if (!checkAuthResponse(res, data)) return
-      if (data.success) {
-        setView('admin')
-        setAdminTab('articles')
-        await fetchArticles()
-        showToast('Artikel berhasil disimpan!')
-      } else {
-        showToast(data.message || 'Gagal menyimpan artikel.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal menyimpan artikel.', 'error')
-    } finally {
-      setArticlesLoading(false)
-    }
-  }
-
-
-
-  const handleDeleteArticle = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus artikel ini?')) return
-    setArticlesLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/articles/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const data = await res.json()
-      if (!checkAuthResponse(res, data)) return
-      if (data.success) {
-        await fetchArticles()
-        showToast('Artikel berhasil dihapus!')
-      } else {
-        showToast(data.message || 'Gagal menghapus artikel.', 'error')
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi bermasalah. Gagal menghapus artikel.', 'error')
-    } finally {
-      setArticlesLoading(false)
-    }
   }
 
   const handleDeleteMasterOption = (field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage', value: string) => {
@@ -10492,15 +10090,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
   return (
     <>
-      {/* Hidden File Input for WYSIWYG Editor Image Upload */}
-      <input 
-        type="file" 
-        ref={imageInputRef} 
-        style={{ display: 'none' }} 
-        accept="image/*" 
-        onChange={handleArticleImageUpload} 
-      />
-
       {isDetailActive && selectedFauna ? (
         /* ==========================================================
            FULL-PAGE DESKTOP DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
@@ -12758,16 +12347,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <UserCheck size={16} />
                   <span>Profil &amp; Password Admin</span>
                 </button>
-                {false && settings.articles_enabled !== '0' && (
-                  <button 
-                    className={`admin-tab ${adminTab === 'articles' ? 'active' : ''}`}
-                    onClick={() => { setAdminTab('articles'); setArticleTabState('hub'); }}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                  >
-                    <BookOpen size={16} />
-                    <span>Artikel &amp; Edukasi</span>
-                  </button>
-                )}
                 <button 
                   className={`admin-tab ${adminTab === 'policies' ? 'active' : ''}`}
                   onClick={() => { 
@@ -15864,364 +15443,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </div>
               )}
 
-              {adminTab === 'articles' && (
-                <div style={{ marginTop: '1rem' }}>
-                  {articleTabState === 'hub' && (
-                    <div className="animate-fade-in">
-                      <div style={{ marginBottom: '2rem' }}>
-                        <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Kelola Blog & Edukasi</h3>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Moderasi komentar pembaca dan kelola konten edukasi satwa hias.</p>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        {/* Card 1: Kelola Artikel */}
-                        <div 
-                          className="glass-panel card-hover" 
-                          onClick={() => setArticleTabState('articles')}
-                          style={{ padding: '2rem', borderRadius: '1rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255, 255, 255, 0.01)', transition: 'var(--transition-smooth)' }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(var(--primary-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                              <BookOpen size={28} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary)', backgroundColor: 'rgba(var(--primary-rgb), 0.08)', padding: '0.35rem 0.75rem', borderRadius: '2rem' }}>
-                              {articles.length} Artikel
-                            </span>
-                          </div>
-                          <div>
-                            <h4 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>Tulis & Kelola Artikel</h4>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                              Tulis artikel edukasi baru, edit konten draf, sesuaikan media gambar, dan kelola opsi izin komentar.
-                            </p>
-                          </div>
-                          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--primary)', fontSize: '0.9rem' }}>
-                            Buka Artikel <ArrowRight size={16} />
-                          </div>
-                        </div>
-
-                        {/* Card 2: Kelola Komentar */}
-                        <div 
-                          className="glass-panel card-hover" 
-                          onClick={() => { setArticleTabState('comments'); fetchAdminComments(); }}
-                          style={{ padding: '2rem', borderRadius: '1rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255, 255, 255, 0.01)', transition: 'var(--transition-smooth)' }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(var(--primary-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                              <MessageSquare size={28} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', backgroundColor: 'var(--border-light)', padding: '0.35rem 0.75rem', borderRadius: '2rem' }}>
-                              Moderasi
-                            </span>
-                          </div>
-                          <div>
-                            <h4 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>Moderasi Komentar</h4>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                              Pantau komentar terbaru dari pembaca, moderation list ala WordPress, serta bersihkan spam atau pesan negatif.
-                            </p>
-                          </div>
-                          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--primary)', fontSize: '0.9rem' }}>
-                            Buka Komentar <ArrowRight size={16} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {articleTabState === 'articles' && (
-                    <div className="animate-fade-in">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <div>
-                          <button 
-                            className="btn-secondary" 
-                            onClick={() => setArticleTabState('hub')} 
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                          >
-                            <ArrowLeft size={14} /> Kembali ke Hub
-                          </button>
-                          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Daftar Artikel</h3>
-                        </div>
-                        <button 
-                          className="btn-primary" 
-                          onClick={openAddArticleModal}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                        >
-                          <Plus size={16} /> Tambah Artikel Baru
-                        </button>
-                      </div>
-
-                      {articles.length === 0 ? (
-                        <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                          <BookOpen size={48} style={{ marginBottom: '1rem', color: 'var(--text-muted)' }} />
-                          <h3>Belum Ada Artikel</h3>
-                          <p style={{ fontSize: '0.9rem' }}>Klik tombol di kanan atas untuk menulis artikel pertama Anda.</p>
-                        </div>
-                      ) : (
-                        <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: '0.75rem', overflow: 'hidden' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                            <thead>
-                              <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border-light)' }}>
-                                <th style={{ padding: '1rem' }}>Gambar</th>
-                                <th style={{ padding: '1rem' }}>Judul Artikel</th>
-                                <th style={{ padding: '1rem' }}>Penulis / Estimasi</th>
-                                <th style={{ padding: '1rem' }}>Komentar</th>
-                                <th style={{ padding: '1rem' }}>Tanggal Dibuat</th>
-                                <th style={{ padding: '1rem', textAlign: 'center' }}>Aksi</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {articles.map((article) => (
-                                <tr key={article.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                                  <td style={{ padding: '1rem' }}>
-                                    {article.image_url ? (
-                                      <img 
-                                        src={article.image_url} 
-                                        alt={article.title} 
-                                        style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                      />
-                                    ) : (
-                                      <div style={{
-                                        width: '60px',
-                                        height: '40px',
-                                        borderRadius: '4px',
-                                        background: 'var(--border-light)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: 'var(--text-muted)'
-                                      }}>
-                                        <Image size={14} style={{ opacity: 0.3 }} />
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                    {article.title}
-                                  </td>
-                                  <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
-                                    <div>{article.author}</div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{article.read_time}</div>
-                                  </td>
-                                  <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
-                                    <span style={{ 
-                                      display: 'inline-flex', 
-                                      alignItems: 'center', 
-                                      gap: '0.25rem',
-                                      fontSize: '0.8rem',
-                                      color: article.is_comments_enabled ? 'var(--success)' : 'var(--text-muted)',
-                                      backgroundColor: article.is_comments_enabled ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.04)',
-                                      padding: '0.25rem 0.5rem',
-                                      borderRadius: '4px'
-                                    }}>
-                                      {article.is_comments_enabled ? 'Aktif' : 'Nonaktif'}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
-                                    {new Date(article.updated_at || article.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                  </td>
-                                  <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                      <button 
-                                        className="btn-secondary" 
-                                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                        onClick={() => openEditArticleModal(article)}
-                                      >
-                                        <Edit3 size={14} /> Edit
-                                      </button>
-                                      <button 
-                                        className="btn-primary" 
-                                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--danger)', borderColor: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                        onClick={() => handleDeleteArticle(article.id)}
-                                      >
-                                        <Trash2 size={14} /> Hapus
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {articleTabState === 'comments' && (
-                    <div className="animate-fade-in">
-                      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
-                        <div>
-                          <button 
-                            className="btn-secondary" 
-                            onClick={() => setArticleTabState('hub')} 
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                          >
-                            <ArrowLeft size={14} /> Kembali ke Hub
-                          </button>
-                          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Moderasi Komentar Pembaca</h3>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Semua tanggapan pembaca yang masuk pada artikel edukasi Catavor.</p>
-                        </div>
-
-                        {/* Status Filter Tab Buttons */}
-                        <div style={{ display: 'flex', gap: '0.35rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
-                          <button 
-                            onClick={() => setCommentsFilter('all')}
-                            style={{
-                              padding: '0.4rem 0.8rem',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              borderRadius: '0.35rem',
-                              border: 'none',
-                              cursor: 'pointer',
-                              backgroundColor: commentsFilter === 'all' ? 'var(--primary)' : 'transparent',
-                              color: commentsFilter === 'all' ? '#000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            Semua ({adminComments.length})
-                          </button>
-                          <button 
-                            onClick={() => setCommentsFilter('pending')}
-                            style={{
-                              padding: '0.4rem 0.8rem',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              borderRadius: '0.35rem',
-                              border: 'none',
-                              cursor: 'pointer',
-                              backgroundColor: commentsFilter === 'pending' ? 'var(--primary)' : 'transparent',
-                              color: commentsFilter === 'pending' ? '#000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            Menunggu Moderasi ({adminComments.filter(c => c.status === 'pending').length})
-                          </button>
-                          <button 
-                            onClick={() => setCommentsFilter('approved')}
-                            style={{
-                              padding: '0.4rem 0.8rem',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              borderRadius: '0.35rem',
-                              border: 'none',
-                              cursor: 'pointer',
-                              backgroundColor: commentsFilter === 'approved' ? 'var(--primary)' : 'transparent',
-                              color: commentsFilter === 'approved' ? '#000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            Dipublikasikan ({adminComments.filter(c => c.status === 'approved').length})
-                          </button>
-                        </div>
-                      </div>
-
-                      {loadingComments ? (
-                        <div style={{ padding: '3rem', textAlign: 'center' }}>
-                          <Loader className="animate-spin" style={{ color: 'var(--primary)' }} />
-                        </div>
-                      ) : adminComments.length === 0 ? (
-                        <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                          <MessageSquare size={48} style={{ marginBottom: '1rem', color: 'var(--text-muted)' }} />
-                          <h3>Belum Ada Komentar</h3>
-                          <p style={{ fontSize: '0.9rem' }}>Belum ada komentar pembaca yang masuk ke dalam sistem.</p>
-                        </div>
-                      ) : (() => {
-                        const filteredComments = adminComments.filter(comment => {
-                          if (commentsFilter === 'pending') return comment.status === 'pending';
-                          if (commentsFilter === 'approved') return comment.status === 'approved';
-                          return true;
-                        });
-                        if (filteredComments.length === 0) {
-                          return (
-                            <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                              <MessageSquare size={48} style={{ marginBottom: '1rem', color: 'var(--text-muted)' }} />
-                              <h3>Tidak Ada Komentar</h3>
-                              <p style={{ fontSize: '0.9rem' }}>Tidak ada komentar dengan status filter ini.</p>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: '0.75rem', overflow: 'hidden' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                              <thead>
-                                <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border-light)' }}>
-                                  <th style={{ padding: '1rem', width: '22%' }}>Komentator</th>
-                                  <th style={{ padding: '1rem', width: '13%', textAlign: 'center' }}>Status</th>
-                                  <th style={{ padding: '1rem', width: '35%' }}>Isi Komentar</th>
-                                  <th style={{ padding: '1rem', width: '15%' }}>Artikel</th>
-                                  <th style={{ padding: '1rem', width: '15%', textAlign: 'center' }}>Aksi</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredComments.map((comment) => (
-                                  <tr key={comment.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                                    <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>
-                                      <div style={{ fontWeight: 600 }}>{comment.name}</div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{comment.email || 'Tanpa email'}</div>
-                                      {comment.parent && (
-                                        <div style={{ 
-                                          fontSize: '0.7rem', 
-                                          color: 'var(--primary)', 
-                                          marginTop: '0.15rem',
-                                          backgroundColor: 'rgba(var(--primary-rgb), 0.05)',
-                                          display: 'inline-block',
-                                          padding: '0.1rem 0.35rem',
-                                          borderRadius: '4px'
-                                        }}>
-                                          Membalas: {comment.parent.name}
-                                        </div>
-                                      )}
-                                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                                        {new Date(comment.created_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                      </div>
-                                    </td>
-                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                      <span style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 'bold',
-                                        padding: '0.2rem 0.5rem',
-                                        borderRadius: '4px',
-                                        color: comment.status === 'approved' ? 'var(--success)' : '#eab308',
-                                        backgroundColor: comment.status === 'approved' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(234, 179, 8, 0.08)'
-                                      }}>
-                                        {comment.status === 'approved' ? 'Disetujui' : 'Moderasi'}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: '1rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                                      {comment.content}
-                                    </td>
-                                    <td style={{ padding: '1rem', color: 'var(--primary)', fontWeight: 500 }}>
-                                      {comment.article ? comment.article.title : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Artikel dihapus</span>}
-                                    </td>
-                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'center' }}>
-                                        {comment.status === 'pending' && (
-                                          <button 
-                                            className="btn-primary" 
-                                            style={{ width: '100%', padding: '0.35rem 0.5rem', fontSize: '0.75rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                                            onClick={() => handleApproveComment(comment.id)}
-                                          >
-                                            <Check size={12} /> Setujui
-                                          </button>
-                                        )}
-                                        <button 
-                                          className="btn-primary" 
-                                          style={{ width: '100%', padding: '0.35rem 0.5rem', fontSize: '0.75rem', backgroundColor: 'var(--danger)', borderColor: 'var(--danger)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                                          onClick={() => handleDeleteComment(comment.id)}
-                                        >
-                                          <Trash2 size={12} /> Hapus
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* TAB 8: PAKET & LANGGANAN TOKO (FULL-PAGE VIEW) */}
               {adminTab === 'subscription' && (
                 <div className="animate-fade-in" style={{ padding: '0.25rem 0 2rem 0' }}>
@@ -16246,545 +15467,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               )}
             </div>
           )
-        ) : (
-          /* ========================================================
-             FULL-PAGE ARTICLE EDITOR VIEW (WORDPRESS/BLOGGER STYLE)
-             ======================================================== */
-          <div className="animate-fade-in" style={{ marginTop: '1rem' }}>
-            {/* Editor Sub-Header / Action Bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
-              <div>
-                <button 
-                  onClick={() => setView('admin')}
-                  className="btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-                >
-                  <ArrowLeft size={16} /> Batal & Kembali
-                </button>
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  {editingArticle ? 'Mode: Mengedit Artikel' : 'Mode: Tulis Artikel Baru'}
-                </span>
-                <button 
-                  onClick={(e) => handleSaveArticle(e)}
-                  className="btn-primary"
-                  disabled={articlesLoading}
-                  style={{ padding: '0.5rem 1.5rem', fontSize: '0.85rem' }}
-                >
-                  {articlesLoading ? 'Menyimpan...' : 'Terbitkan / Simpan'}
-                </button>
-              </div>
-            </div>
-
-            {/* Title & Core Meta Row */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <input 
-                type="text"
-                placeholder="Masukkan Judul Artikel..."
-                value={articleForm.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '2px solid var(--border-light)',
-                  fontSize: '2.25rem',
-                  fontWeight: 800,
-                  color: 'var(--text-primary)',
-                  paddingBottom: '0.75rem',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
-                onBlur={(e) => e.target.style.borderBottomColor = 'var(--border-light)'}
-              />
-            </div>
-
-            {/* Layout Grid */}
-            <div className="article-editor-layout">
-              {/* Left Column: Editor Area */}
-              <div>
-                {/* Visual / HTML / Preview Tabs Selector */}
-                <div className="editor-tab-row">
-                  <button 
-                    className={`editor-tab-btn ${editorTab === 'compose' ? 'active' : ''}`}
-                    onClick={() => {
-                      if (editorTab === 'html' && editorRef.current) {
-                        // Keep visually synced
-                        editorRef.current.innerHTML = articleForm.content
-                      }
-                      setEditorTab('compose')
-                    }}
-                  >
-                    Visual (Compose)
-                  </button>
-                  <button 
-                    className={`editor-tab-btn ${editorTab === 'html' ? 'active' : ''}`}
-                    onClick={() => setEditorTab('html')}
-                  >
-                    HTML / Source Code
-                  </button>
-                  <button 
-                    className={`editor-tab-btn ${editorTab === 'preview' ? 'active' : ''}`}
-                    onClick={() => setEditorTab('preview')}
-                  >
-                    Pratinjau (Preview Layout)
-                  </button>
-                </div>
-
-                {editorTab === 'compose' && (
-                  <>
-                    {/* Visual Editor Toolbar */}
-                    <div className="editor-toolbar">
-                      <button type="button" className="editor-btn" onClick={() => execFormat('bold')} title="Tebal (Bold)"><Bold size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('italic')} title="Miring (Italic)"><Italic size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('underline')} title="Garis Bawah (Underline)"><Underline size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('strikeThrough')} title="Coret (Strikethrough)"><Strikethrough size={16} /></button>
-                      
-                      <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--border-light)', margin: '0 0.5rem' }}></div>
-                      
-                      <button type="button" className="editor-btn" onClick={() => execFormat('formatBlock', '<h2>')} title="Heading H2" style={{ fontWeight: 800, fontSize: '0.8rem' }}>H2</button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('formatBlock', '<h3>')} title="Heading H3" style={{ fontWeight: 800, fontSize: '0.8rem' }}>H3</button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('formatBlock', '<p>')} title="Paragraph" style={{ fontSize: '0.8rem' }}>P</button>
-                      
-                      <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--border-light)', margin: '0 0.5rem' }}></div>
-                      
-                      <button type="button" className="editor-btn" onClick={() => execFormat('justifyLeft')} title="Rata Kiri"><AlignLeft size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('justifyCenter')} title="Rata Tengah"><AlignCenter size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('justifyRight')} title="Rata Kanan"><AlignRight size={16} /></button>
-                      
-                      <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--border-light)', margin: '0 0.5rem' }}></div>
-                      
-                      <button type="button" className="editor-btn" onClick={() => execFormat('insertUnorderedList')} title="Daftar Bullets"><List size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={() => execFormat('insertOrderedList')} title="Daftar Angka"><ListOrdered size={16} /></button>
-                      
-                      <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--border-light)', margin: '0 0.5rem' }}></div>
-                      
-                      <button type="button" className="editor-btn" onClick={insertLinkUrl} title="Sisipkan Tautan (Link)"><LinkIcon size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={insertImageUrl} title="Sisipkan Gambar via URL"><Image size={16} /></button>
-                      <button type="button" className="editor-btn" onClick={clearFormatting} title="Hapus Pemformatan"><Heading size={16} /></button>
-                    </div>
-
-                    {/* Canvas Area */}
-                    <div className="editor-canvas-container">
-                      <div 
-                        ref={editorRef}
-                        contentEditable
-                        className="editor-canvas"
-                        onInput={handleVisualInput}
-                        onKeyUp={saveSelection}
-                        onMouseUp={saveSelection}
-                        onTouchEnd={saveSelection}
-                        onFocus={saveSelection}
-                        onBlur={saveSelection}
-                        onClick={(e) => {
-                          const target = e.target as HTMLElement;
-                          if (target.tagName === 'IMG') {
-                            const imgEl = target as HTMLImageElement;
-                            setSelectedEditorImage(imgEl);
-                            setImageAltText(imgEl.getAttribute('alt') || '');
-                            
-                            const nextSib = imgEl.nextElementSibling;
-                            if (nextSib && nextSib.getAttribute('data-img-caption') === 'true') {
-                              setImageCaptionText((nextSib as HTMLElement).innerText);
-                            } else {
-                              setImageCaptionText('');
-                            }
-                            
-                            const w = imgEl.style.width || imgEl.getAttribute('width') || '';
-                            if (w === '150px' || w === '15%') {
-                              setImageSizeSelection('kecil');
-                            } else if (w === '300px' || w === '35%') {
-                              setImageSizeSelection('sedang');
-                            } else if (w === '500px' || w === '60%') {
-                              setImageSizeSelection('besar');
-                            } else if (w === '800px' || w === '90%') {
-                              setImageSizeSelection('ekstrabesar');
-                            } else if (w === '100%') {
-                              setImageSizeSelection('asli');
-                            } else {
-                              setImageSizeSelection('sedang');
-                            }
-                          } else {
-                            setSelectedEditorImage(null);
-                          }
-                        }}
-                        style={{ minHeight: '400px' }}
-                      />
-                    </div>
-
-                    {/* Blogger-style Image Settings Toolbar */}
-                    {selectedEditorImage && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        backgroundColor: '#1b221e',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: '0.5rem',
-                        padding: '0.5rem 1rem',
-                        marginTop: '0.5rem',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-                        animation: 'fadeIn 0.2s ease'
-                      }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Gambar Terpilih:</span>
-                        <div style={{ display: 'flex', gap: '0.25rem' }}>
-                          <button 
-                            type="button" 
-                            className="editor-btn"
-                            onClick={() => {
-                              const parent = selectedEditorImage.parentElement;
-                              const isWrapped = parent && parent.classList.contains('img-caption-wrapper');
-                              const targetEl = isWrapped ? parent : selectedEditorImage;
-
-                              targetEl.style.display = isWrapped ? 'inline-block' : 'inline';
-                              targetEl.style.float = 'left';
-                              targetEl.style.margin = '0.5rem 1rem 0.5rem 0';
-                              targetEl.style.clear = 'none';
-
-                              if (isWrapped) {
-                                selectedEditorImage.style.display = 'block';
-                                selectedEditorImage.style.float = 'none';
-                                selectedEditorImage.style.margin = '0 auto';
-                                selectedEditorImage.style.clear = 'none';
-                                
-                                const capDiv = parent.querySelector('.img-caption-text') as HTMLElement;
-                                if (capDiv) {
-                                  capDiv.style.textAlign = 'left';
-                                  capDiv.style.borderLeft = '2px solid var(--primary)';
-                                  capDiv.style.borderRight = 'none';
-                                  capDiv.style.borderRadius = '0 0.25rem 0.25rem 0';
-                                }
-                              }
-                              handleVisualInput();
-                            }}
-                            title="Rata Kiri"
-                          >
-                            <AlignLeft size={14} />
-                          </button>
-                          <button 
-                            type="button" 
-                            className="editor-btn"
-                            onClick={() => {
-                              const parent = selectedEditorImage.parentElement;
-                              const isWrapped = parent && parent.classList.contains('img-caption-wrapper');
-                              const targetEl = isWrapped ? parent : selectedEditorImage;
-
-                              targetEl.style.display = 'block';
-                              targetEl.style.float = 'none';
-                              targetEl.style.margin = '1rem auto';
-                              targetEl.style.clear = 'both';
-
-                              if (isWrapped) {
-                                selectedEditorImage.style.display = 'block';
-                                selectedEditorImage.style.float = 'none';
-                                selectedEditorImage.style.margin = '0 auto';
-                                selectedEditorImage.style.clear = 'none';
-
-                                const capDiv = parent.querySelector('.img-caption-text') as HTMLElement;
-                                if (capDiv) {
-                                  capDiv.style.textAlign = 'center';
-                                  capDiv.style.borderLeft = 'none';
-                                  capDiv.style.borderRight = 'none';
-                                  capDiv.style.borderRadius = '0.25rem';
-                                }
-                              }
-                              handleVisualInput();
-                            }}
-                            title="Rata Tengah"
-                          >
-                            <AlignCenter size={14} />
-                          </button>
-                          <button 
-                            type="button" 
-                            className="editor-btn"
-                            onClick={() => {
-                              const parent = selectedEditorImage.parentElement;
-                              const isWrapped = parent && parent.classList.contains('img-caption-wrapper');
-                              const targetEl = isWrapped ? parent : selectedEditorImage;
-
-                              targetEl.style.display = isWrapped ? 'inline-block' : 'inline';
-                              targetEl.style.float = 'right';
-                              targetEl.style.margin = '0.5rem 0 0.5rem 1rem';
-                              targetEl.style.clear = 'none';
-
-                              if (isWrapped) {
-                                selectedEditorImage.style.display = 'block';
-                                selectedEditorImage.style.float = 'none';
-                                selectedEditorImage.style.margin = '0 auto';
-                                selectedEditorImage.style.clear = 'none';
-
-                                const capDiv = parent.querySelector('.img-caption-text') as HTMLElement;
-                                if (capDiv) {
-                                  capDiv.style.textAlign = 'right';
-                                  capDiv.style.borderLeft = 'none';
-                                  capDiv.style.borderRight = '2px solid var(--primary)';
-                                  capDiv.style.borderRadius = '0.25rem 0 0 0.25rem';
-                                }
-                              }
-                              handleVisualInput();
-                            }}
-                            title="Rata Kanan"
-                          >
-                            <AlignRight size={14} />
-                          </button>
-                        </div>
-                        
-                        <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <button 
-                            type="button" 
-                            className="btn-secondary" 
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                            onClick={() => {
-                              setShowImageSettingsModal(true);
-                            }}
-                          >
-                            <Settings size={12} /> Pengaturan
-                          </button>
-                          <button 
-                            type="button" 
-                            className="btn-primary" 
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                            onClick={() => {
-                              selectedEditorImage.remove();
-                              setSelectedEditorImage(null);
-                              handleVisualInput();
-                            }}
-                          >
-                            <Trash2 size={12} /> Hapus
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {editorTab === 'html' && (
-                  <div className="editor-canvas-container">
-                    <textarea 
-                      className="editor-textarea"
-                      placeholder="Masukkan kode HTML atau teks di sini..."
-                      value={articleForm.content}
-                      onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {editorTab === 'preview' && (
-                  <div className="editor-canvas-container">
-                    <div className="editor-preview">
-                      {articleForm.image_url ? (
-                        <img 
-                          src={articleForm.image_url} 
-                          alt="Cover Preview" 
-                          style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '0.75rem', marginBottom: '1.5rem', border: '1px solid var(--border-light)' }} 
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: '100%',
-                          height: '240px',
-                          borderRadius: '0.75rem',
-                          marginBottom: '1.5rem',
-                          border: '1px solid var(--border-light)',
-                          background: 'linear-gradient(135deg, #131916 0%, #0b0e0c 100%)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.5rem',
-                          color: 'var(--text-muted)'
-                        }}>
-                          <Image size={32} style={{ opacity: 0.2 }} />
-                          <span style={{ fontSize: '0.85rem', letterSpacing: '0.05em', opacity: 0.4, fontWeight: 700, textTransform: 'uppercase' }}>No Cover Image</span>
-                        </div>
-                      )}
-                      <h2 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                        {articleForm.title || 'Judul Artikel Kosong'}
-                      </h2>
-                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
-                        <span>Oleh: <strong>{articleForm.author}</strong></span>
-                        <span>&bull;</span>
-                        <span>{articleForm.read_time}</span>
-                      </div>
-                      {articleForm.content ? (
-                        <FormattedText text={articleForm.content} style={{ fontSize: '0.95rem', lineHeight: '1.7', color: 'var(--text-primary)' }} />
-                      ) : (
-                        <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Belum ada konten...</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Settings / Sidebar */}
-              <div className="editor-sidebar-card">
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-light)', color: 'var(--text-primary)' }}>
-                  Setelan Artikel (SEO & Metadata)
-                </h4>
-
-                {/* Permalink/Slug Editor */}
-                <div className="form-group">
-                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Permalink (Slug URL) *</span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--primary)' }}>SEO Friendly</span>
-                  </label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    placeholder="nama-slug-artikel..."
-                    required
-                    value={articleForm.slug}
-                    onChange={(e) => setArticleForm({ ...articleForm, slug: e.target.value })}
-                  />
-                  <small style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    URL: /articles/{articleForm.slug || 'slug'}
-                  </small>
-                </div>
-
-                {/* Meta Description (Strict SEO counter) */}
-                <div className="form-group">
-                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Meta Deskripsi SEO</span>
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      fontWeight: 'bold', 
-                      color: articleForm.meta_description.length > 160 ? 'var(--danger)' : 'var(--success)' 
-                    }}>
-                      {articleForm.meta_description.length} / 160
-                    </span>
-                  </label>
-                  <textarea 
-                    rows={4}
-                    className="form-input"
-                    placeholder="Ringkasan artikel untuk deskripsi di Google & AI Search (max 160 karakter)..."
-                    value={articleForm.meta_description}
-                    onChange={(e) => setArticleForm({ ...articleForm, meta_description: e.target.value })}
-                    style={{ fontSize: '0.8rem', lineHeight: '1.4' }}
-                  />
-                  <small style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    Berguna bagi AI Search Engine (Perplexity/Gemini) untuk mengekstrak kutipan ringkasan yang relevan.
-                  </small>
-                </div>
-
-                {/* Cover Image URL */}
-                <div className="form-group">
-                  <label className="form-label">Cover Image (URL)</label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    placeholder="https://images.unsplash.com/..."
-                    value={articleForm.image_url}
-                    onChange={(e) => setArticleForm({ ...articleForm, image_url: e.target.value })}
-                  />
-                </div>
-
-                {/* Author */}
-                <div className="form-group">
-                  <label className="form-label">Penulis / Sumber *</label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    required
-                    value={articleForm.author}
-                    onChange={(e) => setArticleForm({ ...articleForm, author: e.target.value })}
-                  />
-                </div>
-
-                {/* Read Time */}
-                <div className="form-group">
-                  <label className="form-label">Waktu Baca *</label>
-                  <input 
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. 5 mnt baca"
-                    required
-                    value={articleForm.read_time}
-                    onChange={(e) => setArticleForm({ ...articleForm, read_time: e.target.value })}
-                  />
-                </div>
-
-                {/* Comments Toggle */}
-                <div className="form-group" style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
-                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox"
-                      checked={articleForm.is_comments_enabled}
-                      onChange={(e) => setArticleForm({ ...articleForm, is_comments_enabled: e.target.checked })}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        accentColor: 'var(--primary)',
-                        cursor: 'pointer'
-                      }}
-                    />
-                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>Aktifkan Komentar Pembaca</span>
-                  </label>
-                  <small style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                    Jika diaktifkan, semua orang dapat meninggalkan tanggapan di halaman artikel ini.
-                  </small>
-                </div>
-
-                {articleForm.is_comments_enabled && (
-                  <div style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.85rem', borderLeft: '2px solid var(--border-light)' }}>
-                    {/* Require Approval */}
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <input 
-                          type="checkbox"
-                          checked={articleForm.require_comment_approval}
-                          onChange={(e) => setArticleForm({ ...articleForm, require_comment_approval: e.target.checked })}
-                          style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                        />
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>Tahan Komentar untuk Moderasi</span>
-                      </label>
-                      <small style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                        Komentar harus disetujui admin sebelum diterbitkan secara publik.
-                      </small>
-                    </div>
-
-                    {/* Require Email */}
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <input 
-                          type="checkbox"
-                          checked={articleForm.require_comment_email}
-                          onChange={(e) => setArticleForm({ ...articleForm, require_comment_email: e.target.checked })}
-                          style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                        />
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>Wajibkan Email Komentator</span>
-                      </label>
-                      <small style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                        Pengunjung wajib menyertakan alamat email saat berkomentar.
-                      </small>
-                    </div>
-
-                    {/* Verify Email Domain */}
-                    {articleForm.require_comment_email && (
-                      <div className="form-group" style={{ margin: 0 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox"
-                            checked={articleForm.verify_comment_email_domain}
-                            onChange={(e) => setArticleForm({ ...articleForm, verify_comment_email_domain: e.target.checked })}
-                            style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                          />
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>Verifikasi Domain Email (DNS MX)</span>
-                        </label>
-                        <small style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                          Memeriksa keaslian domain (DNS MX record) untuk mencegah email palsu.
-                        </small>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        ) : null}
       </main>
     </div>
     )}
@@ -18517,168 +17200,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         );
       })()}
-
-      {/* IMAGE SETTINGS DIALOG MODAL */}
-      {showImageSettingsModal && selectedEditorImage && (
-        <div className="modal-overlay" style={{ zIndex: 4000 }}>
-          <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative' }}>
-            <button 
-              type="button" 
-              className="modal-close-btn" 
-              onClick={() => setShowImageSettingsModal(false)}
-              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)' }}
-            >
-              <X size={18} />
-            </button>
-
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Edit Gambar</h3>
-
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Teks Alternatif (Alt Text - SEO) *</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={imageAltText} 
-                onChange={(e) => setImageAltText(e.target.value)} 
-                placeholder="Deskripsi gambar untuk pencarian Google..." 
-                style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Teks Judul / Keterangan (Title/Caption)</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={imageCaptionText} 
-                onChange={(e) => setImageCaptionText(e.target.value)} 
-                placeholder="Judul atau caption melayang..." 
-                style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Ukuran Gambar</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'kecil'} onChange={() => setImageSizeSelection('kecil')} />
-                  Kecil (150px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'sedang'} onChange={() => setImageSizeSelection('sedang')} />
-                  Sedang (300px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'besar'} onChange={() => setImageSizeSelection('besar')} />
-                  Besar (500px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'ekstrabesar'} onChange={() => setImageSizeSelection('ekstrabesar')} />
-                  Ekstra Besar (800px)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="radio" name="img-size" checked={imageSizeSelection === 'asli'} onChange={() => setImageSizeSelection('asli')} />
-                  Ukuran Asli (100%)
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                onClick={() => setShowImageSettingsModal(false)}
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              >
-                Batal
-              </button>
-              <button 
-                type="button" 
-                className="btn-primary" 
-                onClick={() => {
-                  if (selectedEditorImage) {
-                    selectedEditorImage.setAttribute('alt', imageAltText);
-                    
-                    if (imageSizeSelection === 'kecil') {
-                      selectedEditorImage.style.width = '150px';
-                      selectedEditorImage.style.maxWidth = '30%';
-                    } else if (imageSizeSelection === 'sedang') {
-                      selectedEditorImage.style.width = '300px';
-                      selectedEditorImage.style.maxWidth = '60%';
-                    } else if (imageSizeSelection === 'besar') {
-                      selectedEditorImage.style.width = '500px';
-                      selectedEditorImage.style.maxWidth = '80%';
-                    } else if (imageSizeSelection === 'ekstrabesar') {
-                      selectedEditorImage.style.width = '800px';
-                      selectedEditorImage.style.maxWidth = '95%';
-                    } else if (imageSizeSelection === 'asli') {
-                      selectedEditorImage.style.width = '100%';
-                      selectedEditorImage.style.maxWidth = '100%';
-                    }
-                    selectedEditorImage.style.height = 'auto';
-
-                    const parent = selectedEditorImage.parentElement;
-                    const isWrapped = parent && parent.classList.contains('img-caption-wrapper');
-
-                    if (imageCaptionText.trim()) {
-                      if (isWrapped) {
-                        const capDiv = parent.querySelector('.img-caption-text') as HTMLElement;
-                        if (capDiv) {
-                          capDiv.innerText = imageCaptionText;
-                        }
-                        parent.style.width = selectedEditorImage.style.width;
-                        parent.style.maxWidth = selectedEditorImage.style.maxWidth;
-                      } else {
-                        const wrapper = document.createElement('div');
-                        wrapper.className = 'img-caption-wrapper';
-                        
-                        wrapper.style.display = selectedEditorImage.style.display || 'block';
-                        wrapper.style.float = selectedEditorImage.style.float || 'none';
-                        wrapper.style.margin = selectedEditorImage.style.margin || '1rem auto';
-                        wrapper.style.clear = selectedEditorImage.style.clear || 'both';
-                        wrapper.style.width = selectedEditorImage.style.width;
-                        wrapper.style.maxWidth = selectedEditorImage.style.maxWidth;
-                        
-                        selectedEditorImage.style.display = 'block';
-                        selectedEditorImage.style.float = 'none';
-                        selectedEditorImage.style.margin = '0 auto';
-                        selectedEditorImage.style.clear = 'none';
-                        
-                        const capDiv = document.createElement('div');
-                        capDiv.className = 'img-caption-text';
-                        capDiv.innerText = imageCaptionText;
-                        
-                        selectedEditorImage.parentNode?.insertBefore(wrapper, selectedEditorImage);
-                        wrapper.appendChild(selectedEditorImage);
-                        wrapper.appendChild(capDiv);
-                      }
-                    } else {
-                      if (isWrapped) {
-                        const grandParent = parent.parentElement;
-                        if (grandParent) {
-                          selectedEditorImage.style.display = parent.style.display;
-                          selectedEditorImage.style.float = parent.style.float;
-                          selectedEditorImage.style.margin = parent.style.margin;
-                          selectedEditorImage.style.clear = parent.style.clear;
-                          
-                          grandParent.insertBefore(selectedEditorImage, parent);
-                          parent.remove();
-                        }
-                      }
-                    }
-
-                    handleVisualInput();
-                    setShowImageSettingsModal(false);
-                  }
-                }}
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              >
-                Perbarui
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Global Glassmorphism Policy Modal Popup */}
       {activePolicyModal && policies[activePolicyModal] && (
