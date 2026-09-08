@@ -230,21 +230,29 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   // Trends calculation
   const trends = analyticsData?.trends || [];
   
-  // Dynamic scale calculation
+  // Dynamic scale calculation with clean step for optimal visibility on mobile
   const chartMaxVal = useMemo(() => {
-    if (!trends.length) return 10;
+    if (!trends.length) return 2;
     const maxVal = Math.max(...trends.map(t => Math.max(t.store_views || 0, (t.total_actions || t.wa_clicks || 0))));
-    if (maxVal <= 0) return 10;
-    if (maxVal <= 5) return 6;
-    if (maxVal <= 10) return 12;
-    if (maxVal <= 25) return 30;
-    if (maxVal <= 50) return 60;
+    if (maxVal <= 0) return 2;
+    if (maxVal === 1) return 2;
+    if (maxVal === 2) return 3;
+    if (maxVal <= 4) return 5;
+    if (maxVal <= 8) return 10;
+    if (maxVal <= 15) return 20;
+    if (maxVal <= 30) return 40;
+    if (maxVal <= 60) return 80;
     if (maxVal <= 100) return 120;
     return Math.ceil(maxVal * 1.25);
   }, [trends]);
 
-  // Y-Axis reference grid ticks (4 tiers)
+  // Y-Axis reference grid ticks (clean integer levels)
   const yGridTicks = useMemo(() => {
+    if (chartMaxVal === 2) return [0, 1, 2];
+    if (chartMaxVal === 3) return [0, 1, 2, 3];
+    if (chartMaxVal === 4) return [0, 2, 4];
+    if (chartMaxVal === 5) return [0, 1, 2, 3, 4, 5];
+    if (chartMaxVal <= 10) return [0, Math.round(chartMaxVal / 2), chartMaxVal];
     return [
       0,
       Math.round(chartMaxVal * 0.33),
@@ -253,17 +261,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     ];
   }, [chartMaxVal]);
 
-  // Point coordinates for SVG Area / Line chart (Mobile: 500x180)
+  // Point coordinates for SVG Area / Line chart (Mobile: 520x220)
   const { viewsPoints, actionsPoints } = useMemo(() => {
     const vPts: { x: number; y: number }[] = [];
     const aPts: { x: number; y: number }[] = [];
     const N = trends.length;
     if (N === 0) return { viewsPoints: vPts, actionsPoints: aPts };
 
-    const padLeft = 35;
-    const innerW = 440;
-    const padTop = 15;
-    const innerH = 130;
+    const padLeft = 38;
+    const innerW = 450;
+    const padTop = 20;
+    const innerH = 145;
 
     trends.forEach((t, i) => {
       const x = N === 1 ? padLeft + innerW / 2 : padLeft + (i / (N - 1)) * innerW;
@@ -730,44 +738,90 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
         </div>
 
+        {/* Active / Hovered Day Live Metric Summary Bar for Mobile */}
+        {trends.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: 'var(--bg-deep)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '0.6rem',
+            padding: '0.45rem 0.75rem',
+            marginBottom: '0.85rem',
+            fontSize: '0.72rem',
+            flexWrap: 'wrap',
+            gap: '0.4rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'inline-block' }} />
+              <span>
+                {hoveredPointIndex !== null && trends[hoveredPointIndex]
+                  ? formatDetailedDate(trends[hoveredPointIndex].date)
+                  : `Terkini: ${formatDetailedDate(trends[trends.length - 1].date)}`}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontWeight: 800 }}>
+              <span style={{ color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Eye size={12} />
+                <span>
+                  {(hoveredPointIndex !== null ? trends[hoveredPointIndex]?.store_views : trends[trends.length - 1]?.store_views) || 0} Kunjungan
+                </span>
+              </span>
+              <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Zap size={12} />
+                <span>
+                  {(hoveredPointIndex !== null ? (trends[hoveredPointIndex]?.total_actions ?? trends[hoveredPointIndex]?.wa_clicks) : (trends[trends.length - 1]?.total_actions ?? trends[trends.length - 1]?.wa_clicks)) || 0} Aksi
+                </span>
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Chart Container */}
-        <div style={{ position: 'relative', width: '100%', height: '180px', minHeight: '180px' }}>
+        <div style={{ position: 'relative', width: '100%', height: '240px', minHeight: '240px' }}>
           {chartType === 'area' ? (
             /* SVG Area & Smooth Curve Line Chart for Mobile */
             <svg
-              viewBox={`0 0 500 180`}
+              viewBox={`0 0 520 220`}
               style={{ width: '100%', height: '100%', overflow: 'visible' }}
             >
               <defs>
                 <linearGradient id="viewsGradientMobile" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.48" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01" />
                 </linearGradient>
                 <linearGradient id="actionsGradientMobile" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.5" />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
                 </linearGradient>
+                <filter id="glowLineMobile" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#3b82f6" floodOpacity="0.35" />
+                </filter>
               </defs>
 
               {/* Grid Lines & Y-Axis Labels */}
               {yGridTicks.map(tick => {
-                const yPos = 15 + 130 - ((tick / chartMaxVal) * 130);
+                const yPos = 20 + 145 - ((tick / chartMaxVal) * 145);
+                const isBase = tick === 0;
                 return (
                   <g key={tick}>
                     <line
-                      x1={35}
+                      x1={38}
                       y1={yPos}
-                      x2={485}
+                      x2={488}
                       y2={yPos}
-                      stroke="var(--border-light)"
-                      strokeDasharray="3 3"
-                      strokeOpacity={0.65}
+                      stroke={isBase ? 'var(--border-light)' : 'var(--border-light)'}
+                      strokeDasharray={isBase ? 'none' : '3 3'}
+                      strokeWidth={isBase ? 1.5 : 1}
+                      strokeOpacity={isBase ? 0.9 : 0.65}
                     />
                     <text
-                      x={28}
-                      y={yPos + 3.5}
+                      x={32}
+                      y={yPos + 4}
                       textAnchor="end"
-                      fontSize="9.5"
+                      fontSize="10.5"
+                      fontWeight="700"
                       fill="var(--text-secondary)"
                       fontFamily="inherit"
                     >
@@ -781,28 +835,29 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               {trends.length > 0 && (
                 <>
                   <path
-                    d={getAreaPath(viewsPoints, 145)}
+                    d={getAreaPath(viewsPoints, 165)}
                     fill="url(#viewsGradientMobile)"
                   />
                   <path
-                    d={getAreaPath(actionsPoints, 145)}
+                    d={getAreaPath(actionsPoints, 165)}
                     fill="url(#actionsGradientMobile)"
                   />
                   
-                  {/* Lines */}
+                  {/* High Visibility Lines */}
                   <path
                     d={getBezierPath(viewsPoints)}
                     fill="none"
-                    stroke="#3b82f6"
-                    strokeWidth="2.25"
+                    stroke="#2563eb"
+                    strokeWidth="3.2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    filter="url(#glowLineMobile)"
                   />
                   <path
                     d={getBezierPath(actionsPoints)}
                     fill="none"
-                    stroke="#10b981"
-                    strokeWidth="2.25"
+                    stroke="#059669"
+                    strokeWidth="3.2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
@@ -814,9 +869,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 const ptV = viewsPoints[idx];
                 const ptA = actionsPoints[idx];
                 const isHovered = hoveredPointIndex === idx;
+                const isLatest = idx === trends.length - 1;
                 if (!ptV || !ptA) return null;
 
-                const showDateLabel = period === '7d' || (period === '30d' && idx % 5 === 0) || (period === '90d' && idx % 15 === 0) || idx === trends.length - 1;
+                const showDateLabel = period === '7d' || (period === '30d' && idx % 5 === 0) || (period === '90d' && idx % 15 === 0) || isLatest;
+                const labelAnchor = idx === 0 ? 'start' : isLatest ? 'end' : 'middle';
 
                 return (
                   <g key={t.date}>
@@ -824,55 +881,82 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                     {isHovered && (
                       <line
                         x1={ptV.x}
-                        y1={15}
+                        y1={20}
                         x2={ptV.x}
-                        y2={145}
+                        y2={165}
                         stroke="var(--primary)"
                         strokeDasharray="3 3"
-                        strokeWidth="1.5"
-                        strokeOpacity={0.8}
+                        strokeWidth="1.6"
+                        strokeOpacity={0.85}
                       />
                     )}
 
-                    {/* Point circles */}
+                    {/* Point circles with outer ring */}
                     <circle
                       cx={ptV.x}
                       cy={ptV.y}
-                      r={isHovered ? 5.5 : 3}
+                      r={isHovered ? 6.5 : (isLatest && t.store_views > 0 ? 5.5 : 4)}
                       fill="#3b82f6"
-                      stroke="var(--bg-card)"
-                      strokeWidth="1.75"
+                      stroke="#ffffff"
+                      strokeWidth="2"
                     />
                     <circle
                       cx={ptA.x}
                       cy={ptA.y}
-                      r={isHovered ? 5.5 : 3}
+                      r={isHovered ? 6.5 : 4}
                       fill="#10b981"
-                      stroke="var(--bg-card)"
-                      strokeWidth="1.75"
+                      stroke="#ffffff"
+                      strokeWidth="2"
                     />
 
-                    {/* X-Axis Date Label */}
+                    {/* Latest / Peak Value Pill Badge */}
+                    {(isHovered || (isLatest && t.store_views > 0)) && (
+                      <g transform={`translate(${ptV.x}, ${Math.max(14, ptV.y - 12)})`}>
+                        <rect
+                          x="-12"
+                          y="-11"
+                          width="24"
+                          height="14"
+                          rx="7"
+                          fill="#1d4ed8"
+                          stroke="#ffffff"
+                          strokeWidth="1.2"
+                        />
+                        <text
+                          x="0"
+                          y="-1.5"
+                          textAnchor="middle"
+                          fontSize="8.5"
+                          fontWeight="800"
+                          fill="#ffffff"
+                          fontFamily="inherit"
+                        >
+                          {t.store_views}
+                        </text>
+                      </g>
+                    )}
+
+                    {/* X-Axis Date Label with Safe Alignment */}
                     {showDateLabel && (
                       <text
                         x={ptV.x}
-                        y={166}
-                        textAnchor="middle"
-                        fontSize="9"
-                        fill={isHovered ? 'var(--text-primary)' : 'var(--text-secondary)'}
-                        fontWeight={isHovered ? '700' : '500'}
+                        y={192}
+                        textAnchor={labelAnchor}
+                        fontSize="10"
+                        fill={isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)'}
+                        fontWeight={isLatest || isHovered ? '800' : '600'}
                         fontFamily="inherit"
                       >
-                        {formatShortDate(t.date).slice(0, 7)}
+                        {formatShortDate(t.date)}
                       </text>
                     )}
 
                     {/* Transparent touch/click trigger area */}
                     <rect
-                      x={ptV.x - (440 / Math.max(1, trends.length)) / 2}
+                      x={ptV.x - (450 / Math.max(1, trends.length)) / 2}
                       y={0}
-                      width={440 / Math.max(1, trends.length)}
-                      height={170}
+                      width={450 / Math.max(1, trends.length)}
+                      height={210}
                       fill="transparent"
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setHoveredPointIndex(idx)}
@@ -884,10 +968,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               })}
             </svg>
           ) : (
-            /* Bar Chart Visualization with Gridlines */
+            /* Bar Chart Visualization with High Contrast */
             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
               {/* Background Grid Lines */}
-              <div style={{ position: 'absolute', top: '10px', left: '30px', right: '10px', bottom: '30px', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: '15px', left: '38px', right: '15px', bottom: '40px', pointerEvents: 'none' }}>
                 {yGridTicks.map(tick => {
                   const bottomPct = (tick / chartMaxVal) * 100;
                   return (
@@ -903,7 +987,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <span style={{ position: 'absolute', right: '100%', marginRight: '6px', fontSize: '0.62rem', color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
+                      <span style={{ position: 'absolute', right: '100%', marginRight: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
                         {tick}
                       </span>
                     </div>
@@ -912,11 +996,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               </div>
 
               {/* Bars Row */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.25rem', height: 'calc(100% - 30px)', paddingLeft: '35px', paddingRight: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.35rem', height: 'calc(100% - 40px)', paddingLeft: '38px', paddingRight: '15px' }}>
                 {trends.map((t, idx) => {
-                  const vHeight = Math.max(3, Math.round((t.store_views / chartMaxVal) * 130));
+                  const vHeight = Math.max(4, Math.round((t.store_views / chartMaxVal) * 155));
                   const actCount = t.total_actions ?? t.wa_clicks ?? 0;
-                  const aHeight = Math.max(3, Math.round((actCount / chartMaxVal) * 130));
+                  const aHeight = Math.max(4, Math.round((actCount / chartMaxVal) * 155));
                   const isHovered = hoveredPointIndex === idx;
 
                   return (
@@ -936,29 +1020,35 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         position: 'relative'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', width: '100%', justifyContent: 'center' }}>
+                      {/* Bar Value Indicator */}
+                      {(isHovered || t.store_views > 0) && (
+                        <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#3b82f6', marginBottom: '2px' }}>
+                          {t.store_views}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center' }}>
                         {/* Views Bar */}
                         <div
                           style={{
                             width: '45%',
-                            maxWidth: '12px',
+                            maxWidth: '16px',
                             height: `${vHeight}px`,
-                            backgroundColor: isHovered ? '#60a5fa' : '#3b82f6',
-                            borderRadius: '3px 3px 0 0',
-                            transition: 'height 0.3s ease, background-color 0.2s ease',
-                            boxShadow: isHovered ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
+                            background: isHovered ? 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)' : 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
+                            borderRadius: '4px 4px 0 0',
+                            transition: 'height 0.3s ease, background 0.2s ease',
+                            boxShadow: isHovered ? '0 0 10px rgba(59, 130, 246, 0.6)' : 'none'
                           }}
                         />
                         {/* Actions Bar */}
                         <div
                           style={{
                             width: '45%',
-                            maxWidth: '12px',
+                            maxWidth: '16px',
                             height: `${aHeight}px`,
-                            backgroundColor: isHovered ? '#34d399' : '#10b981',
-                            borderRadius: '3px 3px 0 0',
-                            transition: 'height 0.3s ease, background-color 0.2s ease',
-                            boxShadow: isHovered ? '0 0 8px rgba(16, 185, 129, 0.5)' : 'none'
+                            background: isHovered ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)' : 'linear-gradient(180deg, #10b981 0%, #047857 100%)',
+                            borderRadius: '4px 4px 0 0',
+                            transition: 'height 0.3s ease, background 0.2s ease',
+                            boxShadow: isHovered ? '0 0 10px rgba(16, 185, 129, 0.6)' : 'none'
                           }}
                         />
                       </div>
@@ -967,17 +1057,18 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 })}
               </div>
 
-              {/* X-Axis Date Labels Row */}
-              <div style={{ display: 'flex', paddingLeft: '35px', paddingRight: '10px', height: '30px', alignItems: 'center' }}>
+              {/* X-Axis Date Labels Row with Safe Alignment */}
+              <div style={{ display: 'flex', paddingLeft: '38px', paddingRight: '15px', height: '35px', alignItems: 'center' }}>
                 {trends.map((t, idx) => {
-                  const showDateLabel = period === '7d' || (period === '30d' && idx % 5 === 0) || (period === '90d' && idx % 15 === 0) || idx === trends.length - 1;
+                  const isLatest = idx === trends.length - 1;
+                  const showDateLabel = period === '7d' || (period === '30d' && idx % 5 === 0) || (period === '90d' && idx % 15 === 0) || isLatest;
                   const isHovered = hoveredPointIndex === idx;
 
                   return (
-                    <div key={t.date} style={{ flex: 1, textAlign: 'center' }}>
+                    <div key={t.date} style={{ flex: 1, textAlign: idx === 0 ? 'left' : isLatest ? 'right' : 'center' }}>
                       {showDateLabel && (
-                        <span style={{ fontSize: '0.62rem', color: isHovered ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isHovered ? 700 : 500, whiteSpace: 'nowrap' }}>
-                          {formatShortDate(t.date).slice(0, 6)}
+                        <span style={{ fontSize: '0.68rem', color: isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isLatest || isHovered ? 800 : 600, whiteSpace: 'nowrap' }}>
+                          {formatShortDate(t.date)}
                         </span>
                       )}
                     </div>
@@ -992,38 +1083,37 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div
               style={{
                 position: 'absolute',
-                top: '5px',
-                left: `${Math.min(75, Math.max(25, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
+                top: '10px',
+                left: `${Math.min(78, Math.max(22, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
                 transform: 'translateX(-50%)',
-                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                backgroundColor: 'rgba(15, 23, 42, 0.96)',
                 color: '#ffffff',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '0.55rem',
-                fontSize: '0.7rem',
+                padding: '0.6rem 0.85rem',
+                borderRadius: '0.65rem',
+                fontSize: '0.75rem',
                 zIndex: 30,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                boxShadow: '0 8px 20px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15)',
                 pointerEvents: 'none',
-                backdropFilter: 'blur(8px)',
-                minWidth: '150px'
+                backdropFilter: 'blur(10px)',
+                minWidth: '160px'
               }}
             >
-              <div style={{ fontWeight: 800, marginBottom: '0.25rem', color: '#f1f5f9', borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.2rem' }}>
+              <div style={{ fontWeight: 800, marginBottom: '0.3rem', color: '#f8fafc', borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.25rem', fontSize: '0.76rem' }}>
                 {formatDetailedDate(trends[hoveredPointIndex].date)}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', margin: '0.15rem 0' }}>
-                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', margin: '0.2rem 0' }}>
+                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                   Kunjungan:
                 </span>
-                <strong style={{ color: '#60a5fa' }}>{trends[hoveredPointIndex].store_views}</strong>
+                <strong style={{ color: '#60a5fa', fontSize: '0.82rem' }}>{trends[hoveredPointIndex].store_views}</strong>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', margin: '0.15rem 0' }}>
-                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', margin: '0.2rem 0' }}>
+                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
                   Total Aksi:
                 </span>
-                <strong style={{ color: '#34d399' }}>{trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0}</strong>
+                <strong style={{ color: '#34d399', fontSize: '0.82rem' }}>{trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0}</strong>
               </div>
             </div>
           )}
