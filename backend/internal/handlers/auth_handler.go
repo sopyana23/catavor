@@ -35,6 +35,7 @@ type RegisterRequest struct {
 	Email                string  `json:"email"`
 	Password             string  `json:"password"`
 	StoreSlug            string  `json:"store_slug"`
+	Slug                 string  `json:"slug"`
 	StoreName            string  `json:"store_name"`
 	StoreTitle           string  `json:"store_title"`
 	GoogleID             string  `json:"google_id"`
@@ -224,6 +225,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	if req.StoreTitle == "" && req.StoreName != "" {
 		req.StoreTitle = req.StoreName
+	}
+	if req.StoreSlug == "" && req.Slug != "" {
+		req.StoreSlug = req.Slug
 	}
 	if req.RegistrationTimezone == "" && req.Timezone != "" {
 		req.RegistrationTimezone = req.Timezone

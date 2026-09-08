@@ -46,8 +46,12 @@ type Product struct {
 	Attributes          datatypes.JSON `gorm:"type:jsonb" json:"attributes"`
 	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
 	ArchivedAt          *time.Time     `gorm:"index" json:"archived_at,omitempty"`
-	ViewCount           int64          `gorm:"default:0" json:"view_count"`
-	CreatedAt           time.Time      `json:"created_at"`
+	ViewCount              int64          `gorm:"default:0" json:"view_count"`
+	WaClicksCount          int64          `gorm:"default:0" json:"wa_clicks_count"`
+	MarketplaceClicksCount int64          `gorm:"default:0" json:"marketplace_clicks_count"`
+	RekberClicksCount      int64          `gorm:"default:0" json:"rekber_clicks_count"`
+	VideoViewsCount        int64          `gorm:"default:0" json:"video_views_count"`
+	CreatedAt              time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 
 	// Relations

@@ -64,6 +64,7 @@ func main() {
 	settingHandler := handlers.NewSettingHandler()
 	reportHandler := handlers.NewReportHandler()
 	supportHandler := handlers.NewSupportHandler(cfg)
+	analyticsHandler := handlers.NewAnalyticsHandler(cfg)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg)
 
@@ -138,12 +139,21 @@ func main() {
 	// Public Subscription Plans
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
 
+	// Public Telemetry & Analytics Tracking
+	api.Post("/analytics/track", middleware.PublicSubmissionRateLimiter(), analyticsHandler.TrackEvent)
+
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
 	api.Post("/auth/login", middleware.AuthRateLimiter(), authHandler.Login)
 	api.Post("/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/google", middleware.AuthRateLimiter(), authHandler.GoogleAuth)
+
+	// Public Slug Availability Checking
+	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
+	api.Get("/check-slug", storeHandler.CheckSlug)
+	api.Get("/auth/check-slug/:slug", storeHandler.CheckSlug)
+	api.Get("/auth/check-slug", storeHandler.CheckSlug)
 
 	// User Auth-Guarded Endpoints (Requires valid JWT Token)
 	authOnly := api.Group("", middleware.AuthRequired(cfg))
@@ -156,6 +166,7 @@ func main() {
 
 		// Multi-Store User Management
 		authOnly.Get("/user/stores", storeHandler.GetMyStores)
+		authOnly.Get("/user/stores/check-slug", storeHandler.CheckSlug)
 		authOnly.Post("/user/stores", storeHandler.CreateStore)
 		authOnly.Post("/user/stores/create", storeHandler.CreateStore)
 		authOnly.Post("/user/stores/switch", storeHandler.SwitchStore)
@@ -212,6 +223,10 @@ func main() {
 		guarded.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
 		guarded.Post("/subscription/order", subscriptionHandler.CreateOrder)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
+
+		// Merchant Analytics & Store Telemetry
+		guarded.Get("/admin/analytics", analyticsHandler.GetStoreAnalytics)
+		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 
 		// Settings & Policies
 		guarded.Post("/settings", settingHandler.Store)
