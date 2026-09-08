@@ -75,6 +75,8 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.SupportMessage{},
 		&models.SupportAttachment{},
 		&models.HelpArticle{},
+		&models.StoreDailyAnalytics{},
+		&models.ProductDailyAnalytics{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)

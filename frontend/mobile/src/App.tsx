@@ -114,7 +114,12 @@ import {
   MoreHorizontal,
   Flag,
   Award,
-  LayoutDashboard
+  LayoutDashboard,
+  BarChart2,
+  BarChart3,
+  TrendingUp,
+  Activity,
+  Users
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -122,6 +127,7 @@ import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput } from './components/VideoEmbed'
 import { SubscriptionPage, SubscriptionModal, MobileQuotaWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
+import { AnalyticsPage, type DetailedAnalyticsData } from './components/AnalyticsPage'
 
 export interface UserStoreSummary {
   id: number;
@@ -136,12 +142,29 @@ export interface UserStoreSummary {
   item_count?: number;
 }
 
+export interface AnalyticsData {
+  period: string;
+  total_store_views: number;
+  total_wa_clicks: number;
+  conversion_rate_percent: number;
+  trends: Array<{ date: string; store_views: number; wa_clicks: number }>;
+  top_products: Array<{
+    id: number;
+    name: string;
+    image_url?: string;
+    price: number;
+    view_count: number;
+    wa_clicks_count: number;
+    product_type?: string;
+  }>;
+}
+
 // Top-level Store Slug Resolver (Accessible before component mount)
 function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
   
   if (parts.length === 0) return null;
   if (reservedPortal.includes(parts[0])) return null;
@@ -4241,7 +4264,7 @@ function App() {
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return null;
     
@@ -4262,7 +4285,32 @@ function App() {
       let pathTab: 'home' | 'login' | 'register' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
-      if (path === '/login') {
+      if (path === '/admin' || path === '/dashboard') {
+        const savedToken = localStorage.getItem('catavor_token');
+        const savedUserStr = localStorage.getItem('catavor_user');
+        const savedStoresStr = localStorage.getItem('catavor_stores');
+        let targetSlug = '';
+        if (savedUserStr) {
+          try {
+            const u = JSON.parse(savedUserStr);
+            targetSlug = u.store_slug || '';
+          } catch {}
+        }
+        if (!targetSlug && savedStoresStr) {
+          try {
+            const st = JSON.parse(savedStoresStr);
+            if (Array.isArray(st) && st.length > 0) targetSlug = st[0].slug || '';
+          } catch {}
+        }
+        if (savedToken && targetSlug) {
+          window.location.replace(`/${targetSlug}/admin`);
+        } else {
+          pathTab = 'login';
+          try {
+            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: '/admin' }));
+          } catch {}
+        }
+      } else if (path === '/login') {
         pathTab = 'login';
       } else if (path === '/register' || path === '/register/step-1') {
         pathTab = 'register';
@@ -4862,7 +4910,7 @@ function App() {
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
   const [aboutSubView, setAboutSubView] = useState<'main' | 'qrcode'>('main')
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription'>('menu')
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share'>('menu')
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -5186,6 +5234,76 @@ function App() {
     )
   );
 
+  // Analytics & Visitor Telemetry State (Mobile)
+  const [analyticsData, setAnalyticsData] = useState<DetailedAnalyticsData | null>(null);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+
+  const fetchAnalytics = async (period: '7d' | '30d' | '90d' = analyticsPeriod) => {
+    const currentToken = token || localStorage.getItem('catavor_token');
+    const slug = storeSlug || getStoreSlug();
+    if (!currentToken || !slug) return;
+    try {
+      setAnalyticsLoading(true);
+      const res = await fetch(`${API_BASE}/admin/analytics?period=${period}`, {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'X-Store-Slug': slug,
+          'Accept': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        setAnalyticsData(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const trackAnalytics = (
+    event: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view' | 'wa_click' | 'product_wa_click',
+    productId?: number,
+    productType?: string,
+    metadata?: Record<string, any>
+  ) => {
+    try {
+      const slug = storeSlug || getStoreSlug();
+      if (!slug) return;
+
+      // Don't track store owner's own preview activity
+      if (isStoreOwner) return;
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Session deduplication to prevent spam counting
+      if (event === 'store_view') {
+        const key = `catavor_v_${slug}_${today}`;
+        if (sessionStorage.getItem(key)) return;
+        sessionStorage.setItem(key, '1');
+      } else if (event === 'product_view' && productId) {
+        const key = `catavor_pv_${productId}_${today}`;
+        if (sessionStorage.getItem(key)) return;
+        sessionStorage.setItem(key, '1');
+      }
+
+      fetch(`${API_BASE}/analytics/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          store_slug: slug,
+          event,
+          product_id: productId,
+          product_type: productType,
+          metadata
+        }),
+        keepalive: true
+      }).catch(() => {});
+    } catch (_) {}
+  };
+
   const fetchMyStores = async () => {
     const currentToken = token || localStorage.getItem('catavor_token');
     if (!currentToken) return;
@@ -5213,6 +5331,25 @@ function App() {
       fetchMyStores();
     }
   }, [token]);
+
+  // Analytics triggers & telemetry
+  useEffect(() => {
+    if (activeTab === 'admin' && adminSubTab === 'menu' && token) {
+      fetchAnalytics(analyticsPeriod);
+    }
+  }, [activeTab, adminSubTab, storeSlug, token]);
+
+  useEffect(() => {
+    if ((activeTab === 'catalog' || activeTab === 'about') && storeSlug && !isStoreOwner) {
+      trackAnalytics('store_view');
+    }
+  }, [activeTab, storeSlug, isStoreOwner]);
+
+  useEffect(() => {
+    if (selectedFauna?.id && !isStoreOwner) {
+      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type);
+    }
+  }, [selectedFauna?.id, isStoreOwner]);
 
   const handleSwitchStore = async (targetSlug: string) => {
     if (!token || !targetSlug) return;
@@ -5902,6 +6039,9 @@ function App() {
                 setMobileSettingsTab('menu');
               }
             }
+          } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik') {
+            setAdminSubTab('analytics');
+            setView('tabs');
           } else if (pageSub === 'profile') {
             setAdminSubTab('profile');
             setView('tabs');
@@ -5941,6 +6081,9 @@ function App() {
                 setSelectedTicket(null);
               }
             }
+          } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
+            setAdminSubTab('share');
+            setView('tabs');
           } else {
             setAdminSubTab('menu');
             setView('tabs');
@@ -6267,6 +6410,9 @@ function App() {
                   setSelectedTicket(null);
                 }
               }
+            } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
+              setAdminSubTab('share');
+              setView('tabs');
             } else {
               setAdminSubTab('menu');
               setView('tabs');
@@ -6285,7 +6431,29 @@ function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
-      if (path === '/login') {
+      if (path === '/admin' || path === '/dashboard') {
+        const savedToken = token || localStorage.getItem('catavor_token');
+        const savedUserStr = localStorage.getItem('catavor_user');
+        let activeSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+        if (!activeSlug && savedUserStr) {
+          try {
+            const u = JSON.parse(savedUserStr);
+            activeSlug = u.store_slug || '';
+          } catch {}
+        }
+        if (savedToken && activeSlug) {
+          window.history.replaceState({}, '', `/${activeSlug}/admin`);
+          setStoreSlug(activeSlug);
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          setView('tabs');
+        } else {
+          setPortalTab('login');
+          try {
+            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: '/admin' }));
+          } catch {}
+        }
+      } else if (path === '/login') {
         setPortalTab('login');
       } else if (path === '/register' || path === '/register/step-1') {
         setPortalTab('register');
@@ -6536,7 +6704,7 @@ function App() {
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -6683,11 +6851,18 @@ function App() {
   }
   // Share store link (direct to Share / QR page)
   const handleShareStore = () => {
-    setActiveTab('about');
-    setAboutSubView('qrcode');
     const slug = storeSlug || getStoreSlug();
-    if (slug) {
-      window.history.pushState({}, '', `/${slug}/about/share`);
+    if (activeTab === 'admin') {
+      setAdminSubTab('share');
+      if (slug) {
+        window.history.pushState({}, '', `/${slug}/admin/share`);
+      }
+    } else {
+      setActiveTab('about');
+      setAboutSubView('qrcode');
+      if (slug) {
+        window.history.pushState({}, '', `/${slug}/about/share`);
+      }
     }
   };
 
@@ -6741,6 +6916,8 @@ function App() {
     } else if (activeTab === 'admin') {
       if (adminSubTab === 'items') {
         targetPath += `/admin/items`;
+      } else if (adminSubTab === 'analytics') {
+        targetPath += `/admin/analytics`;
       } else if (adminSubTab === 'settings') {
         if (mobileSettingsTab && mobileSettingsTab !== 'menu') {
           targetPath += `/admin/settings/${mobileSettingsTab}`;
@@ -6764,6 +6941,8 @@ function App() {
             params.set('ticket', selectedTicket.id.toString());
           }
         }
+      } else if (adminSubTab === 'share') {
+        targetPath += `/admin/share`;
       } else {
         targetPath += `/admin`;
       }
@@ -7673,7 +7852,7 @@ function App() {
           localStorage.setItem('catavor_settings', JSON.stringify(updated));
         } catch {}
         document.documentElement.setAttribute('data-theme', updated.store_theme);
-        showToast('Pengaturan toko & logo berhasil disimpan!')
+        showToast('Pengaturan & logo katalog berhasil disimpan!')
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -7780,7 +7959,7 @@ function App() {
       const data = await res.json()
       if (res.ok && data.success) {
         setSettingsForm(prev => ({ ...prev, store_logo_url: data.url }))
-        showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo toko.')
+        showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo katalog.')
       } else {
         showToast(data.message || 'Gagal mengunggah gambar logo.', 'error')
       }
@@ -8497,7 +8676,7 @@ function App() {
       })
       const data = await res.json()
       if (res.ok && data.success) {
-        showToast('Template preset industri berhasil diterapkan ke katalog toko!')
+        showToast('Template preset industri berhasil diterapkan ke profil katalog!')
         setPresetModalData(null)
         loadData()
       } else {
@@ -10435,7 +10614,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
     );
   }
 
-  // Native App Standard: Show bottom nav ONLY at top-level root pages, hide on all sub-pages, detail views, forms, and sheets
+  // Native App Standard: Show bottom nav at top-level merchant pages (menu, items, settings), hide on modal/detail views
   const isBottomNavVisible = Boolean(
     !error &&
     !showLightbox &&
@@ -10448,8 +10627,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
     !selectedTicket &&
     view === 'tabs' &&
     (
-      // 1. In Admin Mode: Show bottom bar ONLY when at root 'menu' hub
-      (activeTab === 'admin' && token && isStoreOwner && adminSubTab === 'menu') ||
+      // 1. In Admin Mode: Show bottom bar on 'menu', 'items' (Inventaris), and root 'settings' (Pengaturan menu)
+      (
+        activeTab === 'admin' &&
+        token &&
+        isStoreOwner &&
+        (
+          adminSubTab === 'menu' ||
+          adminSubTab === 'items' ||
+          (adminSubTab === 'settings' && (!mobileSettingsTab || mobileSettingsTab === 'menu'))
+        )
+      ) ||
       // 2. In Public Storefront Mode: Show bottom bar on root tabs
       (
         activeTab !== 'admin' &&
@@ -10905,7 +11093,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai kelengkapan dokumen/legalitas serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                         window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
                       } else {
-                        alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan toko.');
+                        alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
                       }
                       return;
                     }
@@ -12861,63 +13049,133 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 );
               }
 
-              // Admin Panel Sub-Pages Header (Hides store title & share button, shows back button + menu title + action button)
+              // Admin Panel Sub-Pages Header
               if (activeTab === 'admin' && adminSubTab !== 'menu') {
-                return (
-                  <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '0.6rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const slug = getStoreSlug();
-                        if (adminSubTab === 'help') {
-                          if (isCreatingTicket) {
-                            setIsCreatingTicket(false);
-                            setTicketNewAttachments([]);
-                          } else if (selectedTicket) {
-                            setSelectedTicket(null);
-                            if (slug) {
-                              window.history.pushState({}, '', `/${slug}/admin/help`);
-                            }
-                          } else {
-                            setAdminSubTab('menu');
-                            setSelectedTicket(null);
-                            setIsCreatingTicket(false);
-                            if (slug) {
-                              window.history.pushState({}, '', `/${slug}/admin`);
-                            }
-                          }
-                        } else if (adminSubTab === 'subscription') {
-                          if (mobileSubPageView !== 'plans') {
-                            setMobileSubPageView('plans');
-                          } else {
-                            setAdminSubTab('menu');
-                            if (slug) {
-                              window.history.pushState({}, '', `/${slug}/admin`);
-                            }
-                          }
-                        } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
-                          setMobileSettingsTab('menu');
-                          if (slug) {
-                            window.history.pushState({}, '', `/${slug}/admin/settings`);
-                          }
-                        } else {
-                          setAdminSubTab('menu');
-                          setSelectedTicket(null);
-                          setIsCreatingTicket(false);
-                          if (slug) {
-                            window.history.pushState({}, '', `/${slug}/admin`);
-                          }
-                        }
-                      }}
-                      className="btn-back-circle"
-                      title="Kembali"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
+                const isRootMerchantTab = adminSubTab === 'items' || (adminSubTab === 'settings' && (!mobileSettingsTab || mobileSettingsTab === 'menu'));
 
-                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                const getSubPageMeta = () => {
+                  switch (adminSubTab) {
+                    case 'analytics':
+                      return {
+                        title: 'Statistik & Analitika',
+                        subtitle: 'Performa Trafik & Konversi Toko'
+                      };
+                    case 'items':
+                      return {
+                        title: 'Kelola Inventaris',
+                        subtitle: `${faunas.length} Produk & Varian Aktif`
+                      };
+                    case 'subscription':
+                      return {
+                        title: mobileSubPageView === 'checkout' ? 'Checkout Langganan' :
+                               mobileSubPageView === 'downgrade_confirm' ? 'Konfirmasi Downgrade' :
+                               mobileSubPageView === 'orders' ? 'Riwayat Tagihan & Faktur' : 'Paket & Langganan',
+                        subtitle: storeQuota?.plan?.name || 'Paket Merchant Catavor'
+                      };
+                    case 'settings':
+                      if (mobileSettingsTab === 'general') return { title: 'Profil & Identitas', subtitle: 'Nama, Logo & Slogan Toko' };
+                      if (mobileSettingsTab === 'contact') return { title: 'Kontak & Saluran Resmi', subtitle: 'WhatsApp, Web & Sosmed' };
+                      if (mobileSettingsTab === 'about') return { title: 'Halaman Tentang Kami', subtitle: 'Cerita, Komitmen & Informasi' };
+                      if (mobileSettingsTab === 'theme') return { title: 'Tema & Tampilan Visual', subtitle: 'Palet Warna & Gaya Estetik' };
+                      if (mobileSettingsTab === 'domain') return { title: 'Custom Domain', subtitle: 'Hubungkan Domain Brand Anda' };
+                      if (mobileSettingsTab === 'master') return { title: 'Master Data Katalog', subtitle: 'Opsi Kategori, Status & Wilayah' };
+                      return { title: 'Pengaturan Toko', subtitle: 'Konfigurasi & Branding Katalog' };
+                    case 'help':
+                      if (isCreatingTicket) return { title: 'Buat Tiket Baru', subtitle: 'Hubungi Tim Support 24/7' };
+                      if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: selectedTicket.subject };
+                      return { title: 'Pusat Bantuan & Support', subtitle: 'Tiket CS & Panduan Fitur' };
+                    case 'policies':
+                      return { title: 'Legal & Kebijakan Toko', subtitle: 'Syarat Ketentuan & Privasi' };
+                    case 'notifications':
+                      return { title: 'Notifikasi & Aktivitas', subtitle: unreadCount > 0 ? `${unreadCount} Pesan Belum Dibaca` : 'Semua Aktivitas Toko' };
+                    case 'profile':
+                      return { title: 'Profil Akun Admin', subtitle: adminUser?.email || 'Akun Merchant' };
+                    case 'share':
+                      return { title: 'Bagikan Katalog', subtitle: `catavor.com/${storeSlug || getStoreSlug()}` };
+                    default:
+                      return { title: 'Dashboard Admin', subtitle: 'Menu Merchant' };
+                  }
+                };
+
+                const subPageMeta = getSubPageMeta();
+
+                return (
+                  <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '0.65rem' }}>
+                    {!isRootMerchantTab ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          if (adminSubTab === 'help') {
+                            if (isCreatingTicket) {
+                              setIsCreatingTicket(false);
+                              setTicketNewAttachments([]);
+                            } else if (selectedTicket) {
+                              setSelectedTicket(null);
+                              if (slug) {
+                                window.history.pushState({}, '', `/${slug}/admin/help`);
+                              }
+                            } else {
+                              setAdminSubTab('menu');
+                              setSelectedTicket(null);
+                              setIsCreatingTicket(false);
+                              if (slug) {
+                                window.history.pushState({}, '', `/${slug}/admin`);
+                              }
+                            }
+                          } else if (adminSubTab === 'subscription') {
+                            if (mobileSubPageView !== 'plans') {
+                              setMobileSubPageView('plans');
+                            } else {
+                              setAdminSubTab('menu');
+                              if (slug) {
+                                window.history.pushState({}, '', `/${slug}/admin`);
+                              }
+                            }
+                          } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
+                            setMobileSettingsTab('menu');
+                            if (slug) {
+                              window.history.pushState({}, '', `/${slug}/admin/settings`);
+                            }
+                          } else if (adminSubTab === 'share') {
+                            setAdminSubTab('menu');
+                            if (slug) {
+                              window.history.pushState({}, '', `/${slug}/admin`);
+                            }
+                          } else {
+                            setAdminSubTab('menu');
+                            setSelectedTicket(null);
+                            setIsCreatingTicket(false);
+                            if (slug) {
+                              window.history.pushState({}, '', `/${slug}/admin`);
+                            }
+                          }
+                        }}
+                        className="btn-back-circle"
+                        title="Kembali"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                    ) : (
+                      <div style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.6rem',
+                        background: 'var(--primary-glow)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                        flexShrink: 0
+                      }}>
+                        {adminSubTab === 'items' ? <Layers size={18} /> : <Settings size={18} />}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, justifyContent: 'center' }}>
                       <span style={{ 
-                        fontSize: '0.94rem', 
+                        fontSize: '0.96rem', 
                         fontWeight: 800, 
                         color: 'var(--text-primary)', 
                         letterSpacing: '-0.01em',
@@ -12927,59 +13185,185 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         textOverflow: 'ellipsis',
                         textAlign: 'left'
                       }}>
-                        {adminSubTab === 'items' && 'Kelola Inventaris'}
-                        {adminSubTab === 'settings' && (
-                          mobileSettingsTab === 'general' ? 'Profil & Identitas Utama' :
-                          mobileSettingsTab === 'contact' ? 'Kontak & Saluran Resmi' :
-                          mobileSettingsTab === 'about' ? 'Halaman Tentang Kami' :
-                          mobileSettingsTab === 'theme' ? 'Tema & Tampilan Visual' :
-                          mobileSettingsTab === 'domain' ? 'Konfigurasi Custom Domain' :
-                          mobileSettingsTab === 'master' ? 'Master Data Katalog' : 'Pengaturan'
-                        )}
-                        {adminSubTab === 'profile' && 'Profil Admin'}
-                        {adminSubTab === 'policies' && 'Legal & Kebijakan'}
-                        {adminSubTab === 'notifications' && 'Notifikasi & Aktivitas'}
-                        {adminSubTab === 'subscription' && (
-                          mobileSubPageView === 'checkout' ? 'Checkout Langganan' :
-                          mobileSubPageView === 'downgrade_confirm' ? 'Konfirmasi Downgrade' :
-                          mobileSubPageView === 'orders' ? 'Riwayat Tagihan & Faktur' : 'Paket & Langganan'
-                        )}
-                        {adminSubTab === 'help' && (
-                          isCreatingTicket ? 'Buat Tiket Support Baru' :
-                          selectedTicket ? 'Detail Tiket' : 'Pusat Bantuan & Support'
-                        )}
+                        {subPageMeta.title}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'left', marginTop: '-1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {subPageMeta.subtitle}
                       </span>
                     </div>
 
                     {adminSubTab === 'items' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <button 
-                          type="button"
-                          className="btn-primary" 
-                          style={{ 
-                            padding: '0.35rem 0.65rem', 
-                            borderRadius: '0.5rem', 
-                            fontSize: '0.75rem', 
-                            fontWeight: 800,
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '0.2rem',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0
-                          }}
-                          onClick={openCreateSheet}
-                        >
-                          <Plus size={14} />
-                          <span>Tambah</span>
-                        </button>
-                      </div>
+                      <button 
+                        type="button"
+                        className="btn-primary" 
+                        style={{ 
+                          padding: '0.35rem 0.65rem', 
+                          borderRadius: '0.5rem', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 800,
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.2rem',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}
+                        onClick={openCreateSheet}
+                      >
+                        <Plus size={14} />
+                        <span>Tambah</span>
+                      </button>
+                    )}
+
+                    {adminSubTab === 'help' && !isCreatingTicket && !selectedTicket && (
+                      <button 
+                        type="button"
+                        className="btn-primary" 
+                        style={{ 
+                          padding: '0.35rem 0.65rem', 
+                          borderRadius: '0.5rem', 
+                          fontSize: '0.72rem', 
+                          fontWeight: 800,
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.2rem',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
+                        }}
+                        onClick={() => setIsCreatingTicket(true)}
+                      >
+                        <Plus size={13} />
+                        <span>Tiket Baru</span>
+                      </button>
                     )}
                   </div>
                 );
               }
 
-              // Standard Store Header (Shown on Store Catalog, About, Articles, and Main Admin Dashboard Menu)
+              // Merchant Dashboard Header Bar (When in Admin Main Menu)
+              if (activeTab === 'admin' && adminSubTab === 'menu') {
+                const planCode = storeQuota?.plan?.code || settings.plan || 'free';
+                const planName = storeQuota?.plan?.name || (
+                  planCode === 'pro_business' ? 'Pro Bisnis' :
+                  planCode === 'pro_starter' ? 'Pro Starter' :
+                  planCode === 'pro' ? 'Pro' : 'Gratis'
+                );
+                const isPro = planCode === 'pro_business' || planCode === 'pro_starter' || planCode === 'pro';
+
+                return (
+                  <div className="mobile-header-bar" style={{ gap: '0.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {/* Left: Tappable Store Selector */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchMyStores();
+                        setShowStoreSwitcherModal(true);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        background: 'none',
+                        border: 'none',
+                        padding: '0.2rem 0.3rem',
+                        borderRadius: '0.6rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        minWidth: 0,
+                        flex: 1
+                      }}
+                      title="Ganti Profil Katalog"
+                    >
+                      <div style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'var(--primary-glow)',
+                        color: 'var(--primary)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: '0.9rem',
+                        flexShrink: 0,
+                        overflow: 'hidden'
+                      }}>
+                        {settings.store_logo_url ? (
+                          <img src={settings.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <span>{(settings.store_title || storeSlug || 'K').charAt(0).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {settings.store_title || storeSlug || 'Katalog'}
+                          </span>
+                          <ChevronDown size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </div>
+                        <span style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 800,
+                          color: isPro ? 'var(--primary)' : 'var(--text-muted)',
+                          letterSpacing: '0.03em',
+                          textTransform: 'uppercase'
+                        }}>
+                          {planName} {userStores.length > 1 ? `• ${userStores.length} Toko` : ''}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Right Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="header-more-btn"
+                        onClick={handleShareStore}
+                        title="Bagikan Tautan Katalog"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Share2 size={17} style={{ color: 'var(--primary)' }} />
+                      </button>
+                      <button
+                        type="button"
+                        className="header-more-btn"
+                        onClick={() => {
+                          setAdminSubTab('notifications');
+                          if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications`);
+                        }}
+                        style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Notifikasi"
+                      >
+                        <Bell size={17} style={{ color: 'var(--text-secondary)' }} />
+                        {unreadCount > 0 && (
+                          <span style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--danger, #ef4444)'
+                          }} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="header-more-btn"
+                        onClick={handleLogout}
+                        title="Keluar / Logout"
+                        style={{ color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <LogOut size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Standard Store Header (Shown on Store Catalog, About, Articles, etc.)
               const titleText = settings.store_title || 'Catavor';
               const scale = getMobileHeaderScale(titleText);
               return (
@@ -13003,14 +13387,26 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <button
-                      type="button"
-                      className="header-more-btn"
-                      onClick={() => setActionMenuData({ type: 'store' })}
-                      title="Menu & Opsi Katalog"
-                    >
-                      <MoreVertical size={18} style={{ color: 'var(--primary)' }} />
-                    </button>
+                    {activeTab === 'admin' ? (
+                      <button
+                        type="button"
+                        className="header-more-btn"
+                        onClick={handleShareStore}
+                        title="Bagikan Tautan Katalog"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Share2 size={18} style={{ color: 'var(--primary)' }} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="header-more-btn"
+                        onClick={() => setActionMenuData({ type: 'store' })}
+                        title="Menu & Opsi Katalog"
+                      >
+                        <MoreVertical size={18} style={{ color: 'var(--primary)' }} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -14520,182 +14916,151 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             /* ADMIN DASHBOARD (MOBILE - LOGGED IN & PASSWORD CHANGED) */
             <div className="animate-fade-in" style={{ marginTop: '1rem' }}>
               {adminSubTab === 'menu' && (
-                /* SIMPLIFIED NATIVE MOBILE ADMIN DASHBOARD */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {/* Top Profile Card - Expert Refined Layout */}
+                /* CLEAN NATIVE MOBILE MERCHANT ADMIN DASHBOARD */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  
+                  {/* 1. Hero Merchant Profile & Store Status Card */}
                   <div 
                     className="glass-panel animate-fade-in" 
                     style={{ 
-                      padding: '1.15rem', 
-                      borderRadius: '1.15rem', 
+                      padding: '1rem', 
+                      borderRadius: '1rem', 
                       border: '1px solid var(--border-light)', 
                       background: 'var(--card-bg-gradient)', 
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.85rem'
+                      gap: '0.75rem'
                     }}
                   >
-                    {/* Row 1: Avatar + Greeting + Icon Action Buttons */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', width: '100%' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          width: '46px',
-                          height: '46px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-                          padding: '2px',
-                          boxShadow: '0 0 12px var(--primary-glow)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          {settings.store_logo_url ? (
-                            <img 
-                              src={settings.store_logo_url} 
-                              alt="Logo" 
-                              style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', background: 'var(--bg-card)' }}
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontWeight: 800, fontSize: '1.15rem' }}>
-                              {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}
-                            </div>
-                          )}
-                        </div>
-
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Selamat Datang</span>
-                          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Halo, {(adminUser?.name || 'Admin').trim().split(' ')[0]}
-                          </h2>
-                        </div>
+                    {/* Greeting & Quick Store Switcher Trigger */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                          Selamat Datang
+                        </span>
+                        <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Halo, {(adminUser?.name || 'Merchant').trim().split(' ')[0]} 👋
+                        </h2>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchMyStores();
+                          setShowStoreSwitcherModal(true);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          backgroundColor: 'var(--primary-glow)',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                      >
+                        <Layers size={13} />
+                        <span>{userStores.length > 1 ? `${userStores.length} Toko` : 'Ganti'} ▾</span>
+                      </button>
+                    </div>
 
-                      {/* Clean Icon Action Buttons */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-                        <button 
+                    {/* Live Store Link Bar with Direct Copy & Preview */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.45rem 0.65rem',
+                      borderRadius: '0.6rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      fontSize: '0.72rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, overflow: 'hidden' }}>
+                        <Globe size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          catavor.com/{storeSlug || getStoreSlug()}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        <button
                           type="button"
-                          onClick={handleLogout}
-                          style={{ 
-                            background: 'rgba(239, 68, 68, 0.12)', 
-                            border: '1px solid rgba(239, 68, 68, 0.25)', 
-                            borderRadius: '50%', 
-                            width: '38px',
-                            height: '38px',
-                            cursor: 'pointer', 
-                            color: '#f87171', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
+                          onClick={() => {
+                            const url = `${window.location.origin}/${storeSlug || getStoreSlug()}`;
+                            navigator.clipboard.writeText(url);
+                            showToast('Link toko berhasil disalin!', 'success');
                           }}
-                          title="Keluar / Logout"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--primary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.2rem',
+                            fontWeight: 700,
+                            fontSize: '0.68rem',
+                            padding: '0.15rem 0.35rem'
+                          }}
+                          title="Salin Link Katalog"
                         >
-                          <LogOut size={16} />
+                          <Copy size={12} /> Salin
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('catalog');
+                            window.history.pushState({}, '', `/${storeSlug || getStoreSlug()}`);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.2rem',
+                            fontWeight: 700,
+                            fontSize: '0.68rem',
+                            padding: '0.15rem 0.35rem'
+                          }}
+                          title="Lihat Pratinjau Toko"
+                        >
+                          <ExternalLink size={12} /> Lihat ↗
                         </button>
                       </div>
                     </div>
 
-                    {/* Active Store Switcher Trigger Button */}
-                    <div 
-                      onClick={() => {
-                        fetchMyStores();
-                        setShowStoreSwitcherModal(true);
-                      }}
-                      style={{
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '0.55rem',
-                          backgroundColor: 'var(--primary-glow)',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.9rem',
-                          flexShrink: 0,
-                          overflow: 'hidden'
-                        }}>
-                          {settings.store_logo_url ? (
-                            <img src={settings.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <Layers size={18} />
-                          )}
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {settings.store_title || storeSlug || 'Katalog Saya'}
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            catavor.com/{storeSlug}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, paddingLeft: '0.5rem' }}>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-                          {userStores.length > 1 ? `${userStores.length} Katalog ▾` : 'Ganti Katalog ▾'}
+                    {/* Quota & Storage Compact Row (Fixed -1 Bug) */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingTop: '0.55rem',
+                      borderTop: '1px solid var(--border-light)',
+                      fontSize: '0.72rem',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Package size={13} style={{ color: 'var(--primary)' }} />
+                        <span>
+                          Produk: <strong style={{ color: 'var(--text-primary)' }}>{faunas.length}</strong> / {(storeQuota?.max_items === -1 || (storeQuota?.max_items || 0) < 0) ? '∞ (Tanpa Batas)' : (storeQuota?.max_items || 100)}
                         </span>
-                        <ChevronDown size={14} style={{ color: 'var(--text-secondary)' }} />
                       </div>
-                    </div>
-
-                    {/* Row 2: Status & Metric Metadata Bar */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
-                      {(() => {
-                        const planCode = storeQuota?.plan?.code || settings.plan || 'free';
-                        const planName = storeQuota?.plan?.name || (
-                          planCode === 'pro_business' ? 'Pro Bisnis' :
-                          planCode === 'pro_starter' ? 'Pro Starter' :
-                          planCode === 'pro' ? 'Pro' : 'Gratis'
-                        );
-                        const isPro = planCode === 'pro_business' || planCode === 'pro_starter' || planCode === 'pro';
-
-                        return (
-                          <span style={{ 
-                            fontSize: '0.62rem', 
-                            fontWeight: 900, 
-                            padding: '0.18rem 0.6rem', 
-                            borderRadius: '20px', 
-                            letterSpacing: '0.04em',
-                            textTransform: 'uppercase',
-                            backgroundColor: isPro ? 'var(--primary-glow)' : 'var(--bg-deep, rgba(255, 255, 255, 0.06))',
-                            color: isPro ? 'var(--primary)' : 'var(--text-secondary)',
-                            border: isPro ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            transition: 'all 0.2s ease'
-                          }}>
-                            {`PLAN ${planName}`}
-                          </span>
-                        );
-                      })()}
-
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                        {faunas.length} Data Terdaftar
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Database size={13} style={{ color: 'var(--text-secondary)' }} />
+                        <span>
+                          Storage: <strong style={{ color: 'var(--text-primary)' }}>{((storeQuota?.storage_used_bytes || 0) / (1024 * 1024)).toFixed(1)}</strong> MB
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Pending Pro Payment Verification Banner */}
+                  {/* Pending Approval / Promo Upgrade Card */}
                   {adminUser?.payment_status === 'pending_approval' && (
                     <div style={{ padding: '0.85rem 1rem', borderRadius: '0.85rem', background: 'var(--card-bg-gradient)', border: '1px solid rgba(245, 158, 11, 0.4)', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -14708,31 +15073,30 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                   )}
 
-                  {/* Premium Free Plan Upgrade Promo Card */}
                   {settings.plan === 'free' && (
                     <div 
                       className="glass-panel animate-fade-in" 
                       style={{ 
-                        padding: '1rem', 
+                        padding: '0.85rem 1rem', 
                         borderRadius: '0.85rem', 
                         border: '1px solid var(--border-light)', 
                         background: 'var(--card-bg-gradient)', 
                         display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '0.75rem',
-                        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.1)'
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1rem', boxShadow: '0 3px 10px rgba(245,158,11,0.4)', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1 }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.9rem', flexShrink: 0 }}>
                           ⚡
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                            Buka Fitur Unlimited <span style={{ color: 'var(--secondary)' }}>(Plan Pro)</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                            Buka Fitur Unlimited (Plan Pro)
                           </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.3, marginTop: '0.1rem' }}>
-                            Posting produk tanpa batas &amp; aktifkan Halaman Tentang Kami
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Item tanpa batas &amp; Halaman Tentang Kami
                           </div>
                         </div>
                       </div>
@@ -14741,16 +15105,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         type="button"
                         className="btn-warning"
                         style={{
-                          width: '100%',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.45rem',
-                          padding: '0.65rem 1rem',
-                          fontSize: '0.82rem',
+                          gap: '0.3rem',
+                          padding: '0.45rem 0.75rem',
+                          fontSize: '0.74rem',
                           fontWeight: 800,
                           borderRadius: '0.5rem',
-                          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.35)'
+                          flexShrink: 0
                         }}
                         onClick={() => {
                           setAdminSubTab('subscription');
@@ -14758,585 +15120,479 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
                         }}
                       >
-                        <Zap size={15} style={{ flexShrink: 0 }} />
-                        <span>Kelola &amp; Upgrade Paket Langganan</span>
+                        <Crown size={13} />
+                        <span>Kelola Paket</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Onboarding Banner: Lengkapi Pengaturan Halaman Tentang Kami */}
-                  {showAboutOnboarding && (
+                  {/* 2. Ringkasan Performa & Analitik Toko (Sleek Modern Snapshot) */}
+                  <div className="glass-panel" style={{
+                    padding: '0.95rem 1rem',
+                    borderRadius: '1rem',
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--card-bg-gradient)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}>
+                    {/* Header + Period Switcher + Link */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.6rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <TrendingUp size={16} style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Performa Toko
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.4rem', border: '1px solid var(--border-light)' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAnalyticsPeriod('7d');
+                              fetchAnalytics('7d');
+                            }}
+                            style={{
+                              padding: '0.15rem 0.45rem',
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              borderRadius: '0.3rem',
+                              border: 'none',
+                              backgroundColor: analyticsPeriod === '7d' ? 'var(--primary)' : 'transparent',
+                              color: analyticsPeriod === '7d' ? '#ffffff' : 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            7 Hari
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAnalyticsPeriod('30d');
+                              fetchAnalytics('30d');
+                            }}
+                            style={{
+                              padding: '0.15rem 0.45rem',
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              borderRadius: '0.3rem',
+                              border: 'none',
+                              backgroundColor: analyticsPeriod === '30d' ? 'var(--primary)' : 'transparent',
+                              color: analyticsPeriod === '30d' ? '#ffffff' : 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            30 Hari
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('analytics');
+                            if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/analytics`);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--primary)',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.2rem'
+                          }}
+                        >
+                          Detail ↗
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3 Metrics Clean Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.6rem 0.45rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Pengunjung</span>
+                        <strong style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+                          {analyticsData?.total_store_views ?? 0}
+                        </strong>
+                      </div>
+                      <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.6rem 0.45rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Lihat Item</span>
+                        <strong style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+                          {analyticsData?.top_products?.reduce((acc, p) => acc + (p.view_count || 0), 0) ?? 0}
+                        </strong>
+                      </div>
+                      <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.6rem 0.45rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.64rem', color: '#10b981', display: 'block', fontWeight: 600 }}>Klik Chat WA</span>
+                        <strong style={{ fontSize: '1rem', color: '#10b981', fontWeight: 800 }}>
+                          {analyticsData?.total_wa_clicks ?? 0}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* Lead Conversion Pill */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--primary-glow)', padding: '0.4rem 0.65rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', fontSize: '0.7rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Tingkat Konversi Lead:</span>
+                      <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                        {(analyticsData?.conversion_rate_percent ?? 0).toFixed(1)}% Pengunjung Chat WA
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. MENU & FITUR TOKO (Clean, Native Mobile Standard) */}
+                  <div className="glass-panel" style={{
+                    padding: '0.95rem 1rem',
+                    borderRadius: '1rem',
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--card-bg-gradient)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}>
                     <div style={{
-                      padding: '1rem 1.1rem',
-                      borderRadius: '0.9rem',
-                      background: 'var(--card-bg-gradient)',
-                      border: '1px solid var(--border-light)',
-                      borderLeft: '4px solid var(--primary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.8rem',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.75rem',
-                      marginBottom: '1rem',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 16px var(--primary-glow)',
-                      backdropFilter: 'blur(10px)',
-                      position: 'relative',
-                      overflow: 'hidden'
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderBottom: '1px solid var(--border-light)',
+                      paddingBottom: '0.55rem'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
+                        MENU &amp; FITUR TOKO
+                      </span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        8 Fitur Pintar
+                      </span>
+                    </div>
+
+                    {/* Modern Clean 4-Column Grid */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: '0.75rem 0.35rem'
+                    }}>
+                      {/* 1. Inventaris */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('items');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
                         <div style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '10px',
-                          backgroundColor: 'var(--primary-glow)',
-                          border: '1px solid var(--primary)',
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <Layers size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Inventaris
+                        </span>
+                      </button>
+
+                      {/* 2. Analitik */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('analytics');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/analytics`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <TrendingUp size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Analitik
+                        </span>
+                      </button>
+
+                      {/* 3. Langganan */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('subscription');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <Crown size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Langganan
+                        </span>
+                      </button>
+
+                      {/* 4. Tema Toko */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('settings');
+                          setMobileSettingsTab('theme');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/theme`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <Palette size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Tema Toko
+                        </span>
+                      </button>
+
+                      {/* 5. Pengaturan */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('settings');
+                          setMobileSettingsTab('menu');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <Settings size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Pengaturan
+                        </span>
+                      </button>
+
+                      {/* 6. Notifikasi */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('notifications');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           color: 'var(--primary)',
-                          flexShrink: 0,
-                          boxShadow: '0 2px 8px var(--primary-glow)'
+                          position: 'relative'
                         }}>
-                          <Sparkles size={18} />
+                          <Bell size={20} />
+                          {unreadCount > 0 && (
+                            <span style={{
+                              position: 'absolute',
+                              top: '-2px',
+                              right: '-2px',
+                              minWidth: '16px',
+                              height: '16px',
+                              borderRadius: '8px',
+                              backgroundColor: 'var(--danger, #ef4444)',
+                              color: '#ffffff',
+                              fontSize: '0.58rem',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 3px'
+                            }}>
+                              {unreadCount}
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.88rem', fontWeight: 800, marginBottom: '0.2rem' }}>
-                            ✨ Selamat Datang di Catavor!
-                          </strong>
-                          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: 1.4 }}>
-                            Lengkapi informasi Halaman Tentang Kami (Alamat, Jam Operasional, &amp; Profil Komitmen) agar halaman katalog terlihat profesional.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() => {
-                            setAdminSubTab('settings');
-                            setMobileSettingsTab('about');
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: '0.5rem 0.85rem',
-                            borderRadius: '0.6rem',
-                            fontSize: '0.76rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.35rem'
-                          }}
-                        >
-                          <Sparkles size={14} /> Lengkapi Sekarang
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => dismissAboutOnboarding()}
-                          style={{
-                            padding: '0.5rem 0.75rem',
-                            borderRadius: '0.6rem',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Nanti Saja
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 4-COLUMN APP-STYLE QUICK GRID (Modern Mobile Merchant Hub) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div className="glass-panel" style={{
-                      padding: '1rem 0.65rem 0.85rem',
-                      borderRadius: '1rem',
-                      border: '1px solid var(--border-light)',
-                      background: 'var(--card-bg-gradient)',
-                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0 0.5rem 0.75rem',
-                        marginBottom: '0.65rem',
-                        borderBottom: '1px solid var(--border-light)'
-                      }}>
-                        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
-                          PENGELOLAAN KATALOG
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Notifikasi
                         </span>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                          8 Menu Pintas
+                      </button>
+
+                      {/* 7. Bantuan */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('help');
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <HelpCircle size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Bantuan
                         </span>
-                      </div>
+                      </button>
 
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
-                        gap: '0.9rem 0.35rem'
-                      }}>
-                        {/* 1. Inventaris */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('items');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <Layers size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Inventaris
-                          </span>
-                        </button>
-
-                        {/* 2. Kategori */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('items');
-                            setShowAdminFilterSheet(true);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <Database size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Kategori
-                          </span>
-                        </button>
-
-                        {/* 3. Notifikasi */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('notifications');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            position: 'relative',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            position: 'relative',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <Bell size={21} />
-                            {unreadCount > 0 && (
-                              <span style={{
-                                position: 'absolute',
-                                top: '-3px',
-                                right: '-3px',
-                                minWidth: '17px',
-                                height: '17px',
-                                borderRadius: '9px',
-                                backgroundColor: 'var(--danger, #ef4444)',
-                                color: '#ffffff',
-                                fontSize: '0.6rem',
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '0 3px',
-                                border: '2px solid var(--bg-card)',
-                                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
-                              }}>
-                                {unreadCount}
-                              </span>
-                            )}
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Notifikasi
-                          </span>
-                        </button>
-
-                        {/* 4. Langganan */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('subscription');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <Crown size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Langganan
-                          </span>
-                        </button>
-
-                        {/* 5. Tema Visual */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('settings');
-                            setMobileSettingsTab('theme');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/theme`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <Palette size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Tema Toko
-                          </span>
-                        </button>
-
-                        {/* 6. Pengaturan */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('settings');
-                            setMobileSettingsTab('menu');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <Settings size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Pengaturan
-                          </span>
-                        </button>
-
-                        {/* 7. Bantuan */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('help');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <HelpCircle size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Bantuan
-                          </span>
-                        </button>
-
-                        {/* 8. Legal */}
-                        <button
-                          type="button"
-                          onClick={() => { 
-                            setAdminSubTab('policies'); 
-                            fetchPolicies(); 
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
-                          }}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            WebkitTapHighlightColor: 'transparent',
-                            touchAction: 'manipulation'
-                          }}
-                        >
-                          <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--primary)',
-                            boxShadow: '0 2px 8px var(--primary-glow)',
-                            transition: 'transform 0.15s ease'
-                          }}>
-                            <ShieldCheck size={21} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2, maxWidth: '68px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Legal
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* COMPACT STORE OPERATIONAL STATUS CARD */}
-                    <div className="glass-panel" style={{
-                      padding: '0.9rem 1rem',
-                      borderRadius: '0.9rem',
-                      border: '1px solid var(--border-light)',
-                      background: 'var(--card-bg-gradient)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.75rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                          <Package size={15} style={{ color: 'var(--primary)' }} />
-                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Status &amp; Kapasitas Toko
-                          </span>
+                      {/* 8. Legal */}
+                      <button
+                        type="button"
+                        onClick={() => { 
+                          setAdminSubTab('policies'); 
+                          fetchPolicies(); 
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <ShieldCheck size={20} />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdminSubTab('subscription');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
-                          }}
-                          style={{
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                            color: 'var(--primary)',
-                            backgroundColor: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '0.4rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Kelola Paket &rarr;
-                        </button>
-                      </div>
-
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '0.6rem',
-                        backgroundColor: 'rgba(0, 0, 0, 0.15)',
-                        padding: '0.65rem 0.75rem',
-                        borderRadius: '0.65rem',
-                        border: '1px solid var(--border-light)'
-                      }}>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block' }}>Kapasitas Item</span>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {faunas.length} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>/ {storeQuota?.max_items || 100}</span>
-                          </span>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block' }}>Cloud Storage</span>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {((storeQuota?.storage_used_bytes || 0) / (1024 * 1024)).toFixed(1)} <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>MB</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid var(--border-light)',
-                        fontSize: '0.72rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, overflow: 'hidden' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Link:</span>
-                          <span style={{ color: 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            catavor.com/{storeSlug || getStoreSlug()}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const url = `${window.location.origin}/${storeSlug || getStoreSlug()}`;
-                            navigator.clipboard.writeText(url);
-                            showToast('Link toko berhasil disalin!');
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            fontWeight: 700,
-                            fontSize: '0.7rem',
-                            flexShrink: 0
-                          }}
-                        >
-                          <Copy size={12} /> Salin
-                        </button>
-                      </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Legal
+                        </span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -15915,7 +16171,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               }}>PRO</span>
                             </div>
                             <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
-                              {storeQuota?.custom_domain ? storeQuota.custom_domain : 'Hubungkan domain toko.com Anda'}
+                              {storeQuota?.custom_domain ? storeQuota.custom_domain : 'Hubungkan domain kustom Anda (brand.com)'}
                             </p>
                           </div>
                           <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
@@ -16238,7 +16494,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                               Belum Ada Tautan Media Sosial Resmi
                                             </h4>
                                             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                                              Hubungkan akun Instagram, TikTok, Facebook, YouTube, atau WhatsApp toko Anda agar pengunjung mudah terhubung.
+                                              Hubungkan akun Instagram, TikTok, Facebook, YouTube, atau WhatsApp resmi Anda agar pengunjung mudah terhubung.
                                             </p>
                                           </div>
                                           <button
@@ -16538,7 +16794,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               }}>PRO</span>
                             </div>
                             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                              Gunakan nama domain toko Anda sendiri (contoh: <code>tokosaya.com</code> atau <code>katalog.brand.com</code>).
+                              Gunakan nama domain kustom Anda sendiri (contoh: <code>brandanda.com</code> atau <code>katalog.brand.com</code>).
                             </p>
                           </div>
 
@@ -16548,7 +16804,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               <input
                                 type="text"
                                 className="form-input"
-                                placeholder="Contoh: tokosaya.id atau katalog.brand.com"
+                                placeholder="Contoh: brandanda.id atau katalog.brand.com"
                                 value={customDomainInput}
                                 onChange={(e) => setCustomDomainInput(e.target.value)}
                                 style={{ width: '100%', fontSize: '0.82rem' }}
@@ -16653,7 +16909,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               </span>
                             </div>
                             <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                              Kelola Kategori &amp; Opsi Toko
+                              Kelola Kategori &amp; Opsi Katalog
                             </h3>
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', margin: '0.25rem 0 0.75rem 0', lineHeight: 1.4 }}>
                               Atur kategori dan opsi dropdown katalog Anda secara independen.
@@ -18282,6 +18538,35 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
               )}
 
+              {adminSubTab === 'analytics' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
+                  <AnalyticsPage
+                    analyticsData={analyticsData}
+                    loading={analyticsLoading}
+                    period={analyticsPeriod}
+                    onPeriodChange={(p) => {
+                      setAnalyticsPeriod(p);
+                      fetchAnalytics(p);
+                    }}
+                    onRefresh={() => fetchAnalytics(analyticsPeriod)}
+                    storeSlug={storeSlug || ''}
+                    storeTitle={settings.store_title}
+                    isMobile={true}
+                    onBackToMenu={() => {
+                      setAdminSubTab('menu');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                    }}
+                    onViewProduct={(pId) => {
+                      const prod = faunas.find((f: any) => f.id === pId);
+                      if (prod) {
+                        setSelectedFauna(prod);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+
               {adminSubTab === 'subscription' && (
                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
                   <SubscriptionPage
@@ -18302,6 +18587,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       const slug = getStoreSlug();
                       if (slug) window.history.pushState({}, '', `/${slug}/admin`);
                     }}
+                  />
+                </div>
+              )}
+
+              {adminSubTab === 'share' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
+                  <QRCodeMobileSubPage
+                    onBack={() => {
+                      setAdminSubTab('menu');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                    }}
+                    storeSlug={storeSlug || ''}
+                    storeTitle={settings.store_title}
+                    storeLogoUrl={settings.store_logo_url}
+                    storeSlogan={settings.about_slogan || settings.store_slogan}
+                    onToast={showToast}
                   />
                 </div>
               )}
@@ -18472,7 +18774,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <button 
                 type="button"
                 className={`nav-item ${adminSubTab === 'settings' ? 'active' : ''}`}
-                onClick={() => setAdminSubTab('settings')}
+                onClick={() => {
+                  setAdminSubTab('settings');
+                  setMobileSettingsTab('menu');
+                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/settings`);
+                }}
               >
                 <Settings size={20} />
                 <span>Pengaturan</span>
@@ -19463,7 +19769,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
 
             <p style={{ fontSize: '0.78rem', color: '#cbd5e1', marginBottom: '0.85rem', lineHeight: 1.4 }}>
-              Template ini akan menyusun ulang opsi kategori toko bawaan sesuai standar <strong>{presetModalData.title}</strong>:
+              Template ini akan menyusun ulang opsi kategori katalog bawaan sesuai standar <strong>{presetModalData.title}</strong>:
             </p>
 
             <div style={{ marginBottom: '1rem' }}>

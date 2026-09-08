@@ -114,7 +114,10 @@ import {
   MoreHorizontal,
   Crown,
   Flag,
-  LayoutDashboard
+  LayoutDashboard,
+  BarChart3,
+  TrendingUp,
+  MousePointerClick
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -122,6 +125,7 @@ import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput, parseVideoUrl } from './components/VideoEmbed'
 import { SubscriptionModal, SubscriptionPage, QuotaDashboardWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
+import { AnalyticsPage, type DetailedAnalyticsData } from './components/AnalyticsPage'
 
 export interface UserStoreSummary {
   id: number;
@@ -138,16 +142,45 @@ export interface UserStoreSummary {
 
 
 // Top-level Store Slug Resolver (Accessible before component mount)
-function getStoreSlug(): string | null {
+export function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
   
   if (parts.length === 0) return null;
   if (reservedPortal.includes(parts[0])) return null;
   
   return parts[0];
+}
+
+export function resolveActiveStoreSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  const fromUrl = getStoreSlug();
+  if (fromUrl) return fromUrl;
+  try {
+    const savedActive = localStorage.getItem('catavor_active_slug');
+    if (savedActive) return savedActive;
+  } catch {}
+  try {
+    const userRaw = localStorage.getItem('catavor_user');
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      if (u.store_slug) return u.store_slug;
+      if (u.active_store?.slug) return u.active_store.slug;
+      if (u.username) return u.username;
+    }
+  } catch {}
+  try {
+    const storesRaw = localStorage.getItem('catavor_stores');
+    if (storesRaw) {
+      const s = JSON.parse(storesRaw);
+      if (Array.isArray(s) && s.length > 0 && s[0]?.slug) {
+        return s[0].slug;
+      }
+    }
+  } catch {}
+  return null;
 }
 
 // Fast Base64 Logo Cacher & Resolver for 0ms Instant Rendering
@@ -3056,7 +3089,7 @@ export function parseWAContacts(raw: string | null | undefined): WAContactItem[]
   }];
 }
 
-export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber: string | null | undefined }) {
+export function WhatsAppContactsCard({ rawWhatsappNumber, onTrackClick }: { rawWhatsappNumber: string | null | undefined; onTrackClick?: () => void }) {
   const contacts = useMemo(() => parseWAContacts(rawWhatsappNumber), [rawWhatsappNumber]);
 
   if (contacts.length === 0) return null;
@@ -3069,6 +3102,7 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
         href={`https://wa.me/${cleanNum}`}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() => onTrackClick?.()}
         style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -3137,6 +3171,7 @@ export function WhatsAppContactsCard({ rawWhatsappNumber }: { rawWhatsappNumber:
               href={`https://wa.me/${cleanNum}`}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => onTrackClick?.()}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -4703,7 +4738,7 @@ function App() {
 
   // Navigation: 'catalog' or 'admin'
   const [view, setView] = useState<'catalog' | 'admin'>('catalog')
-  const [adminTab, setAdminTab] = useState<'items' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription'>('items')
+  const [adminTab, setAdminTab] = useState<'items' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription'>('items')
 
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
@@ -4934,6 +4969,84 @@ function App() {
       fetchMyStores();
     }
   }, [token]);
+
+  // Analytics & Traffic Telemetry States (Desktop)
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+  const [analyticsData, setAnalyticsData] = useState<DetailedAnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+
+  const fetchAnalytics = async (period: '7d' | '30d' | '90d' = analyticsPeriod) => {
+    const currentToken = token || localStorage.getItem('catavor_token');
+    const currentSlug = storeSlug || getStoreSlug() || (adminUser as any)?.store_slug;
+    if (!currentToken || !currentSlug) return;
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/analytics?period=${period}`, {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'X-Store-Slug': currentSlug,
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setAnalyticsData(data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const trackAnalytics = async (
+    eventType: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view' | 'wa_click' | 'product_wa_click',
+    productId?: number,
+    productType?: string,
+    metadata?: Record<string, any>
+  ) => {
+    const currentSlug = storeSlug || getStoreSlug();
+    if (!currentSlug) return;
+    try {
+      await fetch(`${API_BASE}/analytics/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          store_slug: currentSlug,
+          event: eventType,
+          product_id: productId || 0,
+          product_type: productType,
+          metadata
+        })
+      });
+    } catch (err) {
+      // Telemetry should be non-blocking
+    }
+  };
+
+  // Telemetry & Analytics Triggers
+  useEffect(() => {
+    const currentToken = token || localStorage.getItem('catavor_token');
+    if (view === 'admin' && currentToken) {
+      fetchAnalytics(analyticsPeriod);
+    }
+  }, [view, adminTab, storeSlug, token, analyticsPeriod]);
+
+  useEffect(() => {
+    if (view === 'catalog' && storeSlug && !isStoreOwner) {
+      trackAnalytics('store_view');
+    }
+  }, [view, storeSlug, isStoreOwner]);
+
+  useEffect(() => {
+    if (selectedFauna?.id && !isStoreOwner) {
+      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type);
+    }
+  }, [selectedFauna?.id, isStoreOwner]);
 
   const handleSwitchStore = async (targetSlug: string) => {
     if (!token || !targetSlug) return;
@@ -5579,6 +5692,10 @@ function App() {
           } else if (pageSub === 'profile') setAdminTab('profile');
           else if (pageSub === 'policies') setAdminTab('policies');
           else if (pageSub === 'notifications') setAdminTab('notifications');
+          else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik' || pageSub === 'trafik') {
+            setAdminTab('analytics');
+            fetchAnalytics(analyticsPeriod);
+          }
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
             setAdminTab('help');
@@ -5595,6 +5712,8 @@ function App() {
               const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
               if (found) setSelectedTicket(found);
             }
+          } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
+            setShowQRModal(true);
           } else setAdminTab('items');
         } else if (sub === 'about') {
           setView('catalog');
@@ -5638,6 +5757,10 @@ function App() {
           } else if (pageSub === 'profile') setAdminTab('profile');
           else if (pageSub === 'policies') setAdminTab('policies');
           else if (pageSub === 'notifications') setAdminTab('notifications');
+          else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik' || pageSub === 'trafik') {
+            setAdminTab('analytics');
+            fetchAnalytics(analyticsPeriod);
+          }
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
             setAdminTab('help');
@@ -5777,6 +5900,10 @@ function App() {
             } else if (pageSub === 'notifications') {
               setAdminTab('notifications');
               setView('admin');
+            } else if (pageSub === 'analytics' || pageSub === 'statistik' || pageSub === 'trafik') {
+              setAdminTab('analytics');
+              setView('admin');
+              fetchAnalytics(analyticsPeriod);
             } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
               setAdminTab('subscription');
               setView('admin');
@@ -5796,6 +5923,9 @@ function App() {
                 const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
                 if (found) setSelectedTicket(found);
               }
+            } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
+              setShowQRModal(true);
+              setView('admin');
             } else {
               setAdminTab('items');
               setView('admin');
@@ -6185,12 +6315,10 @@ function App() {
 
   // Share store link (direct to Share / QR modal)
   const handleShareStore = () => {
-    setView('catalog');
-    setActivePublicTab('about');
     setShowQRModal(true);
     const slug = storeSlug || getStoreSlug();
     if (slug) {
-      window.history.pushState({}, '', `/${slug}/about/share`);
+      window.history.pushState({}, '', view === 'admin' ? `/${slug}/admin/share` : `/${slug}/about/share`);
     }
   };
 
@@ -6254,6 +6382,8 @@ function App() {
         targetPath += `/admin/policies`;
       } else if (adminTab === 'notifications') {
         targetPath += `/admin/notifications`;
+      } else if (adminTab === 'analytics') {
+        targetPath += `/admin/analytics`;
       } else if (adminTab === 'subscription') {
         targetPath += `/admin/subscription`;
       } else if (adminTab === 'help') {
@@ -6261,6 +6391,8 @@ function App() {
         if (selectedTicket) {
           params.set('ticket', selectedTicket.id.toString());
         }
+      } else if (showQRModal) {
+        targetPath += `/admin/share`;
       } else {
         targetPath += `/admin/items`;
       }
@@ -7093,7 +7225,7 @@ function App() {
           document.documentElement.setAttribute('data-theme', updated.store_theme);
           document.body.setAttribute('data-theme', updated.store_theme);
         }
-        showToast('Pengaturan toko Anda berhasil disimpan!')
+        showToast('Pengaturan katalog Anda berhasil disimpan!')
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -7202,7 +7334,7 @@ function App() {
       const data = await res.json()
       if (res.ok && data.success) {
         setSettingsForm(prev => ({ ...prev, store_logo_url: data.url }))
-        showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo toko.')
+        showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo katalog.')
       } else {
         showToast(data.message || 'Gagal mengunggah gambar logo.', 'error')
       }
@@ -7636,7 +7768,7 @@ function App() {
       const data = await res.json()
       if (!checkAuthResponse(res, data)) return
       if (res.ok && data.success) {
-        showToast('Template preset industri berhasil diterapkan ke katalog toko!')
+        showToast('Template preset industri berhasil diterapkan ke profil katalog!')
         setPresetModalData(null)
         loadData()
       } else {
@@ -10526,7 +10658,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                           window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
                         } else {
-                          alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan toko.');
+                          alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
                         }
                         return;
                       }
@@ -10660,35 +10792,67 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                   );
                 })()}
-                <button
-                  type="button"
-                  onClick={() => setActionMenuData({ type: 'store' })}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    transition: 'all 0.2s',
-                    lineHeight: 1
-                  }}
-                  title="Menu & Opsi Katalog"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--primary)';
-                    e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <MoreVertical size={18} />
-                </button>
+                {view === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={handleShareStore}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      transition: 'all 0.2s',
+                      lineHeight: 1
+                    }}
+                    title="Bagikan Katalog"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--primary)';
+                      e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Share2 size={18} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActionMenuData({ type: 'store' })}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      transition: 'all 0.2s',
+                      lineHeight: 1
+                    }}
+                    title="Menu & Opsi Katalog"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--primary)';
+                      e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <MoreVertical size={18} />
+                  </button>
+                )}
               </div>
             </div>
             <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -10911,24 +11075,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                     </div>
                   )}
-
-
-
-                  <QRCodeModal 
-                    isOpen={showQRModal} 
-                    onClose={() => {
-                      setShowQRModal(false);
-                      const slug = storeSlug || getStoreSlug();
-                      if (slug) {
-                        window.history.pushState({}, '', `/${slug}/about`);
-                      }
-                    }} 
-                    storeSlug={storeSlug || ''} 
-                    storeTitle={settings.store_title}
-                    storeLogoUrl={settings.store_logo_url}
-                    storeSlogan={settings.about_slogan || settings.store_slogan}
-                    onToast={showToast} 
-                  />
 
                   {/* Hubungi Kami Section (100% Hidden if all 5 contact channels are empty) */}
                   {hasAnyContactChannel && (
@@ -12151,10 +12297,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                     <div>
                       <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.95rem', fontWeight: 800, marginBottom: '0.2rem' }}>
-                        ✨ Selamat Datang di Catavor! Lengkapi Informasi Toko Anda
+                        ✨ Selamat Datang di Catavor! Lengkapi Informasi Katalog Anda
                       </strong>
                       <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.45 }}>
-                        Agar katalog digital Anda terlihat lebih profesional dan terpercaya bagi pengunjung, mari lengkapi informasi Halaman Tentang Kami (Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan).
+                        Agar katalog digital Anda terlihat lebih profesional dan terpercaya bagi pengunjung, mari lengkapi informasi Halaman Tentang Kami (Lokasi / Alamat, Jam Operasional, dan Profil Komitmen Layanan).
                       </p>
                     </div>
                   </div>
@@ -12287,6 +12433,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <span>Daftar Item Katalog</span>
                 </button>
                 <button 
+                  className={`admin-tab ${adminTab === 'analytics' ? 'active' : ''}`}
+                  onClick={() => {
+                    setAdminTab('analytics');
+                    const slug = getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/analytics`);
+                    fetchAnalytics(analyticsPeriod);
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                >
+                  <BarChart3 size={16} />
+                  <span>Statistik &amp; Trafik</span>
+                </button>
+                <button 
                   className={`admin-tab ${adminTab === 'subscription' ? 'active' : ''}`}
                   onClick={() => {
                     setAdminTab('subscription');
@@ -12333,7 +12492,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
                 >
                   <SlidersHorizontal size={16} />
-                  <span>Pengaturan Toko</span>
+                  <span>Pengaturan Katalog</span>
                 </button>
                 <button 
                   className={`admin-tab ${adminTab === 'profile' ? 'active' : ''}`}
@@ -12888,6 +13047,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 )
               )}
 
+              {adminTab === 'analytics' && (
+                <AnalyticsPage
+                  analyticsData={analyticsData}
+                  loading={analyticsLoading}
+                  period={analyticsPeriod}
+                  onPeriodChange={(p) => {
+                    setAnalyticsPeriod(p);
+                    fetchAnalytics(p);
+                  }}
+                  onRefresh={() => fetchAnalytics(analyticsPeriod)}
+                  storeSlug={storeSlug || undefined}
+                  storeTitle={settings.store_title}
+                  isMobile={false}
+                  onViewProduct={(pId) => fetchDetails(pId)}
+                />
+              )}
+
               {adminTab === 'settings' && (
                 <>
                   {/* Desktop Settings Sub-Tab Pills (5 Pillars Structure) */}
@@ -13332,7 +13508,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                             Belum Ada Tautan Media Sosial Resmi
                                           </h4>
                                           <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                                            Klik tombol di samping untuk menambah akun Instagram, TikTok, Facebook, YouTube, atau saluran resmi toko Anda.
+                                            Klik tombol di samping untuk menambah akun Instagram, TikTok, Facebook, YouTube, atau saluran resmi katalog Anda.
                                           </p>
                                         </div>
                                       </div>
@@ -13638,7 +13814,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <Globe size={18} style={{ color: 'var(--primary)' }} />
                           </div>
                           <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                            Konfigurasi Custom Domain Toko
+                            Konfigurasi Custom Domain Katalog
                           </h3>
                           <span style={{
                             fontSize: '0.65rem',
@@ -13652,7 +13828,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </span>
                         </div>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                          Gunakan domain Anda sendiri (misal: <code>tokosaya.com</code> atau <code>katalog.brand.com</code>) sebagai alamat website resmi katalog Anda.
+                          Gunakan domain kustom Anda sendiri (misal: <code>brandanda.com</code> atau <code>katalog.brand.com</code>) sebagai alamat website resmi katalog Anda.
                         </p>
                       </div>
 
@@ -13663,7 +13839,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <input
                               type="text"
                               className="form-input"
-                              placeholder="Contoh: tokosaya.com atau shop.brand.com"
+                              placeholder="Contoh: brandanda.com atau katalog.brand.com"
                               value={customDomainInput}
                               onChange={(e) => setCustomDomainInput(e.target.value)}
                               style={{ flex: 1, fontSize: '0.88rem' }}
@@ -13786,11 +13962,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 TWO-TIER MASTER DATA
                               </span>
                               <h3 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 800, color: 'var(--text-primary)' }}>
-                                Kelola Master Data &amp; Kategori Toko
+                                Kelola Master Data &amp; Kategori Katalog
                               </h3>
                             </div>
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0.35rem 0 0 0' }}>
-                              Atur daftar kategori, sub-klasifikasi, status ketersediaan, dan jangkauan layanan secara terisolasi untuk toko Anda.
+                              Atur daftar kategori, sub-klasifikasi, status ketersediaan, dan jangkauan layanan secara terisolasi untuk katalog Anda.
                             </p>
                           </div>
                         </div>
@@ -13888,7 +14064,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 <Package size={16} style={{ color: 'var(--primary)' }} /> Master Kategori Item
                               </h4>
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-                                Pengelompokan kategori etalase per konteks produk toko Anda.
+                                Pengelompokan kategori etalase per konteks item katalog Anda.
                               </p>
                             </div>
                             <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
@@ -14219,7 +14395,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 <Truck size={16} style={{ color: '#3b82f6' }} /> Jangkauan Pengiriman &amp; Layanan
                               </h4>
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-                                Opsi cakupan kurir, on-site, atau delivery toko.
+                                Opsi cakupan kurir, on-site, atau pengantaran langsung.
                               </p>
                             </div>
                             <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
@@ -15439,7 +15615,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                     </div>
                   )}
-
                 </div>
               )}
 
@@ -17354,7 +17529,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             </div>
 
             <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '1rem', lineHeight: 1.5 }}>
-              Template ini akan menyusun ulang opsi kategori toko bawaan sesuai dengan standar industri <strong>{presetModalData.title}</strong>:
+              Template ini akan menyusun ulang opsi kategori katalog bawaan sesuai dengan standar industri <strong>{presetModalData.title}</strong>:
             </p>
 
             <div style={{ marginBottom: '1.25rem' }}>
@@ -17373,7 +17548,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             <div style={{ padding: '0.75rem', borderRadius: '0.6rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '1.25rem', display: 'flex', gap: '0.5rem' }}>
               <CheckCircle2 size={16} style={{ color: '#34d399', flexShrink: 0, marginTop: '2px' }} />
               <span style={{ fontSize: '0.75rem', color: '#6ee7b7', lineHeight: 1.4 }}>
-                Item katalog yang sudah ada di toko Anda tidak akan dihapus atau hilang. Anda tetap dapat menambah atau mengubah kategori kapan saja.
+                Item katalog yang sudah ada di profil katalog Anda tidak akan dihapus atau hilang. Anda tetap dapat menambah atau mengubah kategori kapan saja.
               </span>
             </div>
 
@@ -17556,6 +17731,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackAnalytics('rekber_click', selectedFauna.id, selectedFauna.product_type)}
                           style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                         >
                           <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -17614,6 +17790,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type)}
                           style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                         >
                           <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -18434,6 +18611,25 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         </div>
       )}
+      <QRCodeModal 
+        isOpen={showQRModal} 
+        onClose={() => {
+          setShowQRModal(false);
+          const slug = storeSlug || getStoreSlug();
+          if (slug) {
+            if (view === 'admin') {
+              window.history.pushState({}, '', `/${slug}/admin`);
+            } else {
+              window.history.pushState({}, '', `/${slug}/about`);
+            }
+          }
+        }} 
+        storeSlug={storeSlug || ''} 
+        storeTitle={settings.store_title}
+        storeLogoUrl={settings.store_logo_url}
+        storeSlogan={settings.about_slogan || settings.store_slogan}
+        onToast={showToast} 
+      />
     </>
   )
 }

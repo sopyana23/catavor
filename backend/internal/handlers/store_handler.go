@@ -325,7 +325,11 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 }
 
 func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
-	slug := cleanSlug(c.Params("slug"))
+	slugParam := c.Params("slug")
+	if slugParam == "" {
+		slugParam = c.Query("slug")
+	}
+	slug := cleanSlug(slugParam)
 	if len(slug) < 3 {
 		return c.JSON(fiber.Map{
 			"available": false,
@@ -1061,8 +1065,9 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 }
 
 type SwitchStoreRequest struct {
-	Slug      string `json:"slug"`
-	StoreSlug string `json:"store_slug"`
+	Slug       string `json:"slug"`
+	StoreSlug  string `json:"store_slug"`
+	TargetSlug string `json:"target_slug"`
 }
 
 // SwitchStore issues a fresh token with claims pinned to target store
@@ -1077,7 +1082,10 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		})
 	}
 
-	targetSlug := strings.ToLower(strings.TrimSpace(req.Slug))
+	targetSlug := strings.ToLower(strings.TrimSpace(req.TargetSlug))
+	if targetSlug == "" {
+		targetSlug = strings.ToLower(strings.TrimSpace(req.Slug))
+	}
 	if targetSlug == "" {
 		targetSlug = strings.ToLower(strings.TrimSpace(req.StoreSlug))
 	}
