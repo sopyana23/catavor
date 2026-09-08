@@ -890,10 +890,18 @@ func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 		})
 	}
 
+	activeSlug := ""
+	if activeStore, ok := c.Locals("store").(*models.Store); ok && activeStore != nil {
+		activeSlug = activeStore.Slug
+	} else if len(stores) > 0 {
+		activeSlug = stores[0].Slug
+	}
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"stores":  result,
-		"data":    result,
+		"success":     true,
+		"stores":      result,
+		"data":        result,
+		"active_slug": activeSlug,
 	})
 }
 
