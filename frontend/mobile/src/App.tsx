@@ -4394,7 +4394,7 @@ function App() {
     {
       id: 'about_onboarding',
       title: '📋 Lengkapi Pengaturan Halaman Tentang Kami',
-      message: 'Lengkapi Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan Anda agar katalog terlihat profesional dan terpercaya.',
+      message: 'Lengkapi Alamat Bisnis, Jam Operasional, dan Profil Komitmen Layanan Anda agar katalog terlihat profesional dan terpercaya.',
       type: 'warning',
       timestamp: 'Baru saja',
       read: false,
@@ -4403,8 +4403,8 @@ function App() {
     },
     {
       id: 1,
-      title: 'Sistem Toko Siap',
-      message: 'Toko Anda telah berhasil dikonfigurasi dan siap melayani transaksi.',
+      title: 'Katalog Siap',
+      message: 'Katalog bisnis Anda telah berhasil dikonfigurasi dan siap melayani pelanggan.',
       type: 'system',
       timestamp: '5 menit lalu',
       time: '5 menit lalu',
@@ -4422,8 +4422,8 @@ function App() {
     },
     {
       id: 3,
-      title: 'Konfigurasi Toko',
-      message: 'Informasi profil toko, media sosial & logo dapat disesuaikan pada menu pengaturan.',
+      title: 'Konfigurasi Katalog',
+      message: 'Informasi profil bisnis, media sosial & logo dapat disesuaikan pada menu pengaturan.',
       type: 'system',
       timestamp: '3 jam lalu',
       time: '3 jam lalu',
@@ -4753,12 +4753,12 @@ function App() {
     }
     const errors: Record<string, string> = {};
     if (!registerForm.store_name || !registerForm.store_name.trim()) {
-      errors.store_name = 'Nama Toko / Bisnis wajib diisi.';
+      errors.store_name = 'Nama Katalog / Bisnis wajib diisi.';
     }
     if (!registerForm.store_slug || !registerForm.store_slug.trim()) {
-      errors.store_slug = 'Link Username Toko wajib diisi.';
+      errors.store_slug = 'Link Username Katalog wajib diisi.';
     } else if (registerForm.store_slug.length < 3) {
-      errors.store_slug = 'Link Username Toko minimal 3 karakter.';
+      errors.store_slug = 'Link Username Katalog minimal 3 karakter.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -7210,7 +7210,7 @@ function App() {
           setRegisterStep(2);
           setPortalTab('register');
           window.history.pushState({ tab: 'register', step: 2 }, '', '/register/step-2');
-          showToast('Otentikasi Google Berhasil! Silakan lengkapi Informasi Toko & Link Username Anda di Langkah 2.', 'info');
+          showToast('Otentikasi Google Berhasil! Silakan lengkapi Informasi Katalog & Link Username Anda di Langkah 2.', 'info');
         }
       } else {
         showToast(data.message || 'Gagal otentikasi Google SSO.', 'error');
@@ -7479,7 +7479,7 @@ function App() {
             newNotifs.push({
               id: Date.now() + 3,
               title: `⚡ Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
-              message: `Selamat! Paket ${planName} Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati postingan produk dan fitur toko eksklusif.`,
+              message: `Selamat! Paket ${planName} Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati postingan produk dan fitur katalog eksklusif.`,
               time: 'Baru saja',
               read: false,
               type: 'success'
@@ -7728,7 +7728,7 @@ function App() {
       })
       const data = await res.json()
       if (data.success) {
-        showToast('Selamat! Toko Anda telah berhasil di-upgrade ke Plan Pro (Unlimited)!')
+        showToast('Selamat! Katalog Anda telah berhasil di-upgrade ke Plan Pro (Unlimited)!')
         loadData()
       } else {
         showToast(data.message || 'Gagal upgrade plan', 'error')
@@ -8033,7 +8033,7 @@ function App() {
       const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
       const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
       if (maxActive !== -1 && currentActive >= maxActive) {
-        showToast(`Produk ini berstatus DIARSIPKAN. Kuota aktif toko Anda (${currentActive}/${maxActive}) sudah penuh. Upgrade paket atau arsipkan produk lain untuk mengedit/mengaktifkan item ini.`, 'error');
+        showToast(`Item ini berstatus DIARSIPKAN. Kuota aktif katalog Anda (${currentActive}/${maxActive}) sudah penuh. Upgrade paket atau arsipkan item lain untuk mengedit/mengaktifkan item ini.`, 'error');
         setActiveTab('admin');
         setAdminSubTab('subscription');
         const slug = getStoreSlug();
@@ -9362,14 +9362,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
                     <div>
                       <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Klaim Tautan Katalog</h4>
-                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Daftar akun &amp; klaim link unik catavor.com/namatoko.</p>
+                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Daftar akun &amp; klaim link unik catavor.com/namabisnis.</p>
                     </div>
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
                     <div>
                       <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>Upload Foto &amp; Atur Harga</h4>
-                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Unggah produk, varian harga, &amp; jam buka toko.</p>
+                      <p style={{ fontSize: '0.73rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Unggah produk, varian harga, &amp; jam operasional bisnis.</p>
                     </div>
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
@@ -9445,7 +9445,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#0f172a' }}>
                       <li>⚡ <strong>150 item produk aktif</strong></li>
                       <li>⚡ <strong>2 GB Storage &amp; 8 foto/item</strong></li>
-                      <li>⚡ Lencana Toko Terverifikasi</li>
+                      <li>⚡ Lencana Katalog Terverifikasi</li>
                       <li>⚡ Halaman "Tentang Kami" kustom</li>
                       <li>⚡ <strong>100% Bebas Watermark</strong></li>
                     </ul>
@@ -9471,7 +9471,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#0f172a' }}>
                       <li>👑 <strong>Unlimited Produk &amp; Jasa</strong></li>
                       <li>👑 <strong>10 GB Storage &amp; 10 foto/item</strong></li>
-                      <li>👑 <strong>Custom Domain (toko.com)</strong></li>
+                      <li>👑 <strong>Custom Domain (brand.com)</strong></li>
                       <li>👑 Prioritas VIP Support 24/7</li>
                     </ul>
                     <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_business'); setRegisterBillingCycle(pricingBillingCycle === 'yearly' ? 'annual' : 'monthly'); setPortalTab('register'); }}>
@@ -9487,14 +9487,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
                     <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Katalog Bisnis Aktif</span>
                     <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
-                      Jelajahi Toko &amp; Katalog Nyata
+                      Jelajahi Katalog &amp; Bisnis Nyata
                     </h2>
                     
                     {/* Mobile Search Input for Stores */}
                     <div style={{ marginTop: '0.85rem', position: 'relative' }}>
                       <input 
                         type="text" 
-                        placeholder="Cari nama toko / bidang usaha..." 
+                        placeholder="Cari nama katalog / bidang bisnis..." 
                         value={searchStoreQuery}
                         onChange={(e) => setSearchStoreQuery(e.target.value)}
                         className="form-input"
@@ -9528,7 +9528,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             )}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {st.store_title || 'Toko Bisnis'}
+                                {st.store_title || 'Katalog Bisnis'}
                               </h4>
                               <div style={{ fontSize: '0.7rem', color: '#64748b' }}>catavor.com/{st.slug}</div>
                             </div>
@@ -9539,7 +9539,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid #f1f5f9', fontSize: '0.74rem', color: '#2563eb', fontWeight: 700 }}>
-                          <span>Buka Katalog Toko</span>
+                          <span>Buka Katalog Digital</span>
                           <ArrowRight size={13} />
                         </div>
                       </div>
@@ -9728,7 +9728,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </span>
                   <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep >= 2 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                     <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep >= 2 ? '#2563eb' : '#e2e8f0', color: registerStep >= 2 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>2</span>
-                    Profil Toko
+                    Profil Katalog
                   </span>
                   <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep === 3 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                     <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep === 3 ? '#2563eb' : '#e2e8f0', color: registerStep === 3 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>3</span>
@@ -9927,7 +9927,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
                 >
                   <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nama Toko / Usaha *</label>
+                    <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nama Katalog / Usaha *</label>
                     <input 
                       type="text" 
                       className="form-input" 
@@ -9996,7 +9996,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   <div style={{ textAlign: 'center', marginBottom: '0.15rem' }}>
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>
-                      Langkah 3: Pilih Paket Toko
+                      Langkah 3: Pilih Paket Katalog
                     </h4>
                     <p style={{ fontSize: '0.74rem', color: '#64748b', margin: 0 }}>
                       Pilih paket terbaik untuk <strong>{registerForm.store_name}</strong>
@@ -10178,7 +10178,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <span>
                         {registerLoading 
                           ? 'Mendaftarkan...' 
-                          : (registerPlan === 'free' ? 'Selesaikan & Buka Toko' : 'Lanjut ke Pembayaran')}
+                          : (registerPlan === 'free' ? 'Selesaikan & Buka Katalog' : 'Lanjut ke Pembayaran')}
                       </span>
                       <CheckCircle size={15} />
                     </button>
@@ -10206,7 +10206,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   Konfirmasi Pembayaran
                 </h2>
                 <p style={{ color: '#64748b', fontSize: '0.76rem', margin: 0, lineHeight: 1.4 }}>
-                  Transfer sesuai nominal berikut untuk langsung mengaktifkan fitur premium toko Anda.
+                  Transfer sesuai nominal berikut untuk langsung mengaktifkan fitur premium katalog Anda.
                 </p>
               </div>
 
@@ -14919,7 +14919,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           Selamat Datang
                         </span>
                         <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          Halo, {(adminUser?.name || 'Merchant').trim().split(' ')[0]} 👋
+                          Halo, {(adminUser?.name || 'Merchant').trim().split(' ')[0]}
                         </h2>
                       </div>
                       <button
@@ -14944,75 +14944,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         }}
                       >
                         <Layers size={13} />
-                        <span>{userStores.length > 1 ? `${userStores.length} Toko` : 'Ganti'} ▾</span>
+                        <span>{userStores.length > 1 ? `${userStores.length} Katalog` : 'Ganti'} ▾</span>
                       </button>
                     </div>
 
-                    {/* Live Store Link Bar with Direct Copy & Preview */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0.45rem 0.65rem',
-                      borderRadius: '0.6rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      fontSize: '0.72rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, overflow: 'hidden' }}>
-                        <Globe size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          catavor.com/{storeSlug || getStoreSlug()}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const url = `${window.location.origin}/${storeSlug || getStoreSlug()}`;
-                            navigator.clipboard.writeText(url);
-                            showToast('Link toko berhasil disalin!', 'success');
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem',
-                            fontWeight: 700,
-                            fontSize: '0.68rem',
-                            padding: '0.15rem 0.35rem'
-                          }}
-                          title="Salin Link Katalog"
-                        >
-                          <Copy size={12} /> Salin
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTab('catalog');
-                            window.history.pushState({}, '', `/${storeSlug || getStoreSlug()}`);
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem',
-                            fontWeight: 700,
-                            fontSize: '0.68rem',
-                            padding: '0.15rem 0.35rem'
-                          }}
-                          title="Lihat Pratinjau Toko"
-                        >
-                          <ExternalLink size={12} /> Lihat ↗
-                        </button>
-                      </div>
-                    </div>
 
                     {/* Quota & Storage Compact Row (Fixed -1 Bug) */}
                     <div style={{
@@ -15121,7 +15056,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                         <TrendingUp size={16} style={{ color: 'var(--primary)' }} />
                         <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                          Performa Toko
+                          Performa Katalog
                         </span>
                       </div>
                       
@@ -15220,7 +15155,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                   </div>
 
-                  {/* 3. MENU & FITUR TOKO (Clean, Native Mobile Standard) */}
+                  {/* 3. MENU & FITUR KATALOG (Clean, Native Mobile Standard) */}
                   <div className="glass-panel" style={{
                     padding: '0.95rem 1rem',
                     borderRadius: '1rem',
@@ -15239,7 +15174,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       paddingBottom: '0.55rem'
                     }}>
                       <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
-                        MENU &amp; FITUR TOKO
+                        MENU &amp; FITUR KATALOG
                       </span>
                       <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
                         8 Fitur Pintar
@@ -15363,7 +15298,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </span>
                       </button>
 
-                      {/* 4. Tema Toko */}
+                      {/* 4. Tema Katalog */}
                       <button
                         type="button"
                         onClick={() => {
@@ -15397,7 +15332,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <Palette size={20} />
                         </div>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
-                          Tema Toko
+                          Tema Katalog
                         </span>
                       </button>
 
@@ -21167,7 +21102,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             style={{
               transform: `translateY(${Math.max(0, sheetDragY)}px)`,
               transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-              maxHeight: '82vh'
+              maxHeight: '82vh',
+              padding: '0.65rem 1.15rem 1rem'
             }}
           >
             {/* Smooth Drag Handle Area */}
@@ -21200,7 +21136,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
 
             {/* Scrollable Store List */}
-            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '52vh' }}>
+            <div 
+              className="bottom-sheet-scrollable-body" 
+              style={{ 
+                maxHeight: '48vh',
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                WebkitOverflowScrolling: 'touch',
+                padding: '0.65rem 0.15rem 0.35rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem'
+              }}
+            >
               {userStores.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                   Memuat daftar katalog...
@@ -21215,7 +21163,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       className={`bottom-sheet-item ${isActive ? 'active' : ''}`}
                       style={{
                         backgroundColor: isActive ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                        border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)'
+                        border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                        padding: '0.75rem 0.85rem'
                       }}
                       onClick={() => {
                         if (!isActive) {
@@ -21284,8 +21233,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               )}
             </div>
 
-            {/* Sticky Bottom Action */}
-            <div className="bottom-sheet-sticky-footer">
+            {/* Bottom Action Button - Clean Compact Spacing */}
+            <div style={{
+              paddingTop: '0.65rem',
+              borderTop: '1px solid var(--border-light)',
+              marginTop: '0.35rem',
+              flexShrink: 0
+            }}>
               <button 
                 type="button" 
                 className="btn-primary btn-full"
@@ -21293,7 +21247,18 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   setShowStoreSwitcherModal(false);
                   setShowCreateStoreModal(true);
                 }}
-                style={{ padding: '0.8rem', fontSize: '0.85rem', fontWeight: 800, borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
+                style={{ 
+                  padding: '0.75rem 1rem', 
+                  fontSize: '0.84rem', 
+                  fontWeight: 800, 
+                  borderRadius: '0.75rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.45rem',
+                  width: '100%',
+                  boxShadow: '0 4px 14px var(--primary-glow)'
+                }}
               >
                 <Plus size={16} />
                 <span>Buat Profil Katalog Baru</span>
@@ -21319,7 +21284,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             style={{
               transform: `translateY(${Math.max(0, sheetDragY)}px)`,
               transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-              maxHeight: '88vh'
+              maxHeight: '88vh',
+              padding: '0.65rem 1.15rem 1rem'
             }}
           >
             {/* Smooth Drag Handle Area */}
@@ -21354,13 +21320,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
 
             {createStoreError && (
-              <div style={{ margin: '0.5rem 1.25rem 0', padding: '0.65rem 0.85rem', borderRadius: '0.6rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: '0.75rem', fontWeight: 600 }}>
+              <div style={{ margin: '0.5rem 0.15rem 0', padding: '0.65rem 0.85rem', borderRadius: '0.6rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontSize: '0.75rem', fontWeight: 600 }}>
                 {createStoreError}
               </div>
             )}
 
             {/* Scrollable Form Body */}
-            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '60vh', padding: '0.75rem 1.25rem' }}>
+            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '58vh', padding: '0.65rem 0.15rem' }}>
               <form id="create-store-mobile-form" onSubmit={handleCreateStoreSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 {/* Nama Usaha */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -21452,7 +21418,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   />
                 </div>
 
-                {/* Tema Visual Toko */}
+                {/* Tema Visual Katalog */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
                     Tema Warna Tampilan
@@ -21493,8 +21459,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </form>
             </div>
 
-            {/* Sticky Bottom Actions */}
-            <div className="bottom-sheet-sticky-footer">
+            {/* Action Buttons Container - Clean Compact Spacing */}
+            <div style={{
+              paddingTop: '0.65rem',
+              borderTop: '1px solid var(--border-light)',
+              marginTop: '0.35rem',
+              display: 'flex',
+              gap: '0.65rem',
+              flexShrink: 0
+            }}>
               <button 
                 type="button" 
                 className="btn-secondary"
@@ -21509,7 +21482,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 form="create-store-mobile-form"
                 className="btn-primary"
                 disabled={createStoreLoading || (createStoreSlugStatus !== null && !createStoreSlugStatus.available)}
-                style={{ flex: 2, padding: '0.75rem', borderRadius: '0.75rem', fontSize: '0.84rem', fontWeight: 800, cursor: 'pointer' }}
+                style={{ flex: 2, padding: '0.75rem', borderRadius: '0.75rem', fontSize: '0.84rem', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px var(--primary-glow)' }}
               >
                 {createStoreLoading ? 'Membuat Profil...' : 'Buat Katalog & Buka'}
               </button>

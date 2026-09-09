@@ -467,7 +467,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Crown size={20} style={{ color: 'var(--primary, #3b82f6)' }} />
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
-                {modalView === 'plans' && 'Paket & Langganan Toko'}
+                {modalView === 'plans' && 'Paket & Langganan Katalog'}
                 {modalView === 'checkout' && (checkoutType === 'renewal' ? 'Checkout Perpanjangan Paket' : `Upgrade ke ${selectedTargetPlan?.name}`)}
                 {modalView === 'downgrade_confirm' && 'Konfirmasi Penjadwalan Penurunan Paket'}
                 {modalView === 'orders' && 'Riwayat Tagihan & Transaksi Langganan'}
@@ -477,7 +477,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               {modalView === 'plans' && 'Pilih paket sesuai skala bisnis. Tingkatkan kuota produk, kapasitas storage, & fitur domain kustom.'}
               {modalView === 'checkout' && 'Selesaikan pembayaran untuk mengaktifkan kapasitas dan fitur eksklusif paket pilihan Anda.'}
               {modalView === 'downgrade_confirm' && 'Pelajari rincian perlindungan masa aktif dan penyesuaian kuota katalog Anda.'}
-              {modalView === 'orders' && 'Daftar invoice, status pembayaran, dan riwayat aktivasi paket toko Anda.'}
+              {modalView === 'orders' && 'Daftar invoice, status pembayaran, dan riwayat aktivasi paket katalog Anda.'}
             </p>
           </div>
         </div>
@@ -853,14 +853,14 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         {plan.has_verified_badge && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
                             <ShieldCheck size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                            <span>Lencana Toko Terverifikasi (Centang Biru)</span>
+                            <span>Lencana Katalog Terverifikasi (Centang Biru)</span>
                           </div>
                         )}
 
                         {plan.has_custom_domain && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
                             <Globe size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span><strong>Custom Domain Sendiri</strong> (toko.com)</span>
+                            <span><strong>Custom Domain Sendiri</strong> (brand.com)</span>
                           </div>
                         )}
 

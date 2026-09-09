@@ -722,7 +722,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 Analitika & Konversi Multi-Katalog
               </h2>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                Performa toko <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || 'Catavor'}</strong> • Terpadu Seluruh Model Bisnis
+                Performa katalog <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || 'Catavor'}</strong> • Terpadu Seluruh Model Bisnis
               </span>
             </div>
           </div>
@@ -811,7 +811,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Kunjungan Toko</span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Kunjungan Katalog</span>
             <div style={{ width: '28px', height: '28px', borderRadius: '0.4rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Users size={16} />
             </div>
@@ -1573,7 +1573,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             >
               <TrendingUp size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
               <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                Menunggu Data Kunjungan • Bagikan link katalog toko Anda untuk mencatat grafik real-time
+                Menunggu Data Kunjungan • Bagikan link katalog Anda untuk mencatat grafik real-time
               </span>
             </div>
           )}

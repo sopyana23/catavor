@@ -364,7 +364,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
       setActionSuccess(
         checkoutType === 'renewal'
           ? `Selamat! Paket ${selectedTargetPlan.name} berhasil diperpanjang.`
-          : `Selamat! Toko Anda kini telah aktif pada paket ${selectedTargetPlan.name}.`
+          : `Selamat! Katalog Anda kini telah aktif pada paket ${selectedTargetPlan.name}.`
       );
       setModalView('plans');
       if (onSuccessUpgrade) onSuccessUpgrade();
@@ -578,7 +578,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                 </strong>
               </div>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                Toko akan beralih ke <strong>{effectiveQuota.next_plan.name}</strong> setelah masa aktif saat ini berakhir.
+                Katalog akan beralih ke <strong>{effectiveQuota.next_plan.name}</strong> setelah masa aktif saat ini berakhir.
               </p>
               <button
                 type="button"
@@ -811,7 +811,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: plan.has_verified_badge ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                           <ShieldCheck size={13} style={{ color: plan.has_verified_badge ? '#3b82f6' : 'var(--text-muted)', flexShrink: 0 }} />
-                          <span>Badge Toko Terverifikasi: <strong>{plan.has_verified_badge ? 'Ya (Centang Biru)' : 'Tidak'}</strong></span>
+                          <span>Badge Katalog Terverifikasi: <strong>{plan.has_verified_badge ? 'Ya (Centang Biru)' : 'Tidak'}</strong></span>
                         </div>
                       </div>
 
