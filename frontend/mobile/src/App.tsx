@@ -18704,7 +18704,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   setActiveTab('catalog');
                   window.history.pushState({}, '', `/${storeSlug}`);
                 }}
-                style={{ color: 'var(--primary)' }}
               >
                 <ExternalLink size={20} />
                 <span>Lihat Katalog</span>
@@ -21154,82 +21153,104 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   Memuat daftar katalog...
                 </div>
               ) : (
-                userStores.map((st) => {
-                  const isActive = st.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                  return (
-                    <button
-                      key={st.id}
-                      type="button"
-                      className={`bottom-sheet-item ${isActive ? 'active' : ''}`}
-                      style={{
-                        backgroundColor: isActive ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                        border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                        padding: '0.75rem 0.85rem'
-                      }}
-                      onClick={() => {
-                        if (!isActive) {
-                          handleSwitchStore(st.slug);
-                        }
-                      }}
-                    >
-                      <div className="bottom-sheet-item-left">
-                        <div style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '0.55rem',
-                          backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-card-hover)',
-                          color: '#ffffff',
-                          border: isActive ? 'none' : '1px solid var(--border-light)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.9rem',
-                          flexShrink: 0,
-                          overflow: 'hidden'
-                        }}>
-                          {st.store_logo_url ? (
-                            <img src={st.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            st.store_title ? st.store_title.charAt(0).toUpperCase() : st.slug.charAt(0).toUpperCase()
-                          )}
-                        </div>
+                (() => {
+                  const planWeight = (plan?: string) => {
+                    if (plan === 'pro_business') return 3;
+                    if (plan === 'pro_starter') return 2;
+                    return 1;
+                  };
 
-                        <div className="bottom-sheet-item-col">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                            <span className="bottom-sheet-item-name" style={{ color: 'var(--text-primary)', fontWeight: 800 }}>
-                              {st.store_title || st.slug}
-                            </span>
-                            <span style={{
-                              fontSize: '0.58rem',
-                              fontWeight: 800,
-                              padding: '0.08rem 0.35rem',
-                              borderRadius: '4px',
-                              backgroundColor: st.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.18)' : st.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.18)' : 'var(--primary-glow)',
-                              color: st.plan === 'pro_business' ? '#d97706' : st.plan === 'pro_starter' ? '#0284c7' : 'var(--primary)',
-                              border: st.plan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.35)' : st.plan === 'pro_starter' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid var(--primary)',
-                              textTransform: 'uppercase'
-                            }}>
-                              {st.plan === 'pro_business' ? 'Bisnis' : st.plan === 'pro_starter' ? 'Starter' : 'Free'}
+                  const sortedStores = [...userStores].sort((a, b) => {
+                    const isAActive = a.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                    const isBActive = b.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                    if (isAActive && !isBActive) return -1;
+                    if (!isAActive && isBActive) return 1;
+
+                    const weightDiff = planWeight(b.plan) - planWeight(a.plan);
+                    if (weightDiff !== 0) return weightDiff;
+
+                    const nameA = (a.store_title || a.slug).toLowerCase();
+                    const nameB = (b.store_title || b.slug).toLowerCase();
+                    return nameA.localeCompare(nameB);
+                  });
+
+                  return sortedStores.map((st) => {
+                    const isActive = st.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        className={`bottom-sheet-item ${isActive ? 'active' : ''}`}
+                        style={{
+                          backgroundColor: isActive ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                          padding: '0.75rem 0.85rem'
+                        }}
+                        onClick={() => {
+                          if (!isActive) {
+                            handleSwitchStore(st.slug);
+                          }
+                        }}
+                      >
+                        <div className="bottom-sheet-item-left">
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '0.55rem',
+                            backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-card-hover)',
+                            color: isActive ? '#ffffff' : 'var(--text-primary)',
+                            border: isActive ? 'none' : '1px solid var(--border-light)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.92rem',
+                            flexShrink: 0,
+                            overflow: 'hidden'
+                          }}>
+                            {st.store_logo_url ? (
+                              <img src={st.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              st.store_title ? st.store_title.charAt(0).toUpperCase() : st.slug.charAt(0).toUpperCase()
+                            )}
+                          </div>
+
+                          <div className="bottom-sheet-item-col">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <span className="bottom-sheet-item-name" style={{ color: isActive ? 'var(--primary)' : 'var(--text-primary)', fontWeight: 800 }}>
+                                {st.store_title || st.slug}
+                              </span>
+                              <span style={{
+                                fontSize: '0.58rem',
+                                fontWeight: 800,
+                                padding: '0.08rem 0.35rem',
+                                borderRadius: '4px',
+                                backgroundColor: st.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.18)' : st.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.18)' : 'var(--primary-glow)',
+                                color: st.plan === 'pro_business' ? '#d97706' : st.plan === 'pro_starter' ? '#0284c7' : 'var(--primary)',
+                                border: st.plan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.35)' : st.plan === 'pro_starter' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid var(--primary)',
+                                textTransform: 'uppercase'
+                              }}>
+                                {st.plan === 'pro_business' ? 'Bisnis' : st.plan === 'pro_starter' ? 'Starter' : 'Free'}
+                              </span>
+                            </div>
+                            <span className="bottom-sheet-item-desc" style={{ color: 'var(--text-secondary)' }}>
+                              catavor.com/{st.slug} {st.item_count !== undefined ? `• ${st.item_count} item` : ''}
                             </span>
                           </div>
-                          <span className="bottom-sheet-item-desc" style={{ color: 'var(--text-secondary)' }}>
-                            catavor.com/{st.slug} {st.item_count !== undefined ? `• ${st.item_count} item` : ''}
-                          </span>
                         </div>
-                      </div>
 
-                      <div className={`bottom-sheet-radio ${isActive ? 'selected' : ''}`} style={{
-                        backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                        borderColor: isActive ? 'var(--primary)' : 'var(--border-light)'
-                      }}>
-                        {isActive && (
-                          <Check size={12} strokeWidth={3.5} style={{ color: '#ffffff', stroke: '#ffffff', display: 'block', margin: 'auto' }} />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
+                        <div className={`bottom-sheet-radio ${isActive ? 'selected' : ''}`} style={{
+                          backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                          borderColor: isActive ? 'var(--primary)' : 'var(--border-light)'
+                        }}>
+                          {isActive && (
+                            <Check size={12} strokeWidth={3.5} style={{ color: '#ffffff', stroke: '#ffffff', display: 'block', margin: 'auto' }} />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  });
+                })()
               )}
             </div>
 
