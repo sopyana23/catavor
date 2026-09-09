@@ -119,6 +119,7 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
+  History,
   Users
 } from 'lucide-react'
 import './App.css'
@@ -4604,6 +4605,61 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   }, [storeSlug]);
 
+  // Enterprise Activity & Audit Logs State (Mobile)
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [activityTotal, setActivityTotal] = useState<number>(0);
+  const [activityPage, setActivityPage] = useState<number>(1);
+  const [activityHasMore, setActivityHasMore] = useState<boolean>(true);
+  const [activityLoading, setActivityLoading] = useState<boolean>(false);
+  const [activityCategory, setActivityCategory] = useState<string>('all');
+  const [activitySearch, setActivitySearch] = useState<string>('');
+  const [activitySelectedLog, setActivitySelectedLog] = useState<any | null>(null);
+  const activitySentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchActivityLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false, category: string = activityCategory, search: string = activitySearch) => {
+    try {
+      setActivityLoading(true);
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      const endpoint = '/api/activity-logs';
+      
+      const queryParams = new URLSearchParams({
+        page: String(pageToFetch),
+        limit: '15',
+        category: category,
+        q: search,
+      });
+
+      const res = await fetch(`${endpoint}?${queryParams.toString()}`, {
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const dataList = Array.isArray(json.data) ? json.data : [];
+        if (append) {
+          setActivityLogs(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newItems = dataList.filter((item: any) => !existingIds.has(item.id));
+            return [...prev, ...newItems];
+          });
+        } else {
+          setActivityLogs(dataList);
+        }
+        setActivityPage(pageToFetch);
+        setActivityTotal(json.total || 0);
+        setActivityHasMore(Boolean(json.has_more));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch activity logs:', err);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [storeSlug, activityCategory, activitySearch]);
+
   // Hook for initial load and SSE real-time stream subscription (Mobile)
   useEffect(() => {
     fetchNotificationsFromBackend(1, false, 'all');
@@ -5148,7 +5204,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
   const [aboutSubView, setAboutSubView] = useState<'main' | 'qrcode'>('main')
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share'>('menu')
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs'>('menu')
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -13381,6 +13437,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       return { title: 'Notifikasi & Aktivitas', subtitle: unreadCount > 0 ? `${unreadCount} Pesan Belum Dibaca` : 'Semua Aktivitas Toko' };
                     case 'profile':
                       return { title: 'Profil Akun Admin', subtitle: adminUser?.email || 'Akun Merchant' };
+                    case 'audit_logs':
+                      return { title: 'Riwayat & Log Audit', subtitle: `${activityTotal} Catatan Aktivitas` };
                     case 'share':
                       return { title: 'Bagikan Katalog', subtitle: `catavor.com/${storeSlug || getStoreSlug()}` };
                     default:
@@ -15643,7 +15701,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         MENU &amp; FITUR KATALOG
                       </span>
                       <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                        8 Fitur Pintar
+                        9 Fitur Pintar
                       </span>
                     </div>
 
@@ -15798,7 +15856,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <Palette size={20} />
                         </div>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
-                          Tema Katalog
+                          Tema
                         </span>
                       </button>
 
@@ -15899,7 +15957,45 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </span>
                       </button>
 
-                      {/* 7. Bantuan */}
+                      {/* 7. Riwayat & Audit */}
+                      <button
+                        type="button"
+                        onClick={() => { 
+                          setAdminSubTab('audit_logs'); 
+                          fetchActivityLogs(1, false);
+                          const slug = getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/audit-logs`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <History size={20} />
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                          Riwayat
+                        </span>
+                      </button>
+
+                      {/* 8. Bantuan */}
                       <button
                         type="button"
                         onClick={() => {
@@ -15936,7 +16032,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </span>
                       </button>
 
-                      {/* 8. Legal */}
+                      {/* 9. Legal */}
                       <button
                         type="button"
                         onClick={() => { 
@@ -18200,6 +18296,229 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                       )}
                     </>
+                  )}
+                </div>
+              )}
+
+              {adminSubTab === 'audit_logs' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.25rem' }}>
+                  {/* Top Stats Banner */}
+                  <div className="glass-panel" style={{ padding: '1rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '0.55rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                        <History size={17} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          Riwayat Aktivitas &amp; Audit
+                        </h3>
+                        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+                          {activityTotal} rekaman aksi operasional tercatat
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => fetchActivityLogs(1, false)}
+                      disabled={activityLoading}
+                      className="btn-secondary"
+                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.5rem' }}
+                    >
+                      <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
+                      <span>Segarkan</span>
+                    </button>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="search-wrapper" style={{ position: 'relative', width: '100%' }}>
+                    <Search className="search-icon" size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder="Cari aksi, produk, atau IP..."
+                      value={activitySearch}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActivitySearch(val);
+                        fetchActivityLogs(1, false, activityCategory, val);
+                      }}
+                      style={{ paddingLeft: '2.2rem', fontSize: '0.78rem' }}
+                    />
+                  </div>
+
+                  {/* Horizontal Scrollable Category Filter Chips */}
+                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
+                    {[
+                      { key: 'all', label: 'Semua' },
+                      { key: 'security', label: '🔒 Auth' },
+                      { key: 'catalog', label: '📦 Produk' },
+                      { key: 'store', label: '🏪 Toko' },
+                      { key: 'billing', label: '💳 Paket' },
+                    ].map(cat => {
+                      const isActive = activityCategory === cat.key;
+                      return (
+                        <button
+                          key={cat.key}
+                          type="button"
+                          onClick={() => {
+                            setActivityCategory(cat.key);
+                            setActivityPage(1);
+                            fetchActivityLogs(1, false, cat.key, activitySearch);
+                          }}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                            cursor: 'pointer',
+                            border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                            backgroundColor: isActive ? 'var(--primary-glow)' : 'rgba(255,255,255,0.03)',
+                            color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Activity Logs Timeline Stream */}
+                  {activityLoading && activityLogs.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.65rem', color: 'var(--text-secondary)' }}>
+                      <Loader size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Memuat riwayat log...</span>
+                    </div>
+                  ) : activityLogs.length === 0 ? (
+                    <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                      <History size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem' }} />
+                      <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Log Aktivitas</h4>
+                      <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data &amp; login akan tercatat otomatis di sini.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {activityLogs.map((logItem: any) => {
+                        const isSecurity = logItem.category === 'security';
+                        const isCatalog = logItem.category === 'catalog';
+                        const isStore = logItem.category === 'store';
+                        const isBilling = logItem.category === 'billing';
+
+                        let iconBg = 'rgba(59, 130, 246, 0.12)';
+                        let iconColor = '#60a5fa';
+                        let IconComp = FileText;
+
+                        if (isSecurity) {
+                          iconBg = 'rgba(16, 185, 129, 0.12)';
+                          iconColor = '#34d399';
+                          IconComp = ShieldCheck;
+                        } else if (isCatalog) {
+                          iconBg = 'rgba(59, 130, 246, 0.12)';
+                          iconColor = '#60a5fa';
+                          IconComp = Package;
+                        } else if (isStore) {
+                          iconBg = 'rgba(168, 85, 247, 0.12)';
+                          iconColor = '#c084fc';
+                          IconComp = Store;
+                        } else if (isBilling) {
+                          iconBg = 'rgba(245, 158, 11, 0.12)';
+                          iconColor = '#fbbf24';
+                          IconComp = CreditCard;
+                        }
+
+                        return (
+                          <div
+                            key={logItem.id}
+                            className="glass-panel"
+                            style={{
+                              padding: '0.85rem 0.95rem',
+                              borderRadius: '0.75rem',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--card-bg-gradient)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <IconComp size={14} />
+                                </div>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
+                                  {logItem.action}
+                                </span>
+                              </div>
+
+                              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                                {new Date(logItem.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
+                            </div>
+
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
+                              {logItem.description}
+                            </p>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
+                              <span>Oleh: <strong style={{ color: '#ffffff' }}>{logItem.actor_name}</strong></span>
+                              {logItem.changes && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActivitySelectedLog(logItem)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: 0 }}
+                                >
+                                  <Eye size={12} />
+                                  <span>Detail Diff</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Load More Button for Mobile */}
+                      {activityHasMore && (
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch)}
+                            disabled={activityLoading}
+                            className="btn-secondary"
+                            style={{ padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
+                          >
+                            {activityLoading ? <Loader size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+                            <span>Muat Log Sebelumnya</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mobile Diff Bottom Sheet / Modal */}
+                  {activitySelectedLog && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                      <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <span style={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Snapshot Perubahan</span>
+                            <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff', margin: '0.1rem 0 0 0' }}>{activitySelectedLog.action}</h4>
+                          </div>
+                          <button type="button" onClick={() => setActivitySelectedLog(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+                        </div>
+
+                        <div style={{ padding: '1rem 1.15rem', maxHeight: '320px', overflowY: 'auto' }}>
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem' }}>{activitySelectedLog.description}</p>
+                          <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.72rem', color: '#34d399', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>
+                            {JSON.stringify(activitySelectedLog.changes, null, 2)}
+                          </div>
+                        </div>
+
+                        <div style={{ padding: '0.75rem 1.15rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button type="button" className="btn-primary" onClick={() => setActivitySelectedLog(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }}>Tutup</button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}

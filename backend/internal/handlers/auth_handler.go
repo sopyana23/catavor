@@ -202,6 +202,31 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		services.TouchStoreActivity(database.DB, user.Store.ID)
 	}
 
+	actorRole := "merchant"
+	if user.Email == "admin@catavor.com" {
+		actorRole = "superadmin"
+	}
+	var activeStoreID *uint
+	if activeStore.ID > 0 {
+		activeStoreID = &activeStore.ID
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     activeStoreID,
+		UserID:      &user.ID,
+		ActorRole:   actorRole,
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "auth.login",
+		Category:    "security",
+		EntityType:  "user",
+		EntityID:    &user.ID,
+		EntityTitle: user.Email,
+		Description: fmt.Sprintf("Pengguna %s (%s) berhasil login ke sistem.", user.Name, user.Email),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
+
 	return c.JSON(fiber.Map{
 		"success":      true,
 		"message":      "Login berhasil.",
@@ -1012,6 +1037,33 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			"message": "Gagal memperbarui profil.",
 		})
 	}
+
+	actorRole := "merchant"
+	if user.Email == "admin@catavor.com" {
+		actorRole = "superadmin"
+	}
+	action := "auth.profile_updated"
+	desc := fmt.Sprintf("Pengguna %s memperbarui data profil.", user.Name)
+	if req.Password != "" {
+		action = "auth.password_changed"
+		desc = fmt.Sprintf("Pengguna %s berhasil mengganti kata sandi akun.", user.Name)
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		UserID:      &user.ID,
+		ActorRole:   actorRole,
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      action,
+		Category:    "security",
+		EntityType:  "user",
+		EntityID:    &user.ID,
+		EntityTitle: user.Email,
+		Description: desc,
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
 
 	return c.JSON(fiber.Map{
 		"success": true,

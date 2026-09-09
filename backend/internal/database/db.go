@@ -86,6 +86,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.ProductDailyAnalytics{},
 		&models.Notification{},
 		&models.NotificationRead{},
+		&models.ActivityLog{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
@@ -355,9 +356,15 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_exempt_from_dormancy BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_dormancy ON stores(plan, dormancy_status, is_exempt_from_dormancy, last_activity_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
-	_ = db.Exec("UPDATE stores SET last_activity_at = updated_at WHERE last_activity_at IS NULL;").Error
+	// 5. Ensure ActivityLog Table & Indexes
+	_ = db.AutoMigrate(&models.ActivityLog{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_store_created ON activity_logs(store_id, created_at DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_action ON activity_logs(action);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_category ON activity_logs(category);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_role ON activity_logs(actor_role);").Error
 
-	// 5. Auto-populate categories from store master_classes if categories table is empty
+	// 6. Auto-populate categories from store master_classes if categories table is empty
 	var catCount int64
 	db.Model(&models.Category{}).Count(&catCount)
 	if catCount == 0 {

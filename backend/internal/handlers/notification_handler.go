@@ -439,6 +439,39 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	// Broadcast instantly via SSE Hub
 	services.GetNotificationHub().Broadcast(&notif)
 
+	// Record Superadmin Audit Log
+	userVal := c.Locals("user")
+	var userID *uint
+	actorName := "Superadmin"
+	actorEmail := "admin@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		userID = &u.ID
+		actorName = u.Name
+		actorEmail = u.Email
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.DB,
+		UserID:      userID,
+		ActorRole:   "superadmin",
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "admin.broadcast_notification",
+		Category:    "superadmin",
+		EntityType:  "notification",
+		EntityTitle: notif.Title,
+		Description: fmt.Sprintf("Superadmin menyebarkan notifikasi broadcast '%s' (Target: %s).", notif.Title, notif.TargetType),
+		Changes: map[string]interface{}{
+			"target_type":      notif.TargetType,
+			"target_plan_code": notif.TargetPlanCode,
+			"category":         notif.Category,
+			"retention_hours":  notif.RetentionHours,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success":      true,
 		"message":      "Notification broadcasted successfully",
@@ -481,10 +514,40 @@ func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Notification ID is required"})
 	}
 
+	var notif models.Notification
+	_ = h.DB.Where("id = ?", notifID).First(&notif)
+
 	h.DB.Where("notification_id = ?", notifID).Delete(&models.NotificationRead{})
 	if err := h.DB.Where("id = ?", notifID).Delete(&models.Notification{}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete notification"})
 	}
+
+	// Record Superadmin Audit Log
+	userVal := c.Locals("user")
+	var userID *uint
+	actorName := "Superadmin"
+	actorEmail := "admin@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		userID = &u.ID
+		actorName = u.Name
+		actorEmail = u.Email
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.DB,
+		UserID:      userID,
+		ActorRole:   "superadmin",
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "admin.delete_notification",
+		Category:    "superadmin",
+		EntityType:  "notification",
+		EntityTitle: notif.Title,
+		Description: fmt.Sprintf("Superadmin menghapus notifikasi '%s' (ID: %s).", notif.Title, notifID),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
 
 	return c.JSON(fiber.Map{
 		"success": true,

@@ -282,6 +282,39 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	// Reload complete product with relations
 	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
+	// Record Activity Log
+	userVal := c.Locals("user")
+	var userID *uint
+	actorName := "Pemilik Toko"
+	actorEmail := "owner@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		userID = &u.ID
+		actorName = u.Name
+		actorEmail = u.Email
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &store.ID,
+		UserID:      userID,
+		ActorRole:   "merchant",
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "product.create",
+		Category:    "catalog",
+		EntityType:  "product",
+		EntityID:    &product.ID,
+		EntityTitle: product.Name,
+		Description: fmt.Sprintf("Menambahkan produk baru '%s' dengan harga Rp %s.", product.Name, formatRupiahInt(int(product.Price))),
+		Changes: map[string]interface{}{
+			"price": product.Price,
+			"type":  product.ProductType,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Produk berhasil ditambahkan.",
@@ -307,6 +340,9 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			"message": "Produk tidak ditemukan atau bukan milik toko Anda.",
 		})
 	}
+
+	oldPrice := product.Price
+	oldName := product.Name
 
 	var req ProductRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -420,6 +456,46 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
+	// Record Activity Log
+	userVal := c.Locals("user")
+	var uID *uint
+	actName := "Pemilik Toko"
+	actEmail := "owner@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		uID = &u.ID
+		actName = u.Name
+		actEmail = u.Email
+	}
+
+	actionType := "product.update"
+	desc := fmt.Sprintf("Memperbarui data produk '%s'.", product.Name)
+	if oldPrice != product.Price {
+		actionType = "product.price_change"
+		desc = fmt.Sprintf("Mengubah harga produk '%s' dari Rp %s menjadi Rp %s.", product.Name, formatRupiahInt(int(oldPrice)), formatRupiahInt(int(product.Price)))
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &store.ID,
+		UserID:      uID,
+		ActorRole:   "merchant",
+		ActorName:   actName,
+		ActorEmail:  actEmail,
+		Action:      actionType,
+		Category:    "catalog",
+		EntityType:  "product",
+		EntityID:    &product.ID,
+		EntityTitle: product.Name,
+		Description: desc,
+		Changes: map[string]interface{}{
+			"before": map[string]interface{}{"price": oldPrice, "name": oldName},
+			"after":  map[string]interface{}{"price": product.Price, "name": product.Name},
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Produk berhasil diperbarui.",
@@ -446,6 +522,9 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		})
 	}
 
+	deletedTitle := product.Name
+	deletedID := product.ID
+
 	// Delete related records
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductImage{})
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductVariant{})
@@ -457,10 +536,54 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		})
 	}
 
+	// Record Activity Log
+	userVal := c.Locals("user")
+	var uID *uint
+	actName := "Pemilik Toko"
+	actEmail := "owner@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		uID = &u.ID
+		actName = u.Name
+		actEmail = u.Email
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &store.ID,
+		UserID:      uID,
+		ActorRole:   "merchant",
+		ActorName:   actName,
+		ActorEmail:  actEmail,
+		Action:      "product.delete",
+		Category:    "catalog",
+		EntityType:  "product",
+		EntityID:    &deletedID,
+		EntityTitle: deletedTitle,
+		Description: fmt.Sprintf("Menghapus produk '%s' dari katalog.", deletedTitle),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Produk berhasil dihapus.",
 	})
+}
+
+func formatRupiahInt(n int) string {
+	in := strconv.Itoa(n)
+	out := make([]byte, len(in)+(len(in)-1)/3)
+	for i, j, k := len(in)-1, len(out)-1, 0; i >= 0; i, j = i-1, j-1 {
+		out[j] = in[i]
+		k++
+		if k == 3 && i > 0 {
+			j--
+			out[j] = '.'
+			k = 0
+		}
+	}
+	return string(out)
 }
 
 // GetRecommendations returns related products within the same store.
