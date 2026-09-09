@@ -43,6 +43,13 @@ type Store struct {
 	MasterHabitats           datatypes.JSON `gorm:"type:jsonb" json:"master_habitats"`
 	MasterStatuses           datatypes.JSON `gorm:"type:jsonb" json:"master_statuses"`
 	MasterShippingCoverages  datatypes.JSON `gorm:"type:jsonb" json:"master_shipping_coverages"`
+	LastActivityAt           time.Time      `gorm:"index;default:CURRENT_TIMESTAMP" json:"last_activity_at"`
+	DormancyStatus           string         `gorm:"size:50;default:'active';index" json:"dormancy_status"` // active | warning_1 | warning_2 | suspended | purged
+	DormancyWarning1SentAt   *time.Time     `json:"dormancy_warning1_sent_at,omitempty"`
+	DormancyWarning2SentAt   *time.Time     `json:"dormancy_warning2_sent_at,omitempty"`
+	DormancySuspendedAt      *time.Time     `json:"dormancy_suspended_at,omitempty"`
+	ReactivationToken        string         `gorm:"size:128;index" json:"-"`
+	IsExemptFromDormancy     bool           `gorm:"default:false" json:"is_exempt_from_dormancy"`
 	CreatedAt                time.Time      `json:"created_at"`
 	UpdatedAt                time.Time      `json:"updated_at"`
 

@@ -2870,6 +2870,8 @@ interface ShopSettings {
   store_title?: string
   store_logo_url?: string
   store_theme?: string
+  last_activity_at?: string
+  dormancy_status?: string
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -4451,12 +4453,27 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   ]);
   const [selectedNotificationDetail, setSelectedNotificationDetail] = useState<any | null>(null);
 
+  // Notifications Pagination & Infinite Scroll State (Desktop)
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
+  const [notifPage, setNotifPage] = useState<number>(1);
+  const [notifHasMore, setNotifHasMore] = useState<boolean>(true);
+  const [notifLoadingMore, setNotifLoadingMore] = useState<boolean>(false);
+  const [notifInitialLoading, setNotifInitialLoading] = useState<boolean>(false);
+  const [notifTotal, setNotifTotal] = useState<number>(5);
+  const [notifUnreadCount, setNotifUnreadCount] = useState<number>(3);
+  const notifSentinelRef = useRef<HTMLDivElement | null>(null);
+
   // Realtime Notifications Synchronizer & API Handlers (Desktop)
-  const fetchNotificationsFromBackend = useCallback(async () => {
+  const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false, activeFilter: 'all' | 'unread' = notifFilter) => {
     try {
+      if (pageToFetch === 1 && !append) {
+        setNotifInitialLoading(true);
+      } else {
+        setNotifLoadingMore(true);
+      }
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
-      const res = await fetch('/api/notifications', {
+      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=10&filter=${activeFilter}`, {
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -4465,17 +4482,47 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       });
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json.data) && json.data.length > 0) {
-          setNotifications(json.data);
+        const dataList = Array.isArray(json.data) ? json.data : [];
+        if (append) {
+          setNotifications(prev => {
+            const existingIds = new Set(prev.map(n => String(n.id)));
+            const newItems = dataList.filter((n: any) => !existingIds.has(String(n.id)));
+            return [...prev, ...newItems];
+          });
+        } else {
+          setNotifications(dataList);
+        }
+        setNotifPage(pageToFetch);
+        setNotifHasMore(Boolean(json.has_more));
+        if (typeof json.unread_count === 'number') {
+          setNotifUnreadCount(json.unread_count);
+        }
+        if (typeof json.total === 'number') {
+          setNotifTotal(json.total);
         }
       }
     } catch (err) {
       console.warn('Silent fallback for notifications API:', err);
+    } finally {
+      setNotifInitialLoading(false);
+      setNotifLoadingMore(false);
     }
-  }, [storeSlug]);
+  }, [storeSlug, notifFilter]);
+
+  const loadMoreNotifications = useCallback(() => {
+    if (notifLoadingMore || notifInitialLoading || !notifHasMore) return;
+    fetchNotificationsFromBackend(notifPage + 1, true, notifFilter);
+  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, notifFilter, fetchNotificationsFromBackend]);
+
+  const handleNotifFilterChange = useCallback((newFilter: 'all' | 'unread') => {
+    setNotifFilter(newFilter);
+    setNotifPage(1);
+    fetchNotificationsFromBackend(1, false, newFilter);
+  }, [fetchNotificationsFromBackend]);
 
   const handleMarkAsRead = useCallback(async (notifId: string | number) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+    setNotifUnreadCount(prev => Math.max(0, prev - 1));
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
@@ -4494,6 +4541,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const handleMarkAllAsRead = useCallback(async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifUnreadCount(0);
     showToast('Semua notifikasi telah ditandai dibaca!');
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
@@ -4511,9 +4559,60 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   }, [storeSlug]);
 
+  // Store Activity & Dormancy State (Desktop)
+  const [extendingActivity, setExtendingActivity] = useState<boolean>(false);
+  const handleExtendStoreActivity = useCallback(async () => {
+    try {
+      setExtendingActivity(true);
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      const res = await fetch('/api/stores/extend-activity', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Masa aktif katalog berhasil diperpanjang 45 hari!');
+        setSettings(prev => ({
+          ...prev,
+          dormancy_status: 'active',
+          last_activity_at: data.last_activity_at || new Date().toISOString()
+        }));
+      } else {
+        showToast(data.message || 'Gagal memperpanjang masa aktif', 'error');
+      }
+    } catch (err) {
+      showToast('Gagal menghubungi server', 'error');
+    } finally {
+      setExtendingActivity(false);
+    }
+  }, [storeSlug]);
+
+  // Check 1-Click Reactivation URL Parameter (?reactivated=true)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reactivated') === 'true') {
+        showToast('Selamat! Katalog Anda berhasil diaktifkan kembali. Masa aktif diperpanjang 45 hari.');
+        params.delete('reactivated');
+        const newQuery = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`);
+        setSettings(prev => ({
+          ...prev,
+          dormancy_status: 'active',
+          last_activity_at: new Date().toISOString()
+        }));
+      }
+    } catch {}
+  }, []);
+
   // Hook for initial load and SSE real-time stream subscription (Desktop)
   useEffect(() => {
-    fetchNotificationsFromBackend();
+    fetchNotificationsFromBackend(1, false, 'all');
 
     const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
     const slug = storeSlug || getStoreSlug() || '';
@@ -4530,9 +4629,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           if (payload && payload.notification) {
             const newNotif = payload.notification;
             setNotifications(prev => {
-              const filtered = prev.filter(n => n.id !== newNotif.id);
+              const filtered = prev.filter(n => String(n.id) !== String(newNotif.id));
               return [newNotif, ...filtered];
             });
+            setNotifUnreadCount(prev => prev + 1);
+            setNotifTotal(prev => prev + 1);
             showToast(`Notifikasi Baru: ${newNotif.title}`);
           }
         } catch {}
@@ -4550,7 +4651,29 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         eventSource.close();
       }
     };
-  }, [storeSlug, portalTab, fetchNotificationsFromBackend]);
+  }, [storeSlug, portalTab]);
+
+  // IntersectionObserver for Notifications Infinite Scroll (Desktop)
+  useEffect(() => {
+    const sentinel = notifSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      const [entry] = entries;
+      if (entry.isIntersecting && notifHasMore && !notifLoadingMore && !notifInitialLoading) {
+        loadMoreNotifications();
+      }
+    }, {
+      root: null,
+      rootMargin: '120px',
+      threshold: 0.1
+    });
+
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreNotifications, notifHasMore, notifLoadingMore, notifInitialLoading]);
 
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
@@ -4913,8 +5036,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [view, setView] = useState<'catalog' | 'admin'>('catalog')
   const [adminTab, setAdminTab] = useState<'items' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription'>('items')
 
-  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
-  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+  const unreadCount = useMemo(() => notifUnreadCount, [notifUnreadCount]);
   const filteredNotifications = useMemo(() => {
     if (notifFilter === 'unread') return notifications.filter(n => !n.read);
     return notifications;
@@ -11486,7 +11608,62 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             )}
 
             {/* Catalog Main Content */}
-            {!loading && !error && (
+            {!loading && !error && settings.dormancy_status === 'suspended' ? (
+              /* DORMANT / SUSPENDED CATALOG STATE (Desktop) */
+              <div 
+                className="glass-panel animate-fade-in" 
+                style={{ 
+                  padding: '4.5rem 2.5rem', 
+                  textAlign: 'center', 
+                  borderRadius: '1.25rem',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  background: 'var(--card-bg-gradient)',
+                  boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '1.25rem',
+                  maxWidth: '680px',
+                  margin: '2rem auto'
+                }}
+              >
+                <div 
+                  style={{ 
+                    width: '72px', 
+                    height: '72px', 
+                    borderRadius: '50%', 
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)', 
+                    border: '2px solid rgba(245, 158, 11, 0.3)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: '#f59e0b',
+                    boxShadow: '0 0 24px rgba(245, 158, 11, 0.2)'
+                  }}
+                >
+                  <Clock size={36} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                    Katalog Sedang Diliburkan
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', maxWidth: '460px', margin: '0 auto', lineHeight: 1.6 }}>
+                    Katalog toko ini sedang dinonaktifkan sementara karena masa aktif belum diperpanjang oleh pemilik toko.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView('admin');
+                  }}
+                  className="btn-primary"
+                  style={{ padding: '0.75rem 1.75rem', borderRadius: '0.75rem', fontSize: '0.88rem', fontWeight: 800, marginTop: '0.5rem' }}
+                >
+                  Saya Pemilik Toko (Masuk &amp; Aktifkan)
+                </button>
+              </div>
+            ) : !loading && !error && (
               <>
                 {faunas.length === 0 ? (
                   /* EXECUTIVE PREMIUM EMPTY STATE (Shown when store has 0 products) */
@@ -12135,6 +12312,81 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           ) : (
             /* ADMIN DASHBOARD (LOGGED IN & PASSWORD CHANGED) */
             <div className="glass-panel animate-fade-in" style={{ padding: '2rem', marginTop: '2rem' }}>
+              {/* Dormancy Inactivity Warning Banner (Free Tier Desktop) */}
+              {settings.plan === 'free' && (settings.dormancy_status === 'warning_1' || settings.dormancy_status === 'warning_2') && (
+                <div 
+                  className="glass-panel animate-fade-in"
+                  style={{
+                    padding: '1.25rem 1.5rem',
+                    borderRadius: '1rem',
+                    background: settings.dormancy_status === 'warning_2' ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(30, 41, 59, 0.95) 100%)' : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(30, 41, 59, 0.95) 100%)',
+                    border: settings.dormancy_status === 'warning_2' ? '1px solid #ef4444' : '1px solid #f59e0b',
+                    boxShadow: settings.dormancy_status === 'warning_2' ? '0 6px 20px rgba(239, 68, 68, 0.2)' : '0 6px 20px rgba(245, 158, 11, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1.5rem',
+                    marginBottom: '1.75rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                    <div style={{ 
+                      width: '42px', 
+                      height: '42px', 
+                      borderRadius: '50%', 
+                      backgroundColor: settings.dormancy_status === 'warning_2' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      color: settings.dormancy_status === 'warning_2' ? '#ef4444' : '#f59e0b',
+                      flexShrink: 0 
+                    }}>
+                      <Clock size={22} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                        <span style={{ 
+                          fontSize: '0.72rem', 
+                          fontWeight: 800, 
+                          padding: '0.15rem 0.55rem', 
+                          borderRadius: '0.35rem', 
+                          backgroundColor: settings.dormancy_status === 'warning_2' ? '#ef4444' : '#f59e0b', 
+                          color: '#ffffff',
+                          textTransform: 'uppercase'
+                        }}>
+                          {settings.dormancy_status === 'warning_2' ? '⚠️ Peringatan Kritis Inaktivitas' : 'Pemberitahuan Inaktivitas Toko'}
+                        </span>
+                      </div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.2rem 0' }}>
+                        {settings.dormancy_status === 'warning_2' ? 'Katalog akan dinonaktifkan sementara dalam beberapa hari!' : 'Katalog terdeteksi tidak aktif selama 30 hari.'}
+                      </h4>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                        Perpanjang masa aktif gratis Anda sekarang agar katalog tetap tampil di publik dan data produk Anda tidak terhapus.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExtendStoreActivity}
+                    disabled={extendingActivity}
+                    className="btn-primary"
+                    style={{
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '0.75rem',
+                      fontSize: '0.84rem',
+                      fontWeight: 800,
+                      background: settings.dormancy_status === 'warning_2' ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    {extendingActivity ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    <span>Perpanjang Masa Aktif (1-Klik)</span>
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                   {/* Store Switcher Dropdown Anchor */}
@@ -15074,7 +15326,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                           <button
                             type="button"
-                            onClick={() => setNotifFilter('all')}
+                            onClick={() => handleNotifFilterChange('all')}
                             style={{
                               padding: '0.45rem 1rem',
                               borderRadius: '999px',
@@ -15088,11 +15340,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               transition: 'all 0.15s ease'
                             }}
                           >
-                            Semua ({notifications.length})
+                            Semua ({notifTotal > 0 ? notifTotal : notifications.length})
                           </button>
                           <button
                             type="button"
-                            onClick={() => setNotifFilter('unread')}
+                            onClick={() => handleNotifFilterChange('unread')}
                             style={{
                               padding: '0.45rem 1rem',
                               borderRadius: '999px',
@@ -15121,7 +15373,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
                       </div>
 
-                      {filteredNotifications.length === 0 ? (
+                      {notifInitialLoading && notifications.length === 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '0.85rem', color: 'var(--text-secondary)' }}>
+                          <Loader size={28} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                          <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Memuat notifikasi...</span>
+                        </div>
+                      ) : filteredNotifications.length === 0 ? (
                         <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                           <Bell size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
                           <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
@@ -15237,6 +15494,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               </div>
                             );
                           })}
+
+                          {/* Infinite Scroll Bottom Loader */}
+                          {notifLoadingMore && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1.25rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>
+                              <Loader size={18} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                              <span>Memuat notifikasi lainnya...</span>
+                            </div>
+                          )}
+
+                          {/* Sentinel element to trigger next page load */}
+                          <div ref={notifSentinelRef} style={{ height: '20px', width: '100%', pointerEvents: 'none' }} />
+
+                          {/* End of list banner */}
+                          {!notifHasMore && filteredNotifications.length > 0 && (
+                            <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem 0.5rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 600 }}>
+                              — Semua notifikasi telah dimuat —
+                            </div>
+                          )}
                         </div>
                       )}
                     </>

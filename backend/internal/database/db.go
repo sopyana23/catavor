@@ -51,8 +51,9 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	if !cfg.DBAutoMigrate {
+		runPostMigrationOptimizations(db)
 		DB = db
-		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration, schema updates, and seeders SKIPPED)")
+		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED, idempotent schema columns verified)")
 		return db, nil
 	}
 
@@ -344,7 +345,19 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_ticket_date ON support_messages(ticket_id, created_at ASC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON support_attachments(message_id);").Error
 
-	// 4. Auto-populate categories from store master_classes if categories table is empty
+	// 4. Ensure Dormancy Tracking Columns & Indexes on Stores Table
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_status VARCHAR(50) DEFAULT 'active';").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_warning1_sent_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_warning2_sent_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_suspended_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS reactivation_token VARCHAR(128);").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_exempt_from_dormancy BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_dormancy ON stores(plan, dormancy_status, is_exempt_from_dormancy, last_activity_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
+	_ = db.Exec("UPDATE stores SET last_activity_at = updated_at WHERE last_activity_at IS NULL;").Error
+
+	// 5. Auto-populate categories from store master_classes if categories table is empty
 	var catCount int64
 	db.Model(&models.Category{}).Count(&catCount)
 	if catCount == 0 {

@@ -194,6 +194,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
+	// Touch store activity upon admin login
+	for _, st := range user.Stores {
+		services.TouchStoreActivity(database.DB, st.ID)
+	}
+	if user.Store != nil {
+		services.TouchStoreActivity(database.DB, user.Store.ID)
+	}
+
 	return c.JSON(fiber.Map{
 		"success":      true,
 		"message":      "Login berhasil.",
@@ -642,6 +650,14 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"success": false,
 				"message": "Gagal membuat sesi login.",
 			})
+		}
+
+		// Touch store activity upon Google login
+		for _, st := range user.Stores {
+			services.TouchStoreActivity(database.DB, st.ID)
+		}
+		if user.Store != nil {
+			services.TouchStoreActivity(database.DB, user.Store.ID)
 		}
 
 		return c.JSON(fiber.Map{
