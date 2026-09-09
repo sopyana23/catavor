@@ -11380,13 +11380,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         {/* Lokasi (100% Hidden if empty - no fallback) */}
                         {hasLocation && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', gridColumn: 'span 2' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', gridColumn: 'span 2' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, marginTop: '0.15rem' }}>
                               <MapPin size={18} />
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: 0 }}>
                               <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
-                              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>{settings.about_location}</span>
+                              <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: '1.55' }}>
+                                <FormattedText text={settings.about_location || ''} />
+                              </div>
                             </div>
                           </div>
                         )}
@@ -13901,13 +13903,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           <div className="form-group" style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '1.25rem' }}>
-                            <label className="form-label">Lokasi / Alamat Resmi</label>
-                            <input 
-                              type="text" 
-                              className="form-input" 
-                              placeholder="Contoh: Bandung, Jawa Barat, Indonesia"
+                            <RichTextarea 
+                              label="Lokasi / Alamat Resmi"
+                              rows={4}
+                              placeholder="Tuliskan alamat lengkap toko, gedung, patokan, tautan Google Maps, atau instruksi rute (Mendukung format teks tebal, poin, dan mode layar penuh)..."
                               value={settingsForm.about_location || ''}
-                              onChange={(e) => setSettingsForm({ ...settingsForm, about_location: e.target.value })}
+                              onChange={(val) => setSettingsForm({ ...settingsForm, about_location: val })}
                             />
                           </div>
 
