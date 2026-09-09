@@ -73,6 +73,9 @@ func main() {
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
 
+	// Start Background Dormancy & Free Tier Lifecycle Worker (Runs on boot and every 1 hour)
+	services.StartDormancyWorker(context.Background(), database.DB, storageService, 1*time.Hour)
+
 	// Start Background Subscription Lifecycle Worker (Runs on boot and every 1 hour)
 	go func() {
 		if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
@@ -140,6 +143,8 @@ func main() {
 	api.Get("/u/:slug/products", storeHandler.IndexProducts)
 	api.Get("/u/:slug/categories", categoryHandler.Index)
 	api.Get("/u/:slug/fauna", storeHandler.IndexProducts) // Backward-compatible alias
+	api.Get("/public/stores/reactivate", handlers.HandlePublicReactivateStore)
+	api.Get("/stores/reactivate", handlers.HandlePublicReactivateStore)
 
 	// Public Subscription Plans
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
@@ -264,6 +269,11 @@ func main() {
 		guarded.Get("/admin/notifications", notificationHandler.SuperadminIndex)
 		guarded.Post("/admin/notifications/broadcast", notificationHandler.SuperadminBroadcast)
 		guarded.Delete("/admin/notifications/:id", notificationHandler.SuperadminDelete)
+
+		// Store Activity Extension & Superadmin Dormancy Metrics
+		guarded.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
+		guarded.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
+		guarded.Get("/superadmin/dormancy/metrics", handlers.HandleGetDormancyMetrics)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients

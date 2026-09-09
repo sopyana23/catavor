@@ -3,6 +3,7 @@ package handlers
 import (
 	"bufio"
 	"fmt"
+	"strconv"
 	"time"
 
 	"catavor-backend/internal/models"
@@ -22,7 +23,7 @@ func NewNotificationHandler(db *gorm.DB) *NotificationHandler {
 	return &NotificationHandler{DB: db}
 }
 
-// GetNotifications returns active notifications for the authenticated store/user.
+// GetNotifications returns active notifications for the authenticated store/user with pagination.
 func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	store, _ := c.Locals("store").(*models.Store)
 	user, _ := c.Locals("user").(*models.User)
@@ -48,6 +49,20 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 
 	now := time.Now().UTC()
 
+	// Parse pagination parameters
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	if limit < 1 {
+		limit = 10
+	} else if limit > 50 {
+		limit = 50
+	}
+	offset := (page - 1) * limit
+	filter := c.Query("filter", "all")
+
 	// 2. Fetch all matching notifications with left join on reads
 	type NotifResult struct {
 		models.Notification
@@ -56,10 +71,10 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		DismissedAt *time.Time `json:"-"`
 	}
 
-	var results []NotifResult
+	var allResults []NotifResult
 
 	// Target matching: all, matching dynamic plan, single_store, single_user
-	query := h.DB.Table("notifications").
+	baseQuery := h.DB.Table("notifications").
 		Select(`notifications.*, 
 		        notification_reads.id as read_id, 
 		        notification_reads.read_at as read_at_time, 
@@ -77,12 +92,12 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		`, now, storePlan, storeID, userID)
 
 	// Exclude read notifications that have exceeded their retention window
-	query = query.Where(`
+	baseQuery = baseQuery.Where(`
 		notification_reads.read_at IS NULL 
 		OR ((notification_reads.read_at + (notifications.retention_hours * INTERVAL '1 hour')) >= ?)
 	`, now)
 
-	err := query.Order("notifications.created_at DESC").Find(&results).Error
+	err := baseQuery.Order("notifications.created_at DESC").Find(&allResults).Error
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to query notifications")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -90,12 +105,11 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Format output and compute unread count
-	filter := c.Query("filter", "all")
-	var formatted []models.Notification
+	// 3. Process, filter, and calculate unread count
+	var filtered []models.Notification
 	unreadCount := 0
 
-	for _, res := range results {
+	for _, res := range allResults {
 		notif := res.Notification
 		notif.IsRead = res.ReadID != nil && *res.ReadID > 0
 		notif.ReadAt = res.ReadAtTime
@@ -110,17 +124,32 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 			continue
 		}
 
-		formatted = append(formatted, notif)
+		filtered = append(filtered, notif)
 	}
 
-	if formatted == nil {
-		formatted = []models.Notification{}
+	totalFiltered := len(filtered)
+
+	// Apply pagination slice
+	var pagedData []models.Notification
+	if offset < totalFiltered {
+		end := offset + limit
+		if end > totalFiltered {
+			end = totalFiltered
+		}
+		pagedData = filtered[offset:end]
+	} else {
+		pagedData = []models.Notification{}
 	}
+
+	hasMore := (offset + len(pagedData)) < totalFiltered
 
 	return c.JSON(fiber.Map{
-		"data":         formatted,
+		"data":         pagedData,
 		"unread_count": unreadCount,
-		"total":        len(formatted),
+		"total":        totalFiltered,
+		"page":         page,
+		"limit":        limit,
+		"has_more":     hasMore,
 	})
 }
 
