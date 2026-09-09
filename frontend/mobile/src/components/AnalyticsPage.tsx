@@ -747,7 +747,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 Analitika & Konversi Multi-Katalog
               </h2>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                Performa toko <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || 'Catavor'}</strong> • Semua Tipe Bisnis
+                Performa katalog <strong style={{ color: 'var(--text-primary)' }}>{storeTitle || 'Catavor'}</strong> • Semua Tipe Bisnis
               </span>
             </div>
           </div>
@@ -758,18 +758,19 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: '0.3rem 0.65rem',
-              borderRadius: '20px',
+              padding: '0.35rem 0.65rem',
+              borderRadius: '999px',
               backgroundColor: 'rgba(16, 185, 129, 0.1)',
               border: '1px solid rgba(16, 185, 129, 0.25)',
-              fontSize: '0.68rem',
+              color: '#10b981',
+              fontSize: '0.7rem',
               fontWeight: 700,
-              color: '#10b981'
+              letterSpacing: '0.02em',
+              alignSelf: 'flex-start'
             }}
-            title="Sistem secara otomatis mendeteksi dan memblokir bot web scraper, crawler mesin pencari, serta spam refresh agar data kunjungan Anda 100% murni manusia."
           >
-            <ShieldCheck size={13} />
-            <span>Anti-Bot & Anti-Spam Aktif</span>
+            <ShieldCheck size={13} style={{ flexShrink: 0 }} />
+            <span>Anti-Bot Aktif: Data Kunjungan Asli & Akurat</span>
           </div>
         </div>
 
@@ -836,7 +837,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Kunjungan Toko</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Kunjungan Katalog</span>
             <div style={{ width: '24px', height: '24px', borderRadius: '0.4rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Users size={14} />
             </div>
@@ -1586,7 +1587,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             >
               <TrendingUp size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                Menunggu Kunjungan Pertama • Bagikan link toko Anda
+                Menunggu Kunjungan Pertama • Bagikan link katalog Anda
               </span>
             </div>
           )}
