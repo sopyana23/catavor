@@ -49,6 +49,23 @@ func HandlePublicReactivateStore(c *fiber.Ctx) error {
 `, err.Error()))
 	}
 
+	// Record Activity Log
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &store.ID,
+		ActorRole:   "system",
+		ActorName:   "Magic Link Reaktivasi",
+		ActorEmail:  "system@catavor.com",
+		Action:      "store.reactivate",
+		Category:    "store",
+		EntityType:  "store",
+		EntityID:    &store.ID,
+		EntityTitle: store.StoreTitle,
+		Description: fmt.Sprintf("Katalog '%s' berhasil direaktivasi melalui Magic Link Email.", store.StoreTitle),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
+
 	// Success: Redirect user to their store admin dashboard with a celebratory query parameter
 	redirectURL := fmt.Sprintf("/%s/admin?reactivated=true", store.Slug)
 	return c.Redirect(redirectURL, fiber.StatusTemporaryRedirect)
@@ -88,6 +105,24 @@ func HandleExtendStoreActivity(c *fiber.Ctx) error {
 			"message": err.Error(),
 		})
 	}
+
+	// Record Activity Log
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &store.ID,
+		UserID:      &user.ID,
+		ActorRole:   "merchant",
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "store.extend_activity",
+		Category:    "store",
+		EntityType:  "store",
+		EntityID:    &store.ID,
+		EntityTitle: store.StoreTitle,
+		Description: fmt.Sprintf("Pemilik toko '%s' memperpanjang masa aktif katalog 45 hari ke depan.", store.StoreTitle),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
 
 	return c.JSON(fiber.Map{
 		"status":           "success",

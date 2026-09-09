@@ -68,10 +68,14 @@ func main() {
 	analyticsHandler := handlers.NewAnalyticsHandler(cfg)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	notificationHandler := handlers.NewNotificationHandler(database.DB)
+	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg)
 
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
+
+	// Start Background Activity Log Retention Cleaner Worker (Runs daily)
+	services.StartActivityLogCleaner(context.Background(), database.DB, 24*time.Hour)
 
 	// Start Background Dormancy & Free Tier Lifecycle Worker (Runs on boot and every 1 hour)
 	services.StartDormancyWorker(context.Background(), database.DB, storageService, 1*time.Hour)
@@ -274,6 +278,11 @@ func main() {
 		// Store Activity Extension & Superadmin Dormancy Metrics
 		guarded.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
 		guarded.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
+
+		// Enterprise Activity & Audit Logs
+		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)
+		guarded.Get("/activity-logs/summary", activityLogHandler.GetActivitySummary)
+		guarded.Get("/admin/audit-logs", activityLogHandler.GetSuperadminAuditLogs)
 		guarded.Get("/superadmin/dormancy/metrics", handlers.HandleGetDormancyMetrics)
 	}
 

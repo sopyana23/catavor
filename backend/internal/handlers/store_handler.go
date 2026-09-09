@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -482,6 +483,39 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 
 	// Refresh store activity timestamp for active stores
 	services.TouchStoreActivity(database.DB, store.ID)
+
+	// Record Activity Log
+	userVal := c.Locals("user")
+	var userID *uint
+	actorName := "Pemilik Toko"
+	actorEmail := "owner@catavor.com"
+	actorRole := "merchant"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		userID = &u.ID
+		actorName = u.Name
+		actorEmail = u.Email
+		if u.Email == "admin@catavor.com" {
+			actorRole = "superadmin"
+		}
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		StoreID:     &store.ID,
+		UserID:      userID,
+		ActorRole:   actorRole,
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "store.profile_update",
+		Category:    "store",
+		EntityType:  "store",
+		EntityID:    &store.ID,
+		EntityTitle: store.StoreTitle,
+		Description: fmt.Sprintf("Pengaturan profil katalog '%s' berhasil diperbarui.", store.StoreTitle),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
 
 	return c.JSON(fiber.Map{
 		"success": true,

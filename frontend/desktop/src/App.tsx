@@ -117,7 +117,9 @@ import {
   LayoutDashboard,
   BarChart3,
   TrendingUp,
-  MousePointerClick
+  MousePointerClick,
+  Activity,
+  History
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -4559,6 +4561,65 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   }, [storeSlug]);
 
+  // Enterprise Activity & Audit Logs State (Desktop)
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [activityTotal, setActivityTotal] = useState<number>(0);
+  const [activityPage, setActivityPage] = useState<number>(1);
+  const [activityHasMore, setActivityHasMore] = useState<boolean>(true);
+  const [activityLoading, setActivityLoading] = useState<boolean>(false);
+  const [activityCategory, setActivityCategory] = useState<string>('all');
+  const [activityRoleFilter, setActivityRoleFilter] = useState<string>('all');
+  const [activitySearch, setActivitySearch] = useState<string>('');
+  const [activitySelectedLog, setActivitySelectedLog] = useState<any | null>(null);
+
+  const fetchActivityLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false, category: string = activityCategory, search: string = activitySearch, role: string = activityRoleFilter) => {
+    try {
+      setActivityLoading(true);
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      const isSuperadmin = adminUser?.email === 'admin@catavor.com';
+      const endpoint = isSuperadmin ? '/api/admin/audit-logs' : '/api/activity-logs';
+      
+      const queryParams = new URLSearchParams({
+        page: String(pageToFetch),
+        limit: '15',
+        category: category,
+        q: search,
+      });
+      if (isSuperadmin && role !== 'all') {
+        queryParams.append('role', role);
+      }
+
+      const res = await fetch(`${endpoint}?${queryParams.toString()}`, {
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const dataList = Array.isArray(json.data) ? json.data : [];
+        if (append) {
+          setActivityLogs(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newItems = dataList.filter((item: any) => !existingIds.has(item.id));
+            return [...prev, ...newItems];
+          });
+        } else {
+          setActivityLogs(dataList);
+        }
+        setActivityPage(pageToFetch);
+        setActivityTotal(json.total || 0);
+        setActivityHasMore(Boolean(json.has_more));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch activity logs:', err);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [storeSlug, activityCategory, activitySearch, activityRoleFilter]);
+
   // Store Activity & Dormancy State (Desktop)
   const [extendingActivity, setExtendingActivity] = useState<boolean>(false);
   const handleExtendStoreActivity = useCallback(async () => {
@@ -5034,7 +5095,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Navigation: 'catalog' or 'admin'
   const [view, setView] = useState<'catalog' | 'admin'>('catalog')
-  const [adminTab, setAdminTab] = useState<'items' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription'>('items')
+  const [adminTab, setAdminTab] = useState<'items' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs'>('items')
 
   const unreadCount = useMemo(() => notifUnreadCount, [notifUnreadCount]);
   const filteredNotifications = useMemo(() => {
@@ -12964,6 +13025,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {unreadCount > 0 && <span className="badge" style={{ backgroundColor: 'var(--primary)', color: '#000', borderRadius: '999px', fontSize: '0.65rem', padding: '0.1rem 0.45rem', marginLeft: '0.2rem', fontWeight: 800 }}>{unreadCount}</span>}
                 </button>
                 <button 
+                  className={`admin-tab ${adminTab === 'audit_logs' ? 'active' : ''}`}
+                  onClick={() => {
+                    setAdminTab('audit_logs');
+                    const slug = getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/audit-logs`);
+                    fetchActivityLogs(1, false);
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                >
+                  <History size={16} />
+                  <span>{adminUser?.email === 'admin@catavor.com' ? 'System Audit Trail' : 'Riwayat Aktivitas & Audit'}</span>
+                </button>
+                <button 
                   className={`admin-tab ${adminTab === 'settings' ? 'active' : ''}`}
                   onClick={() => {
                     setAdminTab('settings');
@@ -15547,6 +15621,320 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
                       )}
                     </>
+                  )}
+                </div>
+              )}
+
+              {adminTab === 'audit_logs' && (
+                <div className="glass-panel animate-fade-in" style={{ padding: '2rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)' }}>
+                  {/* Top Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                          <History size={20} />
+                        </div>
+                        <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
+                          {adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin)' : 'Riwayat Aktivitas & Log Audit'}
+                        </h2>
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                        {adminUser?.email === 'admin@catavor.com' 
+                          ? 'Audit trail seluruh aksi administratif, penertiban toko, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
+                          : 'Rekaman transparan seluruh aktivitas operasional katalog, pembaruan harga produk, pergantian password, hingga riwayat login toko Anda.'}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.35rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
+                        {activityTotal} Rekaman Tercatat
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => fetchActivityLogs(1, false)}
+                        disabled={activityLoading}
+                        className="btn-secondary"
+                        style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+                        title="Segarkan Log"
+                      >
+                        <RefreshCw size={14} className={activityLoading ? 'animate-spin' : ''} />
+                        <span>Segarkan</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter Pills & Search Toolbar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                    {/* Category Filter Pills */}
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {[
+                        { key: 'all', label: 'Semua Kategori' },
+                        { key: 'security', label: '🔒 Keamanan & Auth' },
+                        { key: 'catalog', label: '📦 Produk & Katalog' },
+                        { key: 'store', label: '🏪 Profil Toko' },
+                        { key: 'billing', label: '💳 Paket & Billing' },
+                        ...(adminUser?.email === 'admin@catavor.com' ? [
+                          { key: 'superadmin', label: '👑 Superadmin Action' },
+                          { key: 'moderation', label: '🛡️ Moderasi' },
+                        ] : [])
+                      ].map(cat => {
+                        const isActive = activityCategory === cat.key;
+                        return (
+                          <button
+                            key={cat.key}
+                            type="button"
+                            onClick={() => {
+                              setActivityCategory(cat.key);
+                              setActivityPage(1);
+                              fetchActivityLogs(1, false, cat.key, activitySearch, activityRoleFilter);
+                            }}
+                            style={{
+                              padding: '0.45rem 0.95rem',
+                              borderRadius: '0.65rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              backgroundColor: isActive ? 'var(--primary-glow)' : 'rgba(255,255,255,0.03)',
+                              color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Role Filter (Superadmin Only) & Search Input */}
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                      {adminUser?.email === 'admin@catavor.com' && (
+                        <select
+                          className="form-input"
+                          value={activityRoleFilter}
+                          onChange={(e) => {
+                            const newRole = e.target.value;
+                            setActivityRoleFilter(newRole);
+                            setActivityPage(1);
+                            fetchActivityLogs(1, false, activityCategory, activitySearch, newRole);
+                          }}
+                          style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.5rem', width: 'auto' }}
+                        >
+                          <option value="all">Semua Aktor</option>
+                          <option value="superadmin">Superadmin</option>
+                          <option value="merchant">Merchant</option>
+                          <option value="system">System Worker</option>
+                        </select>
+                      )}
+
+                      <div style={{ position: 'relative', width: '240px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Cari aksi, produk, IP..."
+                          value={activitySearch}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setActivitySearch(val);
+                            fetchActivityLogs(1, false, activityCategory, val, activityRoleFilter);
+                          }}
+                          style={{ paddingLeft: '2.2rem', paddingRight: '0.75rem', paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.78rem', borderRadius: '0.5rem' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Activity Log List */}
+                  {activityLoading && activityLogs.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <Loader size={28} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Memuat log aktivitas...</span>
+                    </div>
+                  ) : activityLogs.length === 0 ? (
+                    <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <History size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Belum Ada Log Aktivitas</h4>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data, login, dan pembaruan sistem akan tercatat rapi di sini.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      {activityLogs.map((logItem: any) => {
+                        const isSecurity = logItem.category === 'security';
+                        const isCatalog = logItem.category === 'catalog';
+                        const isStore = logItem.category === 'store';
+                        const isBilling = logItem.category === 'billing';
+                        const isSuperadmin = logItem.category === 'superadmin';
+                        const isModeration = logItem.category === 'moderation';
+
+                        let iconBg = 'rgba(59, 130, 246, 0.15)';
+                        let iconColor = '#60a5fa';
+                        let IconComp = FileText;
+
+                        if (isSecurity) {
+                          iconBg = 'rgba(16, 185, 129, 0.15)';
+                          iconColor = '#34d399';
+                          IconComp = ShieldCheck;
+                        } else if (isCatalog) {
+                          iconBg = 'rgba(59, 130, 246, 0.15)';
+                          iconColor = '#60a5fa';
+                          IconComp = Package;
+                        } else if (isStore) {
+                          iconBg = 'rgba(168, 85, 247, 0.15)';
+                          iconColor = '#c084fc';
+                          IconComp = Store;
+                        } else if (isBilling) {
+                          iconBg = 'rgba(245, 158, 11, 0.15)';
+                          iconColor = '#fbbf24';
+                          IconComp = CreditCard;
+                        } else if (isSuperadmin) {
+                          iconBg = 'rgba(239, 68, 68, 0.15)';
+                          iconColor = '#f87171';
+                          IconComp = ShieldAlert;
+                        } else if (isModeration) {
+                          iconBg = 'rgba(244, 63, 94, 0.15)';
+                          iconColor = '#fb7185';
+                          IconComp = Flag;
+                        }
+
+                        return (
+                          <div
+                            key={logItem.id}
+                            className="glass-panel"
+                            style={{
+                              padding: '1.15rem 1.35rem',
+                              borderRadius: '0.85rem',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--card-bg-gradient)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.65rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <IconComp size={16} />
+                                </div>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
+                                      {logItem.action}
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                      oleh <strong style={{ color: '#ffffff' }}>{logItem.actor_name}</strong> {logItem.actor_role && logItem.actor_role !== 'merchant' ? `(${logItem.actor_role})` : ''}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                {logItem.ip_address && (
+                                  <span style={{ fontFamily: 'monospace', backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                                    IP: {logItem.ip_address}
+                                  </span>
+                                )}
+                                <span>{new Date(logItem.created_at).toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+
+                            <p style={{ fontSize: '0.84rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.45, fontWeight: 500 }}>
+                              {logItem.description}
+                            </p>
+
+                            {/* Changes Diff Preview (if present) */}
+                            {logItem.changes && (
+                              <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                  {logItem.entity_title ? `Target: ${logItem.entity_title}` : 'Detail perubahan tercatat'}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setActivitySelectedLog(logItem)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--primary)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    padding: '0.2rem 0.4rem'
+                                  }}
+                                >
+                                  <Eye size={13} />
+                                  <span>Lihat Snapshot Diff</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Load More Button & Pagination Indicator */}
+                      {activityHasMore && (
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch, activityRoleFilter)}
+                            disabled={activityLoading}
+                            className="btn-secondary"
+                            style={{ padding: '0.6rem 1.5rem', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                          >
+                            {activityLoading ? <Loader size={16} className="animate-spin" /> : <ChevronDown size={16} />}
+                            <span>Muat Catatan Sebelumnya</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Inspect Diff Modal */}
+                  {activitySelectedLog && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+                      <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '580px', borderRadius: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+                          <div>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>
+                              Snapshot Perubahan Data (Diff)
+                            </span>
+                            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', margin: '0.15rem 0 0 0' }}>
+                              {activitySelectedLog.action}
+                            </h3>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => setActivitySelectedLog(null)}
+                            style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.25rem', cursor: 'pointer', fontWeight: 700 }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div style={{ padding: '1.25rem 1.5rem', maxHeight: '420px', overflowY: 'auto' }}>
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.85rem' }}>
+                            {activitySelectedLog.description}
+                          </p>
+
+                          <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.78rem', color: '#34d399', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.5 }}>
+                            {JSON.stringify(activitySelectedLog.changes, null, 2)}
+                          </div>
+                        </div>
+
+                        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => setActivitySelectedLog(null)}
+                            style={{ padding: '0.45rem 1.25rem', fontSize: '0.8rem', fontWeight: 700 }}
+                          >
+                            Tutup
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
