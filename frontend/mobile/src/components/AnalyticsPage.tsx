@@ -627,6 +627,21 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
   const productTypeCounts = serverTypeCounts || fallbackProductTypeCounts;
 
+  // Number of distinct product types with > 0 items in the catalog
+  const distinctTypesCount = useMemo(() => {
+    if (!productTypeCounts) return 0;
+    return Object.entries(productTypeCounts).filter(
+      ([key, count]) => key !== 'all' && typeof count === 'number' && count > 0
+    ).length;
+  }, [productTypeCounts]);
+
+  // Auto-reset filter if only 1 or 0 distinct types exist
+  useEffect(() => {
+    if (distinctTypesCount <= 1 && selectedProductType !== 'all') {
+      setSelectedProductType('all');
+    }
+  }, [distinctTypesCount, selectedProductType]);
+
   // Filtered and sorted products (used for local fallback when server-side data is loading or offline)
   const filteredProducts = useMemo(() => {
     const list = analyticsData?.top_products || [];
@@ -1678,63 +1693,67 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
         </div>
 
-        {/* Product Type Switcher Pills */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            overflowX: 'auto',
-            paddingBottom: '0.35rem',
-            scrollbarWidth: 'none'
-          }}
-        >
-          {productTypeTabs.map(tab => {
-            const TabIcon = tab.icon;
-            const isSelected = selectedProductType === tab.key;
-            const count = productTypeCounts[tab.key] ?? 0;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => {
-                  setSelectedProductType(tab.key);
-                  setCurrentPage(1);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.35rem 0.7rem',
-                  fontSize: '0.72rem',
-                  fontWeight: isSelected ? 700 : 500,
-                  borderRadius: '20px',
-                  border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-deep)',
-                  color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'var(--transition-fast)'
-                }}
-              >
-                <TabIcon size={13} />
-                <span>{tab.label}</span>
-                <span
-                  style={{
-                    fontSize: '0.65rem',
-                    padding: '0.05rem 0.35rem',
-                    borderRadius: '10px',
-                    backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
-                    color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                    fontWeight: 700
-                  }}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Product Type Switcher Pills - only shown if store has multiple catalog types */}
+        {distinctTypesCount > 1 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              overflowX: 'auto',
+              paddingBottom: '0.35rem',
+              scrollbarWidth: 'none'
+            }}
+          >
+            {productTypeTabs
+              .filter(tab => tab.key === 'all' || (productTypeCounts[tab.key] ?? 0) > 0)
+              .map(tab => {
+                const TabIcon = tab.icon;
+                const isSelected = selectedProductType === tab.key;
+                const count = productTypeCounts[tab.key] ?? 0;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProductType(tab.key);
+                      setCurrentPage(1);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.35rem 0.7rem',
+                      fontSize: '0.72rem',
+                      fontWeight: isSelected ? 700 : 500,
+                      borderRadius: '20px',
+                      border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                      backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-deep)',
+                      color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'var(--transition-fast)'
+                    }}
+                  >
+                    <TabIcon size={13} />
+                    <span>{tab.label}</span>
+                    <span
+                      style={{
+                        fontSize: '0.65rem',
+                        padding: '0.05rem 0.35rem',
+                        borderRadius: '10px',
+                        backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                        fontWeight: 700
+                      }}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        )}
 
         {/* Top Products Table / Card List */}
         {filteredProducts.length === 0 ? (
