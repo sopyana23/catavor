@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -173,6 +173,35 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }, 300);
     return () => clearTimeout(timer);
   }, [productSearch]);
+
+  // Mobile Drag-to-Dismiss Gesture for Bottom Sheet Modal
+  const [sheetDragY, setSheetDragY] = useState<number>(0);
+  const [isSheetDragging, setIsSheetDragging] = useState<boolean>(false);
+  const touchStartY = useRef<number>(0);
+
+  const handleSheetDragStart = (clientY: number) => {
+    touchStartY.current = clientY;
+    setIsSheetDragging(true);
+  };
+
+  const handleSheetDragMove = (clientY: number) => {
+    if (!isSheetDragging) return;
+    const delta = clientY - touchStartY.current;
+    if (delta > 0) {
+      setSheetDragY(delta);
+    } else {
+      setSheetDragY(delta * 0.15);
+    }
+  };
+
+  const handleSheetDragEnd = () => {
+    if (!isSheetDragging) return;
+    setIsSheetDragging(false);
+    if (sheetDragY > 75) {
+      setShowSortModal(false);
+    }
+    setSheetDragY(0);
+  };
 
   // Reset page when filter or sort changes
   useEffect(() => {
@@ -2062,22 +2091,42 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         <div 
           className="bottom-sheet-backdrop" 
           style={{ zIndex: 11000 }}
-          onClick={() => setShowSortModal(false)}
+          onClick={() => {
+            setShowSortModal(false);
+            setSheetDragY(0);
+          }}
         >
           <div 
             className="bottom-sheet-content" 
             onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
           >
-            {/* Smooth Drag Handle Area */}
+            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
             <div 
               className="bottom-sheet-handle-bar"
-              onClick={() => setShowSortModal(false)}
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleSheetDragEnd}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={handleSheetDragEnd}
             >
               <div className="bottom-sheet-handle" />
             </div>
 
-            {/* Header */}
-            <div className="bottom-sheet-header">
+            {/* Header with Drag Listeners */}
+            <div 
+              className="bottom-sheet-header"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleSheetDragEnd}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={handleSheetDragEnd}
+            >
               <div className="bottom-sheet-title-box">
                 <ArrowUpDown size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                 <h3 className="bottom-sheet-title">Urutkan Performa Item</h3>
@@ -2097,6 +2146,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       setProductSort(opt.id as any);
                       setCurrentPage(1);
                       setShowSortModal(false);
+                      setSheetDragY(0);
                     }}
                   >
                     <div className="bottom-sheet-item-left">
