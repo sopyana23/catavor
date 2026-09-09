@@ -50,6 +50,12 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
+	if !cfg.DBAutoMigrate {
+		DB = db
+		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration, schema updates, and seeders SKIPPED)")
+		return db, nil
+	}
+
 	// 1. Run Pre-Migration Checks (Safe table renaming faunas -> products)
 	runPreMigrationRenames(db)
 

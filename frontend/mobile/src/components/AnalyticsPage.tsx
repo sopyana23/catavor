@@ -27,7 +27,17 @@ import {
   Video,
   Lightbulb,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  X,
+  ArrowUpDown,
+  PackageSearch,
+  Filter
 } from 'lucide-react';
 
 export interface AnalyticsTrendPoint {
@@ -138,10 +148,73 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   onViewProduct
 }) => {
   const [productSearch, setProductSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedProductType, setSelectedProductType] = useState<string>('all');
-  const [productSort, setProductSort] = useState<'views' | 'actions' | 'ctr' | 'price'>('views');
+  const [productSort, setProductSort] = useState<'views' | 'actions' | 'ctr' | 'price_desc' | 'price_asc'>('views');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [serverProducts, setServerProducts] = useState<AnalyticsProductSummary[] | null>(null);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const [serverTotalPages, setServerTotalPages] = useState<number>(1);
+  const [serverTypeCounts, setServerTypeCounts] = useState<Record<string, number> | null>(null);
+  const [productsLoading, setProductsLoading] = useState<boolean>(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
+  const [metricFocus, setMetricFocus] = useState<'all' | 'views' | 'actions'>('all');
+  const [scaleMode, setScaleMode] = useState<'linear' | 'adaptive'>('linear');
+
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(productSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [productSearch]);
+
+  // Reset page when filter or sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedProductType, debouncedSearch, productSort, pageSize]);
+
+  // Server-side paginated products fetch
+  useEffect(() => {
+    let isMounted = true;
+    const fetchServerProducts = async () => {
+      try {
+        setProductsLoading(true);
+        const token = localStorage.getItem('catavor_token');
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          per_page: pageSize.toString(),
+          search: debouncedSearch,
+          product_type: selectedProductType,
+          sort: productSort
+        });
+        const res = await fetch(`http://localhost:8000/api/admin/analytics/products?${params.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!res.ok) throw new Error('Failed to fetch analytics products');
+        const json = await res.json();
+        if (isMounted && json.success && json.data) {
+          setServerProducts(json.data.products || []);
+          setServerTotal(json.data.total ?? 0);
+          setServerTotalPages(json.data.total_pages ?? 1);
+          if (json.data.type_counts) {
+            setServerTypeCounts(json.data.type_counts);
+          }
+        }
+      } catch (err) {
+        console.warn('Server-side analytics pagination fallback to local:', err);
+      } finally {
+        if (isMounted) setProductsLoading(false);
+      }
+    };
+
+    fetchServerProducts();
+    return () => {
+      isMounted = false;
+    };
+  }, [debouncedSearch, selectedProductType, productSort, currentPage, pageSize, analyticsData]);
 
   useEffect(() => {
     if (!analyticsData && !loading) {
@@ -213,6 +286,56 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }
   };
 
+  const formatMobileChartDate = (dateStr: string, periodType: '7d' | '30d' | '90d') => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+
+        const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+        const today = new Date();
+        const isToday =
+          d.getDate() === today.getDate() &&
+          d.getMonth() === today.getMonth() &&
+          d.getFullYear() === today.getFullYear();
+
+        if (isToday) {
+          return 'Hari Ini';
+        }
+
+        if (periodType === '7d') {
+          return dayNames[d.getDay()] || '';
+        }
+
+        if (periodType === '30d') {
+          return `${day}`;
+        }
+
+        return `${day} ${monthNames[month] || ''}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Format compact number for large numbers (1.2k, 15k, 1.5M)
+  const formatCompactNumber = (num: number): string => {
+    if (num === 0) return '0';
+    if (num < 1000) return num.toString();
+    if (num < 1000000) {
+      const k = num / 1000;
+      return k % 1 === 0 ? `${k}k` : `${k.toFixed(1).replace(/\.0$/, '')}k`;
+    }
+    const m = num / 1000000;
+    return m % 1 === 0 ? `${m}M` : `${m.toFixed(1).replace(/\.0$/, '')}M`;
+  };
+
   const daysCount = period === '90d' ? 90 : period === '30d' ? 30 : 7;
   const storeViews = analyticsData?.total_store_views ?? 0;
   const productViews = analyticsData?.total_product_views ?? 0;
@@ -229,84 +352,205 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
   // Trends calculation
   const trends = analyticsData?.trends || [];
-  
-  // Dynamic scale calculation with clean step for optimal visibility on mobile
+
+  // Disparity & Spike Analysis (Detects extreme single-day outliers e.g. 100 views vs 2-3 views normal)
+  const peakInfo = useMemo(() => {
+    if (!trends.length) return { peakVal: 0, nonPeakMedian: 0, peakRatio: 1, isDisparityHigh: false, peakDay: null, peakIndex: -1 };
+    
+    let maxVal = 0;
+    let maxIdx = -1;
+    let peakDayObj: AnalyticsTrendPoint | null = null;
+    const values: number[] = [];
+
+    trends.forEach((t, idx) => {
+      const v = Math.max(t.store_views || 0, (t.total_actions || t.wa_clicks || 0));
+      values.push(v);
+      if (v > maxVal) {
+        maxVal = v;
+        maxIdx = idx;
+        peakDayObj = t;
+      }
+    });
+
+    if (maxVal <= 5 || values.length < 3) {
+      return { peakVal: maxVal, nonPeakMedian: maxVal, peakRatio: 1, isDisparityHigh: false, peakDay: peakDayObj, peakIndex: maxIdx };
+    }
+
+    // Calculate median of non-zero baseline
+    const nonZeroValues = values.filter(v => v > 0).sort((a, b) => a - b);
+    const median = nonZeroValues.length > 0 ? nonZeroValues[Math.floor(nonZeroValues.length / 2)] : 1;
+    const ratio = median > 0 ? maxVal / median : maxVal;
+    
+    // Disparity is high if single peak is >= 4x the typical baseline
+    const isDisparityHigh = ratio >= 4 && maxVal >= 10;
+
+    return {
+      peakVal: maxVal,
+      nonPeakMedian: median,
+      peakRatio: ratio,
+      isDisparityHigh,
+      peakDay: peakDayObj,
+      peakIndex: maxIdx
+    };
+  }, [trends]);
+
+  // Dynamic scale calculation with clean step & nice numbers algorithm for extreme spikes / disparities
   const chartMaxVal = useMemo(() => {
-    if (!trends.length) return 2;
-    const maxVal = Math.max(...trends.map(t => Math.max(t.store_views || 0, (t.total_actions || t.wa_clicks || 0))));
-    if (maxVal <= 0) return 2;
-    if (maxVal === 1) return 2;
-    if (maxVal === 2) return 3;
-    if (maxVal <= 4) return 5;
+    if (!trends.length) return 4;
+    const maxVal = Math.max(...trends.map(t => {
+      if (metricFocus === 'views') return t.store_views || 0;
+      if (metricFocus === 'actions') return t.total_actions || t.wa_clicks || 0;
+      return Math.max(t.store_views || 0, (t.total_actions || t.wa_clicks || 0));
+    }));
+    if (maxVal <= 0) return 4;
+    if (maxVal <= 2) return 4;
+    if (maxVal <= 4) return 6;
     if (maxVal <= 8) return 10;
     if (maxVal <= 15) return 20;
     if (maxVal <= 30) return 40;
     if (maxVal <= 60) return 80;
     if (maxVal <= 100) return 120;
-    return Math.ceil(maxVal * 1.25);
-  }, [trends]);
 
-  // Y-Axis reference grid ticks (clean integer levels)
+    // Nice numbers step for large spikes (Wilkinson / Heckbert)
+    const exponent = Math.floor(Math.log10(maxVal));
+    const fraction = maxVal / Math.pow(10, exponent);
+    let niceFraction: number;
+    if (fraction <= 1.2) niceFraction = 1.5;
+    else if (fraction <= 2) niceFraction = 2.5;
+    else if (fraction <= 3) niceFraction = 4;
+    else if (fraction <= 5) niceFraction = 6;
+    else if (fraction <= 8) niceFraction = 10;
+    else niceFraction = 12;
+
+    return Math.ceil(niceFraction * Math.pow(10, exponent));
+  }, [trends, metricFocus]);
+
+  // Y-Axis reference grid ticks (3 tiers: 0, mid, max)
   const yGridTicks = useMemo(() => {
-    if (chartMaxVal === 2) return [0, 1, 2];
-    if (chartMaxVal === 3) return [0, 1, 2, 3];
     if (chartMaxVal === 4) return [0, 2, 4];
-    if (chartMaxVal === 5) return [0, 1, 2, 3, 4, 5];
-    if (chartMaxVal <= 10) return [0, Math.round(chartMaxVal / 2), chartMaxVal];
+    if (chartMaxVal === 6) return [0, 3, 6];
+    if (chartMaxVal <= 10) return [0, 5, 10];
+    const half = Math.round(chartMaxVal / 2);
     return [
       0,
-      Math.round(chartMaxVal * 0.33),
-      Math.round(chartMaxVal * 0.66),
+      half,
       chartMaxVal
     ];
   }, [chartMaxVal]);
 
-  // Point coordinates for SVG Area / Line chart (Mobile: 520x220)
+  // Scale normalization helper (supports Linear and Adaptive Log-Scaled Compression)
+  const getNormalizedRatio = (val: number): number => {
+    if (val <= 0 || chartMaxVal <= 0) return 0;
+    if (scaleMode === 'linear') {
+      return Math.min(1, val / chartMaxVal);
+    }
+    // Adaptive mode: Logarithmic compression preserves visibility for small daily numbers while capping huge peaks
+    const logVal = Math.log1p(val);
+    const logMax = Math.log1p(chartMaxVal);
+    return Math.min(1, logVal / logMax);
+  };
+
+  // Point coordinates for compact SVG chart (Mobile: 340x120) with strict boundary clamping & disparity normalization
   const { viewsPoints, actionsPoints } = useMemo(() => {
     const vPts: { x: number; y: number }[] = [];
     const aPts: { x: number; y: number }[] = [];
     const N = trends.length;
     if (N === 0) return { viewsPoints: vPts, actionsPoints: aPts };
 
-    const padLeft = 38;
-    const innerW = 450;
-    const padTop = 20;
-    const innerH = 145;
+    const padLeft = 20;
+    const innerW = 306;
+    const padTop = 10;
+    const innerH = 82;
+    const bottomY = padTop + innerH;
 
     trends.forEach((t, i) => {
       const x = N === 1 ? padLeft + innerW / 2 : padLeft + (i / (N - 1)) * innerW;
-      const vY = padTop + innerH - ((t.store_views / chartMaxVal) * innerH);
+      const vRatio = getNormalizedRatio(t.store_views || 0);
+      const rawVY = padTop + innerH - (vRatio * innerH);
+
       const act = t.total_actions ?? t.wa_clicks ?? 0;
-      const aY = padTop + innerH - ((act / chartMaxVal) * innerH);
+      const aRatio = getNormalizedRatio(act);
+      const rawAY = padTop + innerH - (aRatio * innerH);
+
+      // Safe clamp inside chart box to prevent any coordinate overflow
+      const vY = Math.max(padTop, Math.min(bottomY, rawVY));
+      const aY = Math.max(padTop, Math.min(bottomY, rawAY));
 
       vPts.push({ x, y: vY });
       aPts.push({ x, y: aY });
     });
 
     return { viewsPoints: vPts, actionsPoints: aPts };
-  }, [trends, chartMaxVal]);
+  }, [trends, chartMaxVal, scaleMode, metricFocus]);
 
-  // Cubic Bezier Spline Path Generator
+  // Monotone Cubic Spline Path Generator (Fritsch-Carlson) - strictly avoids overshoot/undershoot on extreme data disparities
   const getBezierPath = (points: { x: number; y: number }[]): string => {
-    if (points.length === 0) return '';
-    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-    if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+    const n = points.length;
+    if (n === 0) return '';
+    if (n === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    if (n === 2) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
 
-    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i === 0 ? 0 : i - 1];
+    // 1. Calculate secant slopes (delta)
+    const deltas: number[] = [];
+    const dxs: number[] = [];
+    for (let i = 0; i < n - 1; i++) {
+      const dx = points[i + 1].x - points[i].x;
+      const dy = points[i + 1].y - points[i].y;
+      dxs.push(dx);
+      deltas.push(dx === 0 ? 0 : dy / dx);
+    }
+
+    // 2. Calculate initial tangent slopes (m)
+    const m: number[] = new Array(n).fill(0);
+    m[0] = deltas[0];
+    m[n - 1] = deltas[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+      if (deltas[i - 1] * deltas[i] <= 0) {
+        m[i] = 0; // Local extremum (peak/valley): tangent is 0 to prevent overshoot
+      } else {
+        m[i] = (deltas[i - 1] + deltas[i]) / 2;
+      }
+    }
+
+    // 3. Fritsch-Carlson monotonicity check & correction
+    for (let i = 0; i < n - 1; i++) {
+      if (deltas[i] === 0) {
+        m[i] = 0;
+        m[i + 1] = 0;
+      } else {
+        const alpha = m[i] / deltas[i];
+        const beta = m[i + 1] / deltas[i];
+        const dist = alpha * alpha + beta * beta;
+        if (dist > 9) {
+          const tau = 3 / Math.sqrt(dist);
+          m[i] = tau * alpha * deltas[i];
+          m[i + 1] = tau * beta * deltas[i];
+        }
+      }
+    }
+
+    // 4. Build smooth cubic bezier SVG path string
+    let path = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
       const p1 = points[i];
       const p2 = points[i + 1];
-      const p3 = points[i + 2 < points.length ? i + 2 : points.length - 1];
+      const dx = dxs[i] / 3;
 
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      let cp1x = p1.x + dx;
+      let cp1y = p1.y + m[i] * dx;
+      let cp2x = p2.x - dx;
+      let cp2y = p2.y - m[i + 1] * dx;
 
-      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      // Strict clamping against local bounds to prevent any overshoot/undershoot below baseline
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      cp1y = Math.max(minY, Math.min(maxY, cp1y));
+      cp2y = Math.max(minY, Math.min(maxY, cp2y));
+
+      path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
     }
-    return d;
+
+    return path;
   };
 
   // Closed Area Path Generator
@@ -329,7 +573,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     { key: 'fauna', label: 'Satwa & Fauna', icon: Heart }
   ];
 
-  // Filtered and sorted products
+  // Product count by type for badges
+  const fallbackProductTypeCounts = useMemo(() => {
+    const list = analyticsData?.top_products || [];
+    const counts: Record<string, number> = { all: list.length };
+    list.forEach(p => {
+      const t = p.product_type || 'physical';
+      counts[t] = (counts[t] || 0) + 1;
+    });
+    return counts;
+  }, [analyticsData?.top_products]);
+
+  const productTypeCounts = serverTypeCounts || fallbackProductTypeCounts;
+
+  // Filtered and sorted products (used for local fallback when server-side data is loading or offline)
   const filteredProducts = useMemo(() => {
     const list = analyticsData?.top_products || [];
     let res = list.filter(p => {
@@ -355,12 +612,27 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       if (productSort === 'views') return (b.view_count || 0) - (a.view_count || 0);
       if (productSort === 'actions') return actB - actA;
       if (productSort === 'ctr') return (b.conversion_rate_percent || 0) - (a.conversion_rate_percent || 0);
-      if (productSort === 'price') return (b.price || 0) - (a.price || 0);
+      if (productSort === 'price_desc') return (b.price || 0) - (a.price || 0);
+      if (productSort === 'price_asc') return (a.price || 0) - (b.price || 0);
       return 0;
     });
 
     return res;
   }, [analyticsData?.top_products, selectedProductType, productSearch, productSort]);
+
+  // Server-side + Client fallback pagination calculations
+  const isUsingServerData = serverProducts !== null;
+  const totalItems = isUsingServerData ? (serverTotal ?? 0) : filteredProducts.length;
+  const totalPages = isUsingServerData ? Math.max(1, serverTotalPages) : Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedProducts = useMemo(() => {
+    if (isUsingServerData) {
+      return serverProducts;
+    }
+    return filteredProducts.slice(startIndex, endIndex);
+  }, [isUsingServerData, serverProducts, filteredProducts, startIndex, endIndex]);
 
   // Dynamic label for product actions based on type
   const getActionTypeLabel = (pType?: string) => {
@@ -659,173 +931,271 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         </div>
       </div>
 
-      {/* 4. Daily Trends Chart */}
+      {/* 4. Daily Trends Chart (Mobile Proportions with Disparity Handling) */}
       <div
         className="glass-panel"
         style={{
-          padding: '1.1rem 1.15rem',
+          padding: '0.9rem 1rem 0.65rem',
           borderRadius: '0.85rem',
           border: '1px solid var(--border-light)',
           backgroundColor: 'var(--bg-card)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-          <div>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Tren Kunjungan & Aksi Harian
-            </h3>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              {period === '7d' ? '7 hari terakhir' : period === '30d' ? '30 hari terakhir' : '90 hari terakhir'}
-            </span>
-          </div>
-
-          {/* Chart View Toggle: Line/Area vs Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '0.15rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)' }}>
-            <button
-              type="button"
-              onClick={() => setChartType('area')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.7rem',
-                fontWeight: chartType === 'area' ? 700 : 500,
-                borderRadius: '0.3rem',
-                border: 'none',
-                backgroundColor: chartType === 'area' ? 'var(--primary)' : 'transparent',
-                color: chartType === 'area' ? '#ffffff' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                transition: 'var(--transition-fast)'
-              }}
-            >
-              <TrendingUp size={11} />
-              <span>Garis</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartType('bar')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.7rem',
-                fontWeight: chartType === 'bar' ? 700 : 500,
-                borderRadius: '0.3rem',
-                border: 'none',
-                backgroundColor: chartType === 'bar' ? 'var(--primary)' : 'transparent',
-                color: chartType === 'bar' ? '#ffffff' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                transition: 'var(--transition-fast)'
-              }}
-            >
-              <BarChart3 size={11} />
-              <span>Batang</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '1rem', fontSize: '0.72rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6', flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Kunjungan</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Aksi / Leads</span>
-          </div>
-        </div>
-
-        {/* Active / Hovered Day Live Metric Summary Bar for Mobile */}
-        {trends.length > 0 && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            backgroundColor: 'var(--bg-deep)',
-            border: '1px solid var(--border-light)',
-            borderRadius: '0.6rem',
-            padding: '0.45rem 0.75rem',
-            marginBottom: '0.85rem',
-            fontSize: '0.72rem',
-            flexWrap: 'wrap',
-            gap: '0.4rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'inline-block' }} />
-              <span>
-                {hoveredPointIndex !== null && trends[hoveredPointIndex]
-                  ? formatDetailedDate(trends[hoveredPointIndex].date)
-                  : `Terkini: ${formatDetailedDate(trends[trends.length - 1].date)}`}
+        {/* Header Row: Title & View/Scale Toggles */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', marginBottom: '0.45rem', flexWrap: 'wrap' }}>
+          <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            Tren Harian
+            {peakInfo.isDisparityHigh && (
+              <span style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontWeight: 700 }}>
+                Spike
               </span>
+            )}
+          </h3>
+
+          {/* Controls: Scale mode & Chart Type */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            {/* Scale mode toggle */}
+            <button
+              type="button"
+              onClick={() => setScaleMode(scaleMode === 'linear' ? 'adaptive' : 'linear')}
+              title={scaleMode === 'linear' ? 'Aktifkan Skala Adaptif untuk menyeimbangkan spike' : 'Kembali ke Skala Linier'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.2rem',
+                padding: '0.2rem 0.45rem',
+                fontSize: '0.62rem',
+                fontWeight: 700,
+                borderRadius: '0.35rem',
+                border: scaleMode === 'adaptive' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border-light)',
+                backgroundColor: scaleMode === 'adaptive' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-deep)',
+                color: scaleMode === 'adaptive' ? 'var(--primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)'
+              }}
+            >
+              <Activity size={10} />
+              <span>{scaleMode === 'adaptive' ? 'Adaptif' : 'Linier'}</span>
+            </button>
+
+            {/* Chart View Toggle: Line/Area vs Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '0.12rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)' }}>
+              <button
+                type="button"
+                onClick={() => setChartType('area')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  padding: '0.2rem 0.45rem',
+                  fontSize: '0.62rem',
+                  fontWeight: chartType === 'area' ? 700 : 500,
+                  borderRadius: '0.25rem',
+                  border: 'none',
+                  backgroundColor: chartType === 'area' ? 'var(--primary)' : 'transparent',
+                  color: chartType === 'area' ? '#ffffff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'var(--transition-fast)'
+                }}
+              >
+                <TrendingUp size={10} />
+                <span>Garis</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType('bar')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  padding: '0.2rem 0.45rem',
+                  fontSize: '0.62rem',
+                  fontWeight: chartType === 'bar' ? 700 : 500,
+                  borderRadius: '0.25rem',
+                  border: 'none',
+                  backgroundColor: chartType === 'bar' ? 'var(--primary)' : 'transparent',
+                  color: chartType === 'bar' ? '#ffffff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'var(--transition-fast)'
+                }}
+              >
+                <BarChart3 size={10} />
+                <span>Batang</span>
+              </button>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontWeight: 800 }}>
-              <span style={{ color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Eye size={12} />
-                <span>
+          </div>
+        </div>
+
+        {/* Metric Focus & Legend Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+          {/* Metric Filter Tabs */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <button
+              type="button"
+              onClick={() => setMetricFocus('all')}
+              style={{
+                padding: '0.15rem 0.4rem',
+                fontSize: '0.62rem',
+                fontWeight: metricFocus === 'all' ? 700 : 500,
+                borderRadius: '0.25rem',
+                border: 'none',
+                backgroundColor: metricFocus === 'all' ? 'var(--bg-deep)' : 'transparent',
+                color: metricFocus === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                cursor: 'pointer'
+              }}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetricFocus('views')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.15rem 0.4rem',
+                fontSize: '0.62rem',
+                fontWeight: metricFocus === 'views' ? 700 : 500,
+                borderRadius: '0.25rem',
+                border: 'none',
+                backgroundColor: metricFocus === 'views' ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
+                color: metricFocus === 'views' ? '#3b82f6' : 'var(--text-secondary)',
+                cursor: 'pointer'
+              }}
+            >
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+              Kunjungan
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetricFocus('actions')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.15rem 0.4rem',
+                fontSize: '0.62rem',
+                fontWeight: metricFocus === 'actions' ? 700 : 500,
+                borderRadius: '0.25rem',
+                border: 'none',
+                backgroundColor: metricFocus === 'actions' ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                color: metricFocus === 'actions' ? '#10b981' : 'var(--text-secondary)',
+                cursor: 'pointer'
+              }}
+            >
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              Aksi
+            </button>
+          </div>
+
+          {/* Inline Active Day Metric Pill */}
+          {trends.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, fontSize: '0.62rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-deep)', padding: '0.12rem 0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)' }}>
+              {(metricFocus === 'all' || metricFocus === 'views') && (
+                <span style={{ color: '#3b82f6' }}>
                   {(hoveredPointIndex !== null ? trends[hoveredPointIndex]?.store_views : trends[trends.length - 1]?.store_views) || 0} Kunjungan
                 </span>
-              </span>
-              <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Zap size={12} />
-                <span>
+              )}
+              {metricFocus === 'all' && <span style={{ color: 'var(--border-light)' }}>•</span>}
+              {(metricFocus === 'all' || metricFocus === 'actions') && (
+                <span style={{ color: '#10b981' }}>
                   {(hoveredPointIndex !== null ? (trends[hoveredPointIndex]?.total_actions ?? trends[hoveredPointIndex]?.wa_clicks) : (trends[trends.length - 1]?.total_actions ?? trends[trends.length - 1]?.wa_clicks)) || 0} Aksi
                 </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Spike / Disparity Intelligent Notification Banner */}
+        {peakInfo.isDisparityHigh && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.4rem',
+              padding: '0.35rem 0.6rem',
+              borderRadius: '0.5rem',
+              backgroundColor: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              marginBottom: '0.5rem',
+              fontSize: '0.65rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-primary)' }}>
+              <Sparkles size={11} style={{ color: '#3b82f6', flexShrink: 0 }} />
+              <span>
+                Puncak tertinggi <strong>{peakInfo.peakVal}</strong> ({peakInfo.peakRatio.toFixed(1)}x rata-rata).
               </span>
             </div>
+            <button
+              type="button"
+              onClick={() => setScaleMode(scaleMode === 'linear' ? 'adaptive' : 'linear')}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--primary)',
+                fontWeight: 700,
+                fontSize: '0.65rem',
+                cursor: 'pointer',
+                padding: '0 0.2rem',
+                textDecoration: 'underline',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {scaleMode === 'linear' ? 'Skala Adaptif' : 'Skala Normal'}
+            </button>
           </div>
         )}
 
-        {/* Chart Container */}
-        <div style={{ position: 'relative', width: '100%', height: '240px', minHeight: '240px' }}>
+        {/* Standard Mobile Chart Container */}
+        <div style={{ position: 'relative', width: '100%', height: '140px', minHeight: '140px' }}>
           {chartType === 'area' ? (
-            /* SVG Area & Smooth Curve Line Chart for Mobile */
+            /* Compact SVG Area & Curve Line Chart for Mobile */
             <svg
-              viewBox={`0 0 520 220`}
+              viewBox={`0 0 340 120`}
               style={{ width: '100%', height: '100%', overflow: 'visible' }}
             >
               <defs>
                 <linearGradient id="viewsGradientMobile" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.48" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01" />
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                 </linearGradient>
                 <linearGradient id="actionsGradientMobile" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.5" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                 </linearGradient>
                 <filter id="glowLineMobile" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#3b82f6" floodOpacity="0.35" />
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#3b82f6" floodOpacity="0.3" />
                 </filter>
               </defs>
 
               {/* Grid Lines & Y-Axis Labels */}
               {yGridTicks.map(tick => {
-                const yPos = 20 + 145 - ((tick / chartMaxVal) * 145);
+                const yPos = 10 + 82 - (getNormalizedRatio(tick) * 82);
                 const isBase = tick === 0;
                 return (
                   <g key={tick}>
                     <line
-                      x1={38}
+                      x1={20}
                       y1={yPos}
-                      x2={488}
+                      x2={326}
                       y2={yPos}
                       stroke={isBase ? 'var(--border-light)' : 'var(--border-light)'}
                       strokeDasharray={isBase ? 'none' : '3 3'}
-                      strokeWidth={isBase ? 1.5 : 1}
-                      strokeOpacity={isBase ? 0.9 : 0.65}
+                      strokeWidth={isBase ? 1.2 : 0.8}
+                      strokeOpacity={isBase ? 0.85 : 0.5}
                     />
                     <text
-                      x={32}
-                      y={yPos + 4}
+                      x={16}
+                      y={yPos + 3}
                       textAnchor="end"
-                      fontSize="10.5"
-                      fontWeight="700"
+                      fontSize="8"
+                      fontWeight="600"
                       fill="var(--text-secondary)"
                       fontFamily="inherit"
                     >
-                      {tick}
+                      {formatCompactNumber(tick)}
                     </text>
                   </g>
                 );
@@ -834,33 +1204,41 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               {/* Area Fills */}
               {trends.length > 0 && (
                 <>
-                  <path
-                    d={getAreaPath(viewsPoints, 165)}
-                    fill="url(#viewsGradientMobile)"
-                  />
-                  <path
-                    d={getAreaPath(actionsPoints, 165)}
-                    fill="url(#actionsGradientMobile)"
-                  />
+                  {(metricFocus === 'all' || metricFocus === 'views') && (
+                    <path
+                      d={getAreaPath(viewsPoints, 92)}
+                      fill="url(#viewsGradientMobile)"
+                    />
+                  )}
+                  {(metricFocus === 'all' || metricFocus === 'actions') && (
+                    <path
+                      d={getAreaPath(actionsPoints, 92)}
+                      fill="url(#actionsGradientMobile)"
+                    />
+                  )}
                   
-                  {/* High Visibility Lines */}
-                  <path
-                    d={getBezierPath(viewsPoints)}
-                    fill="none"
-                    stroke="#2563eb"
-                    strokeWidth="3.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    filter="url(#glowLineMobile)"
-                  />
-                  <path
-                    d={getBezierPath(actionsPoints)}
-                    fill="none"
-                    stroke="#059669"
-                    strokeWidth="3.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  {/* Lines */}
+                  {(metricFocus === 'all' || metricFocus === 'views') && (
+                    <path
+                      d={getBezierPath(viewsPoints)}
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      filter="url(#glowLineMobile)"
+                    />
+                  )}
+                  {(metricFocus === 'all' || metricFocus === 'actions') && (
+                    <path
+                      d={getBezierPath(actionsPoints)}
+                      fill="none"
+                      stroke="#059669"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
                 </>
               )}
 
@@ -870,6 +1248,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 const ptA = actionsPoints[idx];
                 const isHovered = hoveredPointIndex === idx;
                 const isLatest = idx === trends.length - 1;
+                const isPeak = peakInfo.isDisparityHigh && peakInfo.peakIndex === idx;
                 if (!ptV || !ptA) return null;
 
                 const showDateLabel = period === '7d' || (period === '30d' && idx % 5 === 0) || (period === '90d' && idx % 15 === 0) || isLatest;
@@ -881,82 +1260,73 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                     {isHovered && (
                       <line
                         x1={ptV.x}
-                        y1={20}
+                        y1={10}
                         x2={ptV.x}
-                        y2={165}
+                        y2={92}
                         stroke="var(--primary)"
-                        strokeDasharray="3 3"
-                        strokeWidth="1.6"
-                        strokeOpacity={0.85}
+                        strokeDasharray="2 2"
+                        strokeWidth="1.2"
+                        strokeOpacity={0.8}
                       />
                     )}
 
-                    {/* Point circles with outer ring */}
-                    <circle
-                      cx={ptV.x}
-                      cy={ptV.y}
-                      r={isHovered ? 6.5 : (isLatest && t.store_views > 0 ? 5.5 : 4)}
-                      fill="#3b82f6"
-                      stroke="#ffffff"
-                      strokeWidth="2"
-                    />
-                    <circle
-                      cx={ptA.x}
-                      cy={ptA.y}
-                      r={isHovered ? 6.5 : 4}
-                      fill="#10b981"
-                      stroke="#ffffff"
-                      strokeWidth="2"
-                    />
-
-                    {/* Latest / Peak Value Pill Badge */}
-                    {(isHovered || (isLatest && t.store_views > 0)) && (
-                      <g transform={`translate(${ptV.x}, ${Math.max(14, ptV.y - 12)})`}>
-                        <rect
-                          x="-12"
-                          y="-11"
-                          width="24"
-                          height="14"
-                          rx="7"
-                          fill="#1d4ed8"
-                          stroke="#ffffff"
-                          strokeWidth="1.2"
-                        />
-                        <text
-                          x="0"
-                          y="-1.5"
-                          textAnchor="middle"
-                          fontSize="8.5"
-                          fontWeight="800"
-                          fill="#ffffff"
-                          fontFamily="inherit"
-                        >
-                          {t.store_views}
-                        </text>
-                      </g>
+                    {/* Peak Beacon Halo (Mobile) */}
+                    {isPeak && (
+                      <circle
+                        cx={ptV.x}
+                        cy={ptV.y}
+                        r="8"
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="1.2"
+                        strokeDasharray="2 2"
+                        opacity="0.9"
+                      />
                     )}
 
-                    {/* X-Axis Date Label with Safe Alignment */}
+                    {/* Point circles */}
+                    {(metricFocus === 'all' || metricFocus === 'views') && (
+                      <circle
+                        cx={ptV.x}
+                        cy={ptV.y}
+                        r={isHovered ? 5 : isPeak ? 4.5 : 3}
+                        fill={isPeak ? '#f59e0b' : '#3b82f6'}
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                      />
+                    )}
+                    {(metricFocus === 'all' || metricFocus === 'actions') && (
+                      <circle
+                        cx={ptA.x}
+                        cy={ptA.y}
+                        r={isHovered ? 5 : 3}
+                        fill="#10b981"
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                      />
+                    )}
+
+                    {/* X-Axis Date Label */}
                     {showDateLabel && (
                       <text
                         x={ptV.x}
-                        y={192}
+                        y={110}
                         textAnchor={labelAnchor}
-                        fontSize="10"
+                        fontSize="8.5"
                         fill={isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)'}
-                        fontWeight={isLatest || isHovered ? '800' : '600'}
+                        fontWeight={isLatest || isHovered ? '700' : '500'}
                         fontFamily="inherit"
                       >
-                        {formatShortDate(t.date)}
+                        {formatMobileChartDate(t.date, period)}
                       </text>
                     )}
 
                     {/* Transparent touch/click trigger area */}
                     <rect
-                      x={ptV.x - (450 / Math.max(1, trends.length)) / 2}
+                      x={ptV.x - (306 / Math.max(1, trends.length)) / 2}
                       y={0}
-                      width={450 / Math.max(1, trends.length)}
-                      height={210}
+                      width={306 / Math.max(1, trends.length)}
+                      height={120}
                       fill="transparent"
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setHoveredPointIndex(idx)}
@@ -968,12 +1338,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               })}
             </svg>
           ) : (
-            /* Bar Chart Visualization with High Contrast */
+            /* Bar Chart Visualization for Mobile */
             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
               {/* Background Grid Lines */}
-              <div style={{ position: 'absolute', top: '15px', left: '38px', right: '15px', bottom: '40px', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: '10px', left: '24px', right: '10px', bottom: '24px', pointerEvents: 'none' }}>
                 {yGridTicks.map(tick => {
-                  const bottomPct = (tick / chartMaxVal) * 100;
+                  const bottomPct = getNormalizedRatio(tick) * 100;
                   return (
                     <div
                       key={tick}
@@ -987,8 +1357,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <span style={{ position: 'absolute', right: '100%', marginRight: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
-                        {tick}
+                      <span style={{ position: 'absolute', right: '100%', marginRight: '5px', fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
+                        {formatCompactNumber(tick)}
                       </span>
                     </div>
                   );
@@ -996,12 +1366,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               </div>
 
               {/* Bars Row */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.35rem', height: 'calc(100% - 40px)', paddingLeft: '38px', paddingRight: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.25rem', height: 'calc(100% - 24px)', paddingLeft: '24px', paddingRight: '10px' }}>
                 {trends.map((t, idx) => {
-                  const vHeight = Math.max(4, Math.round((t.store_views / chartMaxVal) * 155));
+                  const vHeight = t.store_views > 0
+                    ? Math.max(3, Math.min(85, Math.round(getNormalizedRatio(t.store_views) * 85)))
+                    : 0;
                   const actCount = t.total_actions ?? t.wa_clicks ?? 0;
-                  const aHeight = Math.max(4, Math.round((actCount / chartMaxVal) * 155));
+                  const aHeight = actCount > 0
+                    ? Math.max(3, Math.min(85, Math.round(getNormalizedRatio(actCount) * 85)))
+                    : 0;
                   const isHovered = hoveredPointIndex === idx;
+                  const isPeak = peakInfo.isDisparityHigh && peakInfo.peakIndex === idx;
 
                   return (
                     <div
@@ -1020,45 +1395,45 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         position: 'relative'
                       }}
                     >
-                      {/* Bar Value Indicator */}
-                      {(isHovered || t.store_views > 0) && (
-                        <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#3b82f6', marginBottom: '2px' }}>
-                          {t.store_views}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', width: '100%', justifyContent: 'center' }}>
                         {/* Views Bar */}
-                        <div
-                          style={{
-                            width: '45%',
-                            maxWidth: '16px',
-                            height: `${vHeight}px`,
-                            background: isHovered ? 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)' : 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
-                            borderRadius: '4px 4px 0 0',
-                            transition: 'height 0.3s ease, background 0.2s ease',
-                            boxShadow: isHovered ? '0 0 10px rgba(59, 130, 246, 0.6)' : 'none'
-                          }}
-                        />
+                        {(metricFocus === 'all' || metricFocus === 'views') && (
+                          <div
+                            style={{
+                              width: metricFocus === 'all' ? '45%' : '80%',
+                              maxWidth: '14px',
+                              height: `${vHeight}px`,
+                              background: isPeak
+                                ? 'linear-gradient(180deg, #fbbf24 0%, #d97706 100%)'
+                                : isHovered
+                                  ? 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)'
+                                  : 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
+                              borderRadius: '3px 3px 0 0',
+                              transition: 'height 0.25s ease'
+                            }}
+                          />
+                        )}
                         {/* Actions Bar */}
-                        <div
-                          style={{
-                            width: '45%',
-                            maxWidth: '16px',
-                            height: `${aHeight}px`,
-                            background: isHovered ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)' : 'linear-gradient(180deg, #10b981 0%, #047857 100%)',
-                            borderRadius: '4px 4px 0 0',
-                            transition: 'height 0.3s ease, background 0.2s ease',
-                            boxShadow: isHovered ? '0 0 10px rgba(16, 185, 129, 0.6)' : 'none'
-                          }}
-                        />
+                        {(metricFocus === 'all' || metricFocus === 'actions') && (
+                          <div
+                            style={{
+                              width: metricFocus === 'all' ? '45%' : '80%',
+                              maxWidth: '14px',
+                              height: `${aHeight}px`,
+                              background: isHovered ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)' : 'linear-gradient(180deg, #10b981 0%, #047857 100%)',
+                              borderRadius: '3px 3px 0 0',
+                              transition: 'height 0.25s ease'
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* X-Axis Date Labels Row with Safe Alignment */}
-              <div style={{ display: 'flex', paddingLeft: '38px', paddingRight: '15px', height: '35px', alignItems: 'center' }}>
+              {/* X-Axis Date Labels Row */}
+              <div style={{ display: 'flex', paddingLeft: '24px', paddingRight: '10px', height: '22px', alignItems: 'center' }}>
                 {trends.map((t, idx) => {
                   const isLatest = idx === trends.length - 1;
                   const showDateLabel = period === '7d' || (period === '30d' && idx % 5 === 0) || (period === '90d' && idx % 15 === 0) || isLatest;
@@ -1067,8 +1442,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   return (
                     <div key={t.date} style={{ flex: 1, textAlign: idx === 0 ? 'left' : isLatest ? 'right' : 'center' }}>
                       {showDateLabel && (
-                        <span style={{ fontSize: '0.68rem', color: isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isLatest || isHovered ? 800 : 600, whiteSpace: 'nowrap' }}>
-                          {formatShortDate(t.date)}
+                        <span style={{ fontSize: '0.62rem', color: isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isLatest || isHovered ? 700 : 500, whiteSpace: 'nowrap' }}>
+                          {formatMobileChartDate(t.date, period)}
                         </span>
                       )}
                     </div>
@@ -1083,38 +1458,51 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div
               style={{
                 position: 'absolute',
-                top: '10px',
-                left: `${Math.min(78, Math.max(22, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
+                top: '5px',
+                left: `${Math.min(75, Math.max(25, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
                 transform: 'translateX(-50%)',
                 backgroundColor: 'rgba(15, 23, 42, 0.96)',
                 color: '#ffffff',
-                padding: '0.6rem 0.85rem',
-                borderRadius: '0.65rem',
-                fontSize: '0.75rem',
+                padding: '0.45rem 0.7rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.7rem',
                 zIndex: 30,
-                boxShadow: '0 8px 20px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15)',
+                boxShadow: '0 6px 16px -3px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15)',
                 pointerEvents: 'none',
-                backdropFilter: 'blur(10px)',
-                minWidth: '160px'
+                backdropFilter: 'blur(8px)',
+                minWidth: '150px'
               }}
             >
-              <div style={{ fontWeight: 800, marginBottom: '0.3rem', color: '#f8fafc', borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.25rem', fontSize: '0.76rem' }}>
-                {formatDetailedDate(trends[hoveredPointIndex].date)}
+              <div style={{ fontWeight: 800, marginBottom: '0.2rem', color: '#f8fafc', borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.15rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>{formatDetailedDate(trends[hoveredPointIndex].date)}</span>
+                {peakInfo.isDisparityHigh && peakInfo.peakIndex === hoveredPointIndex && (
+                  <span style={{ fontSize: '0.58rem', padding: '0.1rem 0.3rem', borderRadius: '3px', backgroundColor: 'rgba(245, 158, 11, 0.25)', color: '#fbbf24', fontWeight: 700 }}>
+                    Puncak
+                  </span>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', margin: '0.15rem 0' }}>
+                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                   Kunjungan:
                 </span>
-                <strong style={{ color: '#60a5fa', fontSize: '0.82rem' }}>{trends[hoveredPointIndex].store_views}</strong>
+                <strong style={{ color: '#60a5fa', fontSize: '0.78rem' }}>{trends[hoveredPointIndex].store_views}</strong>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', margin: '0.15rem 0' }}>
+                <span style={{ color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
                   Total Aksi:
                 </span>
-                <strong style={{ color: '#34d399', fontSize: '0.82rem' }}>{trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0}</strong>
+                <strong style={{ color: '#34d399', fontSize: '0.78rem' }}>{trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0}</strong>
               </div>
+              {trends[hoveredPointIndex].store_views > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', margin: '0.15rem 0', paddingTop: '0.15rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.62rem' }}>Konversi Harian:</span>
+                  <strong style={{ color: '#f59e0b', fontSize: '0.68rem' }}>
+                    {(((trends[hoveredPointIndex].total_actions ?? trends[hoveredPointIndex].wa_clicks ?? 0) / trends[hoveredPointIndex].store_views) * 100).toFixed(1)}%
+                  </strong>
+                </div>
+              )}
             </div>
           )}
 
@@ -1162,35 +1550,93 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           gap: '0.85rem'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem' }}>
           <div>
             <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
               Performa Item per Tipe Katalog
             </h3>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              Telusuri produk terpopuler dan rasio konversi aksi pelanggan
+              {totalItems} item ditemukan • Urutkan dan telusuri konversi aksi
             </span>
           </div>
 
-          {/* Search Box */}
-          <div style={{ position: 'relative', width: isMobile ? '100%' : '200px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input
-              type="text"
-              placeholder="Cari item..."
-              value={productSearch}
-              onChange={e => setProductSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.4rem 0.65rem 0.4rem 2rem',
-                fontSize: '0.75rem',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--border-light)',
-                backgroundColor: 'var(--bg-deep)',
-                color: 'var(--text-primary)',
-                outline: 'none'
-              }}
-            />
+          {/* Search & Sort Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: isMobile ? '100%' : 'auto', flexWrap: 'wrap' }}>
+            {/* Search Box */}
+            <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input
+                type="text"
+                placeholder="Cari nama, kelas..."
+                value={productSearch}
+                onChange={e => {
+                  setProductSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.42rem 1.8rem 0.42rem 2rem',
+                  fontSize: '0.75rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
+              />
+              {productSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductSearch('');
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '0.5rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Sort Selector */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <select
+                value={productSort}
+                onChange={e => {
+                  setProductSort(e.target.value as any);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: '0.42rem 0.65rem',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="views">🔥 Terbanyak Dilihat</option>
+                <option value="actions">⚡ Aksi Terbanyak</option>
+                <option value="ctr">🎯 Rasio Konversi (CTR)</option>
+                <option value="price_desc">💰 Harga Tertinggi</option>
+                <option value="price_asc">🏷️ Harga Terendah</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1208,16 +1654,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           {productTypeTabs.map(tab => {
             const TabIcon = tab.icon;
             const isSelected = selectedProductType === tab.key;
+            const count = productTypeCounts[tab.key] ?? 0;
             return (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setSelectedProductType(tab.key)}
+                onClick={() => {
+                  setSelectedProductType(tab.key);
+                  setCurrentPage(1);
+                }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  padding: '0.35rem 0.75rem',
+                  padding: '0.35rem 0.7rem',
                   fontSize: '0.72rem',
                   fontWeight: isSelected ? 700 : 500,
                   borderRadius: '20px',
@@ -1231,6 +1681,18 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               >
                 <TabIcon size={13} />
                 <span>{tab.label}</span>
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    padding: '0.05rem 0.35rem',
+                    borderRadius: '10px',
+                    backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
+                    color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                    fontWeight: 700
+                  }}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -1238,12 +1700,36 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
         {/* Top Products Table / Card List */}
         {filteredProducts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            Belum ada data aktivitas untuk tipe item yang dipilih.
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem' }}>
+            <PackageSearch size={28} style={{ opacity: 0.4 }} />
+            <span>Tidak ada produk yang cocok dengan pencarian atau filter ini.</span>
+            {(productSearch || selectedProductType !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProductSearch('');
+                  setSelectedProductType('all');
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  fontSize: '0.72rem',
+                  borderRadius: '0.45rem',
+                  border: '1px solid var(--primary)',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Reset Filter
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {filteredProducts.map((prod, index) => {
+            {paginatedProducts.map((prod, index) => {
+              const globalIndex = startIndex + index;
               const itemActions = prod.total_actions_count ?? prod.wa_clicks_count ?? 0;
               const ctr = prod.conversion_rate_percent ?? 0;
 
@@ -1272,18 +1758,18 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                           width: '24px',
                           height: '24px',
                           borderRadius: '6px',
-                          backgroundColor: index < 3 ? 'var(--primary-glow)' : 'var(--bg-card)',
-                          color: index < 3 ? 'var(--primary)' : 'var(--text-secondary)',
+                          backgroundColor: globalIndex < 3 ? 'var(--primary-glow)' : 'var(--bg-card)',
+                          color: globalIndex < 3 ? 'var(--primary)' : 'var(--text-secondary)',
                           border: '1px solid var(--border-light)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '0.75rem',
+                          fontSize: '0.72rem',
                           fontWeight: 800,
                           flexShrink: 0
                         }}
                       >
-                        #{index + 1}
+                        #{globalIndex + 1}
                       </div>
 
                       {/* Thumbnail */}
@@ -1373,6 +1859,140 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
               );
             })}
+
+            {/* Pagination Controls */}
+            {totalItems > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.65rem',
+                  paddingTop: '0.65rem',
+                  borderTop: '1px solid var(--border-light)',
+                  marginTop: '0.25rem'
+                }}
+              >
+                {/* Page Info & Page Size */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                  <span>
+                    {startIndex + 1}–{endIndex} dari {totalItems}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    {[10, 25, 50].map(sz => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => {
+                          setPageSize(sz);
+                          setCurrentPage(1);
+                        }}
+                        style={{
+                          padding: '0.15rem 0.4rem',
+                          fontSize: '0.68rem',
+                          fontWeight: pageSize === sz ? 700 : 500,
+                          borderRadius: '4px',
+                          border: pageSize === sz ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: pageSize === sz ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          color: pageSize === sz ? 'var(--primary)' : 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Page Navigation Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={validCurrentPage <= 1}
+                    style={{
+                      padding: '0.3rem',
+                      borderRadius: '0.35rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                      opacity: validCurrentPage <= 1 ? 0.4 : 1,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Halaman Pertama"
+                  >
+                    <ChevronsLeft size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={validCurrentPage <= 1}
+                    style={{
+                      padding: '0.3rem',
+                      borderRadius: '0.35rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                      opacity: validCurrentPage <= 1 ? 0.4 : 1,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Sebelumnya"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', padding: '0 0.35rem' }}>
+                    Hal {validCurrentPage} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={validCurrentPage >= totalPages}
+                    style={{
+                      padding: '0.3rem',
+                      borderRadius: '0.35rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                      opacity: validCurrentPage >= totalPages ? 0.4 : 1,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Berikutnya"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={validCurrentPage >= totalPages}
+                    style={{
+                      padding: '0.3rem',
+                      borderRadius: '0.35rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                      opacity: validCurrentPage >= totalPages ? 0.4 : 1,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Halaman Terakhir"
+                  >
+                    <ChevronsRight size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
