@@ -4982,8 +4982,8 @@ function App() {
   const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
 
   // Context-Aware Action Menu (Three-Dots) & Report Sheet State
-  const [actionMenuData, setActionMenuData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null)
-  const [reportModalData, setReportModalData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null)
+  const [actionMenuData, setActionMenuData] = useState<{ type: 'store' | 'item' | 'admin_menu'; item?: any } | null>(null)
+  const [reportModalData, setReportModalData] = useState<{ type: 'store' | 'item' | 'admin_menu'; item?: any } | null>(null)
   const [reportReason, setReportReason] = useState<string>('fraud')
   const [reportNotes, setReportNotes] = useState<string>('')
   const [reportEmail, setReportEmail] = useState<string>('')
@@ -13310,22 +13310,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           letterSpacing: '0.03em',
                           textTransform: 'uppercase'
                         }}>
-                          {planName} {userStores.length > 1 ? `• ${userStores.length} Toko` : ''}
+                          {planName}
                         </span>
                       </div>
                     </button>
 
                     {/* Right Action Buttons */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        className="header-more-btn"
-                        onClick={handleShareStore}
-                        title="Bagikan Tautan Katalog"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Share2 size={17} style={{ color: 'var(--primary)' }} />
-                      </button>
                       <button
                         type="button"
                         className="header-more-btn"
@@ -13352,11 +13343,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <button
                         type="button"
                         className="header-more-btn"
-                        onClick={handleLogout}
-                        title="Keluar / Logout"
-                        style={{ color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => setActionMenuData({ type: 'admin_menu' })}
+                        title="Menu Opsi Katalog"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <LogOut size={16} />
+                        <MoreVertical size={18} style={{ color: 'var(--text-primary)' }} />
                       </button>
                     </div>
                   </div>
@@ -13387,26 +13378,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    {activeTab === 'admin' ? (
-                      <button
-                        type="button"
-                        className="header-more-btn"
-                        onClick={handleShareStore}
-                        title="Bagikan Tautan Katalog"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Share2 size={18} style={{ color: 'var(--primary)' }} />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="header-more-btn"
-                        onClick={() => setActionMenuData({ type: 'store' })}
-                        title="Menu & Opsi Katalog"
-                      >
-                        <MoreVertical size={18} style={{ color: 'var(--primary)' }} />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="header-more-btn"
+                      onClick={() => setActionMenuData({ type: activeTab === 'admin' ? 'admin_menu' : 'store' })}
+                      title={activeTab === 'admin' ? "Menu Opsi Pengelola" : "Menu & Opsi Katalog"}
+                    >
+                      <MoreVertical size={18} style={{ color: 'var(--primary)' }} />
+                    </button>
                   </div>
                 </div>
               );
@@ -20370,79 +20349,125 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <h3 className="bottom-sheet-title" style={{ fontSize: '0.92rem' }}>
-                    {actionMenuData.type === 'store' 
-                      ? (settings.store_title || 'Katalog Digital') 
-                      : (actionMenuData.item?.name || 'Item Katalog')}
+                    {actionMenuData.type === 'admin_menu'
+                      ? (settings.store_title || storeSlug || 'Pengelola Katalog')
+                      : actionMenuData.type === 'store' 
+                        ? (settings.store_title || 'Katalog Digital') 
+                        : (actionMenuData.item?.name || 'Item Katalog')}
                   </h3>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {actionMenuData.type === 'store' 
-                      ? 'Opsi dan menu katalog' 
-                      : `${actionMenuData.item?.class || 'Produk'} • ${formatPrice(actionMenuData.item?.price)}`}
+                    {actionMenuData.type === 'admin_menu'
+                      ? (adminUser?.email ? `Akun: ${adminUser.email}` : 'Opsi & Pengaturan Cepat')
+                      : actionMenuData.type === 'store' 
+                        ? 'Opsi dan menu katalog' 
+                        : `${actionMenuData.item?.class || 'Produk'} • ${formatPrice(actionMenuData.item?.price)}`}
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Menu List */}
-            <div style={{ padding: '0.85rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              {/* Option 1: Bagikan */}
-              <button
-                type="button"
-                className="action-menu-btn"
-                onClick={() => {
-                  if (actionMenuData.type === 'store') {
+            {actionMenuData.type === 'admin_menu' ? (
+              <div style={{ padding: '0.85rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {/* Option 1: Bagikan */}
+                <button
+                  type="button"
+                  className="action-menu-btn"
+                  onClick={() => {
+                    setActionMenuData(null);
                     handleShareStore();
-                  } else {
-                    handleShareItem(actionMenuData.item);
-                  }
-                  setActionMenuData(null);
-                }}
-              >
-                <div className="action-menu-icon-box share-icon-box">
-                  <Share2 size={18} />
-                </div>
-                <div className="action-menu-text-box">
-                  <span className="action-menu-title">
-                    {actionMenuData.type === 'store' ? 'Bagikan Katalog' : 'Bagikan Produk Ini'}
-                  </span>
-                  <span className="action-menu-desc">
-                    {actionMenuData.type === 'store' 
-                      ? 'Salin tautan atau bagikan QR code katalog ini' 
-                      : 'Salin tautan langsung produk untuk dibagikan ke chat & medsos'}
-                  </span>
-                </div>
-                <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-              </button>
+                  }}
+                >
+                  <div className="action-menu-icon-box share-icon-box">
+                    <Share2 size={18} />
+                  </div>
+                  <div className="action-menu-text-box">
+                    <span className="action-menu-title">Bagikan Katalog</span>
+                    <span className="action-menu-desc">Salin tautan atau bagikan QR Code katalog ini</span>
+                  </div>
+                  <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                </button>
 
-              {/* Option 2: Laporkan */}
-              <button
-                type="button"
-                className="action-menu-btn danger-menu-btn"
-                onClick={() => {
-                  const savedData = actionMenuData;
-                  setActionMenuData(null);
-                  setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
-                  setReportNotes('');
-                  setReportEmail('');
-                  setReportModalData(savedData);
-                }}
-              >
-                <div className="action-menu-icon-box report-icon-box">
-                  <ShieldAlert size={18} />
-                </div>
-                <div className="action-menu-text-box">
-                  <span className="action-menu-title" style={{ color: '#ef4444' }}>
-                    {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
-                  </span>
-                  <span className="action-menu-desc">
-                    {actionMenuData.type === 'store' 
-                      ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
-                      : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
-                  </span>
-                </div>
-                <ChevronRight size={16} style={{ color: '#ef4444' }} />
-              </button>
-            </div>
+                {/* Option 2: Keluar / Logout */}
+                <button
+                  type="button"
+                  className="action-menu-btn danger-menu-btn"
+                  onClick={() => {
+                    setActionMenuData(null);
+                    handleLogout();
+                  }}
+                >
+                  <div className="action-menu-icon-box report-icon-box">
+                    <LogOut size={18} />
+                  </div>
+                  <div className="action-menu-text-box">
+                    <span className="action-menu-title" style={{ color: '#ef4444' }}>Keluar Akun</span>
+                    <span className="action-menu-desc">Akhiri sesi login pengelola katalog</span>
+                  </div>
+                  <ChevronRight size={16} style={{ color: '#ef4444' }} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ padding: '0.85rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {/* Option 1: Bagikan */}
+                <button
+                  type="button"
+                  className="action-menu-btn"
+                  onClick={() => {
+                    if (actionMenuData.type === 'store') {
+                      handleShareStore();
+                    } else {
+                      handleShareItem(actionMenuData.item);
+                    }
+                    setActionMenuData(null);
+                  }}
+                >
+                  <div className="action-menu-icon-box share-icon-box">
+                    <Share2 size={18} />
+                  </div>
+                  <div className="action-menu-text-box">
+                    <span className="action-menu-title">
+                      {actionMenuData.type === 'store' ? 'Bagikan Katalog' : 'Bagikan Produk Ini'}
+                    </span>
+                    <span className="action-menu-desc">
+                      {actionMenuData.type === 'store' 
+                        ? 'Salin tautan atau bagikan QR code katalog ini' 
+                        : 'Salin tautan langsung produk untuk dibagikan ke chat & medsos'}
+                    </span>
+                  </div>
+                  <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                </button>
+
+                {/* Option 2: Laporkan */}
+                <button
+                  type="button"
+                  className="action-menu-btn danger-menu-btn"
+                  onClick={() => {
+                    const savedData = actionMenuData;
+                    setActionMenuData(null);
+                    setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
+                    setReportNotes('');
+                    setReportEmail('');
+                    setReportModalData(savedData);
+                  }}
+                >
+                  <div className="action-menu-icon-box report-icon-box">
+                    <ShieldAlert size={18} />
+                  </div>
+                  <div className="action-menu-text-box">
+                    <span className="action-menu-title" style={{ color: '#ef4444' }}>
+                      {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
+                    </span>
+                    <span className="action-menu-desc">
+                      {actionMenuData.type === 'store' 
+                        ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
+                        : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
+                    </span>
+                  </div>
+                  <ChevronRight size={16} style={{ color: '#ef4444' }} />
+                </button>
+              </div>
+            )}
 
             {/* Bottom Safe Cancel */}
             <div className="bottom-sheet-sticky-footer" style={{ borderTop: 'none', paddingTop: '0.35rem' }}>

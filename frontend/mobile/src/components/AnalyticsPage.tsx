@@ -958,7 +958,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
               {marketplaceClicks} <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-secondary)' }}>klik</span>
             </div>
-            <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)' }}>Shopee, Tokped, Fastwork</span>
+            <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)' }}>Global marketplace</span>
           </div>
 
           {/* Rekber Syariah */}
