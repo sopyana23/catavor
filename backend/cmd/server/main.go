@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -66,7 +67,11 @@ func main() {
 	supportHandler := handlers.NewSupportHandler(cfg)
 	analyticsHandler := handlers.NewAnalyticsHandler(cfg)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
+	notificationHandler := handlers.NewNotificationHandler(database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg)
+
+	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
+	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
 
 	// Start Background Subscription Lifecycle Worker (Runs on boot and every 1 hour)
 	go func() {
@@ -247,6 +252,18 @@ func main() {
 		guarded.Get("/reports", reportHandler.Index)
 		guarded.Get("/reports/:id", reportHandler.Show)
 		guarded.Put("/reports/:id", reportHandler.UpdateStatus)
+
+		// Dynamic Notifications & Real-Time SSE
+		guarded.Get("/notifications", notificationHandler.GetNotifications)
+		guarded.Post("/notifications/read-all", notificationHandler.MarkAllAsRead)
+		guarded.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
+		guarded.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
+		guarded.Get("/notifications/stream", notificationHandler.Stream)
+
+		// Superadmin Broadcast Notifications
+		guarded.Get("/admin/notifications", notificationHandler.SuperadminIndex)
+		guarded.Post("/admin/notifications/broadcast", notificationHandler.SuperadminBroadcast)
+		guarded.Delete("/admin/notifications/:id", notificationHandler.SuperadminDelete)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients

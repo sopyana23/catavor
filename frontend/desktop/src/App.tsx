@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   Search, 
   Plus, 
@@ -4450,6 +4450,108 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   ]);
   const [selectedNotificationDetail, setSelectedNotificationDetail] = useState<any | null>(null);
+
+  // Realtime Notifications Synchronizer & API Handlers (Desktop)
+  const fetchNotificationsFromBackend = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      const res = await fetch('/api/notifications', {
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.data) && json.data.length > 0) {
+          setNotifications(json.data);
+        }
+      }
+    } catch (err) {
+      console.warn('Silent fallback for notifications API:', err);
+    }
+  }, [storeSlug]);
+
+  const handleMarkAsRead = useCallback(async (notifId: string | number) => {
+    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to mark read on server:', err);
+    }
+  }, [storeSlug]);
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    showToast('Semua notifikasi telah ditandai dibaca!');
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch('/api/notifications/read-all', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to mark all read on server:', err);
+    }
+  }, [storeSlug]);
+
+  // Hook for initial load and SSE real-time stream subscription (Desktop)
+  useEffect(() => {
+    fetchNotificationsFromBackend();
+
+    const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+    const slug = storeSlug || getStoreSlug() || '';
+    if (!token) return;
+
+    let eventSource: EventSource | null = null;
+    try {
+      const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`;
+      eventSource = new EventSource(streamUrl);
+
+      eventSource.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload && payload.notification) {
+            const newNotif = payload.notification;
+            setNotifications(prev => {
+              const filtered = prev.filter(n => n.id !== newNotif.id);
+              return [newNotif, ...filtered];
+            });
+            showToast(`Notifikasi Baru: ${newNotif.title}`);
+          }
+        } catch {}
+      };
+
+      eventSource.onerror = () => {
+        // SSE will auto-retry
+      };
+    } catch (err) {
+      console.warn('SSE notification stream error:', err);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [storeSlug, portalTab, fetchNotificationsFromBackend]);
+
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [heroEmailInput, setHeroEmailInput] = useState('');
@@ -15010,10 +15112,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="btn-primary"
-                              onClick={() => {
-                                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                                showToast('Semua notifikasi telah ditandai dibaca!');
-                              }}
+                              onClick={handleMarkAllAsRead}
                               style={{ fontSize: '0.78rem', padding: '0.45rem 1rem', borderRadius: '999px' }}
                             >
                               Tandai Semua Dibaca
@@ -15040,7 +15139,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 key={item.id}
                                 className="glass-panel glass-panel-hover"
                                 onClick={() => {
-                                  setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+                                  // Mark as read in state & persist to backend database
+                                  handleMarkAsRead(item.id);
                                   if (isDirectNav && item.linkSubTab) {
                                     setAdminTab(item.linkSubTab);
                                     if (item.linkSettingsSubTab) {
