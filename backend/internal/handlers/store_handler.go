@@ -10,7 +10,6 @@ import (
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
-	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
@@ -41,9 +40,6 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 			"message": "Toko tidak ditemukan.",
 		})
 	}
-
-	// Touch store activity on public catalog view (throttled)
-	services.TouchStoreActivity(database.DB, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
