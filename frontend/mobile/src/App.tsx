@@ -13192,7 +13192,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </span>
                     </div>
 
-                    {adminSubTab === 'items' && (
+                    {adminSubTab === 'items' && faunas.length > 0 && (
                       <button 
                         type="button"
                         className="btn-primary" 
@@ -14931,8 +14931,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.35rem',
-                          padding: '0.35rem 0.65rem',
+                          gap: '0.3rem',
+                          padding: '0.28rem 0.55rem',
                           borderRadius: '20px',
                           fontSize: '0.68rem',
                           fontWeight: 700,
@@ -14944,7 +14944,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         }}
                       >
                         <Layers size={13} />
-                        <span>{userStores.length > 1 ? `${userStores.length} Katalog` : 'Ganti'} ▾</span>
+                        <span>Ganti ▾</span>
                       </button>
                     </div>
 
@@ -18234,47 +18234,25 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         background: 'var(--card-bg-gradient)', 
                         boxShadow: '0 8px 25px rgba(0, 0, 0, 0.3)' 
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                            <div style={{ 
-                              width: '38px', 
-                              height: '38px', 
-                              borderRadius: '0.65rem', 
-                              backgroundColor: 'var(--primary-glow)', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              color: 'var(--primary)', 
-                              border: '1px solid var(--border-light)' 
-                            }}>
-                              <HelpCircle size={22} />
-                            </div>
-                            <div>
-                              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Pusat Tiket Support</h3>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Layanan Bantuan Interaktif Catavor</span>
-                            </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                          <div style={{ 
+                            width: '38px', 
+                            height: '38px', 
+                            borderRadius: '0.65rem', 
+                            backgroundColor: 'var(--primary-glow)', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            color: 'var(--primary)', 
+                            border: '1px solid var(--border-light)',
+                            flexShrink: 0
+                          }}>
+                            <HelpCircle size={22} />
                           </div>
-
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            onClick={() => {
-                              setTicketNewAttachments([]);
-                              setIsCreatingTicket(true);
-                            }}
-                            style={{
-                              padding: '0.45rem 0.85rem',
-                              borderRadius: '0.65rem',
-                              fontSize: '0.75rem',
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              boxShadow: '0 4px 12px var(--primary-glow)'
-                            }}
-                          >
-                            <Plus size={15} /> Buat Tiket
-                          </button>
+                          <div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Pusat Tiket Support</h3>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Layanan Bantuan Interaktif Catavor</span>
+                          </div>
                         </div>
 
                         {/* Search & Filter Bar - Stacked for spacious mobile UX */}
