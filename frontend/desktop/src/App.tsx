@@ -11347,9 +11347,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                   {/* Description Paragraph (100% Hidden if empty) */}
                   {hasDescription && (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', margin: 0, whiteSpace: 'pre-wrap' }}>
-                      {settings.about_description}
-                    </p>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', margin: 0 }}>
+                      <FormattedText text={settings.about_description || ''} />
+                    </div>
                   )}
 
                   {/* Value Cards (100% Hidden if empty) */}
@@ -14113,13 +14113,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           <div className="form-group">
-                            <label className="form-label">Deskripsi Profil Lengkap</label>
-                            <textarea 
-                              rows={4}
-                              className="form-input" 
-                              placeholder="Detail profil usaha, visi misi, atau informasi penting..."
+                            <RichTextarea 
+                              label="Deskripsi Profil Lengkap"
+                              rows={5}
+                              placeholder="Tuliskan detail profil lengkap bisnis Anda, visi misi, sejarah, atau informasi penting toko (Mendukung format teks tebal, miring, daftar poin, dan mode layar penuh)..."
                               value={settingsForm.about_description || ''}
-                              onChange={(e) => setSettingsForm({ ...settingsForm, about_description: e.target.value })}
+                              onChange={(val) => setSettingsForm({ ...settingsForm, about_description: val })}
                             />
                           </div>
 
