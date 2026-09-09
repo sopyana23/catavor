@@ -10,6 +10,7 @@ import (
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
@@ -472,6 +473,9 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 			"message": "Gagal memperbarui profil toko.",
 		})
 	}
+
+	// Refresh store activity timestamp for active stores
+	services.TouchStoreActivity(database.DB, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
