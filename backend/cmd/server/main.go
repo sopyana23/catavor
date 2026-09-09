@@ -145,6 +145,7 @@ func main() {
 	api.Get("/u/:slug/fauna", storeHandler.IndexProducts) // Backward-compatible alias
 	api.Get("/public/stores/reactivate", handlers.HandlePublicReactivateStore)
 	api.Get("/stores/reactivate", handlers.HandlePublicReactivateStore)
+	api.Get("/auth/reactivate-store", handlers.HandlePublicReactivateStore)
 
 	// Public Subscription Plans
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)

@@ -51,7 +51,10 @@ func StartDormancyWorker(ctx context.Context, db *gorm.DB, strg storage.StorageS
 	}()
 }
 
-// TouchStoreActivity safely updates last_activity_at with memory-based throttling (max 1 DB write per 30 mins per store).
+// TouchStoreActivity safely updates last_activity_at ONLY for stores currently in 'active' status.
+// CRITICAL RULE: If a store has entered 'warning_1', 'warning_2', or 'suspended', passive/background actions
+// MUST NEVER update or reset dormancy status. The merchant MUST explicitly click the 1-click button in their
+// dashboard or 1-click magic link in email to extend their activity.
 func TouchStoreActivity(db *gorm.DB, storeID uint) {
 	if db == nil || storeID == 0 {
 		return
@@ -72,17 +75,13 @@ func TouchStoreActivity(db *gorm.DB, storeID uint) {
 	activityCache[storeID] = now
 	activityCacheMutex.Unlock()
 
-	// Update last_activity_at in DB and auto-restore status to 'active' if it was in warning/suspended
+	// ONLY update last_activity_at if dormancy_status is 'active' (or uninitialized).
+	// If the store has entered warning_1, warning_2, or suspended, this query matches 0 rows,
+	// preserving the warning countdown without resetting!
 	go func(sID uint, t time.Time) {
 		_ = db.Model(&models.Store{}).
-			Where("id = ?", sID).
-			Updates(map[string]interface{}{
-				"last_activity_at":          t,
-				"dormancy_status":           "active",
-				"dormancy_warning1_sent_at": nil,
-				"dormancy_warning2_sent_at": nil,
-				"dormancy_suspended_at":     nil,
-			}).Error
+			Where("id = ? AND (dormancy_status = 'active' OR dormancy_status = '' OR dormancy_status IS NULL)", sID).
+			Update("last_activity_at", t).Error
 	}(storeID, now)
 }
 
@@ -109,6 +108,10 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 	if err := db.Save(&store).Error; err != nil {
 		return nil, fmt.Errorf("gagal memperbarui status toko: %w", err)
 	}
+
+	// Clean up any remaining dormancy warning notifications for this store
+	_ = db.Where("target_type = 'single_store' AND target_id = ? AND category = 'PERINGATAN'", store.ID).
+		Delete(&models.Notification{}).Error
 
 	// Invalidate memory cache to allow immediate activity tracking
 	activityCacheMutex.Lock()
@@ -142,6 +145,10 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 	if err := db.Save(&store).Error; err != nil {
 		return nil, fmt.Errorf("gagal memperpanjang masa aktif toko: %w", err)
 	}
+
+	// Clean up any remaining dormancy warning notifications for this store
+	_ = db.Where("target_type = 'single_store' AND target_id = ? AND category = 'PERINGATAN'", store.ID).
+		Delete(&models.Notification{}).Error
 
 	activityCacheMutex.Lock()
 	delete(activityCache, store.ID)
