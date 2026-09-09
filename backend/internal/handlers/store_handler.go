@@ -445,7 +445,7 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		store.AboutDescription = security.SanitizeRichText(val, 50000)
 	}
 	if val, ok := payload["about_location"].(string); ok {
-		store.AboutLocation = security.SanitizePlainText(val, 500)
+		store.AboutLocation = security.SanitizeRichText(val, 10000)
 	}
 	if val, ok := payload["about_hours"].(string); ok {
 		store.AboutHours = security.SanitizePlainText(val, 500)
