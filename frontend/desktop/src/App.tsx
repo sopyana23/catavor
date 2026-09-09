@@ -12052,8 +12052,29 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
 
                         <div style={{ maxHeight: '240px', overflowY: 'auto', padding: '0.4rem 0', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          {userStores.map((s) => {
-                            const isCurrent = s.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                          {(() => {
+                            const planWeight = (plan?: string) => {
+                              if (plan === 'pro_business') return 3;
+                              if (plan === 'pro_starter') return 2;
+                              return 1;
+                            };
+
+                            const sortedStores = [...userStores].sort((a, b) => {
+                              const isAActive = a.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                              const isBActive = b.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                              if (isAActive && !isBActive) return -1;
+                              if (!isAActive && isBActive) return 1;
+
+                              const weightDiff = planWeight(b.plan) - planWeight(a.plan);
+                              if (weightDiff !== 0) return weightDiff;
+
+                              const nameA = (a.store_title || a.slug).toLowerCase();
+                              const nameB = (b.store_title || b.slug).toLowerCase();
+                              return nameA.localeCompare(nameB);
+                            });
+
+                            return sortedStores.map((s) => {
+                              const isCurrent = s.slug.toLowerCase() === (storeSlug || '').toLowerCase();
                             return (
                               <div
                                 key={s.id}
@@ -12114,7 +12135,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 )}
                               </div>
                             );
-                          })}
+                          });
+                        })()}
                         </div>
 
                         <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem' }}>
