@@ -15,6 +15,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type ProductHandler struct {
@@ -148,7 +149,7 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 }
 
 func gormExpr(expr string) interface{} {
-	return datatypes.JSON([]byte(expr))
+	return gorm.Expr(expr)
 }
 
 // Store creates a new product with dynamic JSONB attributes, multi-images, and quota checks.
