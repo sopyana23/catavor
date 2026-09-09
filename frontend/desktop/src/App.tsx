@@ -4367,18 +4367,89 @@ function App() {
   const [copiedAccountToast, setCopiedAccountToast] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<any[]>([
     {
-      id: 'about_onboarding',
-      title: '📋 Lengkapi Pengaturan Halaman Tentang Kami',
-      message: 'Lengkapi Alamat Toko, Jam Operasional, dan Profil Komitmen Layanan Anda agar katalog terlihat profesional dan terpercaya.',
+      id: 'notif_about_guide',
+      title: 'Panduan Kelengkapan Halaman Tentang Kami',
+      category: 'PANDUAN',
+      message: 'Lengkapi Alamat Bisnis, Jam Operasional, dan Profil Komitmen Layanan Anda agar profil katalog terlihat profesional dan terpercaya di mata pembeli.',
+      detail_content: `Halaman Tentang Kami adalah wajah utama brand profil bisnis Anda di mata pembeli. Untuk membangun kepercayaan maksimal pelanggan baru, pastikan Anda melengkapi:
+
+1. Alamat Bisnis & Titik Maps:
+Mempermudah calon pelanggan menemukan lokasi fisik toko, workshop, atau titik penjemputan pesanan.
+
+2. Jam Operasional Toko:
+Jadwal buka dan jam operasional harian dalam melayani pesanan atau chat pelanggan.
+
+3. Profil Komitmen Layanan & Garansi:
+Penjelasan jaminan kualitas produk, keaslian barang, serta standar pelayanan terbaik toko Anda.
+
+Klik tombol di bawah untuk langsung menuju formulir pengaturan Tentang Kami.`,
       time: 'Baru saja',
+      timestamp: 'Baru saja',
       read: false,
       type: 'warning',
+      action_type: 'detail',
+      action_label: 'Buka Pengaturan Tentang Kami →',
       linkSubTab: 'settings',
       linkSettingsSubTab: 'about'
     },
-    { id: 1, title: 'Status Verifikasi Plan Pro', message: 'Bukti pembayaran Anda sedang diproses oleh Tim Admin. Akses Plan Free aktif sementara (Est. 1x24 jam).', time: 'Baru saja', read: false, type: 'info' },
-    { id: 2, title: 'Selamat Datang di Catavor!', message: 'Katalog interaktif Anda berhasil dibuat. Tambahkan produk pertama Anda.', time: '10 menit lalu', read: false, type: 'success' }
+    {
+      id: 'notif_share_feature',
+      title: 'Fitur Bagikan Katalog & QR Code Bisnis',
+      category: 'PROMOSI',
+      message: 'Katalog digital Anda kini telah aktif! Bagikan tautan resmi atau unduh QR Code dinamis untuk mulai menjangkau pembeli di berbagai platform.',
+      detail_content: `Katalog bisnis Anda kini telah aktif dan dapat diakses oleh publik secara instan.
+
+Fitur Bagikan Katalog memungkinkan Anda untuk:
+• Membagikan tautan link langsung ke media sosial (WhatsApp, Instagram Bio, TikTok, dan Facebook).
+• Mengunduh Poster QR Code beresolusi tinggi untuk dicetak dan dipajang di meja kasir, etalase toko, atau kartu nama bisnis Anda.
+• Memantau trafik pengunjung dan total klik katalog secara realtime di dashboard analitik.
+
+Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
+      time: '5 menit lalu',
+      timestamp: '5 menit lalu',
+      read: false,
+      type: 'success',
+      action_type: 'detail',
+      action_label: 'Buka Menu Pengaturan Visual →',
+      linkSubTab: 'settings',
+      linkSettingsSubTab: 'theme'
+    },
+    {
+      id: 'notif_inventory_direct',
+      title: 'Kelola Stok & Inventaris Produk',
+      category: 'INVENTARIS',
+      message: 'Akses cepat ke menu inventaris untuk menambah produk baru, mengubah varian, atau memperbarui harga jual.',
+      time: '1 jam lalu',
+      timestamp: '1 jam lalu',
+      read: false,
+      type: 'order',
+      action_type: 'navigate',
+      linkSubTab: 'items'
+    },
+    {
+      id: 'notif_login_session',
+      title: 'Sesi Login Berhasil Masuk',
+      category: 'KEAMANAN',
+      message: 'Akun admin Anda berhasil login ke sistem dari perangkat ini pada pukul 14:27 WIB.',
+      time: '3 jam lalu',
+      timestamp: '3 jam lalu',
+      read: true,
+      type: 'info',
+      action_type: 'none'
+    },
+    {
+      id: 'notif_cloud_backup',
+      title: 'Pencadangan Data Cloud Selesai',
+      category: 'SISTEM',
+      message: 'Seluruh data postingan produk dan media katalog Anda telah dicadangkan secara otomatis dan aman pada server cloud.',
+      time: '6 jam lalu',
+      timestamp: '6 jam lalu',
+      read: true,
+      type: 'system',
+      action_type: 'none'
+    }
   ]);
+  const [selectedNotificationDetail, setSelectedNotificationDetail] = useState<any | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const [heroEmailInput, setHeroEmailInput] = useState('');
@@ -14799,93 +14870,276 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               {adminTab === 'notifications' && (
                 <div className="glass-panel animate-fade-in" style={{ padding: '1.75rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Notifikasi &amp; Aktivitas Toko</h3>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Informasi sistem, transaksi, dan aktivitas penting untuk akun toko Anda.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setNotifFilter('all')}
-                        className={`btn-secondary ${notifFilter === 'all' ? 'active' : ''}`}
-                        style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', borderRadius: '999px', fontWeight: notifFilter === 'all' ? 800 : 600 }}
-                      >
-                        Semua ({notifications.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNotifFilter('unread')}
-                        className={`btn-secondary ${notifFilter === 'unread' ? 'active' : ''}`}
-                        style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', borderRadius: '999px', fontWeight: notifFilter === 'unread' ? 800 : 600 }}
-                      >
-                        Belum Dibaca ({unreadCount})
-                      </button>
-                      {unreadCount > 0 && (
+                  {selectedNotificationDetail ? (
+                    /* ==========================================================
+                       VIEW 1: FULL PAGE NOTIFICATION DETAIL VIEW (DESKTOP)
+                       ========================================================== */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {/* Top Back Navigation Bar */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
                         <button
                           type="button"
-                          className="btn-primary"
-                          onClick={() => {
-                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                            showToast('Semua notifikasi telah ditandai dibaca!');
-                          }}
-                          style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', borderRadius: '999px' }}
+                          className="btn-secondary"
+                          onClick={() => setSelectedNotificationDetail(null)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
                         >
-                          Tandai Semua Dibaca
+                          <ChevronLeft size={16} />
+                          <span>Kembali ke Daftar Notifikasi</span>
                         </button>
-                      )}
-                    </div>
-                  </div>
 
-                  {filteredNotifications.length === 0 ? (
-                    <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <Bell size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
-                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan aktivitas akan ditampilkan di sini.</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            padding: '0.2rem 0.65rem',
+                            borderRadius: '0.4rem',
+                            color: selectedNotificationDetail.type === 'warning' ? '#d97706' : selectedNotificationDetail.type === 'success' ? '#059669' : selectedNotificationDetail.type === 'order' ? '#2563eb' : 'var(--primary)',
+                            backgroundColor: selectedNotificationDetail.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : selectedNotificationDetail.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : selectedNotificationDetail.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
+                            border: '1px solid currentColor'
+                          }}>
+                            {selectedNotificationDetail.category || (selectedNotificationDetail.type === 'warning' ? 'PANDUAN' : selectedNotificationDetail.type === 'success' ? 'PROMOSI' : selectedNotificationDetail.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            {selectedNotificationDetail.timestamp || selectedNotificationDetail.time || 'Baru saja'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Detail Body Container */}
+                      <div style={{
+                        padding: '1.75rem',
+                        borderRadius: '0.9rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.25rem'
+                      }}>
+                        <div>
+                          <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 0.85rem 0', color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                            {selectedNotificationDetail.title}
+                          </h3>
+                          <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>
+                            {selectedNotificationDetail.detail_content || selectedNotificationDetail.message}
+                          </div>
+                        </div>
+
+                        {/* CTA Actions */}
+                        {selectedNotificationDetail.linkSubTab && (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() => {
+                                const subTab = selectedNotificationDetail.linkSubTab;
+                                const settingsTab = selectedNotificationDetail.linkSettingsSubTab;
+                                setSelectedNotificationDetail(null);
+                                if (subTab) {
+                                  setAdminTab(subTab);
+                                  if (settingsTab) setSettingsSubTab(settingsTab);
+                                  const slug = getStoreSlug();
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/${subTab}`);
+                                }
+                              }}
+                              style={{
+                                padding: '0.75rem 1.75rem',
+                                borderRadius: '0.65rem',
+                                fontSize: '0.88rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 16px var(--primary-glow)'
+                              }}
+                            >
+                              {selectedNotificationDetail.action_label || 'Buka Halaman Terkait →'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                      {filteredNotifications.map((item) => (
-                        <div
-                          key={item.id}
-                          className="glass-panel glass-panel-hover"
-                          onClick={() => {
-                            setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
-                            if (item.linkSubTab) {
-                              setAdminTab(item.linkSubTab);
-                              if (item.linkSettingsSubTab) {
-                                setSettingsSubTab(item.linkSettingsSubTab);
-                              }
-                              const slug = getStoreSlug();
-                              if (slug) window.history.pushState({}, '', `/${slug}/admin/${item.linkSubTab}`);
-                            }
-                          }}
-                          style={{
-                            padding: '1.15rem 1.35rem',
-                            borderRadius: '0.9rem',
-                            border: item.read ? '1px solid var(--border-light)' : '1px solid var(--primary)',
-                            background: 'var(--card-bg-gradient)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '1rem'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                              <Bell size={20} />
-                            </div>
-                            <div>
-                              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: 'var(--text-primary)' }}>{item.title}</h4>
-                              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>{item.message}</p>
-                            </div>
-                          </div>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{item.timestamp || item.time}</span>
+                    /* ==========================================================
+                       VIEW 2: NOTIFICATION LIST FEED (DESKTOP)
+                       ========================================================== */
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                        <div>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Notifikasi &amp; Aktivitas</h3>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Informasi sistem, pembaruan, dan aktivitas penting akun Anda.</p>
                         </div>
-                      ))}
-                    </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setNotifFilter('all')}
+                            style={{
+                              padding: '0.45rem 1rem',
+                              borderRadius: '999px',
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              border: notifFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              backgroundColor: notifFilter === 'all' ? 'var(--primary)' : 'var(--bg-deep)',
+                              color: notifFilter === 'all' ? '#ffffff' : 'var(--text-primary)',
+                              boxShadow: notifFilter === 'all' ? '0 2px 8px var(--primary-glow)' : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            Semua ({notifications.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNotifFilter('unread')}
+                            style={{
+                              padding: '0.45rem 1rem',
+                              borderRadius: '999px',
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              border: notifFilter === 'unread' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              backgroundColor: notifFilter === 'unread' ? 'var(--primary)' : 'var(--bg-deep)',
+                              color: notifFilter === 'unread' ? '#ffffff' : 'var(--text-primary)',
+                              boxShadow: notifFilter === 'unread' ? '0 2px 8px var(--primary-glow)' : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            Belum Dibaca ({unreadCount})
+                          </button>
+                          {unreadCount > 0 && (
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() => {
+                                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                                showToast('Semua notifikasi telah ditandai dibaca!');
+                              }}
+                              style={{ fontSize: '0.78rem', padding: '0.45rem 1rem', borderRadius: '999px' }}
+                            >
+                              Tandai Semua Dibaca
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {filteredNotifications.length === 0 ? (
+                        <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <Bell size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
+                          <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan aktivitas akan ditampilkan di sini.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {filteredNotifications.map((item) => {
+                            const isDirectNav = item.action_type === 'navigate' && item.linkSubTab;
+                            const isDetail = item.action_type === 'detail' || Boolean(item.detail_content);
+                            const isNoneAction = !isDirectNav && !isDetail;
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="glass-panel glass-panel-hover"
+                                onClick={() => {
+                                  setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+                                  if (isDirectNav && item.linkSubTab) {
+                                    setAdminTab(item.linkSubTab);
+                                    if (item.linkSettingsSubTab) {
+                                      setSettingsSubTab(item.linkSettingsSubTab);
+                                    }
+                                    const slug = getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/${item.linkSubTab}`);
+                                  } else if (isDetail) {
+                                    setSelectedNotificationDetail(item);
+                                  } else {
+                                    showToast('Notifikasi ditandai dibaca');
+                                  }
+                                }}
+                                style={{
+                                  padding: '1.15rem 1.35rem',
+                                  borderRadius: '0.85rem',
+                                  border: item.read ? '1px solid var(--border-light)' : '1.5px solid var(--primary)',
+                                  borderLeft: !item.read ? '4px solid var(--primary)' : '1px solid var(--border-light)',
+                                  background: 'var(--card-bg-gradient)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '1rem',
+                                  boxShadow: item.read ? '0 1px 3px rgba(0,0,0,0.04)' : '0 4px 18px var(--primary-glow)',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  {/* Top Meta Line: Category Badge + Timestamp */}
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      {!item.read && (
+                                        <span style={{
+                                          width: '7px',
+                                          height: '7px',
+                                          borderRadius: '50%',
+                                          backgroundColor: 'var(--primary)',
+                                          boxShadow: '0 0 6px var(--primary)',
+                                          display: 'inline-block'
+                                        }} />
+                                      )}
+                                      <span style={{
+                                        fontSize: '0.66rem',
+                                        fontWeight: 800,
+                                        letterSpacing: '0.04em',
+                                        textTransform: 'uppercase',
+                                        padding: '0.12rem 0.55rem',
+                                        borderRadius: '0.35rem',
+                                        color: item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
+                                        backgroundColor: item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
+                                        border: '1px solid currentColor'
+                                      }}>
+                                        {item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
+                                      </span>
+                                    </div>
+
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                      {item.timestamp || item.time}
+                                    </span>
+                                  </div>
+
+                                  {/* Full Title (Never truncated) */}
+                                  <h4 style={{
+                                    fontSize: '0.95rem',
+                                    fontWeight: 800,
+                                    margin: '0 0 0.35rem 0',
+                                    color: 'var(--text-primary)',
+                                    lineHeight: 1.35
+                                  }}>
+                                    {item.title}
+                                  </h4>
+
+                                  {/* Message (Clamped to 2 lines) */}
+                                  <p style={{
+                                    fontSize: '0.82rem',
+                                    color: 'var(--text-secondary)',
+                                    margin: 0,
+                                    lineHeight: 1.45,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden'
+                                  }}>
+                                    {item.message}
+                                  </p>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                  {!isNoneAction ? (
+                                    <ChevronRight size={18} style={{ color: 'var(--text-primary)', opacity: 0.75 }} />
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -18715,6 +18969,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         </div>
       )}
+
       <QRCodeModal 
         isOpen={showQRModal} 
         onClose={() => {

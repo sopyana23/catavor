@@ -524,43 +524,55 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Circular Header Back Button (Matches User Theme Dynamically with High Contrast) */
+/* Luxury Circular Header Back Button (Prevents stretching, smooth elegant micro-interaction) */
 .btn-back-circle {
-  width: 2.25rem;
-  height: 2.25rem;
-  min-width: 2.25rem;
-  min-height: 2.25rem;
-  border-radius: 50%;
-  background: var(--bg-card);
-  border: 1.5px solid var(--primary);
-  color: var(--primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  padding: 0;
-  flex-shrink: 0;
-  outline: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  border-radius: 50% !important;
+  background: var(--bg-card-hover) !important;
+  border: 1px solid var(--border-light) !important;
+  color: var(--text-primary) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
+  box-sizing: border-box !important;
 }
 
-.btn-back-circle:hover, .btn-back-circle:active {
-  background: var(--primary);
-  color: #ffffff;
-  border-color: var(--primary);
-  transform: scale(1.06);
-  box-shadow: 0 4px 12px var(--primary-glow);
+.btn-back-circle:hover {
+  background: var(--primary-glow) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  transform: scale(1.06) !important;
+  box-shadow: 0 3px 12px var(--primary-glow) !important;
+}
+
+.btn-back-circle:active {
+  transform: scale(0.92) !important;
+  background: var(--primary-glow) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
 }
 
 .btn-back-circle svg {
-  color: inherit;
-  transition: transform 0.2s ease;
+  color: inherit !important;
+  transition: transform 0.2s ease !important;
+  flex-shrink: 0 !important;
 }
 
 .btn-back-circle:active svg {
-  transform: translateX(-1px);
+  transform: translateX(-2px) !important;
 }
+
 
