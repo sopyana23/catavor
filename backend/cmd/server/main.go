@@ -225,6 +225,8 @@ func main() {
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 
 		// Merchant Analytics & Store Telemetry
+		guarded.Get("/admin/analytics/products", analyticsHandler.GetStoreAnalyticsProducts)
+		guarded.Get("/analytics/products", analyticsHandler.GetStoreAnalyticsProducts)
 		guarded.Get("/admin/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 

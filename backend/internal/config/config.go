@@ -20,6 +20,7 @@ type Config struct {
 	DBPassword         string
 	DBName             string
 	DBSSLMode          string
+	DBAutoMigrate      bool
 	JWTSecret          string
 	JWTExpirationHours int
 	GoogleClientID     string
@@ -71,6 +72,10 @@ func LoadConfig() *Config {
 	s3UsePathStyle := getEnv("S3_USE_PATH_STYLE", "true") == "true"
 	s3SSL := getEnv("S3_SSL", "false") == "true"
 
+	dbAutoMigrateStr := strings.ToLower(getEnv("DB_AUTO_MIGRATE", getEnv("AUTO_MIGRATE", "true")))
+	skipDBMigrateStr := strings.ToLower(getEnv("SKIP_DB_MIGRATE", "false"))
+	dbAutoMigrate := (dbAutoMigrateStr != "false" && dbAutoMigrateStr != "0" && dbAutoMigrateStr != "no") && (skipDBMigrateStr != "true" && skipDBMigrateStr != "1" && skipDBMigrateStr != "yes")
+
 	AppConfig = &Config{
 		Port:               port,
 		AppEnv:             getEnv("APP_ENV", "local"),
@@ -81,6 +86,7 @@ func LoadConfig() *Config {
 		DBPassword:         getEnv("DB_PASSWORD", ""),
 		DBName:             getEnv("DB_NAME", "catavor"),
 		DBSSLMode:          getEnv("DB_SSLMODE", "disable"),
+		DBAutoMigrate:      dbAutoMigrate,
 		JWTSecret:          getEnv("JWT_SECRET", "catavor_super_secure_jwt_secret_key_2026_industrial_saas"),
 		JWTExpirationHours: jwtHours,
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),

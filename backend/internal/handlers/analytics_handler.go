@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -651,6 +652,190 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			"categories":               categories,
 			"insights":                 insights,
 			"bot_defense_active":       true,
+		},
+	})
+}
+
+// GetStoreAnalyticsProducts returns server-side paginated product performance analytics with filtering, search, and sorting.
+func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
+	var store *models.Store
+	if s, ok := c.Locals("store").(*models.Store); ok {
+		store = s
+	} else if sVal, ok := c.Locals("store").(models.Store); ok {
+		store = &sVal
+	}
+
+	if store == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses toko tidak valid.",
+		})
+	}
+
+	db := database.DB
+
+	// Parse pagination parameters
+	page := 1
+	if p, err := strconv.Atoi(strings.TrimSpace(c.Query("page", "1"))); err == nil && p > 0 {
+		page = p
+	}
+
+	perPage := 10
+	if l, err := strconv.Atoi(strings.TrimSpace(c.Query("per_page", c.Query("limit", "10")))); err == nil && l > 0 {
+		perPage = l
+		if perPage > 100 {
+			perPage = 100
+		}
+	}
+
+	search := strings.TrimSpace(c.Query("search", c.Query("q", "")))
+	productType := strings.TrimSpace(strings.ToLower(c.Query("product_type", c.Query("type", "all"))))
+	sortOption := strings.TrimSpace(strings.ToLower(c.Query("sort", "views")))
+
+	// 1. Calculate Product Type Counts across all active store products (for filter badges)
+	type typeCountRow struct {
+		ProductType string `gorm:"column:product_type"`
+		Count       int64  `gorm:"column:count"`
+	}
+	var typeCounts []typeCountRow
+	_ = db.Model(&models.Product{}).
+		Select("COALESCE(NULLIF(product_type, ''), 'physical') as product_type, COUNT(*) as count").
+		Where("store_id = ? AND is_active = ?", store.ID, true).
+		Group("COALESCE(NULLIF(product_type, ''), 'physical')").
+		Find(&typeCounts).Error
+
+	var totalActiveProducts int64 = 0
+	typeCountsMap := map[string]int64{
+		"all":      0,
+		"physical": 0,
+		"service":  0,
+		"digital":  0,
+		"food":     0,
+		"property": 0,
+		"fauna":    0,
+	}
+
+	for _, tc := range typeCounts {
+		pType := tc.ProductType
+		if pType == "" {
+			pType = "physical"
+		}
+		typeCountsMap[pType] = tc.Count
+		totalActiveProducts += tc.Count
+	}
+	typeCountsMap["all"] = totalActiveProducts
+
+	// 2. Build Base Query for Paginated Result
+	query := db.Model(&models.Product{}).
+		Where("store_id = ? AND is_active = ?", store.ID, true)
+
+	// Filter by product type
+	if productType != "" && productType != "all" {
+		query = query.Where("COALESCE(NULLIF(product_type, ''), 'physical') = ?", productType)
+	}
+
+	// Filter by search term
+	if search != "" {
+		searchLike := "%" + strings.ToLower(search) + "%"
+		query = query.Where("(LOWER(name) LIKE ? OR LOWER(class) LIKE ? OR LOWER(scientific_name) LIKE ?)", searchLike, searchLike, searchLike)
+	}
+
+	// Get total matching count
+	var totalMatching int64
+	if err := query.Count(&totalMatching).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghitung total data performa produk.",
+		})
+	}
+
+	totalPages := int((totalMatching + int64(perPage) - 1) / int64(perPage))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	offset := (page - 1) * perPage
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Apply Sorting
+	orderClause := "view_count DESC, id DESC"
+	switch sortOption {
+	case "views":
+		orderClause = "view_count DESC, id DESC"
+	case "actions":
+		orderClause = "(COALESCE(wa_clicks_count, 0) + COALESCE(marketplace_clicks_count, 0) + COALESCE(rekber_clicks_count, 0) + COALESCE(video_views_count, 0)) DESC, id DESC"
+	case "ctr":
+		orderClause = "(CASE WHEN view_count > 0 THEN ((COALESCE(wa_clicks_count, 0) + COALESCE(marketplace_clicks_count, 0) + COALESCE(rekber_clicks_count, 0) + COALESCE(video_views_count, 0))::float / view_count::float) ELSE 0 END) DESC, id DESC"
+	case "price_desc":
+		orderClause = "price DESC, id DESC"
+	case "price_asc":
+		orderClause = "price ASC, id DESC"
+	}
+
+	var products []models.Product
+	if err := query.
+		Select("id, name, image_url, price, class, view_count, wa_clicks_count, marketplace_clicks_count, rekber_clicks_count, video_views_count, product_type").
+		Order(orderClause).
+		Offset(offset).
+		Limit(perPage).
+		Find(&products).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengambil daftar performa produk.",
+		})
+	}
+
+	productSummaries := make([]TopProductSummary, len(products))
+	for i, p := range products {
+		pType := p.ProductType
+		if pType == "" {
+			pType = "physical"
+		}
+		itemActions := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
+		var itemCtr float64 = 0
+		if p.ViewCount > 0 {
+			itemCtr = (float64(itemActions) / float64(p.ViewCount)) * 100
+			if itemCtr > 100 {
+				itemCtr = 100
+			}
+		}
+
+		productSummaries[i] = TopProductSummary{
+			ID:                     p.ID,
+			Name:                   p.Name,
+			ImageURL:               p.ImageURL,
+			Price:                  p.Price,
+			Class:                  p.Class,
+			ViewCount:              p.ViewCount,
+			WaClicksCount:          p.WaClicksCount,
+			MarketplaceClicksCount: p.MarketplaceClicksCount,
+			RekberClicksCount:      p.RekberClicksCount,
+			VideoViewsCount:        p.VideoViewsCount,
+			TotalActionsCount:      itemActions,
+			ConversionRatePercent:  itemCtr,
+			ProductType:            pType,
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data": fiber.Map{
+			"products":     productSummaries,
+			"total":        totalMatching,
+			"page":         page,
+			"per_page":     perPage,
+			"total_pages":  totalPages,
+			"has_next":     page < totalPages,
+			"has_prev":     page > 1,
+			"type_counts":  typeCountsMap,
+			"sort":         sortOption,
+			"product_type": productType,
+			"search":       search,
 		},
 	})
 }
