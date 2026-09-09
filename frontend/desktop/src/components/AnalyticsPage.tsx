@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -36,6 +36,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronDown,
+  Check,
   X,
   PackageSearch,
   ArrowUpDown
@@ -152,6 +154,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedProductType, setSelectedProductType] = useState<string>('all');
   const [productSort, setProductSort] = useState<'views' | 'actions' | 'ctr' | 'price_desc' | 'price_asc'>('views');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState<boolean>(false);
+  const sortDropdownRef = useRef<HTMLDivElement | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [serverProducts, setServerProducts] = useState<AnalyticsProductSummary[] | null>(null);
@@ -171,6 +175,21 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }, 300);
     return () => clearTimeout(timer);
   }, [productSearch]);
+
+  // Close sort dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setIsSortDropdownOpen(false);
+      }
+    };
+    if (isSortDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSortDropdownOpen]);
 
   // Reset page to 1 when filters or sort change
   useEffect(() => {
@@ -544,6 +563,15 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     { key: 'food', label: 'Kuliner & FnB', icon: UtensilsCrossed },
     { key: 'property', label: 'Properti', icon: Home },
     { key: 'fauna', label: 'Satwa & Fauna', icon: Heart }
+  ];
+
+  // Standard sort options for item performance (no emojis)
+  const sortOptions = [
+    { id: 'views', label: 'Terbanyak Dilihat', desc: 'Urutan item berdasarkan jumlah tayangan terbanyak' },
+    { id: 'actions', label: 'Aksi Terbanyak', desc: 'Urutan berdasarkan total klik pesan & aksi peminat' },
+    { id: 'ctr', label: 'Rasio Konversi (CTR)', desc: 'Urutan berdasarkan persentase konversi peminat tertinggi' },
+    { id: 'price_desc', label: 'Harga Tertinggi', desc: 'Urutan dari harga paling tinggi ke rendah' },
+    { id: 'price_asc', label: 'Harga Terendah', desc: 'Urutan dari harga paling hemat' }
   ];
 
   // Dynamic count of products per type (server-side with fallback)
@@ -1622,30 +1650,103 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               )}
             </div>
 
-            {/* Sort Selector */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-              <ArrowUpDown size={14} style={{ color: 'var(--text-secondary)' }} />
-              <select
-                value={productSort}
-                onChange={e => setProductSort(e.target.value as any)}
+            {/* Standard Dropdown Menu Popover */}
+            <div ref={sortDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
                 style={{
-                  padding: '0.45rem 0.65rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.45rem 0.75rem',
                   fontSize: '0.78rem',
                   fontWeight: 600,
                   borderRadius: '0.5rem',
                   border: '1px solid var(--border-light)',
                   backgroundColor: 'var(--bg-deep)',
                   color: 'var(--text-primary)',
-                  outline: 'none',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'var(--transition-fast)',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <option value="views">Tayangan Terbanyak (Views)</option>
-                <option value="actions">Aksi Terbanyak (Konversi)</option>
-                <option value="ctr">CTR Tertinggi (%)</option>
-                <option value="price_desc">Harga Tertinggi</option>
-                <option value="price_asc">Harga Terendah</option>
-              </select>
+                <ArrowUpDown size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <span>{sortOptions.find(o => o.id === productSort)?.label || 'Terbanyak Dilihat'}</span>
+                <ChevronDown size={13} style={{ color: 'var(--text-secondary)', transform: isSortDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+              </button>
+
+              {isSortDropdownOpen && (
+                <div
+                  className="glass-panel"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    width: '280px',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)',
+                    zIndex: 1000,
+                    padding: '0.4rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem',
+                    animation: 'fadeIn 0.15s ease'
+                  }}
+                >
+                  <div style={{ padding: '0.4rem 0.6rem 0.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Urutkan Item Berdasarkan
+                  </div>
+                  {sortOptions.map((opt) => {
+                    const isSelected = productSort === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setProductSort(opt.id as any);
+                          setCurrentPage(1);
+                          setIsSortDropdownOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem',
+                          padding: '0.55rem 0.65rem',
+                          borderRadius: '0.5rem',
+                          border: 'none',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'var(--transition-fast)'
+                        }}
+                        onMouseEnter={e => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-deep)';
+                        }}
+                        onMouseLeave={e => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: isSelected ? 700 : 500 }}>
+                            {opt.label}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: isSelected ? 'var(--primary)' : 'var(--text-secondary)', opacity: 0.85 }}>
+                            {opt.desc}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <Check size={14} strokeWidth={3} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

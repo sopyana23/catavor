@@ -34,6 +34,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronDown,
+  Check,
   X,
   ArrowUpDown,
   PackageSearch,
@@ -151,6 +153,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedProductType, setSelectedProductType] = useState<string>('all');
   const [productSort, setProductSort] = useState<'views' | 'actions' | 'ctr' | 'price_desc' | 'price_asc'>('views');
+  const [showSortModal, setShowSortModal] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [serverProducts, setServerProducts] = useState<AnalyticsProductSummary[] | null>(null);
@@ -571,6 +574,15 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     { key: 'food', label: 'Kuliner & FnB', icon: UtensilsCrossed },
     { key: 'property', label: 'Properti', icon: Home },
     { key: 'fauna', label: 'Satwa & Fauna', icon: Heart }
+  ];
+
+  // Standard sort options for item performance (no emojis)
+  const sortOptions = [
+    { id: 'views', label: 'Terbanyak Dilihat', desc: 'Urutan item berdasarkan jumlah tayangan terbanyak' },
+    { id: 'actions', label: 'Aksi Terbanyak', desc: 'Urutan berdasarkan total klik pesan & aksi peminat' },
+    { id: 'ctr', label: 'Rasio Konversi (CTR)', desc: 'Urutan berdasarkan persentase konversi peminat tertinggi' },
+    { id: 'price_desc', label: 'Harga Tertinggi', desc: 'Urutan dari harga paling tinggi ke rendah' },
+    { id: 'price_asc', label: 'Harga Terendah', desc: 'Urutan dari harga paling hemat' }
   ];
 
   // Product count by type for badges
@@ -1610,33 +1622,30 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               )}
             </div>
 
-            {/* Sort Selector */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <select
-                value={productSort}
-                onChange={e => {
-                  setProductSort(e.target.value as any);
-                  setCurrentPage(1);
-                }}
-                style={{
-                  padding: '0.42rem 0.65rem',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  borderRadius: '0.5rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-deep)',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="views">🔥 Terbanyak Dilihat</option>
-                <option value="actions">⚡ Aksi Terbanyak</option>
-                <option value="ctr">🎯 Rasio Konversi (CTR)</option>
-                <option value="price_desc">💰 Harga Tertinggi</option>
-                <option value="price_asc">🏷️ Harga Terendah</option>
-              </select>
-            </div>
+            {/* Standard Dropdown Modal Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setShowSortModal(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.42rem 0.75rem',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-deep)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <ArrowUpDown size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+              <span>{sortOptions.find(o => o.id === productSort)?.label || 'Terbanyak Dilihat'}</span>
+              <ChevronDown size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+            </button>
           </div>
         </div>
 
@@ -2044,6 +2053,71 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* LUXURY MOBILE BOTTOM SHEET: SORT OPTIONS MODAL PICKER */}
+      {showSortModal && (
+        <div 
+          className="bottom-sheet-backdrop" 
+          style={{ zIndex: 11000 }}
+          onClick={() => setShowSortModal(false)}
+        >
+          <div 
+            className="bottom-sheet-content" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Smooth Drag Handle Area */}
+            <div 
+              className="bottom-sheet-handle-bar"
+              onClick={() => setShowSortModal(false)}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
+
+            {/* Header */}
+            <div className="bottom-sheet-header">
+              <div className="bottom-sheet-title-box">
+                <ArrowUpDown size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <h3 className="bottom-sheet-title">Urutkan Performa Item</h3>
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '60vh' }}>
+              {sortOptions.map((opt) => {
+                const isSelected = productSort === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => {
+                      setProductSort(opt.id as any);
+                      setCurrentPage(1);
+                      setShowSortModal(false);
+                    }}
+                  >
+                    <div className="bottom-sheet-item-left">
+                      <div className="bottom-sheet-item-col">
+                        <span className="bottom-sheet-item-name">
+                          {opt.label}
+                        </span>
+                        {opt.desc && (
+                          <span className="bottom-sheet-item-desc">{opt.desc}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}>
+                      {isSelected && (
+                        <Check size={12} strokeWidth={3.5} style={{ display: 'block', margin: 'auto' }} />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
