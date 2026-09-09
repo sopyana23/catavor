@@ -42,6 +42,9 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 		})
 	}
 
+	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
+	services.TouchStoreActivity(database.DB, store.ID)
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    store,
@@ -191,6 +194,9 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 			"message": "Toko tidak ditemukan.",
 		})
 	}
+
+	// Touch store activity on public product catalog query (throttled & only affects active stores before warning stage)
+	services.TouchStoreActivity(database.DB, store.ID)
 
 	query := database.DB.Model(&models.Product{}).
 		Preload("Category").
