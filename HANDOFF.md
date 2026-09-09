@@ -23,36 +23,40 @@ Dokumen ini adalah **panduan lengkap serah terima (handoff)** untuk developer at
 
 ## 📦 2. Status Fitur & Pekerjaan yang Telah Selesai (Completed Features)
 
-### A. Sistem Notifikasi Enterprise (Dynamic Database & Real-Time)
+### A. Sistem Notifikasi Enterprise (Dynamic Database, Paging & Real-Time)
 - **Persistensi Database Penuh**:
   - Tabel `notifications` & `notification_reads` di PostgreSQL.
-  - Sekali dibaca (`Mark as Read` atau `Tandai Semua Dibaca`), status baca dicatat di `notification_reads` dan **tetap persisten** saat browser di-refresh.
+  - Status dibaca dicatat per-user dan **tetap persisten** saat browser di-refresh.
+- **Server-Side Pagination & Infinite Scroll**:
+  - Endpoint `GET /api/notifications?page=1&limit=10&filter=all|unread`.
+  - Frontend Mobile & Desktop menggunakan `IntersectionObserver` sentinel untuk memuat data bertahap secara mulus (*infinite scroll*) tanpa flicker atau lonjakan scroll.
 - **Superadmin Broadcast (Hybrid Pattern - Hemat Storage)**:
   - Superadmin dapat mengirim notifikasi broadcast ke target dinamis (`all`, `plan` dengan kode dinamis seperti `free`, `pro_starter`, `pro_business`, atau toko tertentu).
-  - 1 pengumuman ke ribuan user hanya memakan **1 baris data**.
 - **Real-Time Delivery (SSE Hub)**:
   - Endpoint `/api/notifications/stream` mengalirkan notifikasi baru secara langsung ke browser merchant aktif seketika tanpa refresh.
 - **Auto-Cleanup Retention Worker**:
   - Background Goroutine Worker (`services.StartNotificationCleaner`) membersihkan notifikasi yang kedaluwarsa (`expires_at`) atau yang telah melewati masa retensi setelah dibaca (`retention_hours`).
-- **UI/UX Notifikasi Premium**:
-  - Judul lengkap tanpa pemotongan teks (*no ellipsis truncation*).
-  - Desain elegan tanpa ikon kotak generik / emoji, diganti dengan *Category Badges* (`PANDUAN`, `PROMOSI`, `INVENTARIS`, `SISTEM`, `KEAMANAN`).
-  - Halaman detail notifikasi penuh (*Full Page Detail View*) dengan tombol aksi langsung.
 
-### B. Menu & Navigasi Admin Dashboard
-- **Standardisasi Terminologi**: Mengganti kata generic `"Toko"` menjadi `"Katalog"` / `"Profil Katalog"` di menu pengguna.
-- **Header Action Dropdown**: Menggabungkan tombol "Bagikan" dan "Keluar/Logout" ke dalam menu dropdown (`MoreVertical`).
-- **Dynamic Type Switcher**: Badge kategori/tipe produk hanya muncul jika toko memiliki lebih dari 1 jenis produk (`distinctTypesCount > 1`).
-- **Pembersihan Subtitle**: Subtitle profil menampilkan nama paket langganan aktif (misal `PRO BISNIS`) tanpa hitungan toko yang redundan.
+### B. Inactivity Lifecycle & Store Dormancy Management
+- **Background Dormancy Worker (`services.StartDormancyWorker`)**:
+  - Memantau keaktifan toko Free Tier setiap 1 jam secara otomatis.
+  - **H+30**: Peringatan awal (`warning_1`) via notifikasi & email.
+  - **H+38**: Peringatan kritis 7 hari menjelang suspend (`warning_2`).
+  - **H+45**: Katalog disuspend sementara (`suspended`) dan disembunyikan dari publik.
+  - **H+60**: Pembersihan data otomatis jika tidak ada reaktivasi.
+- **Reaktivasi Instan & Perpanjangan Masa Aktif**:
+  - Tombol *"Perpanjang Masa Aktif Katalog"* di dashboard (`POST /api/stores/extend-activity`).
+  - Magic link via email reaktivasi instan (`GET /api/auth/reactivate-store?token=...`).
 
-### C. Manajemen Multi-Tenant & Subscription Plans
-- Model dinamis `SubscriptionPlan` (`free`, `pro_starter`, `pro_business`).
-- Kuota penyimpanan, batas jumlah produk, custom domain, dan badge verifikasi terintegrasi otomatis.
-- Lifecycle worker otomatis untuk masa tenggang (*grace period*) dan kedaluwarsa langganan.
-
-### D. Katalog Produk & Multi-Channel Sales
-- Dukungan varian produk, multi-gambar, galeri foto, kategori bertingkat.
-- Tombol integrasi pesanan WhatsApp Direct, Rekber, dan tautan Global Marketplace.
+### C. Rich Textarea Fullscreen Editor & Formatted Text
+- **Form "Tentang Kami" (Deskripsi Profil Lengkap)**:
+  - Komponen `<RichTextarea>` dengan mode layar penuh (*fullscreen with live split preview*), toolbar tebal, miring, heading, bullet list, numbered list, checklist, dan link.
+- **Form "Kontak & Saluran Resmi" (Lokasi / Alamat Resmi)**:
+  - Komponen `<RichTextarea>` yang sama persis, mempermudah merchant menyusun alamat multi-baris, instruksi rute, atau tautan peta.
+- **Halaman Publik**:
+  - Merender data menggunakan komponen `<FormattedText>` (berstandar markdown rapi).
+- **Sanitasi Backend**:
+  - Menggunakan `SanitizeRichText` untuk melindungi dari XSS tanpa merusak format teks.
 
 ---
 
@@ -64,10 +68,10 @@ Dokumen ini adalah **panduan lengkap serah terima (handoff)** untuk developer at
 2. **Proteksi Injeksi SQL & Parameterized Queries**:
    - Seluruh kueri backend menggunakan prepared statements & parameter GORM (`?` placeholders).
 3. **XSS Sanitization**:
-   - Modul `security.SanitizeHTML` membersihkan input teks dan deskripsi dari script berbahaya.
+   - Modul `security.SanitizeRichText` dan `security.SanitizePlainText` membersihkan input berbahaya secara komprehensif.
 4. **Rate Limiting**:
-   - `AuthRateLimiter` pada endpoint login/register untuk mencegah *brute-force*.
-   - `PublicSubmissionRateLimiter` pada formulir publik (komentar, laporan, analitik).
+   - `AuthRateLimiter` pada endpoint login/register.
+   - `PublicSubmissionRateLimiter` pada formulir publik.
 5. **Connection Pool Database**:
    - Batasan `MaxOpenConns(50)` dan `MaxIdleConns(10)` untuk menjaga stabilitas memori database server.
 
@@ -84,37 +88,18 @@ powershell -ExecutionPolicy Bypass -File .\build-all.ps1
 ```powershell
 # Build binary
 cd backend
-go build -o ..\catavor-server.exe .\cmd\server
+go build -o ..\catavor-server.exe .\cmd\server\main.go
 cd ..
 
 # Jalankan server
 .\catavor-server.exe
 ```
 
-### Konfigurasi Environment (`.env`)
-Pastikan variabel database dan JWT terisi di file `.env`:
-```env
-APP_ENV=local
-PORT=8000
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=catavor_db
-JWT_SECRET=your_jwt_secret_key
-DB_AUTO_MIGRATE=false
-```
-
 ---
 
 ## 📌 5. Rekomendasi Langkah Selanjutnya untuk Agen Penerus
 
-1. **Fitur Pengingat Setup Dinamis (Setup Checklist)**:
-   - Membuat widget kartu progress di dashboard menu ("Langkah Menyiapkan Katalog: 2/4") yang dinamis membaca data riil toko (misal: jika alamat belum diisi, checklist belum centang; jika sudah diisi, otomatis centang selesai).
-2. **Superadmin Broadcast GUI**:
-   - Menyediakan form GUI visual di panel Superadmin untuk memicu `POST /api/admin/notifications/broadcast` dengan pemilihan target plan secara interaktif.
-3. **Push to Main (Production Release)**:
-   - Jika semua fitur di `dev` siap dirilis ke publik, merge `dev` ke `main` dan deploy binary `catavor-server.exe`.
-
----
-*Dokumen ini dibuat otomatis sebagai panduan resmi serah terima sesi kerja platform Catavor.*
+1. **Superadmin Broadcast GUI**:
+   - Menambahkan visual modal/form di panel Superadmin untuk memicu broadcast notifikasi secara interaktif.
+2. **Setup Checklist Widget**:
+   - Melengkapi widget progress onboarding pada dashboard utama yang membaca data riil kelengkapan profil toko.
