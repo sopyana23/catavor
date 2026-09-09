@@ -9,6 +9,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/datatypes"
@@ -310,6 +311,9 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 	// Auto-append master values to store if new
 	h.autoUpdateStoreMaster(store, productType, class, habitat, status)
 
+	// Refresh store activity timestamp for active stores
+	services.TouchStoreActivity(database.DB, store.ID)
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Item katalog berhasil ditambahkan!",
@@ -411,6 +415,9 @@ func (h *FaunaHandler) Update(c *fiber.Ctx) error {
 
 	h.autoUpdateStoreMaster(store, fauna.ProductType, fauna.Class, fauna.Habitat, fauna.ConservationStatus)
 
+	// Refresh store activity timestamp for active stores
+	services.TouchStoreActivity(database.DB, store.ID)
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Item katalog berhasil diperbarui!",
@@ -437,6 +444,9 @@ func (h *FaunaHandler) Destroy(c *fiber.Ctx) error {
 			"message": "Gagal menghapus item.",
 		})
 	}
+
+	// Refresh store activity timestamp for active stores
+	services.TouchStoreActivity(database.DB, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
