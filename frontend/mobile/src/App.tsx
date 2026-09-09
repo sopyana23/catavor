@@ -15255,80 +15255,109 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 /* CLEAN NATIVE MOBILE MERCHANT ADMIN DASHBOARD */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   
-                  {/* Dormancy Inactivity Warning Banner (Free Tier) */}
+                  {/* Dormancy Inactivity Warning Banner (Free Tier Mobile - Dynamic Luxury Theme) */}
                   {settings.plan === 'free' && (settings.dormancy_status === 'warning_1' || settings.dormancy_status === 'warning_2') && (
                     <div 
                       className="glass-panel animate-fade-in"
                       style={{
-                        padding: '0.85rem 1rem',
+                        padding: '1rem',
                         borderRadius: '0.9rem',
-                        background: settings.dormancy_status === 'warning_2' ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(30, 41, 59, 0.95) 100%)' : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(30, 41, 59, 0.95) 100%)',
-                        border: settings.dormancy_status === 'warning_2' ? '1px solid #ef4444' : '1px solid #f59e0b',
-                        boxShadow: settings.dormancy_status === 'warning_2' ? '0 4px 18px rgba(239, 68, 68, 0.2)' : '0 4px 18px rgba(245, 158, 11, 0.2)',
+                        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)',
+                        border: settings.dormancy_status === 'warning_2' ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid var(--border-light)',
+                        boxShadow: settings.dormancy_status === 'warning_2' ? '0 6px 20px rgba(239, 68, 68, 0.15)' : '0 6px 20px rgba(0, 0, 0, 0.25)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '0.65rem'
+                        gap: '0.85rem',
+                        position: 'relative',
+                        overflow: 'hidden'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                      {/* Left Dynamic Color Accent Bar */}
+                      <div 
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          bottom: 0,
+                          width: '4px',
+                          backgroundColor: settings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--primary)',
+                          boxShadow: settings.dormancy_status === 'warning_2' ? '0 0 10px #ef4444' : '0 0 10px var(--primary-glow)'
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', paddingLeft: '0.25rem' }}>
                         <div style={{ 
-                          width: '32px', 
-                          height: '32px', 
-                          borderRadius: '50%', 
-                          backgroundColor: settings.dormancy_status === 'warning_2' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)', 
+                          width: '36px', 
+                          height: '36px', 
+                          borderRadius: '10px', 
+                          backgroundColor: settings.dormancy_status === 'warning_2' ? 'rgba(239, 68, 68, 0.15)' : 'var(--primary-glow)', 
+                          border: settings.dormancy_status === 'warning_2' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-light)',
                           display: 'flex', 
                           alignItems: 'center', 
                           justifyContent: 'center',
-                          color: settings.dormancy_status === 'warning_2' ? '#ef4444' : '#f59e0b',
+                          color: settings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--primary)',
                           flexShrink: 0 
                         }}>
-                          <Clock size={16} />
+                          <Clock size={18} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.3rem' }}>
                             <span style={{ 
-                              fontSize: '0.68rem', 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.64rem', 
                               fontWeight: 800, 
-                              padding: '0.1rem 0.45rem', 
-                              borderRadius: '0.3rem', 
-                              backgroundColor: settings.dormancy_status === 'warning_2' ? '#ef4444' : '#f59e0b', 
-                              color: '#ffffff',
+                              padding: '0.2rem 0.55rem', 
+                              borderRadius: '20px', 
+                              backgroundColor: settings.dormancy_status === 'warning_2' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(255, 255, 255, 0.08)', 
+                              color: settings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--text-primary)',
+                              border: settings.dormancy_status === 'warning_2' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border-light)',
+                              letterSpacing: '0.04em',
                               textTransform: 'uppercase'
                             }}>
-                              {settings.dormancy_status === 'warning_2' ? '⚠️ Peringatan Kritis' : 'Pemberitahuan Inaktivitas'}
+                              <span style={{ 
+                                width: '5px', 
+                                height: '5px', 
+                                borderRadius: '50%', 
+                                backgroundColor: settings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--primary)' 
+                              }} />
+                              {settings.dormancy_status === 'warning_2' ? 'Peringatan Masa Aktif' : 'Pemberitahuan Akun'}
                             </span>
                           </div>
-                          <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: '0 0 0.2rem 0', fontWeight: 700, lineHeight: 1.35 }}>
-                            {settings.dormancy_status === 'warning_2' ? 'Katalog akan dinonaktifkan sementara dalam beberapa hari!' : 'Katalog terdeteksi tidak aktif selama 30 hari.'}
-                          </p>
-                          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                            Perpanjang masa aktif gratis Anda sekarang agar katalog tetap tampil di publik dan data produk Anda tidak terhapus.
+                          <h4 style={{ fontSize: '0.84rem', color: '#ffffff', margin: '0 0 0.25rem 0', fontWeight: 800, lineHeight: 1.35 }}>
+                            {settings.dormancy_status === 'warning_2' ? 'Katalog akan dinonaktifkan sementara' : 'Katalog terdeteksi tidak aktif selama 30 hari'}
+                          </h4>
+                          <p style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                            Perpanjang masa aktif gratis Anda agar etalase produk tetap tampil publik dan terhindar dari penonaktifan sistem.
                           </p>
                         </div>
                       </div>
+
                       <button
                         type="button"
                         onClick={handleExtendStoreActivity}
                         disabled={extendingActivity}
                         style={{
                           width: '100%',
-                          padding: '0.55rem 1rem',
+                          padding: '0.65rem 1rem',
                           borderRadius: '0.65rem',
-                          fontSize: '0.76rem',
+                          fontSize: '0.78rem',
                           fontWeight: 800,
-                          background: settings.dormancy_status === 'warning_2' ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                          backgroundColor: settings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--primary)',
                           color: '#ffffff',
                           border: 'none',
                           cursor: 'pointer',
-                          boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                          boxShadow: settings.dormancy_status === 'warning_2' ? '0 3px 12px rgba(239, 68, 68, 0.3)' : '0 3px 12px var(--primary-glow)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.45rem'
+                          gap: '0.5rem',
+                          transition: 'all 0.2s ease'
                         }}
                       >
-                        {extendingActivity ? <Loader size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                        <span>Perpanjang Masa Aktif Katalog (1-Klik)</span>
+                        {extendingActivity ? <Loader size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                        <span>Perpanjang Masa Aktif Katalog</span>
                       </button>
                     </div>
                   )}
