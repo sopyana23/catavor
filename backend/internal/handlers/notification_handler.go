@@ -314,9 +314,9 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	}
 
 	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
+	c.Set("Cache-Control", "no-cache, no-transform")
 	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	c.Set("X-Accel-Buffering", "no")
 	c.Set("Access-Control-Allow-Origin", "*")
 
 	client := services.GetNotificationHub().Register(userID, storeID, storePlan)
@@ -326,9 +326,11 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 
 		// Send initial connect greeting
 		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"client_id\":\"%s\"}\n\n", client.ID)
-		w.Flush()
+		if err := w.Flush(); err != nil {
+			return
+		}
 
-		ticker := time.NewTicker(25 * time.Second) // Keepalive heartbeat
+		ticker := time.NewTicker(15 * time.Second) // Keepalive heartbeat every 15s
 		defer ticker.Stop()
 
 		for {
