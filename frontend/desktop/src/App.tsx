@@ -5124,6 +5124,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const [faunas, setFaunas] = useState<Fauna[]>([])
   const [isAppInitializing, setIsAppInitializing] = useState<boolean>(true)
+  const [isFilterHidden, setIsFilterHidden] = useState<boolean>(false)
+  const lastFilterScrollYRef = useRef<number>(0)
 
   // Stable gate logo ref to prevent mid-stream flickering/swapping during initialization
   const initialGateLogoRef = useRef<string | null>(null);
@@ -6966,6 +6968,49 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [filteredFaunas.length, isDetailActive, loadingMore, displayLimit])
+
+  // Smart Sticky Filter & Preview Bar Auto-Hide on Scroll Down & Reveal on Scroll Up
+  useEffect(() => {
+    let accumulatedUp = 0;
+    let accumulatedDown = 0;
+
+    const handleSmartFilterScroll = () => {
+      if (isDetailActive) return;
+      const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+      // Always visible when near top of page
+      if (currentScrollY <= 30) {
+        setIsFilterHidden(false);
+        accumulatedUp = 0;
+        accumulatedDown = 0;
+        lastFilterScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      const delta = currentScrollY - lastFilterScrollYRef.current;
+
+      if (delta > 0) {
+        // User is scrolling DOWN
+        accumulatedUp = 0;
+        accumulatedDown += delta;
+        if (accumulatedDown > 10) {
+          setIsFilterHidden(true);
+        }
+      } else if (delta < 0) {
+        // User is scrolling UP (instant reveal on slight scroll up)
+        accumulatedDown = 0;
+        accumulatedUp += Math.abs(delta);
+        if (accumulatedUp > 5) {
+          setIsFilterHidden(false);
+        }
+      }
+
+      lastFilterScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleSmartFilterScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleSmartFilterScroll);
+  }, [isDetailActive]);
 
   // Sync profile form when user state loads
   useEffect(() => {
@@ -11262,293 +11307,287 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         </div>
       ) : (
         <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header (Shows stylish Catavor brand header on 404 error pages, and store header on valid pages) */}
-      {error ? (
-        <header className="app-header">
-          <div className="container header-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-              <span style={{ 
-                fontSize: '1.45rem', 
-                fontWeight: 800, 
-                color: '#ffffff',
-                letterSpacing: '-0.01em',
-                fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
-              }}>
-                Catavor
-              </span>
-            </a>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <button 
-                type="button"
-                className="btn-primary" 
-                onClick={() => { window.location.href = window.location.origin; }}
-                style={{ 
-                  padding: '0.5rem 1.15rem', 
-                  fontSize: '0.82rem', 
-                  fontWeight: 800, 
-                  borderRadius: '0.5rem',
+        {/* Unified Desktop Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) */}
+      <div className={`desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
+        {/* Store Owner Preview Banner for Public Storefront View */}
+        {isStoreOwner && view === 'catalog' && (
+          <aside 
+            aria-label="Mode Pratinjau Publik"
+            className="desktop-preview-bar"
+          >
+            <div style={{
+              maxWidth: '1280px',
+              margin: '0 auto',
+              padding: '0.45rem 2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Globe size={15} />
-                <span>Portal Utama</span>
-              </button>
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Eye size={14} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Mode Pratinjau Katalog
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    — Tampilan langsung yang dilihat pengunjung & pelanggan Anda
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => openCreateModal('physical')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-light)',
+                    padding: '0.35rem 0.85rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Tambah Item Baru"
+                >
+                  <Plus size={13} style={{ color: 'var(--primary)' }} />
+                  <span>+ Tambah Item</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView('admin');
+                    const slug = getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                  }}
+                  style={{
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '0.35rem 0.95rem',
+                    borderRadius: '999px',
+                    fontWeight: 800,
+                    fontSize: '0.76rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 10px var(--primary-glow)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Kembali ke Dashboard Admin"
+                >
+                  <LayoutDashboard size={13} />
+                  <span>Dashboard Admin</span>
+                  <ArrowRight size={12} />
+                </button>
+              </div>
             </div>
-          </div>
-        </header>
-      ) : (
-        <header className="app-header">
-          <div className="container header-content">
-            <div className="logo-area">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {(() => {
-                  const titleText = settings.store_title || 'Catavor';
-                  const scale = getDesktopHeaderScale(titleText);
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
-                      {renderStoreLogo(settings.store_logo_url, 'logo-icon', scale.iconSize)}
-                      <h1 
-                        className="logo-text" 
-                        style={{ margin: 0, fontSize: scale.titleFontSize, fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: scale.maxWidth, transition: 'font-size 0.2s ease' }} 
-                        title={titleText}
-                      >
-                        {titleText}
-                      </h1>
-                      {settings.plan === 'free' && (
-                        <span style={{ fontSize: scale.badgeFontSize, fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--primary)', border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          Free by Catavor
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
-                {view === 'admin' ? (
-                  <button
-                    type="button"
-                    onClick={() => setActionMenuData({ type: 'admin_menu' })}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '50%',
-                      transition: 'all 0.2s',
-                      lineHeight: 1
-                    }}
-                    title="Menu Opsi Pengelola"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--primary)';
-                      e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <MoreVertical size={18} />
-                  </button>
+          </aside>
+        )}
+
+        {/* Header (Shows stylish Catavor brand header on 404 error pages, and store header on valid pages) */}
+        {error ? (
+          <header className="app-header">
+            <div className="container header-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+                <span style={{ 
+                  fontSize: '1.45rem', 
+                  fontWeight: 800, 
+                  color: '#ffffff', 
+                  letterSpacing: '-0.01em',
+                  fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
+                }}>
+                  Catavor
+                </span>
+              </a>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button 
+                  type="button"
+                  className="btn-primary" 
+                  onClick={() => { window.location.href = window.location.origin; }}
+                  style={{ 
+                    padding: '0.5rem 1.15rem', 
+                    fontSize: '0.82rem', 
+                    fontWeight: 800, 
+                    borderRadius: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Globe size={15} />
+                  <span>Portal Utama</span>
+                </button>
+              </div>
+            </div>
+          </header>
+        ) : (
+          <header className="app-header">
+            <div className="container header-content">
+              <div className="logo-area">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {(() => {
+                    const titleText = settings.store_title || 'Catavor';
+                    const scale = getDesktopHeaderScale(titleText);
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
+                        {renderStoreLogo(settings.store_logo_url, 'logo-icon', scale.iconSize)}
+                        <h1 
+                          className="logo-text" 
+                          style={{ margin: 0, fontSize: scale.titleFontSize, fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: scale.maxWidth, transition: 'font-size 0.2s ease' }} 
+                          title={titleText}
+                        >
+                          {titleText}
+                        </h1>
+                        {settings.plan === 'free' && (
+                          <span style={{ fontSize: scale.badgeFontSize, fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--primary)', border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            Free by Catavor
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {view === 'admin' ? (
+                    <button
+                      type="button"
+                      onClick={() => setActionMenuData({ type: 'admin_menu' })}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '50%',
+                        transition: 'all 0.2s',
+                        lineHeight: 1
+                      }}
+                      title="Menu Opsi Pengelola"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--primary)';
+                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-secondary)';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setActionMenuData({ type: 'store' })}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '50%',
+                        transition: 'all 0.2s',
+                        lineHeight: 1
+                      }}
+                      title="Menu & Opsi Katalog"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--primary)';
+                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-secondary)';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {view === 'catalog' ? (
+                  <>
+                    <button 
+                      type="button"
+                      className={`btn-secondary ${activePublicTab === 'catalog' ? 'active' : ''}`} 
+                      onClick={() => setActivePublicTab('catalog')}
+                      style={{
+                        padding: '0.45rem 1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: activePublicTab === 'catalog' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: activePublicTab === 'catalog' ? '#fff' : 'var(--text-secondary)',
+                        border: activePublicTab === 'catalog' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      🔍 Katalog Produk
+                    </button>
+                    <button 
+                      type="button"
+                      className={`btn-secondary ${activePublicTab === 'about' ? 'active' : ''}`} 
+                      onClick={() => setActivePublicTab('about')}
+                      style={{
+                        padding: '0.45rem 1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        backgroundColor: activePublicTab === 'about' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                        color: activePublicTab === 'about' ? '#fff' : 'var(--text-secondary)',
+                        border: activePublicTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                      }}
+                    >
+                      📖 Tentang Kami
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setActionMenuData({ type: 'store' })}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '50%',
-                      transition: 'all 0.2s',
-                      lineHeight: 1
-                    }}
-                    title="Menu & Opsi Katalog"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--primary)';
-                      e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
+                  <button 
+                    className="btn-primary" 
+                    onClick={goToCatalog}
                   >
-                    <MoreVertical size={18} />
+                    Lihat Katalog
                   </button>
                 )}
               </div>
             </div>
-            <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              {view === 'catalog' ? (
-                <>
-                  <button 
-                    type="button"
-                    className={`btn-secondary ${activePublicTab === 'catalog' ? 'active' : ''}`} 
-                    onClick={() => setActivePublicTab('catalog')}
-                    style={{
-                      padding: '0.45rem 1rem',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      borderRadius: '20px',
-                      cursor: 'pointer',
-                      backgroundColor: activePublicTab === 'catalog' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                      color: activePublicTab === 'catalog' ? '#fff' : 'var(--text-secondary)',
-                      border: activePublicTab === 'catalog' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                    }}
-                  >
-                    🔍 Katalog Produk
-                  </button>
-                  <button 
-                    type="button"
-                    className={`btn-secondary ${activePublicTab === 'about' ? 'active' : ''}`} 
-                    onClick={() => setActivePublicTab('about')}
-                    style={{
-                      padding: '0.45rem 1rem',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      borderRadius: '20px',
-                      cursor: 'pointer',
-                      backgroundColor: activePublicTab === 'about' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                      color: activePublicTab === 'about' ? '#fff' : 'var(--text-secondary)',
-                      border: activePublicTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                    }}
-                  >
-                    📖 Tentang Kami
-                  </button>
-                </>
-              ) : (
-                <button 
-                  className="btn-primary" 
-                  onClick={goToCatalog}
-                >
-                  Lihat Katalog
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
-      )}
-
-      {/* Store Owner Preview Banner for Public Storefront View */}
-      {isStoreOwner && view === 'catalog' && (
-        <aside 
-          aria-label="Mode Pratinjau Publik"
-          style={{
-            backgroundColor: 'var(--header-bg, #0b0f19)',
-            borderBottom: '1px solid var(--border-light)',
-            position: 'sticky',
-            top: 0,
-            zIndex: 999,
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.15)'
-          }}
-        >
-          <div style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
-            padding: '0.45rem 2rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <div style={{
-                width: '26px',
-                height: '26px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--primary-glow)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                <Eye size={14} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Mode Pratinjau Katalog
-                </span>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                  — Tampilan langsung yang dilihat pengunjung & pelanggan Anda
-                </span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => openCreateModal('physical')}
-                style={{
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-light)',
-                  padding: '0.35rem 0.85rem',
-                  borderRadius: '999px',
-                  fontWeight: 700,
-                  fontSize: '0.76rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Tambah Item Baru"
-              >
-                <Plus size={13} style={{ color: 'var(--primary)' }} />
-                <span>+ Tambah Item</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setView('admin');
-                  const slug = getStoreSlug();
-                  if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                }}
-                style={{
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.35rem 0.95rem',
-                  borderRadius: '999px',
-                  fontWeight: 800,
-                  fontSize: '0.76rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 10px var(--primary-glow)',
-                  transition: 'all 0.15s ease'
-                }}
-                title="Kembali ke Dashboard Admin"
-              >
-                <LayoutDashboard size={13} />
-                <span>Dashboard Admin</span>
-                <ArrowRight size={12} />
-              </button>
-            </div>
-          </div>
-        </aside>
-      )}
+          </header>
+        )}
+      </div>
 
       {/* Main Container */}
       <main className="container" style={{ paddingBottom: '4rem' }}>

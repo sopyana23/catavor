@@ -5563,17 +5563,13 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return result;
   }, [faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
 
-  // Bottom Sheets
+  // Bottom Sheets & Navigation
   const [showCrudSheet, setShowCrudSheet] = useState<boolean>(false)
   const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
   const [displayLimit, setDisplayLimit] = useState<number>(10)
-
-  // Smart Floating Dynamic Filter Bar (Auto-Hide on Scroll Down, Reveal on Scroll Up)
-  const [isFilterFloating, setIsFilterFloating] = useState<boolean>(false)
-  const [isFilterVisible, setIsFilterVisible] = useState<boolean>(true)
+  const catalogScrollYRef = useRef<number>(0)
+  const [isFilterHidden, setIsFilterHidden] = useState<boolean>(false)
   const lastFilterScrollYRef = useRef<number>(0)
-  const [filterBarHeight, setFilterBarHeight] = useState<number>(140)
-  const searchSectionRef = useRef<HTMLElement | null>(null)
 
   // Admin Inventory State & Server/Client-Side Filtering
   const [adminSearch, setAdminSearch] = useState<string>('')
@@ -7542,33 +7538,48 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return () => window.removeEventListener('scroll', handleScroll)
   }, [filteredFaunas.length, isDetailActive, loadingMore, displayLimit])
 
-  // Smart Floating Dynamic Filter Bar Scroll Listener (Online Shop Standard: Auto-Hide Down, Reveal Up)
+  // Smart Sticky Filter & Header Auto-Hide on Scroll Down & Reveal on Scroll Up (Zero Layout Shift)
   useEffect(() => {
-    const handleSmartFilterScroll = () => {
-      if (activeTab !== 'catalog' || isDetailActive) return;
-      const currentScrollY = window.scrollY;
-      const triggerThreshold = 190;
+    let accumulatedUp = 0;
+    let accumulatedDown = 0;
 
-      if (currentScrollY <= triggerThreshold) {
-        setIsFilterFloating(false);
-        setIsFilterVisible(true);
-      } else {
-        setIsFilterFloating(true);
-        const delta = currentScrollY - lastFilterScrollYRef.current;
-        if (delta > 6) {
-          // User is scrolling DOWN -> Hide filter bar smoothly
-          setIsFilterVisible(false);
-        } else if (delta < -6) {
-          // User scrolled UP -> Reveal filter bar immediately
-          setIsFilterVisible(true);
+    const handleSmartFilterScroll = () => {
+      if (isDetailActive) return;
+      const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+      // Always visible when near top of page
+      if (currentScrollY <= 30) {
+        setIsFilterHidden(false);
+        accumulatedUp = 0;
+        accumulatedDown = 0;
+        lastFilterScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      const delta = currentScrollY - lastFilterScrollYRef.current;
+
+      if (delta > 0) {
+        // User is scrolling DOWN
+        accumulatedUp = 0;
+        accumulatedDown += delta;
+        if (accumulatedDown > 10) {
+          setIsFilterHidden(true);
+        }
+      } else if (delta < 0) {
+        // User is scrolling UP (instant reveal on slight scroll up)
+        accumulatedDown = 0;
+        accumulatedUp += Math.abs(delta);
+        if (accumulatedUp > 5) {
+          setIsFilterHidden(false);
         }
       }
+
       lastFilterScrollYRef.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleSmartFilterScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleSmartFilterScroll);
-  }, [activeTab, isDetailActive]);
+  }, [isDetailActive]);
 
   // Sync profile when adminUser loads
   useEffect(() => {
@@ -9185,21 +9196,33 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   }
 
-  // Open Details Sheet
+  // Open Details Sheet with Scroll Position Memory
   const openDetailsSheet = async (id: number) => {
     try {
       const res = await fetch(`${API_BASE}/products/${id}`)
       const data = await res.json()
       if (data.success) {
+        catalogScrollYRef.current = window.scrollY
         setSelectedFauna(data.data)
         setActiveImageIndex(0)
         setIsDetailActive(true)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        window.scrollTo({ top: 0, behavior: 'instant' })
       }
     } catch (err) {
       console.error(err)
       alert('Gagal memuat detail.')
     }
+  }
+
+  // Close Details Sheet with Clean Scroll Restoration (Zero Layout Shift)
+  const handleCloseDetailSheet = () => {
+    const savedScrollPos = catalogScrollYRef.current || 0
+    setIsFilterHidden(false)
+    setIsDetailActive(false)
+    setSelectedFauna(null)
+    setTimeout(() => {
+      window.scrollTo({ top: savedScrollPos, behavior: 'instant' })
+    }, 0)
   }
 
   // Get recommendations for mobile (3-Tier Waterfall Algorithm: Same Class+Type -> Same Type -> Other Store Items)
@@ -11150,10 +11173,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button 
-                onClick={() => {
-                  setIsDetailActive(false);
-                  setSelectedFauna(null);
-                }}
+                onClick={handleCloseDetailSheet}
                 className="btn-back-circle"
                 title="Kembali"
               >
@@ -11517,10 +11537,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <button 
                   type="button" 
                   className="btn-secondary"
-                  onClick={() => {
-                    setIsDetailActive(false);
-                    setSelectedFauna(null);
-                  }}
+                  onClick={handleCloseDetailSheet}
                   style={{ flex: 1, height: '42px', fontSize: '0.85rem', borderRadius: '0.35rem' }}
                 >
                   Kembali
@@ -13401,27 +13418,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         );
       })() : (
         <>
-          <div className="animate-fade-in" style={{ paddingBottom: isBottomNavVisible ? '80px' : '24px' }}>
-      {/* Store Owner Public Preview Mode Top Banner (Ultra-Sleek Luxury Status Bar) */}
-      {isStoreOwner && !error && (activeTab === 'catalog' || activeTab === 'about' || activeTab === 'articles') && (
-        <aside 
-          aria-label="Mode Pratinjau Publik"
-          style={{
-            backgroundColor: 'var(--header-bg, #0b0f19)',
-            borderBottom: '1px solid var(--border-light)',
-            padding: '0.32rem 0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.6rem',
-            position: 'sticky',
-            top: 0,
-            zIndex: 1000,
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.12)'
-          }}
-        >
+      {/* Unified Mobile Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) */}
+      <div className={`mobile-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
+        {/* Store Owner Public Preview Mode Top Banner */}
+        {isStoreOwner && !error && (activeTab === 'catalog' || activeTab === 'about' || activeTab === 'articles') && (
+          <aside 
+            aria-label="Mode Pratinjau Publik"
+            className="mobile-preview-bar"
+          >
           {/* Left: Refined Live Preview Indicator Badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flexShrink: 0 }}>
             <span style={{
@@ -13547,7 +13551,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           </div>
         </header>
       ) : (
-        <header className="mobile-header sticky-header">
+        <header className="mobile-header">
           <div className="container">
             {(() => {
               // About Page Sub-View: QR Code Sub-Page Header
@@ -13955,7 +13959,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           </div>
         </header>
       )}
+      </div>
 
+      <div className="animate-fade-in" style={{ paddingBottom: isBottomNavVisible ? '80px' : '24px' }}>
       {/* Tabs Content */}
       <main className="container" style={{ marginTop: '0.65rem' }}>
         {/* Free Plan Branding Banner (Mobile) */}
@@ -14677,29 +14683,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 ) : (
                   <>
-                    {/* Smart Placeholder when filter is floating to prevent layout shift */}
-                    {isFilterFloating && (
-                      <div 
-                        style={{ 
-                          height: `${filterBarHeight}px`, 
-                          marginBottom: '0.85rem',
-                          visibility: 'hidden',
-                          pointerEvents: 'none'
-                        }} 
-                        aria-hidden="true" 
-                      />
-                    )}
-
-                    {/* Mobile Search & Filters (Smart Floating Sticky Bar: Auto-Hide Down, Reveal Up) */}
-                    <section 
-                      ref={(el) => {
-                        searchSectionRef.current = el;
-                        if (el && el.offsetHeight && !isFilterFloating) {
-                          setFilterBarHeight(el.offsetHeight);
-                        }
-                      }}
-                      className={`mobile-search-section ${isFilterFloating ? 'sticky-floating' : ''} ${isFilterFloating ? (isFilterVisible ? 'visible' : 'hidden') : ''}`}
-                    >
+                    {/* Mobile Search & Filters (Clean Sticky Bar with Smart Auto-Hide - Zero Layout Shift) */}
+                    <section className={`mobile-search-section ${isStoreOwner ? 'has-preview-bar' : ''} ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
                       {/* Row 1: Search Input + Unified Advanced Filter Trigger Button */}
                       <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', width: '100%' }}>
                         <div className="search-wrapper" style={{ position: 'relative', flex: 1, minWidth: 0 }}>
