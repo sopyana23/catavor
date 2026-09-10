@@ -19354,46 +19354,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
                 </button>
 
-                {/* Option 2: Edit Item / Kelola Inventaris for Store Owner, or Laporkan for Public */}
+                {/* Option 2: Kelola Inventaris for Store (Owner), or Laporkan for Public */}
                 {isStoreOwner ? (
-                  actionMenuData.type === 'item' && actionMenuData.item ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const itemToEdit = actionMenuData.item;
-                        setActionMenuData(null);
-                        openEditModal(itemToEdit);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.85rem',
-                        padding: '0.9rem 1.1rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: '0.85rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.2s',
-                        color: 'var(--text-primary)'
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--primary-glow)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
-                    >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                        <Edit3 size={18} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: 'var(--primary)' }}>
-                          Edit Produk Ini
-                        </span>
-                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                          Perbarui foto, harga, stok, atau detail spesifikasi item ini
-                        </span>
-                      </div>
-                      <ChevronRight size={18} style={{ color: 'var(--primary)' }} />
-                    </button>
-                  ) : (
+                  actionMenuData.type === 'store' ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -19431,7 +19394,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                       <ChevronRight size={18} style={{ color: 'var(--primary)' }} />
                     </button>
-                  )
+                  ) : null
                 ) : (
                   <button
                     type="button"
