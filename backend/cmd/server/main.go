@@ -36,12 +36,12 @@ func main() {
 		log.Fatal().Err(err).Msg("Fatal: Database initialization failed")
 	}
 
-	// 4. Initialize Fiber App with Industrial SaaS timeouts
+	// 4. Initialize Fiber App with Industrial SaaS timeouts (WriteTimeout 0 for SSE streaming)
 	app := fiber.New(fiber.Config{
 		AppName:               "Catavor Multi-Channel Commerce Server",
 		BodyLimit:             12 * 1024 * 1024, // 12 MB max payload
-		ReadTimeout:           15 * time.Second,
-		WriteTimeout:          15 * time.Second,
+		ReadTimeout:           0,                 // Unlimited for streaming & SSE
+		WriteTimeout:          0,                 // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
 		IdleTimeout:           120 * time.Second,
 		DisableStartupMessage: false,
 	})

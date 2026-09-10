@@ -52,11 +52,30 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 	return token.SignedString([]byte(cfg.JWTSecret))
 }
 
-// AuthRequired validates the JWT Bearer token
+// AuthRequired validates the JWT Bearer token (supports Authorization header and ?token= query param for SSE EventSource)
 func AuthRequired(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		var tokenString string
 		authHeader := c.Get("Authorization")
-		if authHeader == "" {
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+				tokenString = strings.TrimSpace(parts[1])
+			} else {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "INVALID_TOKEN_FORMAT",
+					"message": "Invalid authorization token format.",
+				})
+			}
+		}
+
+		// Fallback to query parameter (required for native browser EventSource / SSE)
+		if tokenString == "" {
+			tokenString = strings.TrimSpace(c.Query("token"))
+		}
+
+		if tokenString == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"code":    "UNAUTHENTICATED",
@@ -64,16 +83,6 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"code":    "INVALID_TOKEN_FORMAT",
-				"message": "Invalid authorization token format.",
-			})
-		}
-
-		tokenString := parts[1]
 		claims := &JWTClaims{}
 
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -152,6 +161,9 @@ func StoreOwnerRequired() fiber.Handler {
 		targetSlug := strings.TrimSpace(c.Get("X-Store-Slug"))
 		if targetSlug == "" {
 			targetSlug = strings.TrimSpace(c.Params("slug"))
+		}
+		if targetSlug == "" {
+			targetSlug = strings.TrimSpace(c.Query("slug"))
 		}
 
 		var matchedStore *models.Store

@@ -257,6 +257,117 @@ function getCatalogItemUnit(item: any): string {
   return 'Unit';
 }
 
+export function getItemActionConfig(item: any) {
+  const pType = (item?.product_type || 'physical') as ItemCategoryType;
+  
+  if (pType === 'property') {
+    return {
+      type: 'property',
+      shortLabel: 'Hubungi Agen',
+      fullLabel: 'Hubungi Agen / Janji Survey',
+      Icon: MessageCircle,
+      modalTitle: 'Pilih Jalur Komunikasi & Survey',
+      modalSubtitle: 'Pilih jalur komunikasi langsung dengan agen / pemilik properti:',
+      badgeText: 'Listing Properti',
+      directActionTitle: 'Chat WA (Janji Survey & Konsultasi)',
+      directActionSubtitle: 'Hubungi langsung untuk jadwal survey lokasi & info legalitas',
+      marketplaceTitle: 'Buka di Portal / Marketplace Properti',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} platform (${names})`,
+      rekberTitle: 'Escrow / Rekber Syariah Properti',
+      rekberSubtitle: 'Gunakan Rekber Syariah untuk jaminan transaksi properti yang aman'
+    };
+  }
+
+  if (pType === 'food') {
+    return {
+      type: 'food',
+      shortLabel: 'Pesan Menu',
+      fullLabel: 'Pesan Sekarang / Order Menu',
+      Icon: Utensils,
+      modalTitle: 'Pilih Jalur Pemesanan Kuliner',
+      modalSubtitle: 'Pilih jalur pemesanan menu kuliner & katering resmi kami:',
+      badgeText: 'Menu Kuliner',
+      directActionTitle: 'Pesan Antar / Order via WhatsApp',
+      directActionSubtitle: 'Kirim daftar pesanan, varian rasa, dan alamat pengantaran',
+      marketplaceTitle: 'Pesan via Online Food / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} outlet online (${names})`,
+      rekberTitle: 'Order via Rekber Syariah (Katering / Frozen)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Aman untuk pesanan katering/frozen)'
+    };
+  }
+
+  if (pType === 'service') {
+    return {
+      type: 'service',
+      shortLabel: 'Pesan Jasa',
+      fullLabel: 'Pesan Layanan / Booking Jasa',
+      Icon: ShieldCheck,
+      modalTitle: 'Pilih Jalur Pemesanan Jasa',
+      modalSubtitle: 'Pilih jalur transaksi yang paling aman dan nyaman untuk layanan ini:',
+      badgeText: 'Layanan Jasa',
+      directActionTitle: 'Chat WA (Konsultasi & Booking Langsung)',
+      directActionSubtitle: 'Konsultasikan kebutuhan, estimasi pengerjaan, & jadwal',
+      marketplaceTitle: 'Order via Platform Freelance Pihak Ketiga',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} platform (${names})`,
+      rekberTitle: 'Pesan via Rekber Syariah (Escrow Aman)',
+      rekberSubtitle: 'Dana ditahan di rekening penampung syariah sampai pengerjaan tuntas & terverifikasi'
+    };
+  }
+
+  if (pType === 'digital') {
+    return {
+      type: 'digital',
+      shortLabel: 'Beli & Unduh',
+      fullLabel: 'Beli & Dapatkan File Digital',
+      Icon: Download,
+      modalTitle: 'Pilih Metode Pembelian File Digital',
+      modalSubtitle: 'Pilih metode pembayaran resmi untuk pengiriman instan file digital:',
+      badgeText: 'Produk Digital',
+      directActionTitle: 'Chat WA (Pembelian & Kirim File)',
+      directActionSubtitle: 'Dapatkan invoice pembayaran dan tautan download file berlisensi resmi',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace Digital',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} platform digital (${names})`,
+      rekberTitle: 'Transaksi via Rekber Syariah',
+      rekberSubtitle: 'Dana aman di rekening bersama sampai file diterima & terverifikasi'
+    };
+  }
+
+  if (pType === 'fauna') {
+    return {
+      type: 'fauna',
+      shortLabel: 'Beli / Adopsi',
+      fullLabel: 'Beli / Adopsi Satwa Sekarang',
+      Icon: ShoppingBag,
+      modalTitle: 'Pilih Jalur Transaksi Satwa / Tanaman',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk satwa / tanaman ini:',
+      badgeText: 'Satwa & Flora',
+      directActionTitle: 'Chat WA (Tanya Satwa & Pembelian)',
+      directActionSubtitle: 'Tanyakan kondisi kesehatan, legalitas, serta garansi pengiriman',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+      rekberTitle: 'Chat WA & Rekber Syariah (Sangat Aman)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga hewan/tanaman tiba hidup & sehat)'
+    };
+  }
+
+  // Default: physical
+  return {
+    type: 'physical',
+    shortLabel: 'Beli Sekarang',
+    fullLabel: 'Beli Sekarang / Pilih Pembelian',
+    Icon: ShoppingCart,
+    modalTitle: 'Pilih Metode Pembelian Produk',
+    modalSubtitle: 'Pilih metode transaksi resmi kami:',
+    badgeText: 'Produk Fisik',
+    directActionTitle: 'Chat WA (Transaksi Langsung)',
+    directActionSubtitle: 'Konsultasi ketersediaan barang dan kirim format order',
+    marketplaceTitle: 'Beli via Online Shop / Marketplace',
+    marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+    rekberTitle: 'Chat WA & Rekber Syariah',
+    rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Sangat Aman)'
+  };
+}
+
 export function isNonEmptyValue(val: any): boolean {
   if (val === undefined || val === null) return false;
   if (typeof val === 'boolean') return true;
@@ -6068,6 +6179,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
               if (found) setSelectedTicket(found);
             }
+          } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
+            setAdminTab('audit_logs');
+            fetchActivityLogs(1, false);
           } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
             setShowQRModal(true);
           } else setAdminTab('items');
@@ -6133,6 +6247,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
               if (found) setSelectedTicket(found);
             }
+          } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
+            setAdminTab('audit_logs');
+            fetchActivityLogs(1, false);
           }
         } else if (qTab === 'about') { setView('catalog'); setActivePublicTab('about'); }
         else if (qTab === 'sightings') { setView('catalog'); setActivePublicTab('sightings'); }
@@ -6279,6 +6396,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                 const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
                 if (found) setSelectedTicket(found);
               }
+            } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
+              setAdminTab('audit_logs');
+              setView('admin');
+              fetchActivityLogs(1, false);
             } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
               setShowQRModal(true);
               setView('admin');
@@ -6747,6 +6868,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (selectedTicket) {
           params.set('ticket', selectedTicket.id.toString());
         }
+      } else if (adminTab === 'audit_logs') {
+        targetPath += `/admin/audit-logs`;
       } else if (showQRModal) {
         targetPath += `/admin/share`;
       } else {
@@ -10592,28 +10715,50 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             padding: '1rem 2rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '1rem',
+            justifyContent: 'space-between',
             zIndex: 100
           }}>
-            <button 
-              onClick={() => {
-                setIsDetailActive(false);
-                setSelectedFauna(null);
-              }}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <button 
+                onClick={() => {
+                  setIsDetailActive(false);
+                  setSelectedFauna(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0.25rem'
+                }}
+              >
+                <ArrowLeft size={22} />
+              </button>
+              <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--text-primary)' }}>Detail Produk</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActionMenuData({ type: 'item', item: selectedFauna })}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-primary)',
+                background: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '0.5rem',
+                color: 'var(--primary)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0.25rem'
+                padding: '0.45rem 0.65rem',
+                transition: 'all 0.2s'
               }}
+              title="Opsi Produk"
             >
-              <ArrowLeft size={22} />
+              <MoreVertical size={18} />
             </button>
-            <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--text-primary)' }}>Detail Produk</span>
           </div>
 
           {/* Scrollable Content */}
@@ -11006,11 +11151,46 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </>
               ) : (
                 <>
+                  {isStoreOwner && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const temp = selectedFauna;
+                        setIsDetailActive(false);
+                        setSelectedFauna(null);
+                        openEditModal(temp);
+                      }}
+                      style={{
+                        height: '45px',
+                        padding: '0 1.25rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card-hover)',
+                        color: 'var(--primary)',
+                        fontSize: '0.88rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Edit Item Ini di Panel Admin"
+                    >
+                      <Edit3 size={16} />
+                      <span>Edit Item</span>
+                    </button>
+                  )}
                   <button 
                     type="button"
                     onClick={() => {
                       if (selectedFauna.product_type === 'property') {
                         if (settings.whatsapp_number && settings.whatsapp_number.trim()) {
+                          if (isStoreOwner) {
+                            showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                          }
                           const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                           window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
                         } else {
@@ -11030,7 +11210,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     className="btn-primary"
                     style={{
                       height: '45px',
-                      padding: '0 3rem',
+                      padding: '0 2.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -11045,19 +11225,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       boxShadow: '0 4px 14px var(--primary-glow)'
                     }}
                   >
-                    {selectedFauna.product_type === 'property' ? (
-                      <>
-                        <MessageCircle size={16} /> Hubungi Agen / Janji Survey
-                      </>
-                    ) : selectedFauna.product_type === 'service' ? (
-                      <>
-                        <ShieldCheck size={16} /> Pesan Layanan / Booking Jasa
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart size={16} /> Beli Sekarang / Pilih Pembelian
-                      </>
-                    )}
+                    {(() => {
+                      const actionConfig = getItemActionConfig(selectedFauna);
+                      const ActionIcon = actionConfig.Icon;
+                      return (
+                        <>
+                          <ActionIcon size={16} style={{ flexShrink: 0 }} />
+                          <span>{actionConfig.fullLabel}</span>
+                        </>
+                      );
+                    })()}
                   </button>
                   <button 
                     type="button"
@@ -11267,21 +11444,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         <aside 
           aria-label="Mode Pratinjau Publik"
           style={{
-            backgroundColor: 'var(--header-bg, #0f172a)',
-            backgroundImage: 'linear-gradient(90deg, var(--primary-glow) 0%, rgba(0, 0, 0, 0) 100%)',
+            backgroundColor: 'var(--header-bg, #0b0f19)',
             borderBottom: '1px solid var(--border-light)',
             position: 'sticky',
             top: 0,
             zIndex: 999,
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)'
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.15)'
           }}
         >
           <div style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '0.5rem 2rem',
+            padding: '0.45rem 2rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -11289,58 +11465,87 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
               <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '7px',
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
                 backgroundColor: 'var(--primary-glow)',
-                border: '1px solid var(--primary)',
+                border: '1px solid var(--border-light)',
                 color: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0
               }}>
-                <Eye size={15} />
+                <Eye size={14} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Mode Pratinjau Katalog Publik
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Mode Pratinjau Katalog
                 </span>
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                  — Ini adalah tampilan langsung yang dilihat oleh pengunjung/pelanggan Anda.
+                  — Tampilan langsung yang dilihat pengunjung & pelanggan Anda
                 </span>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setView('admin');
-                const slug = getStoreSlug();
-                if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-              }}
-              style={{
-                backgroundColor: 'var(--primary)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.42rem 0.95rem',
-                borderRadius: '0.5rem',
-                fontWeight: 800,
-                fontSize: '0.78rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                boxShadow: '0 2px 8px var(--primary-glow)',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <LayoutDashboard size={14} />
-              <span>Kembali ke Dashboard Admin</span>
-              <ArrowRight size={13} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => openCreateModal('physical')}
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-light)',
+                  padding: '0.35rem 0.85rem',
+                  borderRadius: '999px',
+                  fontWeight: 700,
+                  fontSize: '0.76rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Tambah Item Baru"
+              >
+                <Plus size={13} style={{ color: 'var(--primary)' }} />
+                <span>+ Tambah Item</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setView('admin');
+                  const slug = getStoreSlug();
+                  if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                }}
+                style={{
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '0.35rem 0.95rem',
+                  borderRadius: '999px',
+                  fontWeight: 800,
+                  fontSize: '0.76rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 10px var(--primary-glow)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Kembali ke Dashboard Admin"
+              >
+                <LayoutDashboard size={13} />
+                <span>Dashboard Admin</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
           </div>
         </aside>
       )}
@@ -15640,8 +15845,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                         {adminUser?.email === 'admin@catavor.com' 
-                          ? 'Audit trail seluruh aksi administratif, penertiban toko, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
-                          : 'Rekaman transparan seluruh aktivitas operasional katalog, pembaruan harga produk, pergantian password, hingga riwayat login toko Anda.'}
+                          ? 'Audit trail seluruh aksi administratif, penertiban katalog, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
+                          : 'Rekaman transparan seluruh aktivitas operasional katalog, pembaruan harga produk, pergantian password, hingga riwayat login akun Anda.'}
                       </p>
                     </div>
 
@@ -15669,13 +15874,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                       {[
                         { key: 'all', label: 'Semua Kategori' },
-                        { key: 'security', label: '🔒 Keamanan & Auth' },
-                        { key: 'catalog', label: '📦 Produk & Katalog' },
-                        { key: 'store', label: '🏪 Profil Toko' },
-                        { key: 'billing', label: '💳 Paket & Billing' },
+                        { key: 'security', label: 'Autentikasi' },
+                        { key: 'catalog', label: 'Produk & Item' },
+                        { key: 'store', label: 'Profil & Identitas' },
+                        { key: 'billing', label: 'Paket & Langganan' },
                         ...(adminUser?.email === 'admin@catavor.com' ? [
-                          { key: 'superadmin', label: '👑 Superadmin Action' },
-                          { key: 'moderation', label: '🛡️ Moderasi' },
+                          { key: 'superadmin', label: 'Aksi Superadmin' },
+                          { key: 'moderation', label: 'Moderasi' },
                         ] : [])
                       ].map(cat => {
                         const isActive = activityCategory === cat.key;
@@ -18668,240 +18873,232 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         return (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }} onClick={() => { setShowPurchaseOptions(false); setShowMarketplacesSubMenu(false); }}>
             <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem', borderRadius: '1.25rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, linear-gradient(180deg, var(--bg-card) 0%, var(--bg-deep) 100%))', boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px var(--primary-glow)', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {showMarketplacesSubMenu 
-                      ? (selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <ShoppingCart size={20} />)
-                      : (selectedFauna.product_type === 'service' ? <ShieldCheck size={20} /> : <ShoppingBag size={20} />)}
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
-                      {showMarketplacesSubMenu 
-                        ? (selectedFauna.product_type === 'service' ? 'Pilih Platform Freelance' : 'Pilih Marketplace')
-                        : (selectedFauna.product_type === 'property' 
-                            ? 'Pilih Opsi Survey & Kontak' 
-                            : (selectedFauna.product_type === 'service'
-                                ? 'Pilih Metode Pemesanan Jasa'
-                                : 'Pilih Cara Pembelian'))}
-                    </h3>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700 }}>
-                      {showMarketplacesSubMenu 
-                        ? (selectedFauna.product_type === 'service' 
-                            ? `${normalizedLinks.length} Platform Freelance Pihak Ketiga Tersedia` 
-                            : `${normalizedLinks.length} Toko Online Resmi Tersedia`)
-                        : (selectedFauna.product_type === 'property' 
-                            ? 'Hubungi langsung pihak properti' 
-                            : (selectedFauna.product_type === 'service'
-                                ? 'Layanan Terlindungi Escrow Syariah & Platform Terpercaya'
-                                : 'Metode Transaksi Resmi & Terverifikasi'))}
-                    </span>
-                  </div>
-                </div>
-                <button type="button" onClick={() => { setShowPurchaseOptions(false); setShowMarketplacesSubMenu(false); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.25rem' }}>✕</button>
-              </div>
-
-              {/* Scrollable Content */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '58vh', overflowY: 'auto', paddingRight: '4px', flex: 1, minHeight: 0 }}>
-                {showMarketplacesSubMenu ? (
+              {/* Standard Header */}
+              {(() => {
+                const actionConfig = getItemActionConfig(selectedFauna);
+                const HeaderIcon = actionConfig.Icon;
+                return (
                   <>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 0.25rem 0', lineHeight: 1.4 }}>
-                      {selectedFauna.product_type === 'service'
-                        ? 'Pilih platform freelance pihak ketiga resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman pemesanan jasa:'
-                        : 'Pilih toko online atau marketplace resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman produk:'}
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                      {normalizedLinks.map((link, index) => (
-                        <a 
-                          key={index}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                        >
-                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {selectedFauna.product_type === 'service' ? `Order di ${link.platform}` : `Beli di ${link.platform}`}
-                            </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {selectedFauna.product_type === 'service' ? `Buka profil / lapak jasa resmi kami di ${link.platform}` : `Buka halaman produk resmi di ${link.platform}`}
-                            </span>
-                          </div>
-                          <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
-                        </a>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 0.25rem 0', lineHeight: 1.4 }}>
-                      {selectedFauna.product_type === 'property' 
-                        ? 'Pilih jalur komunikasi langsung dengan agen / pemilik properti:' 
-                        : (selectedFauna.product_type === 'service' 
-                            ? 'Pilih jalur transaksi yang paling aman dan nyaman untuk pemesanan layanan ini:' 
-                            : 'Pilih metode transaksi resmi kami:')}
-                    </p>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                      {normalizedLinks.length === 1 && (
-                        <a 
-                          href={normalizedLinks[0].url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                        >
-                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
-                              {selectedFauna.product_type === 'service' ? `Order di ${normalizedLinks[0].platform}` : `Beli di ${normalizedLinks[0].platform}`}
-                            </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
-                              {selectedFauna.product_type === 'service' ? `Buka profil / lapak jasa resmi kami di ${normalizedLinks[0].platform}` : `Buka transaksi resmi kami di ${normalizedLinks[0].platform}`}
-                            </span>
-                          </div>
-                          <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
-                        </a>
-                      )}
-
-                      {normalizedLinks.length >= 2 && (
-                        <div 
-                          onClick={() => setShowMarketplacesSubMenu(true)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', cursor: 'pointer', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                        >
-                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <ShoppingCart size={20} />}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
-                              {selectedFauna.product_type === 'service' ? 'Order via Platform Freelance Pihak Ketiga' : 'Beli via Online Shop / Marketplace'}
-                            </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
-                              {selectedFauna.product_type === 'service' 
-                                ? `Tersedia di ${normalizedLinks.length} platform (${normalizedLinks.map(l => l.platform).join(', ')})`
-                                : `Tersedia di ${normalizedLinks.length} toko (${normalizedLinks.map(l => l.platform).join(', ')})`}
-                            </span>
-                          </div>
-                          <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)', marginBottom: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {showMarketplacesSubMenu 
+                            ? (selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />)
+                            : <HeaderIcon size={20} />}
                         </div>
-                      )}
+                        <div>
+                          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                            {showMarketplacesSubMenu 
+                              ? (selectedFauna.product_type === 'service' ? 'Pilih Platform Freelance' : 'Pilih Toko Online / Marketplace')
+                              : actionConfig.modalTitle}
+                          </h3>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 700 }}>
+                            {showMarketplacesSubMenu 
+                              ? `${normalizedLinks.length} Platform / Toko Online Resmi Tersedia` 
+                              : `${actionConfig.badgeText} • Transaksi Resmi & Aman`}
+                          </span>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => { setShowPurchaseOptions(false); setShowMarketplacesSubMenu(false); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.25rem' }}>✕</button>
+                    </div>
 
-                      {showRekberOption && (
-                        <a 
-                          href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
-                            selectedFauna.product_type === 'service'
-                              ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`
-                              : selectedFauna.product_type === 'food'
-                              ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan produk kuliner/katering dengan perlindungan Rekber Syariah:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.`
-                              : `Halo *${settings.store_title || 'Catavor'}*, saya berminat membeli produk berikut:\n📦 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli). Terima kasih.`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => trackAnalytics('rekber_click', selectedFauna.id, selectedFauna.product_type)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                        >
-                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <ShieldCheck size={20} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
-                              {selectedFauna.product_type === 'service' ? 'Pesan via Rekber Syariah (Escrow Aman)' : 'Chat WA & Rekber Syariah'}
-                            </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
-                              {selectedFauna.product_type === 'service' 
-                                ? 'Dana ditahan di rekening penampung syariah sampai pengerjaan tuntas & terverifikasi'
-                                : (selectedFauna.product_type === 'food'
-                                    ? 'Gunakan Rekening Bersama Syariah (Aman untuk pesanan frozen/katering)'
-                                    : 'Gunakan Rekening Bersama Syariah (Sangat Aman)')}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setShowRekberExplainerModal(true);
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--primary)',
-                              cursor: 'pointer',
-                              padding: '0.35rem',
-                              borderRadius: '0.35rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              opacity: 0.85,
-                              transition: 'var(--transition-smooth)'
-                            }}
-                            title="Pelajari apa itu Rekber Syariah"
-                          >
-                            <HelpCircle size={18} />
-                          </button>
-                          <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
-                        </a>
-                      )}
-
-                      {showDirectOption && (
-                        <a 
-                          href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
-                            selectedFauna.product_type === 'property'
-                              ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`
-                              : selectedFauna.product_type === 'service'
-                              ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`
-                              : selectedFauna.product_type === 'food'
-                              ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin memesan menu kuliner berikut:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)} / ${getCatalogItemUnit(selectedFauna)})\n\nJumlah Pesanan: [1] ${getCatalogItemUnit(selectedFauna)}\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`
-                              : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)}) secara langsung.`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-                        >
-                          <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <MessageCircle size={20} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
-                              {selectedFauna.product_type === 'property' 
-                                ? 'Chat WA (Janji Survey & Konsultasi)' 
-                                : (selectedFauna.product_type === 'service'
-                                    ? 'Chat WA (Konsultasi & Booking Langsung)'
-                                    : (selectedFauna.product_type === 'food'
-                                        ? 'Pesan Antar / Order via WhatsApp'
-                                        : 'Chat WA (Transaksi Langsung)'))}
-                            </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
-                              {selectedFauna.product_type === 'property' 
-                                ? 'Hubungi langsung untuk jadwal survey lokasi & info legalitas' 
-                                : (selectedFauna.product_type === 'service'
-                                    ? 'Konsultasi scope pekerjaan, estimasi waktu, & tanya jawab teknis'
-                                    : (selectedFauna.product_type === 'food'
-                                        ? 'Pesan langsung untuk pengiriman instan / same-day / takeaway'
-                                        : 'Hubungi kami langsung via chat WhatsApp'))}
-                            </span>
-                          </div>
-                          <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
-                        </a>
-                      )}
-
-                      {!hasAnyOptions && (
-                        <div style={{ padding: '1.25rem 1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                            Metode pembelian online belum diaktifkan untuk item katalog ini.
+                    {/* Scrollable Content */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '58vh', overflowY: 'auto', paddingRight: '4px', flex: 1, minHeight: 0 }}>
+                      {showMarketplacesSubMenu ? (
+                        <>
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 0.25rem 0', lineHeight: 1.4 }}>
+                            {selectedFauna.product_type === 'service'
+                              ? 'Pilih platform freelance pihak ketiga resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman pemesanan jasa:'
+                              : 'Pilih toko online atau marketplace resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman produk:'}
                           </p>
-                        </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            {normalizedLinks.map((link, index) => (
+                              <a 
+                                key={index}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                              >
+                                <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {selectedFauna.product_type === 'service' ? `Order di ${link.platform}` : `Beli di ${link.platform}`}
+                                  </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {selectedFauna.product_type === 'service' ? `Buka profil / lapak jasa resmi kami di ${link.platform}` : `Buka halaman produk resmi di ${link.platform}`}
+                                  </span>
+                                </div>
+                                <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                              </a>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '0 0 0.25rem 0', lineHeight: 1.4 }}>
+                            {actionConfig.modalSubtitle}
+                          </p>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            {normalizedLinks.length === 1 && (
+                              <a 
+                                href={normalizedLinks[0].url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                              >
+                                <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                    {selectedFauna.product_type === 'service' ? `Order di ${normalizedLinks[0].platform}` : `Beli di ${normalizedLinks[0].platform}`}
+                                  </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                    {selectedFauna.product_type === 'service' ? `Buka profil / lapak jasa resmi kami di ${normalizedLinks[0].platform}` : `Buka transaksi resmi kami di ${normalizedLinks[0].platform}`}
+                                  </span>
+                                </div>
+                                <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                              </a>
+                            )}
+
+                            {normalizedLinks.length >= 2 && (
+                              <div 
+                                onClick={() => setShowMarketplacesSubMenu(true)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', cursor: 'pointer', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                              >
+                                <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {selectedFauna.product_type === 'service' ? <Briefcase size={20} /> : <Store size={20} />}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                    {actionConfig.marketplaceTitle}
+                                  </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                    {actionConfig.marketplaceSubtitle(normalizedLinks.length, normalizedLinks.map(l => l.platform).join(', '))}
+                                  </span>
+                                </div>
+                                <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                              </div>
+                            )}
+
+                            {showRekberOption && (
+                              <a 
+                                href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                                  selectedFauna.product_type === 'service'
+                                    ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`
+                                    : selectedFauna.product_type === 'food'
+                                    ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan produk kuliner/katering dengan perlindungan Rekber Syariah:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`
+                                    : `Halo *${settings.store_title || 'Catavor'}*, saya berminat membeli produk berikut:\n📦 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli). Terima kasih.`
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (isStoreOwner) {
+                                    showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                                  } else {
+                                    trackAnalytics('rekber_click', selectedFauna.id, selectedFauna.product_type);
+                                  }
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                              >
+                                <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <ShieldCheck size={20} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                    {actionConfig.rekberTitle}
+                                  </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                    {actionConfig.rekberSubtitle}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setShowRekberExplainerModal(true);
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--primary)',
+                                    cursor: 'pointer',
+                                    padding: '0.35rem',
+                                    borderRadius: '0.35rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: 0.85,
+                                    transition: 'var(--transition-smooth)'
+                                  }}
+                                  title="Pelajari apa itu Rekber Syariah"
+                                >
+                                  <HelpCircle size={18} />
+                                </button>
+                                <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
+                              </a>
+                            )}
+
+                            {showDirectOption && (
+                              <a 
+                                href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                                  selectedFauna.product_type === 'property'
+                                    ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`
+                                    : selectedFauna.product_type === 'service'
+                                    ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`
+                                    : selectedFauna.product_type === 'food'
+                                    ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin memesan menu kuliner berikut:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)} / ${getCatalogItemUnit(selectedFauna)})\n\nJumlah Pesanan: [1] ${getCatalogItemUnit(selectedFauna)}\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`
+                                    : selectedFauna.product_type === 'digital'
+                                    ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin membeli produk digital berlisensi resmi berikut:\n💾 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon instruksi pembayaran dan link pengiriman file digital resminya. Terima kasih.`
+                                    : selectedFauna.product_type === 'fauna'
+                                    ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik membeli / mengadopsi satwa atau tanaman hias berikut:\n🐾 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info ketersediaan, kondisi kesehatan, dan opsi pengiriman bergaransi hidup. Terima kasih.`
+                                    : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)}) secara langsung.`
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (isStoreOwner) {
+                                    showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                                  } else {
+                                    trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type);
+                                  }
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                              >
+                                <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <MessageCircle size={20} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                    {actionConfig.directActionTitle}
+                                  </span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                    {actionConfig.directActionSubtitle}
+                                  </span>
+                                </div>
+                                <ChevronRight size={16} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
+                              </a>
+                            )}
+
+                            {!hasAnyOptions && (
+                              <div style={{ padding: '1.25rem 1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                  Metode pembelian online belum diaktifkan untuk item katalog ini.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
                   </>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Footer */}
               <div style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
@@ -19118,48 +19315,127 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
                 </button>
 
-                {/* Option 2: Laporkan */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const savedData = actionMenuData;
-                    setActionMenuData(null);
-                    setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
-                    setReportNotes('');
-                    setReportEmail('');
-                    setReportModalData(savedData);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.85rem',
-                    padding: '0.9rem 1.1rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: '0.85rem',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.2s',
-                    color: 'var(--text-primary)'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)'; e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
-                >
-                  <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
-                    <ShieldAlert size={18} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: '#ef4444' }}>
-                      {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
-                    </span>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                      {actionMenuData.type === 'store' 
-                        ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
-                        : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
-                    </span>
-                  </div>
-                  <ChevronRight size={18} style={{ color: '#ef4444' }} />
-                </button>
+                {/* Option 2: Edit Item / Kelola Inventaris for Store Owner, or Laporkan for Public */}
+                {isStoreOwner ? (
+                  actionMenuData.type === 'item' && actionMenuData.item ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const itemToEdit = actionMenuData.item;
+                        setActionMenuData(null);
+                        openEditModal(itemToEdit);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.85rem',
+                        padding: '0.9rem 1.1rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.85rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        color: 'var(--text-primary)'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--primary-glow)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
+                    >
+                      <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                        <Edit3 size={18} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: 'var(--primary)' }}>
+                          Edit Produk Ini
+                        </span>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                          Perbarui foto, harga, stok, atau detail spesifikasi item ini
+                        </span>
+                      </div>
+                      <ChevronRight size={18} style={{ color: 'var(--primary)' }} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionMenuData(null);
+                        setView('admin');
+                        const slug = getStoreSlug();
+                        if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.85rem',
+                        padding: '0.9rem 1.1rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.85rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        color: 'var(--text-primary)'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--primary-glow)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
+                    >
+                      <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+                        <Package size={18} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: 'var(--primary)' }}>
+                          Kelola Inventaris & Katalog
+                        </span>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                          Atur daftar produk, tambah item baru, atau kelola kategori
+                        </span>
+                      </div>
+                      <ChevronRight size={18} style={{ color: 'var(--primary)' }} />
+                    </button>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const savedData = actionMenuData;
+                      setActionMenuData(null);
+                      setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
+                      setReportNotes('');
+                      setReportEmail('');
+                      setReportModalData(savedData);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.85rem',
+                      padding: '0.9rem 1.1rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '0.85rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s',
+                      color: 'var(--text-primary)'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)'; e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
+                  >
+                    <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                      <ShieldAlert size={18} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: '#ef4444' }}>
+                        {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
+                      </span>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                        {actionMenuData.type === 'store' 
+                          ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
+                          : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
+                      </span>
+                    </div>
+                    <ChevronRight size={18} style={{ color: '#ef4444' }} />
+                  </button>
+                )}
               </div>
             )}
           </div>
