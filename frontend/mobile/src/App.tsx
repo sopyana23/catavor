@@ -21460,28 +21460,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                 </button>
 
-                {/* Option 2: Edit Item / Kelola Inventaris for Store Owner, or Laporkan for Public */}
+                {/* Option 2: Kelola Inventaris for Store (Owner), or Laporkan for Public */}
                 {isStoreOwner ? (
-                  actionMenuData.type === 'item' && actionMenuData.item ? (
-                    <button
-                      type="button"
-                      className="action-menu-btn"
-                      onClick={() => {
-                        const itemToEdit = actionMenuData.item;
-                        setActionMenuData(null);
-                        openEditSheet(itemToEdit);
-                      }}
-                    >
-                      <div className="action-menu-icon-box" style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
-                        <Edit3 size={18} />
-                      </div>
-                      <div className="action-menu-text-box">
-                        <span className="action-menu-title" style={{ color: 'var(--primary)' }}>Edit Produk Ini</span>
-                        <span className="action-menu-desc">Perbarui foto, harga, stok, atau detail spesifikasi item ini</span>
-                      </div>
-                      <ChevronRight size={16} style={{ color: 'var(--primary)' }} />
-                    </button>
-                  ) : (
+                  actionMenuData.type === 'store' ? (
                     <button
                       type="button"
                       className="action-menu-btn"
@@ -21502,7 +21483,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                       <ChevronRight size={16} style={{ color: 'var(--primary)' }} />
                     </button>
-                  )
+                  ) : null
                 ) : (
                   <button
                     type="button"
