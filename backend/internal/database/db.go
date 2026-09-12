@@ -9,7 +9,6 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
-	"catavor-backend/internal/services"
 
 	"github.com/glebarez/sqlite"
 	"github.com/rs/zerolog/log"
@@ -94,11 +93,6 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 
 	// 3. Post-Migration Optimizations & Compatibility VIEWs
 	runPostMigrationOptimizations(db)
-
-	// 4. Seed Dynamic Subscription Plans
-	if err := services.SeedSubscriptionPlans(db); err != nil {
-		log.Warn().Err(err).Msg("Failed to seed default subscription plans")
-	}
 
 	DB = db
 	log.Info().Msg("PostgreSQL connected, normalized schemas auto-migrated, and GIN indexes verified successfully")
@@ -364,7 +358,19 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_category ON activity_logs(category);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_role ON activity_logs(actor_role);").Error
 
-	// 6. Auto-populate categories from store master_classes if categories table is empty
+	// 6. Ensure RBAC Schema, Permissions & Roles
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_role VARCHAR(50) DEFAULT 'merchant';").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_users_platform_role ON users(platform_role);").Error
+	_ = db.Exec("UPDATE users SET platform_role = 'superadmin', is_password_changed = true WHERE email = 'admin@catavor.com';").Error
+	_ = db.AutoMigrate(&models.PlatformRole{}, &models.PlatformPermission{}, &models.PlatformRolePermission{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_roles_slug ON platform_roles(slug);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_permissions_key ON platform_permissions(key);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_permissions_group ON platform_permissions(\"group\");").Error
+
+	// Seed Default RBAC Matrix & Roles
+	seedDefaultRBAC(db)
+
+	// 7. Auto-populate categories from store master_classes if categories table is empty
 	var catCount int64
 	db.Model(&models.Category{}).Count(&catCount)
 	if catCount == 0 {
@@ -398,7 +404,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 		}
 	}
 
-	// 5. Seed Default Help Center Articles if table is empty
+	// 8. Seed Default Help Center Articles if table is empty
 	var helpCount int64
 	db.Model(&models.HelpArticle{}).Count(&helpCount)
 	if helpCount == 0 {
@@ -433,6 +439,142 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 		}
 		log.Info().Msg("Default Help Center articles seeded successfully")
 	}
+}
+
+func seedDefaultRBAC(db *gorm.DB) {
+	// 1. Seed Granular Permissions if not exists
+	defaultPermissions := []models.PlatformPermission{
+		// Compliance & Trust
+		{Key: "compliance:reports:manage", Group: "compliance", Name: "Kelola Laporan Toko", Description: "Meninjau laporan penipuan, pelanggaran toko, dan satwa ilegal"},
+		{Key: "compliance:stores:suspend", Group: "compliance", Name: "Bekukan / Pulihkan Toko", Description: "Membekukan toko yang melanggar atau memulihkan toko yang ditangguhkan"},
+		{Key: "compliance:dormancy:manage", Group: "compliance", Name: "Kelola Dormansi Toko", Description: "Meninjau metrik dormansi dan memicu sanksi atau perpanjangan akun"},
+
+		// Support & Helpdesk
+		{Key: "support:tickets:read", Group: "support", Name: "Lihat Tiket Bantuan", Description: "Melihat daftar antrean tiket dan riwayat percakapan pelanggan"},
+		{Key: "support:tickets:reply", Group: "support", Name: "Balas Tiket Bantuan", Description: "Mengirimkan jawaban tiket atau menambahkan catatan internal CS"},
+		{Key: "support:help_articles:manage", Group: "support", Name: "Kelola Pusat Bantuan / FAQ", Description: "Menulis, mengedit, dan mempublikasikan artikel Pusat Bantuan"},
+
+		// Finance & Billing
+		{Key: "finance:orders:read", Group: "finance", Name: "Lihat Order Langganan", Description: "Melihat daftar pesanan langganan dan status invoice"},
+		{Key: "finance:orders:manage", Group: "finance", Name: "Validasi Pembayaran Langganan", Description: "Mengonfirmasi aktivasi langganan manual dan memproses refund"},
+		{Key: "finance:revenue:read", Group: "finance", Name: "Lihat Laporan Finansial", Description: "Melihat analitik omzet platform, MRR, dan konversi paket Pro"},
+
+		// Content & Marketing
+		{Key: "content:articles:manage", Group: "content", Name: "Kelola Artikel Edukasi", Description: "Menulis, mengubah, dan mempublikasikan artikel blog platform"},
+		{Key: "content:broadcast:send", Group: "content", Name: "Kirim Siaran Notifikasi", Description: "Mengirim notifikasi broadcast sistem ke seluruh merchant"},
+
+		// Monetization & Analytics Integration
+		{Key: "monetization:google:manage", Group: "monetization", Name: "Kelola Monetisasi & Integrasi Google", Description: "Mengatur Google AdSense (Slot & ads.txt) dan Google Analytics (GA4) platform"},
+
+		// Audit & Market Intelligence
+		{Key: "audit:logs:read", Group: "audit", Name: "Lihat System Audit Logs", Description: "Melihat jejak audit trail seluruh aktivitas platform"},
+		{Key: "market_intel:manage", Group: "audit", Name: "Kelola Riset Pasar & DaaS", Description: "Mengonfigurasi dan mengekspor dataset makro riset pasar"},
+
+		// System Administration
+		{Key: "system:admins:manage", Group: "system", Name: "Kelola Staf & Role RBAC", Description: "Mengatur akun staf admin, penugasan role, dan matriks izin dinamis"},
+		{Key: "system:settings:manage", Group: "system", Name: "Kelola Master Pengaturan", Description: "Mengubah konfigurasi platform, integrasi pihak ketiga, dan Google AdSense"},
+	}
+
+	permMap := make(map[string]uint)
+	for _, p := range defaultPermissions {
+		var existing models.PlatformPermission
+		if err := db.Where("key = ?", p.Key).First(&existing).Error; err != nil {
+			db.Create(&p)
+			permMap[p.Key] = p.ID
+		} else {
+			existing.Name = p.Name
+			existing.Group = p.Group
+			existing.Description = p.Description
+			db.Save(&existing)
+			permMap[p.Key] = existing.ID
+		}
+	}
+
+	// 8. Seed Standard Platform Roles with Default Permissions
+	defaultRoles := []struct {
+		Slug        string
+		Name        string
+		Description string
+		IsSystem    bool
+		PermKeys    []string
+	}{
+		{
+			Slug:        "superadmin",
+			Name:        "Super Administrator",
+			Description: "Akses penuh tanpa batas ke seluruh modul, konfigurasi keamanan, dan data platform",
+			IsSystem:    true,
+			PermKeys:    []string{}, // Superadmin bypasses check automatically
+		},
+		{
+			Slug:        "compliance",
+			Name:        "Trust & Compliance Officer",
+			Description: "Penegakan hukum satwa, investigasi laporan masyarakat, dan audit kepatuhan toko",
+			IsSystem:    true,
+			PermKeys: []string{
+				"compliance:reports:manage",
+				"compliance:dormancy:manage",
+			},
+		},
+		{
+			Slug:        "support",
+			Name:        "Customer Support Specialist",
+			Description: "Penanganan tiket merchant, mediasi pembeli, dan artikel Pusat Bantuan",
+			IsSystem:    true,
+			PermKeys: []string{
+				"support:tickets:read",
+				"support:tickets:reply",
+				"support:help_articles:manage",
+			},
+		},
+		{
+			Slug:        "finance",
+			Name:        "Finance & Billing Administrator",
+			Description: "Verifikasi pembayaran langganan, aktivasi paket, dan laporan omzet",
+			IsSystem:    true,
+			PermKeys: []string{
+				"finance:orders:read",
+				"finance:orders:manage",
+				"finance:revenue:read",
+			},
+		},
+		{
+			Slug:        "content",
+			Name:        "Content & Monetization Specialist",
+			Description: "Siaran notifikasi massal, pengelolaan Google AdSense dan integrasi analitik",
+			IsSystem:    true,
+			PermKeys: []string{
+				"content:articles:manage",
+				"content:broadcast:send",
+				"monetization:google:manage",
+			},
+		},
+	}
+
+	for _, rc := range defaultRoles {
+		var role models.PlatformRole
+		if err := db.Where("slug = ?", rc.Slug).First(&role).Error; err != nil {
+			role = models.PlatformRole{
+				Slug:        rc.Slug,
+				Name:        rc.Name,
+				Description: rc.Description,
+				IsSystem:    rc.IsSystem,
+			}
+			db.Create(&role)
+
+			// Seed Initial Role-Permission mappings
+			for _, pk := range rc.PermKeys {
+				if permID, ok := permMap[pk]; ok {
+					rp := models.PlatformRolePermission{
+						RoleID:       role.ID,
+						PermissionID: permID,
+					}
+					db.Create(&rp)
+				}
+			}
+		}
+	}
+
+	log.Info().Msg("Default RBAC Roles, Permissions, and Mappings verified successfully")
 }
 
 func resetSequences(db *gorm.DB) {

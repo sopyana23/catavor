@@ -32,11 +32,67 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if _, ok := res["articles_enabled"]; !ok {
 		res["articles_enabled"] = "0"
 	}
+	if _, ok := res["ads_enabled"]; !ok {
+		res["ads_enabled"] = "0"
+	}
+	if _, ok := res["ads_client_id"]; !ok {
+		res["ads_client_id"] = ""
+	}
+	if _, ok := res["ads_auto_enabled"]; !ok {
+		res["ads_auto_enabled"] = "1"
+	}
+	if _, ok := res["ads_slot_header"]; !ok {
+		res["ads_slot_header"] = ""
+	}
+	if _, ok := res["ads_slot_infeed"]; !ok {
+		res["ads_slot_infeed"] = ""
+	}
+	if _, ok := res["ads_slot_product_detail"]; !ok {
+		res["ads_slot_product_detail"] = ""
+	}
+	if _, ok := res["ads_slot_bottom"]; !ok {
+		res["ads_slot_bottom"] = ""
+	}
+	if _, ok := res["ads_slot_dashboard"]; !ok {
+		res["ads_slot_dashboard"] = ""
+	}
+	if _, ok := res["ads_test_mode"]; !ok {
+		res["ads_test_mode"] = "1"
+	}
+	if _, ok := res["ads_txt_content"]; !ok {
+		res["ads_txt_content"] = "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0"
+	}
+	if _, ok := res["ga_enabled"]; !ok {
+		res["ga_enabled"] = "0"
+	}
+	if _, ok := res["ga_measurement_id"]; !ok {
+		res["ga_measurement_id"] = ""
+	}
+	if _, ok := res["market_intel_enabled"]; !ok {
+		res["market_intel_enabled"] = "1"
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    res,
 	})
+}
+
+// GetAdsTxt serves public /ads.txt for Google AdSense site verification
+func (h *SettingHandler) GetAdsTxt(c *fiber.Ctx) error {
+	var s models.Setting
+	content := "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0"
+	if err := database.DB.Where("key = ?", "ads_txt_content").First(&s).Error; err == nil && s.Value != "" {
+		content = s.Value
+	} else if err := database.DB.Where("key = ?", "ads_client_id").First(&s).Error; err == nil && s.Value != "" {
+		pubId := s.Value
+		if len(pubId) > 3 && pubId[:3] == "ca-" {
+			pubId = pubId[3:]
+		}
+		content = "google.com, " + pubId + ", DIRECT, f08c47fec0942fa0"
+	}
+	c.Set("Content-Type", "text/plain; charset=utf-8")
+	return c.SendString(content)
 }
 
 func (h *SettingHandler) Store(c *fiber.Ctx) error {

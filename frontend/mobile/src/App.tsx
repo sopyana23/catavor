@@ -129,6 +129,12 @@ import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput } from './components/VideoEmbed'
 import { SubscriptionPage, SubscriptionModal, MobileQuotaWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
 import { AnalyticsPage, type DetailedAnalyticsData } from './components/AnalyticsPage'
+import { AdSenseUnit } from './components/AdSenseUnit'
+import { AdminRBACManagement } from './components/AdminRBACManagement'
+import { PlatformRolePortal } from './components/PlatformRolePortal'
+import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
+import { initGoogleAnalytics } from './utils/googleAnalytics'
+import { initGoogleAdSense } from './utils/googleAdSense'
 
 export interface UserStoreSummary {
   id: number;
@@ -4879,8 +4885,32 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
+  const fetchPlatformSettings = async () => {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        const settingsData = data.data || data;
+        if (settingsData) {
+          if (settingsData.ga_measurement_id) {
+            const isGaEnabled = settingsData.ga_enabled === '1' || settingsData.ga_enabled === 'true';
+            initGoogleAnalytics(settingsData.ga_measurement_id, isGaEnabled);
+          }
+          if (settingsData.ads_client_id) {
+            const isAdsEnabled = settingsData.ads_enabled === '1' || settingsData.ads_enabled === 'true';
+            const isAutoEnabled = settingsData.ads_auto_enabled === '1' || settingsData.ads_auto_enabled === 'true';
+            initGoogleAdSense(settingsData.ads_client_id, isAdsEnabled, isAutoEnabled);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch platform settings for GA4 / AdSense:', err);
+    }
+  };
+
   useEffect(() => {
     fetchPolicies();
+    fetchPlatformSettings();
   }, []);
 
   // Guarantee auto-scroll to top on page/tab navigation (Mobile & Tablet)
@@ -5315,7 +5345,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
   const [aboutSubView, setAboutSubView] = useState<'main' | 'qrcode'>('main')
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs'>('menu')
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>('menu')
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -5642,7 +5672,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Authentication & Multi-Store State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
-  const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string} | null>(
+  const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[]} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(
@@ -5674,11 +5704,16 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const isStoreOwner = Boolean(
     token &&
     adminUser &&
-    storeSlug &&
     (
-      (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
-      ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
-      (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
+      isPlatformAdmin(adminUser) ||
+      (
+        storeSlug &&
+        (
+          (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
+          ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
+          (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
+        )
+      )
     )
   );
 
@@ -6533,6 +6568,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             setAdminSubTab('audit_logs');
             setView('tabs');
             fetchActivityLogs(1, false);
+          } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
+            setAdminSubTab('rbac');
+            setView('tabs');
           } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
             setAdminSubTab('share');
             setView('tabs');
@@ -6605,6 +6643,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
             setAdminSubTab('audit_logs');
             fetchActivityLogs(1, false);
+          } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
+            setAdminSubTab('rbac');
+          } else if (pageSub === 'portal' || pageSub === 'compliance' || pageSub === 'support' || pageSub === 'finance' || pageSub === 'content') {
+            setAdminSubTab('portal');
           }
         } else if (qTab === 'about') setActiveTab('about');
         else if (qTab === 'sightings') setActiveTab('sightings');
@@ -6613,7 +6655,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
     // STRICT FLOW: If the user visits the admin page on mount but they haven't completed changing their password,
     // force them to log in again with the default password.
-    if (localStorage.getItem('catavor_password_changed') !== 'true') {
+    if (token && localStorage.getItem('catavor_password_changed') === 'false') {
       localStorage.removeItem('catavor_token')
       localStorage.removeItem('catavor_user')
       localStorage.removeItem('catavor_password_changed')
@@ -6697,6 +6739,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             setAdminSubTab('audit_logs');
             setSelectedTicket(null);
             fetchActivityLogs(1, false);
+          } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
+            setAdminSubTab('rbac');
+            setSelectedTicket(null);
           } else {
             setAdminSubTab('menu');
             setSelectedTicket(null);
@@ -6876,6 +6921,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               setAdminSubTab('audit_logs');
               setView('tabs');
               fetchActivityLogs(1, false);
+            } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
+              setAdminSubTab('rbac');
+              setView('tabs');
             } else {
               setAdminSubTab('menu');
               setView('tabs');
@@ -7408,6 +7456,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         targetPath += `/admin/share`;
       } else if (adminSubTab === 'audit_logs') {
         targetPath += `/admin/audit-logs`;
+      } else if (adminSubTab === 'rbac') {
+        targetPath += `/admin/rbac`;
       } else {
         targetPath += `/admin`;
       }
@@ -8065,7 +8115,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
           setUserStores(data.stores);
         }
-        localStorage.setItem('catavor_password_changed', data.is_password_changed ? 'true' : 'false')
+        const isPassChanged = Boolean(data.is_password_changed ?? data.user?.is_password_changed ?? true);
+        localStorage.setItem('catavor_password_changed', isPassChanged ? 'true' : 'false');
         
         const loginTheme = data.user?.store_theme || 'navy';
         document.documentElement.setAttribute('data-theme', loginTheme);
@@ -8074,7 +8125,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
         setToken(data.token)
         setAdminUser(data.user)
-        setIsPasswordChanged(data.is_password_changed)
+        setIsPasswordChanged(isPassChanged)
         setLoginForm({ email: '', password: '' })
         
         // If login succeeded, restore previous redirect destination if returning from expired session
@@ -8099,16 +8150,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         } catch (e) {}
 
         if (!redirectRestored) {
-          if (data.user.store_slug) {
-            setStoreSlug(data.user.store_slug);
+          if (isPlatformAdmin(data.user)) {
+            setStoreSlug(null);
+            setPortalTab('home');
+            setView('tabs');
+            setActiveTab('admin');
+            window.history.pushState({}, '', '/admin');
+          } else {
+            const targetSlug = data.user?.store_slug || data.active_store?.slug || (data.stores && data.stores[0]?.slug) || 'catavor';
+            setStoreSlug(targetSlug);
             setPortalTab('home');
             setView('tabs');
             setActiveTab('admin');
             setAdminSubTab('menu');
-            window.history.pushState({}, '', `/${data.user.store_slug}/admin`);
-            loadData(data.user.store_slug);
-          } else {
-            setActiveTab('admin');
+            window.history.pushState({}, '', `/${targetSlug}/admin`);
+            loadData(targetSlug);
           }
         }
       } else {
@@ -9503,6 +9559,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             <span>Memuat Platform...</span>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // Render Dedicated Platform Administration Console for Platform Admins (Mobile)
+  if (token && isPlatformAdmin(adminUser) && (activeTab === 'admin' || window.location.pathname.toLowerCase().includes('/admin'))) {
+    return (
+      <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', padding: 0, margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box', overflowX: 'clip' }}>
+        <PlatformRolePortal
+          token={token || ''}
+          currentUser={adminUser}
+          onLogout={handleLogout}
+        />
       </div>
     );
   }
@@ -13781,7 +13850,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </button>
                     )}
 
-                    {adminSubTab === 'help' && !isCreatingTicket && !selectedTicket && (
+                    {adminSubTab === 'help' && !isCreatingTicket && !selectedTicket && tickets.length > 0 && (
                       <button 
                         type="button"
                         className="btn-primary" 
@@ -13797,7 +13866,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           whiteSpace: 'nowrap',
                           flexShrink: 0
                         }}
-                        onClick={() => setIsCreatingTicket(true)}
+                        onClick={() => {
+                          setTicketNewAttachments([]);
+                          setIsCreatingTicket(true);
+                        }}
                       >
                         <Plus size={13} />
                         <span>Tiket Baru</span>
@@ -14953,14 +15025,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                     ) : (
                       <>
+                        {/* Google AdSense Header Banner (Free Tier only) */}
+                        <AdSenseUnit
+                          storePlan={settings.plan || 'free'}
+                          slotType="header"
+                          settings={settings}
+                          onUpgradeClick={() => {
+                            if (isStoreOwner) {
+                              setActiveTab('admin');
+                              setAdminSubTab('subscription');
+                            }
+                          }}
+                        />
+
                         <div className="mobile-list-grid">
-                          {filteredFaunas.slice(0, displayLimit).map((item) => (
-                      <div 
-                        key={item.id} 
-                        className="glass-panel mobile-grid-card"
-                        onClick={() => openDetailsSheet(item.id)}
-                        style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '0.85rem' }}
-                      >
+                          {filteredFaunas.slice(0, displayLimit).map((item, itemIdx) => (
+                            <React.Fragment key={item.id}>
+                              <div 
+                                className="glass-panel mobile-grid-card"
+                                onClick={() => openDetailsSheet(item.id)}
+                                style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '0.85rem' }}
+                              >
                         {/* Clean Product Photo without Emoji Stickers */}
                         <div style={{ width: '100%', height: '140px', position: 'relative', overflow: 'hidden', backgroundColor: '#131916' }}>
                           {/* Fallback displayed under the image */}
@@ -15065,8 +15150,38 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+
+                      {itemIdx === 3 && (
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <AdSenseUnit
+                            storePlan={settings.plan || 'free'}
+                            slotType="infeed"
+                            settings={settings}
+                            onUpgradeClick={() => {
+                              if (isStoreOwner) {
+                                setActiveTab('admin');
+                                setAdminSubTab('subscription');
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+
+                {/* Google AdSense Bottom Banner (Free Tier only) */}
+                <AdSenseUnit
+                  storePlan={settings.plan || 'free'}
+                  slotType="bottom"
+                  settings={settings}
+                  onUpgradeClick={() => {
+                    if (isStoreOwner) {
+                      setActiveTab('admin');
+                      setAdminSubTab('subscription');
+                    }
+                  }}
+                />
 
                   {/* Infinite Scroll loading indicator */}
                   {loadingMore && (
@@ -15289,7 +15404,16 @@ Mohon info ketersediaan stok & pengiriman ya!`}
            TAB 3: ADMIN PANEL (MOBILE) WITH STRICT MULTI-TENANT GUARD
            ========================================================== */}
         {activeTab === 'admin' && (
-          token && !isStoreOwner ? (
+          token && isPlatformAdmin(adminUser) ? (
+            /* DEDICATED PLATFORM CENTRAL MANAGEMENT CONSOLE (MOBILE) */
+            <div style={{ padding: '0.75rem 0.5rem 5rem 0.5rem', width: '100%' }}>
+              <PlatformRolePortal
+                token={token || ''}
+                currentUser={adminUser}
+                onLogout={handleLogout}
+              />
+            </div>
+          ) : token && !isStoreOwner ? (
             /* 403 FORBIDDEN ACCESS CARD FOR OTHER STORE OWNER */
             <div className="glass-panel animate-fade-in" style={{ padding: '1.75rem 1.25rem', marginTop: '2rem', textAlign: 'center' }}>
               <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', color: '#ef4444' }}>
@@ -16197,8 +16321,98 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           Tentang
                         </span>
                       </button>
+
+                      {/* 9. Hak Akses RBAC (Superadmin Only) */}
+                      {isSuperAdmin(adminUser) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('rbac');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/rbac`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                            border: '1px solid rgba(244, 63, 94, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#f43f5e'
+                          }}>
+                            <Shield size={20} />
+                          </div>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f43f5e', textAlign: 'center', lineHeight: 1.2 }}>
+                            Hak Akses
+                          </span>
+                        </button>
+                      )}
+
+                      {/* 10. Portal Operasional Staf (Platform Admin) */}
+                      {isPlatformAdmin(adminUser) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdminSubTab('portal');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/portal`);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '0.75rem',
+                            backgroundColor: getRoleBadge(adminUser?.platform_role || '').bg,
+                            border: `1px solid ${getRoleBadge(adminUser?.platform_role || '').border}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: getRoleBadge(adminUser?.platform_role || '').color
+                          }}>
+                            <Layers size={20} />
+                          </div>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: getRoleBadge(adminUser?.platform_role || '').color, textAlign: 'center', lineHeight: 1.2 }}>
+                            Portal Staf
+                          </span>
+                        </button>
+                      )}
                     </div>
                   </div>
+
+                  {/* AdSense Dashboard Sponsor (Free Tier only) */}
+                  <AdSenseUnit
+                    storePlan={storeQuota?.plan?.code || settings.plan || 'free'}
+                    slotType="dashboard"
+                    settings={settings}
+                    onUpgradeClick={() => {
+                      setAdminSubTab('subscription');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                    }}
+                  />
                 </div>
               )}
 
@@ -19445,19 +19659,40 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       {filteredTickets.length === 0 ? (
                         <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
                           <MessageSquare size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem' }} />
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Tidak Ada Tiket</h4>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Belum ada tiket support yang sesuai dengan filter Anda.</p>
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            onClick={() => {
-                              setTicketNewAttachments([]);
-                              setIsCreatingTicket(true);
-                            }}
-                            style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem' }}
-                          >
-                            + Buat Tiket Baru
-                          </button>
+                          {tickets.length === 0 ? (
+                            <>
+                              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Tiket</h4>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Punya kendala teknis atau pertanyaan? Buat tiket support Anda untuk terhubung langsung dengan tim kami.</p>
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={() => {
+                                  setTicketNewAttachments([]);
+                                  setIsCreatingTicket(true);
+                                }}
+                                style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              >
+                                <Plus size={14} />
+                                <span>Buat Tiket Baru</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Tidak Ada Tiket</h4>
+                              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Belum ada tiket support yang sesuai dengan filter atau pencarian Anda.</p>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => {
+                                  setTicketSearch('');
+                                  setTicketFilter('all');
+                                }}
+                                style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem' }}
+                              >
+                                Reset Filter
+                              </button>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -19606,6 +19841,39 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     storeLogoUrl={settings.store_logo_url}
                     storeSlogan={settings.about_slogan || settings.store_slogan}
                     onToast={showToast}
+                  />
+                </div>
+              )}
+
+              {adminSubTab === 'rbac' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
+                  <AdminRBACManagement
+                    token={token || ''}
+                    currentUserEmail={adminUser?.email}
+                    onClose={() => {
+                      setAdminSubTab('menu');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                    }}
+                  />
+                </div>
+              )}
+
+              {adminSubTab === 'portal' && (
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
+                  <PlatformRolePortal
+                    token={token || ''}
+                    currentUser={adminUser}
+                    onBack={() => {
+                      setAdminSubTab('menu');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                    }}
+                    onOpenRBAC={() => {
+                      setAdminSubTab('rbac');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/rbac`);
+                    }}
                   />
                 </div>
               )}
