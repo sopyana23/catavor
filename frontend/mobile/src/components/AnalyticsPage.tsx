@@ -39,8 +39,10 @@ import {
   X,
   ArrowUpDown,
   PackageSearch,
-  Filter
+  Filter,
+  Globe
 } from 'lucide-react';
+import { MarketIntelligenceModal } from './MarketIntelligenceModal';
 
 export interface AnalyticsTrendPoint {
   date: string;
@@ -165,6 +167,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
   const [metricFocus, setMetricFocus] = useState<'all' | 'views' | 'actions'>('all');
   const [scaleMode, setScaleMode] = useState<'linear' | 'adaptive'>('linear');
+  const [showMarketIntel, setShowMarketIntel] = useState<boolean>(false);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -799,27 +802,50 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.4rem 0.75rem',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              borderRadius: '0.5rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer'
-            }}
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span>Segarkan</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <button
+              type="button"
+              onClick={() => setShowMarketIntel(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.4rem 0.75rem',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                borderRadius: '0.5rem',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                color: '#10b981',
+                cursor: 'pointer'
+              }}
+            >
+              <Globe size={13} />
+              <span>Tren Pasar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={loading}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.4rem 0.75rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer'
+              }}
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              <span>Segarkan</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2191,6 +2217,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Market Intelligence Anonymized Macro Trends Modal */}
+      <MarketIntelligenceModal
+        isOpen={showMarketIntel}
+        onClose={() => setShowMarketIntel(false)}
+        apiBase=""
+      />
     </div>
   );
 };

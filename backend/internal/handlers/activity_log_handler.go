@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -110,11 +111,12 @@ func (h *ActivityLogHandler) GetSuperadminAuditLogs(c *fiber.Ctx) error {
 	}
 	user := userVal.(*models.User)
 
-	// Superadmin Authorization Check
-	if user.Email != "admin@catavor.com" {
+	// RBAC Permission Check
+	if !services.GetRBACService().HasPermission(user, "audit:logs:read") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
-			"message": "Akses ditolak: Hanya Superadmin yang dapat melihat System Audit Trail.",
+			"code":    "FORBIDDEN_PERMISSION_REQUIRED",
+			"message": "Akses ditolak: Anda memerlukan izin 'audit:logs:read' untuk melihat System Audit Trail.",
 		})
 	}
 

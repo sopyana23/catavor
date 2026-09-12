@@ -809,6 +809,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                           <Globe size={13} style={{ color: plan.has_custom_domain ? '#10b981' : 'var(--text-muted)', flexShrink: 0 }} />
                           <span>Domain Kustom Sendiri (.com/.id): <strong>{plan.has_custom_domain ? 'Didukung' : 'Tidak Tersedia'}</strong></span>
                         </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: plan.code !== 'free' ? '#10b981' : 'var(--text-muted)' }}>
+                          <Sparkles size={13} style={{ color: plan.code !== 'free' ? '#10b981' : 'var(--text-muted)', flexShrink: 0 }} />
+                          <span>Iklan Sponsor: <strong>{plan.code !== 'free' ? '100% Bebas Iklan (Ad-Free)' : 'Didukung Iklan Sponsor'}</strong></span>
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: plan.has_verified_badge ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                           <ShieldCheck size={13} style={{ color: plan.has_verified_badge ? '#3b82f6' : 'var(--text-muted)', flexShrink: 0 }} />
                           <span>Badge Katalog Terverifikasi: <strong>{plan.has_verified_badge ? 'Ya (Centang Biru)' : 'Tidak'}</strong></span>

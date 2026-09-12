@@ -43,7 +43,7 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			Code:               "free",
 			Name:               "Gratis Terbatas",
 			BadgeLabel:         "Merchant",
-			Description:        "Katalog digital esensial gratis dengan kapasitas hingga 15 item. Cocok untuk toko pemula & hobi.",
+			Description:        "Katalog digital esensial gratis hingga 15 item (didukung iklan sponsor). Cocok untuk toko pemula & hobi.",
 			PriceMonthly:       0,
 			PriceAnnual:        0,
 			StorageLimitBytes:  100 * 1024 * 1024, // 100 MB (~350-500 foto HD)
@@ -60,7 +60,7 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			Code:               "pro_starter",
 			Name:               "Pro Starter",
 			BadgeLabel:         "Pro",
-			Description:        "Solusi terjangkau untuk bisnis berkembang dengan kuota lebih lega & badge terpercaya.",
+			Description:        "Solusi bisnis berkembang dengan 100% bebas iklan sponsor, kuota 150 item & badge terpercaya.",
 			PriceMonthly:       49000,
 			PriceAnnual:        490000,
 			StorageLimitBytes:  2 * 1024 * 1024 * 1024, // 2 GB (~7.000-10.000 foto HD)
@@ -77,7 +77,7 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			Code:               "pro_business",
 			Name:               "Pro Bisnis",
 			BadgeLabel:         "Pro VIP",
-			Description:        "Kapasitas maksimal untuk brand & bisnis besar dengan Custom Domain & VIP Support.",
+			Description:        "Kapasitas tanpa batas untuk brand & bisnis besar: 100% bebas iklan sponsor, Custom Domain & VIP Support.",
 			PriceMonthly:       129000,
 			PriceAnnual:        1290000,
 			StorageLimitBytes:  10 * 1024 * 1024 * 1024, // 10 GB (~35.000+ foto HD)

@@ -228,15 +228,20 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	})
 
 	return c.JSON(fiber.Map{
-		"success":      true,
-		"message":      "Login berhasil.",
-		"token":        token,
-		"stores":       storeList,
-		"active_store": activeStore,
+		"success":             true,
+		"message":             "Login berhasil.",
+		"token":               token,
+		"is_password_changed": user.IsPasswordChanged,
+		"stores":              storeList,
+		"active_store":        activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
 			"email":               user.Email,
+			"platform_role":       user.PlatformRole,
+			"is_superadmin":       strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com",
+			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
+			"permissions":         services.GetRBACService().GetUserPermissions(&user),
 			"is_password_changed": user.IsPasswordChanged,
 			"store_slug":          activeStore.Slug,
 			"store_title":         activeStore.StoreTitle,
@@ -894,15 +899,20 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
 
 	return c.JSON(fiber.Map{
-		"success":      true,
-		"valid":        true,
-		"message":      "Sesi token valid dan aktif.",
-		"stores":       storeList,
-		"active_store": activeStore,
+		"success":             true,
+		"valid":               true,
+		"message":             "Sesi token valid dan aktif.",
+		"is_password_changed": user.IsPasswordChanged,
+		"stores":              storeList,
+		"active_store":        activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
 			"email":               user.Email,
+			"platform_role":       user.PlatformRole,
+			"is_superadmin":       strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com",
+			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
+			"permissions":         services.GetRBACService().GetUserPermissions(user),
 			"is_password_changed": user.IsPasswordChanged,
 			"store_slug":          activeStore.Slug,
 			"store_title":         activeStore.StoreTitle,
@@ -949,15 +959,20 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"success":      true,
-		"message":      "Sesi login berhasil diperpanjang.",
-		"token":        newToken,
-		"stores":       storeList,
-		"active_store": activeStore,
+		"success":             true,
+		"message":             "Sesi login berhasil diperpanjang.",
+		"token":               newToken,
+		"is_password_changed": user.IsPasswordChanged,
+		"stores":              storeList,
+		"active_store":        activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
 			"email":               user.Email,
+			"platform_role":       user.PlatformRole,
+			"is_superadmin":       strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com",
+			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
+			"permissions":         services.GetRBACService().GetUserPermissions(user),
 			"is_password_changed": user.IsPasswordChanged,
 			"store_slug":          activeStore.Slug,
 			"store_title":         activeStore.StoreTitle,

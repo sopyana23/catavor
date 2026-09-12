@@ -36,6 +36,11 @@ func main() {
 		log.Fatal().Err(err).Msg("Fatal: Database initialization failed")
 	}
 
+	// 3.1 Seed Default Subscription Plans
+	if err := services.SeedSubscriptionPlans(database.DB); err != nil {
+		log.Warn().Err(err).Msg("Failed to seed default subscription plans")
+	}
+
 	// 4. Initialize Fiber App with Industrial SaaS timeouts (WriteTimeout 0 for SSE streaming)
 	app := fiber.New(fiber.Config{
 		AppName:               "Catavor Multi-Channel Commerce Server",
@@ -69,6 +74,7 @@ func main() {
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	notificationHandler := handlers.NewNotificationHandler(database.DB)
 	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
+	rbacHandler := handlers.NewRBACHandler()
 	spaHandler := handlers.NewSPAHandler(cfg)
 
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
@@ -111,6 +117,7 @@ func main() {
 	})
 
 	// 8. Register API Endpoints
+	app.Get("/ads.txt", settingHandler.GetAdsTxt)
 	api := app.Group("/api")
 
 	// Public Modern Product & Category Endpoints
@@ -156,6 +163,11 @@ func main() {
 
 	// Public Telemetry & Analytics Tracking
 	api.Post("/analytics/track", middleware.PublicSubmissionRateLimiter(), analyticsHandler.TrackEvent)
+
+	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)
+	api.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
+	api.Get("/market-intelligence/summary", analyticsHandler.GetMarketIntelligenceSummary)
+	api.Get("/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
 
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
@@ -270,7 +282,7 @@ func main() {
 		guarded.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
 		guarded.Get("/notifications/stream", notificationHandler.Stream)
 
-		// Superadmin Broadcast Notifications
+		// Superadmin Broadcast Notifications (Backward Compatibility Alias)
 		guarded.Get("/admin/notifications", notificationHandler.SuperadminIndex)
 		guarded.Post("/admin/notifications/broadcast", notificationHandler.SuperadminBroadcast)
 		guarded.Delete("/admin/notifications/:id", notificationHandler.SuperadminDelete)
@@ -284,6 +296,54 @@ func main() {
 		guarded.Get("/activity-logs/summary", activityLogHandler.GetActivitySummary)
 		guarded.Get("/admin/audit-logs", activityLogHandler.GetSuperadminAuditLogs)
 		guarded.Get("/superadmin/dormancy/metrics", handlers.HandleGetDormancyMetrics)
+
+		// Market Intelligence & Macro Analytics
+		guarded.Get("/admin/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
+		guarded.Get("/admin/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
+	}
+
+	// 8.1 Dedicated Platform Admin API Group (Granular RBAC Protected)
+	adminApi := api.Group("/admin", middleware.AuthRequired(cfg), middleware.RequireAdmin(cfg))
+	{
+		// Dynamic RBAC Matrix & Staff Management (Superadmin / Staff Governance)
+		adminApi.Get("/rbac/me", rbacHandler.GetMyPermissions)
+		adminApi.Get("/rbac/matrix", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetMatrix)
+		adminApi.Post("/rbac/matrix", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.UpdateMatrix)
+		adminApi.Get("/rbac/roles", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetMatrix)
+		adminApi.Post("/rbac/roles", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.CreateRole)
+		adminApi.Get("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetStaff)
+		adminApi.Post("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
+		adminApi.Post("/rbac/staff/assign", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
+		adminApi.Post("/rbac/staff/revoke", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.RevokeStaff)
+
+		// Compliance & Trust / Safety (Satwa & Laporan)
+		adminApi.Get("/reports", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.Index)
+		adminApi.Get("/reports/:id", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.Show)
+		adminApi.Put("/reports/:id", middleware.RequirePermission(cfg, "compliance:reports:manage"), reportHandler.UpdateStatus)
+		adminApi.Get("/dormancy/metrics", middleware.RequirePermission(cfg, "compliance:dormancy:manage"), handlers.HandleGetDormancyMetrics)
+		adminApi.Get("/superadmin/dormancy/metrics", middleware.RequirePermission(cfg, "compliance:dormancy:manage"), handlers.HandleGetDormancyMetrics)
+
+		// Support & Helpdesk
+		adminApi.Get("/support/tickets", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.ListAllTickets)
+		adminApi.Post("/support/tickets/:id/reply", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.ReplyAsAdmin)
+		adminApi.Put("/support/tickets/:id/status", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateTicketStatus)
+
+		// Content & Broadcast
+		adminApi.Get("/notifications", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminIndex)
+		adminApi.Post("/notifications/broadcast", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminBroadcast)
+		adminApi.Delete("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminDelete)
+
+		// Monetization & Google Analytics Settings
+		adminApi.Get("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Index)
+		adminApi.Post("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Store)
+
+		// Finance & Billing
+		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.GetOrders)
+
+		// Audit & Market Intelligence
+		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
+		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
+		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.ExportMarketIntelligenceData)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients

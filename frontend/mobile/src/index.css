@@ -249,7 +249,7 @@ body {
   background-color: var(--bg-deep) !important;
   color: var(--text-primary) !important;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   scrollbar-width: none !important;

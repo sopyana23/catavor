@@ -870,6 +870,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             <span>Prioritas Bantuan VIP Support Khusus</span>
                           </div>
                         )}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: plan.code !== 'free' ? '#10b981' : 'var(--text-muted)' }}>
+                          <Sparkles size={16} style={{ color: plan.code !== 'free' ? '#10b981' : 'var(--text-muted)', flexShrink: 0 }} />
+                          <span>Iklan Sponsor: <strong>{plan.code !== 'free' ? '100% Bebas Iklan (Ad-Free)' : 'Didukung Iklan Sponsor'}</strong></span>
+                        </div>
                       </div>
                     </div>
 

@@ -11,6 +11,7 @@ import (
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -839,3 +840,60 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 		},
 	})
 }
+
+// GetMarketIntelligenceSummary returns macro industry trends, channel metrics, and price benchmarks with zero PII.
+func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
+	// Check if market intelligence is enabled
+	var setting models.Setting
+	if err := database.DB.Where("key = ?", "market_intel_enabled").First(&setting).Error; err == nil {
+		if setting.Value == "0" || setting.Value == "false" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
+			})
+		}
+	}
+
+	summary, err := services.GetMacroMarketSummary(database.DB)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengagregasi data market intelligence: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    summary,
+	})
+}
+
+// ExportMarketIntelligenceData streams an anonymized CSV or JSON export of market trends.
+func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
+	format := strings.ToLower(c.Query("format", "csv"))
+
+	if format == "json" {
+		summary, err := services.GetMacroMarketSummary(database.DB)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal mengekspor data: " + err.Error(),
+			})
+		}
+		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=catavor-market-intelligence-%s.json", time.Now().Format("20060102")))
+		return c.JSON(summary)
+	}
+
+	csvData, err := services.GenerateMarketIntelligenceCSV(database.DB)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal membuat berkas CSV: " + err.Error(),
+		})
+	}
+
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=catavor-market-intelligence-%s.csv", time.Now().Format("20060102")))
+	return c.Send(csvData)
+}
+
