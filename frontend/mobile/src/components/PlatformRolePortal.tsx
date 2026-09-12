@@ -247,8 +247,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [actionLoading, setActionLoading] = useState(false);
   const [showBroadcastSheet, setShowBroadcastSheet] = useState(false);
   const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info', target_role: 'all' });
-  const [showQuickActionsSheet, setShowQuickActionsSheet] = useState(false);
-  const [showAlertCenterSheet, setShowAlertCenterSheet] = useState(false);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text, type });
@@ -470,8 +468,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
   const totalAlertsCount = pendingReportsCount + openTicketsCount + pendingOrdersCount + (dormancyMetrics?.dormant_stores || 0);
 
-  // 8 Executive App Grid Menu Definition (2-Column Spacious Mobile Layout)
-  const appGridItems = [
+  // Complete dictionary of all platform modules for metadata & headers
+  const allModules: Record<ActiveView, { title: string; subtitle: string }> = {
+    dashboard: { title: 'Dashboard', subtitle: 'Pusat Ringkasan Eksekutif' },
+    rbac: { title: 'Staf & RBAC', subtitle: 'Matriks & Izin Akses' },
+    stores: { title: 'Tata Kelola Toko', subtitle: `${dormancyMetrics?.active_stores || 1} Toko Terdaftar` },
+    reports: { title: 'Laporan Masuk', subtitle: `${pendingReportsCount} Laporan Pending` },
+    support: { title: 'Helpdesk Tiket', subtitle: `${openTicketsCount} Tiket Terbuka` },
+    finance: { title: 'Keuangan & Order', subtitle: `${pendingOrdersCount} Order Pending` },
+    monetization: { title: 'Monetisasi & Iklan', subtitle: 'Google AdSense & GA4' },
+    broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcasts.length} Siaran Aktif` },
+    audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
+  };
+
+  // 5 Specialized Platform & System Management Modules on Dashboard Grid
+  const dashboardGridItems = [
     {
       id: 'rbac' as ActiveView,
       title: 'Staf & RBAC',
@@ -486,46 +497,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     {
       id: 'stores' as ActiveView,
       title: 'Tata Kelola Toko',
-      subtitle: 'Status Kepatuhan Toko',
+      subtitle: 'Status Kepatuhan & Dormansi',
       icon: <Store size={20} />,
       color: '#3b82f6',
       bg: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
       border: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.25)',
       badge: dormancyMetrics?.dormant_stores || 0,
       visible: canAccessCompliance
-    },
-    {
-      id: 'reports' as ActiveView,
-      title: 'Laporan Masuk',
-      subtitle: 'Trust & Safety Satwa',
-      icon: <ShieldAlert size={20} />,
-      color: '#f43f5e',
-      bg: isDark ? 'rgba(244, 63, 94, 0.15)' : 'rgba(244, 63, 94, 0.1)',
-      border: isDark ? 'rgba(244, 63, 94, 0.3)' : 'rgba(244, 63, 94, 0.25)',
-      badge: pendingReportsCount,
-      visible: canAccessCompliance
-    },
-    {
-      id: 'support' as ActiveView,
-      title: 'Helpdesk Tiket',
-      subtitle: 'Dukungan Merchant',
-      icon: <HelpCircle size={20} />,
-      color: '#06b6d4',
-      bg: isDark ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 182, 212, 0.1)',
-      border: isDark ? 'rgba(6, 182, 212, 0.3)' : 'rgba(6, 182, 212, 0.25)',
-      badge: openTicketsCount,
-      visible: canAccessSupport
-    },
-    {
-      id: 'finance' as ActiveView,
-      title: 'Keuangan & Order',
-      subtitle: 'Verifikasi Pembayaran',
-      icon: <CreditCard size={20} />,
-      color: '#10b981',
-      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
-      border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
-      badge: pendingOrdersCount,
-      visible: canAccessFinance
     },
     {
       id: 'monetization' as ActiveView,
@@ -541,7 +519,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     {
       id: 'broadcast' as ActiveView,
       title: 'Siaran Broadcast',
-      subtitle: 'Notifikasi Massal',
+      subtitle: 'Notifikasi Massal Pengguna',
       icon: <Megaphone size={20} />,
       color: '#f59e0b',
       bg: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
@@ -562,6 +540,38 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   ].filter(item => item.visible);
 
+  // Exactly 4 Top Priority Operational Tabs in the Bottom Navigation Bar
+  const footerNavTabs = [
+    {
+      id: 'dashboard' as ActiveView,
+      label: 'Ringkasan',
+      icon: <LayoutDashboard size={20} />,
+      badge: 0,
+      visible: true
+    },
+    {
+      id: 'reports' as ActiveView,
+      label: 'Laporan',
+      icon: <ShieldAlert size={20} />,
+      badge: pendingReportsCount,
+      visible: canAccessCompliance
+    },
+    {
+      id: 'support' as ActiveView,
+      label: 'Helpdesk',
+      icon: <HelpCircle size={20} />,
+      badge: openTicketsCount,
+      visible: canAccessSupport
+    },
+    {
+      id: 'finance' as ActiveView,
+      label: 'Keuangan',
+      icon: <CreditCard size={20} />,
+      badge: pendingOrdersCount,
+      visible: canAccessFinance
+    }
+  ].filter(item => item.visible);
+
   return (
     <div style={{
       display: 'flex',
@@ -570,7 +580,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       width: '100%',
       backgroundColor: theme.bg,
       color: theme.textPrimary,
-      padding: '0.5rem 1rem 5.5rem 1rem',
+      padding: '0.5rem 0.85rem 5.5rem 0.85rem',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       minHeight: '100vh',
       boxSizing: 'border-box'
@@ -610,8 +620,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           position: 'sticky',
           top: 0,
           zIndex: 999,
-          width: isScrolled ? 'calc(100% + 2rem)' : '100%',
-          margin: isScrolled ? '-0.5rem -1rem 0 -1rem' : '0',
+          boxSizing: 'border-box',
+          width: isScrolled ? 'calc(100% + 1.7rem)' : '100%',
+          margin: isScrolled ? '-0.5rem -0.85rem 0 -0.85rem' : '0',
           borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.25rem',
           backgroundColor: isDark 
             ? (isScrolled ? 'rgba(15, 23, 42, 0.94)' : '#0f172a') 
@@ -620,7 +631,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           borderLeft: isScrolled ? 'none' : `1px solid ${theme.border}`,
           borderRight: isScrolled ? 'none' : `1px solid ${theme.border}`,
           borderBottom: `1px solid ${isScrolled ? (isDark ? 'rgba(56, 189, 248, 0.35)' : '#cbd5e1') : theme.border}`,
-          padding: isScrolled ? '0.65rem 1rem' : '0.85rem 1.05rem',
+          padding: isScrolled ? '0.62rem 0.85rem' : '0.72rem 0.85rem',
           boxShadow: isScrolled 
             ? (isDark ? '0 14px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' : '0 10px 25px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0,0,0,0.04)')
             : theme.shadow,
@@ -629,16 +640,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.75rem',
+          gap: '0.5rem',
           transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}>
           {/* Left Side: Avatar & Profile Info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: isScrolled ? '0.55rem' : '0.75rem', minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
             {/* Brand Logo with Live Online Dot */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
-                width: isScrolled ? '34px' : '42px',
-                height: isScrolled ? '34px' : '42px',
+                width: isScrolled ? '34px' : '38px',
+                height: isScrolled ? '34px' : '38px',
                 borderRadius: isScrolled ? '0.75rem' : '0.85rem',
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
@@ -646,7 +657,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 overflow: 'hidden',
-                padding: isScrolled ? '3px' : '4px',
+                padding: '3px',
                 boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.06)',
                 transition: 'all 0.25s ease'
               }}>
@@ -657,7 +668,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     width: '100%',
                     height: '100%',
                     objectFit: 'contain',
-                    borderRadius: isScrolled ? '0.55rem' : '0.65rem'
+                    borderRadius: '0.6rem'
                   }}
                 />
               </div>
@@ -666,8 +677,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 position: 'absolute',
                 bottom: '-2px',
                 right: '-2px',
-                width: isScrolled ? '9px' : '11px',
-                height: isScrolled ? '9px' : '11px',
+                width: isScrolled ? '9px' : '10px',
+                height: isScrolled ? '9px' : '10px',
                 borderRadius: '50%',
                 backgroundColor: '#10b981',
                 border: `2px solid ${theme.surface}`,
@@ -676,24 +687,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             {/* Identity Stack */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: isScrolled ? '0.05rem' : '0.15rem', minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
                 <h2 style={{
-                  fontSize: isScrolled ? '0.86rem' : '0.94rem',
+                  fontSize: isScrolled ? '0.84rem' : '0.9rem',
                   fontWeight: 800,
                   margin: 0,
                   color: theme.textPrimary,
                   letterSpacing: '-0.01em',
                   whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                  flexShrink: 0
                 }}>
                   Catavor Executive
                 </h2>
                 <span style={{
-                  padding: '0.06rem 0.38rem',
+                  padding: '0.05rem 0.35rem',
                   borderRadius: '999px',
-                  fontSize: '0.58rem',
+                  fontSize: '0.55rem',
                   fontWeight: 800,
                   backgroundColor: roleBadge.bg,
                   color: roleBadge.color,
@@ -706,7 +716,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
               {!isScrolled && (
                 <span style={{
-                  fontSize: '0.68rem',
+                  fontSize: '0.66rem',
                   color: theme.textSecondary,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -726,8 +736,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               onClick={() => setShowOptionsMenu(true)}
               title="Menu Opsi Eksekutif"
               style={{
-                width: '36px',
-                height: '36px',
+                width: '34px',
+                height: '34px',
                 borderRadius: '0.75rem',
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
                 border: `1px solid ${theme.border}`,
@@ -739,7 +749,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 transition: 'all 0.15s ease'
               }}
             >
-              <MoreVertical size={18} />
+              <MoreVertical size={17} />
             </button>
           </div>
         </div>
@@ -749,7 +759,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 2. DEDICATED EXCLUSIVE SUBPAGE HEADER (When in a specific sub-module)       */}
       {/* ========================================================================= */}
       {activeView !== 'dashboard' && (() => {
-        const currentItem = appGridItems.find(i => i.id === activeView);
+        const currentItem = allModules[activeView];
+        const isFooterTab = ['reports', 'support', 'finance'].includes(activeView);
         const subStatusText = 
           activeView === 'monetization' ? 'Google AdSense & GA4' :
           activeView === 'rbac' ? 'Matriks & Izin Staf' :
@@ -766,8 +777,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             position: 'sticky',
             top: 0,
             zIndex: 999,
-            width: isScrolled ? 'calc(100% + 2rem)' : '100%',
-            margin: isScrolled ? '-0.5rem -1rem 0 -1rem' : '0',
+            boxSizing: 'border-box',
+            width: isScrolled ? 'calc(100% + 1.7rem)' : '100%',
+            margin: isScrolled ? '-0.5rem -0.85rem 0 -0.85rem' : '0',
             borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.2rem',
             backgroundColor: isDark 
               ? (isScrolled ? 'rgba(15, 23, 42, 0.94)' : '#0f172a') 
@@ -776,7 +788,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             borderLeft: isScrolled ? 'none' : `1px solid ${theme.border}`,
             borderRight: isScrolled ? 'none' : `1px solid ${theme.border}`,
             borderBottom: `1px solid ${isScrolled ? (isDark ? 'rgba(56, 189, 248, 0.35)' : '#cbd5e1') : theme.border}`,
-            padding: isScrolled ? '0.62rem 0.95rem' : '0.65rem 0.85rem',
+            padding: isScrolled ? '0.62rem 0.85rem' : '0.65rem 0.75rem',
             boxShadow: isScrolled 
               ? (isDark ? '0 14px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' : '0 10px 25px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0,0,0,0.04)')
               : theme.shadow,
@@ -785,35 +797,63 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.65rem',
+            gap: '0.5rem',
             transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
-            {/* Left: Pure Icon Back Button (No text, clean like admin catalog) */}
-            <button
-              onClick={() => setActiveView('dashboard')}
-              title="Kembali ke Dashboard"
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '0.75rem',
-                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
-                border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)'}`,
-                color: isDark ? '#38bdf8' : '#0284c7',
-                cursor: 'pointer',
+            {/* Left Side: Brand Logo for Footer Tabs OR Pure Icon Back Button for Secondary Modules */}
+            {isFooterTab ? (
+              <div style={{
+                width: isScrolled ? '34px' : '38px',
+                height: isScrolled ? '34px' : '38px',
+                borderRadius: isScrolled ? '0.75rem' : '0.85rem',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
+                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '3px',
                 flexShrink: 0,
-                transition: 'transform 0.15s ease'
-              }}
-            >
-              <ChevronLeft size={20} />
-            </button>
+                boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.05)'
+              }}>
+                <img
+                  src={appLogoImg || APP_LOGO_BASE64}
+                  alt="Catavor Logo"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    borderRadius: '0.6rem'
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setActiveView('dashboard')}
+                title="Kembali ke Dashboard"
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                  border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)'}`,
+                  color: isDark ? '#38bdf8' : '#0284c7',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'transform 0.15s ease'
+                }}
+              >
+                <ChevronLeft size={19} />
+              </button>
+            )}
 
             {/* Center: Module Title & Status (Clean, No Entity Icon) */}
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, paddingLeft: '0.15rem' }}>
               <h3 style={{
-                fontSize: '0.94rem',
+                fontSize: '0.92rem',
                 fontWeight: 800,
                 margin: 0,
                 color: theme.textPrimary,
@@ -825,7 +865,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {currentItem?.title || 'Panel Modul'}
               </h3>
               <span style={{
-                fontSize: '0.68rem',
+                fontSize: '0.67rem',
                 color: theme.textSecondary,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -843,17 +883,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <button
                   onClick={() => setShowBroadcastSheet(true)}
                   style={{
-                    padding: '0.4rem 0.65rem',
+                    padding: '0.35rem 0.6rem',
                     borderRadius: '0.65rem',
                     backgroundColor: '#f59e0b',
                     color: '#000000',
                     border: 'none',
-                    fontSize: '0.72rem',
+                    fontSize: '0.7rem',
                     fontWeight: 800,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.25rem',
+                    gap: '0.2rem',
                     flexShrink: 0
                   }}
                 >
@@ -868,8 +908,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 onClick={() => setShowOptionsMenu(true)}
                 title="Menu Opsi Eksekutif"
                 style={{
-                  width: '36px',
-                  height: '36px',
+                  width: '34px',
+                  height: '34px',
                   borderRadius: '0.75rem',
                   backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
                   border: `1px solid ${theme.border}`,
@@ -881,7 +921,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   transition: 'all 0.15s ease'
                 }}
               >
-                <MoreVertical size={18} />
+                <MoreVertical size={17} />
               </button>
             </div>
           </div>
@@ -1100,32 +1140,109 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Quick Metrics Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.55rem' }}>
-            <div style={{ backgroundColor: theme.surface, padding: '0.75rem 0.35rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Toko</span>
-              <strong style={{ fontSize: '1.15rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Toko</span>
+              <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.75rem 0.35rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
-              <strong style={{ fontSize: '1.15rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{orders.length}</strong>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
+              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{orders.length}</strong>
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.75rem 0.35rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
-              <strong style={{ fontSize: '1.15rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
+              <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.75rem 0.35rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.65rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
-              <strong style={{ fontSize: '1.15rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
+              <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
             </div>
           </div>
 
-          {/* Section Heading */}
+          {/* Interactive Action Alerts */}
+          {(pendingReportsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0) && (
+            <div style={{
+              padding: '0.95rem 1.1rem',
+              borderRadius: '1.15rem',
+              backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : 'rgba(244, 63, 94, 0.08)',
+              border: isDark ? '1px solid rgba(244, 63, 94, 0.28)' : '1px solid rgba(244, 63, 94, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <AlertTriangle size={16} color="#f43f5e" />
+                <strong style={{ fontSize: '0.82rem', color: isDark ? '#fb7185' : '#e11d48' }}>Perlu Tindakan Administrator:</strong>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {pendingReportsCount > 0 && (
+                  <button
+                    onClick={() => setActiveView('reports')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'none',
+                      border: 'none',
+                      padding: '0.2rem 0',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: theme.textPrimary
+                    }}
+                  >
+                    <span style={{ fontSize: '0.75rem', color: theme.textSecondary }}>&bull; {pendingReportsCount} laporan pelanggaran baru menunggu review</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f43f5e', textDecoration: 'underline' }}>Periksa</span>
+                  </button>
+                )}
+                {openTicketsCount > 0 && (
+                  <button
+                    onClick={() => setActiveView('support')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'none',
+                      border: 'none',
+                      padding: '0.2rem 0',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: theme.textPrimary
+                    }}
+                  >
+                    <span style={{ fontSize: '0.75rem', color: theme.textSecondary }}>&bull; {openTicketsCount} tiket helpdesk merchant belum dibalas</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#06b6d4', textDecoration: 'underline' }}>Buka</span>
+                  </button>
+                )}
+                {pendingOrdersCount > 0 && (
+                  <button
+                    onClick={() => setActiveView('finance')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'none',
+                      border: 'none',
+                      padding: '0.2rem 0',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: theme.textPrimary
+                    }}
+                  >
+                    <span style={{ fontSize: '0.75rem', color: theme.textSecondary }}>&bull; {pendingOrdersCount} pesanan paket Pro menunggu verifikasi bukti</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10b981', textDecoration: 'underline' }}>Verifikasi</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Section Heading: Platform & System Management */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.15rem' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
-                Menu Administrasi
+                Kelola Platform & Sistem
               </h3>
-              <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Pusat kendali dan tata kelola platform</span>
+              <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Konfigurasi lanjutan dan tata kelola platform</span>
             </div>
             <span style={{
               fontSize: '0.68rem',
@@ -1136,22 +1253,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               padding: '0.2rem 0.55rem',
               borderRadius: '999px'
             }}>
-              {appGridItems.length} Modul
+              {dashboardGridItems.length} Modul
             </span>
           </div>
 
-          {/* Executive 2-Column App Card Grid (2x4 / 8 Cards) */}
+          {/* 2-Column Specialized Management Grid */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '0.85rem'
+            gap: '0.75rem'
           }}>
-            {appGridItems.map((item) => (
+            {dashboardGridItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
                 style={{
-                  padding: '1.05rem 0.95rem',
+                  padding: '0.95rem 0.85rem',
                   borderRadius: '1.15rem',
                   backgroundColor: theme.surface,
                   border: `1px solid ${theme.border}`,
@@ -1159,20 +1276,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  gap: '0.85rem',
+                  gap: '0.75rem',
                   textAlign: 'left',
                   cursor: 'pointer',
                   position: 'relative',
-                  minHeight: '112px',
+                  minHeight: '105px',
                   transition: 'transform 0.15s ease, box-shadow 0.15s ease'
                 }}
               >
                 {/* Top of Card: Icon & Badge/Chevron */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
                   <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '0.85rem',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '0.8rem',
                     backgroundColor: item.bg,
                     color: item.color,
                     display: 'flex',
@@ -1205,16 +1322,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {/* Bottom of Card: Title & Subtitle */}
                 <div>
                   <div style={{
-                    fontSize: '0.85rem',
+                    fontSize: '0.84rem',
                     fontWeight: 800,
                     color: theme.textPrimary,
-                    marginBottom: '0.18rem',
+                    marginBottom: '0.15rem',
                     lineHeight: 1.25
                   }}>
                     {item.title}
                   </div>
                   <div style={{
-                    fontSize: '0.7rem',
+                    fontSize: '0.68rem',
                     fontWeight: 500,
                     color: theme.textSecondary,
                     lineHeight: 1.2,
@@ -1228,29 +1345,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </button>
             ))}
           </div>
-
-          {/* Quick Action Alerts */}
-          {(pendingReportsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0) && (
-            <div style={{
-              padding: '0.95rem 1.1rem',
-              borderRadius: '1rem',
-              backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : 'rgba(244, 63, 94, 0.08)',
-              border: isDark ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid rgba(244, 63, 94, 0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.5rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <AlertTriangle size={16} color="#f43f5e" />
-                <strong style={{ fontSize: '0.8rem', color: isDark ? '#fb7185' : '#e11d48' }}>Perlu Tindakan Administrator:</strong>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: theme.textSecondary, lineHeight: 1.5 }}>
-                {pendingReportsCount > 0 && <div>&bull; {pendingReportsCount} laporan pelanggaran baru menunggu review.</div>}
-                {openTicketsCount > 0 && <div>&bull; {openTicketsCount} tiket helpdesk merchant belum dibalas.</div>}
-                {pendingOrdersCount > 0 && <div>&bull; {pendingOrdersCount} pesanan paket Pro menunggu verifikasi bukti bayar.</div>}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -2697,281 +2791,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. EXECUTIVE QUICK ACTIONS DRAWER (Swipeable Bottom Sheet)                 */}
-      {/* ========================================================================= */}
-      {showQuickActionsSheet && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999999,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            animation: 'fadeIn 0.2s ease-out'
-          }}
-          onClick={() => setShowQuickActionsSheet(false)}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '480px',
-              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              borderTopLeftRadius: '1.6rem',
-              borderTopRightRadius: '1.6rem',
-              borderTop: `1px solid ${theme.borderStrong}`,
-              padding: '0.65rem 1.25rem 2.25rem 1.25rem',
-              boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem',
-              animation: 'slideUp 0.25s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Drag Handle */}
-            <div style={{ width: '100%', padding: '0.35rem 0 0.65rem 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '44px', height: '5px', borderRadius: '999px', backgroundColor: isDark ? 'rgba(255, 255, 255, 0.28)' : '#cbd5e1' }} />
-            </div>
-
-            {/* Quick Actions List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <button
-                onClick={() => {
-                  setShowQuickActionsSheet(false);
-                  setShowBroadcastSheet(true);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Megaphone size={19} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Kirim Siaran Notifikasi</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Broadcast pengumuman instan ke seluruh toko</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f59e0b' }}>Kirim</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  loadData();
-                  setShowQuickActionsSheet(false);
-                  showToast('Seluruh data metrik disinkronkan', 'success');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '0.75rem', backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <RefreshCw size={19} className={loading ? 'animate-spin' : ''} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Sinkronisasi Data Platform</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Perbarui cache metrik, transaksi & kepatuhan</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981' }}>Sync</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  toggleTheme();
-                  setShowQuickActionsSheet(false);
-                  showToast(`Tema dialihkan ke mode ${isDark ? 'terang' : 'gelap'}`, 'info');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(250, 204, 21, 0.15)' : 'rgba(250, 204, 21, 0.1)', color: isDark ? '#facc15' : '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {isDark ? <Sun size={20} /> : <Moon size={20} />}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>{isDark ? 'Mode Terang' : 'Mode Gelap'}</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Ganti tampilan tema visual panel admin</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8' }}>Ganti</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 5. EXECUTIVE ALERT CENTER DRAWER (Swipeable Bottom Sheet)                 */}
-      {/* ========================================================================= */}
-      {showAlertCenterSheet && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999999,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            animation: 'fadeIn 0.2s ease-out'
-          }}
-          onClick={() => setShowAlertCenterSheet(false)}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '480px',
-              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              borderTopLeftRadius: '1.6rem',
-              borderTopRightRadius: '1.6rem',
-              borderTop: `1px solid ${theme.borderStrong}`,
-              padding: '0.65rem 1.25rem 2.25rem 1.25rem',
-              boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem',
-              animation: 'slideUp 0.25s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Drag Handle */}
-            <div style={{ width: '100%', padding: '0.35rem 0 0.65rem 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '44px', height: '5px', borderRadius: '999px', backgroundColor: isDark ? 'rgba(255, 255, 255, 0.28)' : '#cbd5e1' }} />
-            </div>
-
-            {/* Alert List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <button
-                onClick={() => {
-                  setShowAlertCenterSheet(false);
-                  setActiveView('reports');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <ShieldAlert size={19} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Laporan Kepatuhan Satwa</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>{pendingReportsCount} laporan membutuhkan investigasi</div>
-                  </div>
-                </div>
-                <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: pendingReportsCount > 0 ? '#ef4444' : 'rgba(100, 116, 139, 0.2)', color: '#ffffff', fontSize: '0.68rem', fontWeight: 800 }}>
-                  {pendingReportsCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowAlertCenterSheet(false);
-                  setActiveView('support');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '0.75rem', backgroundColor: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MessageSquare size={19} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Helpdesk & Tiket Pengguna</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>{openTicketsCount} tiket terbuka menunggu respon</div>
-                  </div>
-                </div>
-                <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: openTicketsCount > 0 ? '#06b6d4' : 'rgba(100, 116, 139, 0.2)', color: '#ffffff', fontSize: '0.68rem', fontWeight: 800 }}>
-                  {openTicketsCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowAlertCenterSheet(false);
-                  setActiveView('finance');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '38px', height: '38px', borderRadius: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <CreditCard size={19} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Verifikasi Pembayaran Order</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>{pendingOrdersCount} order langganan menunggu verifikasi</div>
-                  </div>
-                </div>
-                <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', backgroundColor: pendingOrdersCount > 0 ? '#10b981' : 'rgba(100, 116, 139, 0.2)', color: '#ffffff', fontSize: '0.68rem', fontWeight: 800 }}>
-                  {pendingOrdersCount}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 6. PERSISTENT INTERACTIVE EXECUTIVE FOOTER NAVIGATION                     */}
+      {/* 4. PERSISTENT EXECUTIVE FOOTER NAVIGATION (5 Operational Admin Tabs)      */}
       {/* ========================================================================= */}
       <nav style={{
         position: 'fixed',
@@ -2979,197 +2799,99 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         left: 0,
         right: 0,
         zIndex: 9998,
-        height: '62px',
-        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.94)',
-        borderTop: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(0, 0, 0, 0.08)'}`,
+        height: '60px',
+        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        borderTop: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0, 0, 0, 0.08)'}`,
         boxShadow: isDark ? '0 -4px 25px rgba(0, 0, 0, 0.65)' : '0 -4px 20px rgba(0, 0, 0, 0.06)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-around',
-        padding: '0 0.5rem',
+        padding: '0 0.35rem',
         maxWidth: '100vw',
         boxSizing: 'border-box'
       }}>
-        {/* Item 1: Hub Dashboard */}
-        <button
-          onClick={() => setActiveView('dashboard')}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.2rem',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '0.35rem 0',
-            color: activeView === 'dashboard' ? '#38bdf8' : theme.textMuted,
-            transition: 'all 0.2s ease',
-            position: 'relative'
-          }}
-        >
-          <div style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: activeView === 'dashboard' ? 'scale(1.1)' : 'scale(1)',
-            transition: 'transform 0.2s ease'
-          }}>
-            <LayoutDashboard size={19} />
-          </div>
-          <span style={{
-            fontSize: '0.65rem',
-            fontWeight: activeView === 'dashboard' ? 800 : 600,
-            letterSpacing: '-0.01em'
-          }}>
-            Dashboard
-          </span>
-          {activeView === 'dashboard' && (
-            <span style={{
-              position: 'absolute',
-              top: '0.15rem',
-              width: '16px',
-              height: '2px',
-              borderRadius: '999px',
-              backgroundColor: '#38bdf8',
-              boxShadow: '0 0 8px #38bdf8'
-            }} />
-          )}
-        </button>
+        {footerNavTabs.map((tab) => {
+          const isActive = activeView === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveView(tab.id)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.2rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0.35rem 0',
+                color: isActive ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
+                transition: 'all 0.2s ease',
+                position: 'relative'
+              }}
+            >
+              {/* Active Pill Indicator at Top of Tab */}
+              {isActive && (
+                <span style={{
+                  position: 'absolute',
+                  top: '0.1rem',
+                  width: '20px',
+                  height: '2.5px',
+                  borderRadius: '999px',
+                  backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                  boxShadow: isDark ? '0 0 8px #38bdf8' : '0 0 6px #0284c7'
+                }} />
+              )}
 
-        {/* Item 2: Aksi Cepat (Quick Action Drawer) */}
-        <button
-          onClick={() => setShowQuickActionsSheet(true)}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.2rem',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '0.35rem 0',
-            color: showQuickActionsSheet ? '#f59e0b' : theme.textMuted,
-            transition: 'all 0.2s ease',
-            position: 'relative'
-          }}
-        >
-          <div style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Zap size={19} />
-          </div>
-          <span style={{
-            fontSize: '0.65rem',
-            fontWeight: showQuickActionsSheet ? 800 : 600,
-            letterSpacing: '-0.01em'
-          }}>
-            Aksi Cepat
-          </span>
-        </button>
-
-        {/* Item 3: Alert Center (Pusat Peringatan & Kepatuhan) */}
-        <button
-          onClick={() => setShowAlertCenterSheet(true)}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.2rem',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '0.35rem 0',
-            color: showAlertCenterSheet ? '#ef4444' : theme.textMuted,
-            transition: 'all 0.2s ease',
-            position: 'relative'
-          }}
-        >
-          <div style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Bell size={19} />
-            {totalAlertsCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: '-3px',
-                right: '-6px',
-                minWidth: '15px',
-                height: '15px',
-                borderRadius: '999px',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                fontSize: '0.55rem',
-                fontWeight: 900,
+              {/* Tab Icon with Badge */}
+              <div style={{
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0 2px',
-                border: `1.5px solid ${isDark ? '#0f172a' : '#ffffff'}`,
-                boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)'
+                transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                transition: 'transform 0.2s ease'
               }}>
-                {totalAlertsCount}
-              </span>
-            )}
-          </div>
-          <span style={{
-            fontSize: '0.65rem',
-            fontWeight: showAlertCenterSheet ? 800 : 600,
-            letterSpacing: '-0.01em'
-          }}>
-            Peringatan
-          </span>
-        </button>
+                {tab.icon}
+                {tab.badge > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-7px',
+                    minWidth: '15px',
+                    height: '15px',
+                    borderRadius: '999px',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.55rem',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 2px',
+                    border: `1.5px solid ${isDark ? '#0f172a' : '#ffffff'}`,
+                    boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)'
+                  }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </div>
 
-        {/* Item 4: Opsi Sistem (Executive Options Sheet) */}
-        <button
-          onClick={() => setShowOptionsMenu(true)}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.2rem',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '0.35rem 0',
-            color: showOptionsMenu ? '#10b981' : theme.textMuted,
-            transition: 'all 0.2s ease',
-            position: 'relative'
-          }}
-        >
-          <div style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Settings size={19} />
-          </div>
-          <span style={{
-            fontSize: '0.65rem',
-            fontWeight: showOptionsMenu ? 800 : 600,
-            letterSpacing: '-0.01em'
-          }}>
-            Opsi Sistem
-          </span>
-        </button>
+              {/* Tab Label */}
+              <span style={{
+                fontSize: '0.65rem',
+                fontWeight: isActive ? 800 : 600,
+                letterSpacing: '-0.01em'
+              }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );
