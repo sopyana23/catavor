@@ -1673,25 +1673,11 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                 {isAgent ? (
                                   <ShieldCheck size={14} color="#0ea5e9" />
                                 ) : (
-                                  <Store size={14} color={isInitialInquiry ? '#38bdf8' : 'var(--text-secondary)'} />
+                                  <Store size={14} color="var(--primary)" />
                                 )}
-                                <strong style={{ color: isAgent ? '#0ea5e9' : isInitialInquiry ? '#38bdf8' : 'var(--text-primary)', fontWeight: 800 }}>
+                                <strong style={{ color: isAgent ? '#0ea5e9' : 'var(--text-primary)', fontWeight: 800 }}>
                                   {isAgent ? (m.sender?.name || 'Staf CS Catavor') : merchantName}
                                 </strong>
-                                {isInitialInquiry && (
-                                  <span style={{
-                                    fontSize: '0.62rem',
-                                    fontWeight: 800,
-                                    padding: '0.12rem 0.45rem',
-                                    borderRadius: '4px',
-                                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                                    color: '#38bdf8',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.02em'
-                                  }}>
-                                    Pertanyaan Awal
-                                  </span>
-                                )}
                               </div>
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0 }}>
                                 {formatSupportDateTime(m.created_at)}

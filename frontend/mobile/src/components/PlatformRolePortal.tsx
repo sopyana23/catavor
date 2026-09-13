@@ -2130,25 +2130,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             {isAgent ? (
                               <ShieldCheck size={13} color="#06b6d4" />
                             ) : (
-                              <Store size={13} color={isInitialInquiry ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary} />
+                              <Store size={13} color={isDark ? '#38bdf8' : '#0284c7'} />
                             )}
                             <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
                               {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : merchantName}
                             </strong>
-                            {isInitialInquiry && (
-                              <span style={{
-                                fontSize: '0.58rem',
-                                fontWeight: 800,
-                                padding: '0.1rem 0.35rem',
-                                borderRadius: '4px',
-                                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)',
-                                color: isDark ? '#38bdf8' : '#0284c7',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.02em'
-                              }}>
-                                Pertanyaan Awal
-                              </span>
-                            )}
                           </div>
                           <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
                             {formatSupportDateTime(msg.created_at)}
