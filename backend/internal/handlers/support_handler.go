@@ -231,6 +231,10 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 
 	// Preload full ticket thread
 	database.DB.Preload("User").
+		Preload("Store").
+		Preload("Messages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC, id ASC")
+		}).
 		Preload("Messages.Attachments").
 		First(&ticket, ticket.ID)
 
