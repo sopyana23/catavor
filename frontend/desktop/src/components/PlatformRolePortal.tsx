@@ -34,7 +34,15 @@ import {
   Calendar,
   Lock,
   Tag,
-  LogOut
+  LogOut,
+  Paperclip,
+  ZoomIn,
+  ZoomOut,
+  Download,
+  X,
+  ChevronLeft,
+  Store,
+  SlidersHorizontal
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -92,6 +100,50 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketsFilter, setTicketsFilter] = useState<string>('all');
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
+  const [isInternalNote, setIsInternalNote] = useState(false);
+  const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
+  const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
+  // Support Attachment Gallery Lightbox State (Identik dengan Admin Katalog)
+  const [attachmentLightbox, setAttachmentLightbox] = useState<{
+    isOpen: boolean;
+    images: { file_url: string; file_name?: string }[];
+    currentIndex: number;
+  } | null>(null);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const [panPosition, setPanPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const openAttachmentLightbox = (images?: { file_url: string; file_name?: string }[], index: number = 0) => {
+    if (!images || images.length === 0) return;
+    setAttachmentLightbox({
+      isOpen: true,
+      images,
+      currentIndex: Math.max(0, Math.min(index, images.length - 1))
+    });
+    setZoomScale(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const closeAttachmentLightbox = () => {
+    setAttachmentLightbox(null);
+    setZoomScale(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const handleDownloadAttachmentImage = (url: string, fileName?: string) => {
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'lampiran_catavor.jpg';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Failed to download image', err);
+    }
+  };
+
   const [replyMessage, setReplyMessage] = useState('');
   const [ticketActionLoading, setTicketActionLoading] = useState(false);
 
@@ -170,22 +222,103 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     fetchDivisionData();
   }, [activeDivision, token]);
 
-  // Support Reply Action
-  const handleReplyTicket = async () => {
-    if (!selectedTicket || !replyMessage.trim()) return;
+  // Open ticket and fetch full conversation stream
+  const handleOpenTicketChat = async (ticket: any) => {
+    setSelectedTicket(ticket);
+    setTicketDetailsLoading(true);
+    setReplyMessage('');
+    setTicketReplyAttachments([]);
+    setIsInternalNote(false);
+    try {
+      const res = await fetch(`/api/admin/support/tickets/${ticket.id}`, {
+        credentials: 'omit',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.data) {
+          setSelectedTicket(d.data);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTicketDetailsLoading(false);
+    }
+  };
+
+  // Upload Attachment for Support Chat
+  const handleUploadTicketAttachment = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploadingTicketAttachment(true);
+    try {
+      const uploaded: any[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.size > 10 * 1024 * 1024) {
+          showToast(`File ${file.name} melebihi batas 10MB.`, 'error');
+          continue;
+        }
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch('/api/storage/upload?category=support', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          uploaded.push({
+            file_url: data.url,
+            storage_key: data.storage_key || '',
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type || 'image/jpeg'
+          });
+        } else {
+          showToast(data.message || `Gagal mengunggah ${file.name}`, 'error');
+        }
+      }
+      if (uploaded.length > 0) {
+        setTicketReplyAttachments(prev => [...prev, ...uploaded]);
+        showToast(`${uploaded.length} gambar/screenshot terlampir!`, 'success');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal mengunggah lampiran', 'error');
+    } finally {
+      setIsUploadingTicketAttachment(false);
+    }
+  };
+
+  // Support Reply Action (Supports Public Reply or Internal Note)
+  const handleReplyTicket = async (shouldResolve = false) => {
+    if (!selectedTicket || (!replyMessage.trim() && ticketReplyAttachments.length === 0)) return;
     setTicketActionLoading(true);
     try {
       const res = await fetch(`/api/admin/support/tickets/${selectedTicket.id}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: replyMessage })
+        body: JSON.stringify({
+          message: replyMessage.trim(),
+          is_internal_note: isInternalNote,
+          attachments: ticketReplyAttachments
+        })
       });
-      if (res.ok) {
-        showToast('Balasan staf berhasil terkirim!', 'success');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(isInternalNote ? 'Catatan internal CS disimpan!' : 'Balasan staf berhasil terkirim!', 'success');
         setReplyMessage('');
+        setTicketReplyAttachments([]);
+        setIsInternalNote(false);
+        if (shouldResolve) {
+          await handleUpdateTicketStatus(selectedTicket.id, 'resolved');
+        } else {
+          handleOpenTicketChat(selectedTicket);
+        }
         fetchDivisionData();
       } else {
-        showToast('Gagal mengirim balasan tiket', 'error');
+        showToast(data.message || 'Gagal mengirim balasan tiket', 'error');
       }
     } catch (e) {
       showToast('Terjadi kesalahan jaringan', 'error');
@@ -1090,7 +1223,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                         </td>
                         <td style={{ padding: '0.85rem 1.25rem', textAlign: 'right' }}>
                           <button
-                            onClick={() => setSelectedTicket(t)}
+                            onClick={() => handleOpenTicketChat(t)}
                             style={{
                               padding: '0.4rem 0.8rem',
                               borderRadius: '0.5rem',
@@ -1106,7 +1239,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                             }}
                           >
                             <MessageSquare size={14} />
-                            <span>Balas &amp; Detail</span>
+                            <span>Buka Chat</span>
                           </button>
                         </td>
                       </tr>
@@ -1126,7 +1259,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* Ticket Reply Modal */}
+      {/* Ticket Conversation Chat & Workflow Modal */}
       {selectedTicket && (
         <div style={{
           position: 'fixed',
@@ -1134,8 +1267,8 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(6px)',
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(8px)',
           zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
@@ -1147,119 +1280,781 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
             border: '1px solid var(--border-light)',
             borderRadius: '1.25rem',
             width: '100%',
-            maxWidth: '650px',
-            padding: '1.75rem',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            maxWidth: '960px',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
             maxHeight: '90vh',
-            overflowY: 'auto'
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.75rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <HelpCircle size={20} color="#0ea5e9" /> Tiket #{selectedTicket.id}: {selectedTicket.subject || 'Support'}
-                </h3>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Dari: {selectedTicket.user_email || selectedTicket.email || 'Pengguna'} &bull; Toko: {selectedTicket.store_slug || '-'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0ea5e9', backgroundColor: 'rgba(14, 165, 233, 0.12)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                    {selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+                    {selectedTicket.subject || 'Support Ticket'}
+                  </h3>
+                </div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'block' }}>
+                  Dari: <strong style={{ color: 'var(--text-primary)' }}>{selectedTicket.user_email || (selectedTicket.user?.email) || 'Pengguna'}</strong> &bull; Toko: {selectedTicket.store_slug || (selectedTicket.store?.name) || '-'} &bull; Dibuat: {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleDateString('id-ID') : '-'}
                 </span>
               </div>
               <button onClick={() => setSelectedTicket(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                <XCircle size={20} />
+                <XCircle size={22} />
               </button>
             </div>
 
-            {/* Ticket Messages History */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 700 }}>PESAN AWAL PENGGUNA:</p>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
-                  {selectedTicket.description || selectedTicket.message || 'Tidak ada pesan tertulis.'}
-                </p>
+            {/* Split Content: Sidebar & Conversation Stream */}
+            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              {/* Left Sidebar: Status & Info */}
+              <div style={{
+                width: '280px',
+                borderRight: '1px solid var(--border-light)',
+                padding: '1.25rem',
+                backgroundColor: 'var(--bg-deep)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.1rem',
+                overflowY: 'auto'
+              }}>
+                <div>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                    Status Pengerjaan Tiket:
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {[
+                      { id: 'open', label: 'Open (Baru)', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.15)' },
+                      { id: 'in_progress', label: 'Sedang Diproses', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
+                      { id: 'waiting_user', label: 'Menunggu Merchant', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.15)' },
+                      { id: 'resolved', label: 'Terselesaikan', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
+                      { id: 'closed', label: 'Ditutup', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' }
+                    ].map(st => {
+                      const isActive = selectedTicket.status === st.id;
+                      return (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => handleUpdateTicketStatus(selectedTicket.id, st.id)}
+                          style={{
+                            padding: '0.45rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            border: `1px solid ${isActive ? st.color : 'transparent'}`,
+                            backgroundColor: isActive ? st.bg : 'transparent',
+                            color: isActive ? st.color : 'var(--text-secondary)',
+                            fontWeight: isActive ? 800 : 600,
+                            fontSize: '0.78rem',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                          }}
+                        >
+                          <span>{st.label}</span>
+                          {isActive && <Check size={14} color={st.color} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem' }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                    Informasi Tiket:
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.78rem' }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Kategori: </span>
+                      <strong style={{ color: 'var(--text-primary)' }}>
+                        {selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
+                         selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
+                         selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Produk' :
+                         selectedTicket.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Urgensi: </span>
+                      <span style={{
+                        padding: '0.1rem 0.4rem',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        backgroundColor: selectedTicket.priority === 'urgent' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                        color: selectedTicket.priority === 'urgent' ? '#ef4444' : '#0ea5e9'
+                      }}>
+                        {String(selectedTicket.priority || 'medium').toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {selectedTicket.messages && selectedTicket.messages.map((m: any, idx: number) => (
-                <div key={idx} style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: m.is_admin ? 'rgba(14, 165, 233, 0.1)' : 'var(--bg-deep)',
-                  border: `1px solid ${m.is_admin ? 'rgba(14, 165, 233, 0.25)' : 'var(--border-light)'}`,
-                  alignSelf: m.is_admin ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.25rem', fontSize: '0.75rem' }}>
-                    <strong style={{ color: m.is_admin ? '#0ea5e9' : 'var(--text-primary)' }}>
-                      {m.is_admin ? 'Staf CS Catavor' : (m.sender_name || 'Pengguna')}
-                    </strong>
-                    <span style={{ color: 'var(--text-secondary)' }}>{m.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{m.message}</p>
-                </div>
-              ))}
-            </div>
+              {/* Right Area: Conversation Stream & Reply Box */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, backgroundColor: 'var(--bg-card)' }}>
+                {/* Messages Feed */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {/* Initial Message */}
+                  <div style={{
+                    padding: '1rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <strong style={{ fontSize: '0.78rem', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Store size={14} /> Pertanyaan Awal Merchant:
+                      </strong>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleTimeString() : ''}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {selectedTicket.description || selectedTicket.message || 'Tidak ada pesan tertulis.'}
+                    </p>
 
-            {/* Quick Reply Form */}
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
-                Tulis Balasan Staf CS:
-              </label>
-              <textarea
-                value={replyMessage}
-                onChange={e => setReplyMessage(e.target.value)}
-                placeholder="Tuliskan solusi atau respons resmi kepada pemilik toko/pengguna..."
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.875rem',
-                  outline: 'none',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                  marginBottom: '0.75rem'
-                }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '0.35rem' }}>
-                  <button
-                    onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'in_progress')}
-                    style={{ padding: '0.4rem 0.75rem', borderRadius: '0.4rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Set In Progress
-                  </button>
-                  <button
-                    onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'resolved')}
-                    style={{ padding: '0.4rem 0.75rem', borderRadius: '0.4rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Set Selesai
-                  </button>
+                    {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                      <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Paperclip size={12} /> {selectedTicket.attachments.length} Lampiran Foto:
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          {selectedTicket.attachments.map((att: any, idx: number) => (
+                            <div
+                              key={idx}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openAttachmentLightbox(selectedTicket.attachments, idx)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  openAttachmentLightbox(selectedTicket.attachments, idx);
+                                }
+                              }}
+                              style={{ width: '80px', height: '80px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative' }}
+                            >
+                              <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '0.55rem', padding: '2px', textAlign: 'center' }}>
+                                Perbesar
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {ticketDetailsLoading ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#0ea5e9' }} />
+                      Memuat percakapan...
+                    </div>
+                  ) : selectedTicket.messages && selectedTicket.messages.map((m: any, idx: number) => {
+                    const isAgent = m.sender_type === 'agent' || m.is_admin;
+                    const isInternal = m.is_internal_note;
+
+                    if (isInternal) {
+                      return (
+                        <div key={idx} style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px dashed rgba(245, 158, 11, 0.45)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <Lock size={13} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {m.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Oleh: {m.sender?.name || m.sender?.email || 'Staf Admin'}
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                            {m.message}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: isAgent ? 'flex-end' : 'flex-start',
+                          gap: '0.25rem'
+                        }}
+                      >
+                        <div style={{
+                          maxWidth: '85%',
+                          padding: '0.85rem 1.15rem',
+                          borderRadius: isAgent ? '1rem 1rem 0.25rem 1rem' : '1rem 1rem 1rem 0.25rem',
+                          backgroundColor: isAgent ? 'rgba(14, 165, 233, 0.12)' : 'var(--bg-deep)',
+                          border: `1px solid ${isAgent ? 'rgba(14, 165, 233, 0.3)' : 'var(--border-light)'}`
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.35rem', fontSize: '0.75rem' }}>
+                            <strong style={{ color: isAgent ? '#0ea5e9' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              {isAgent ? (
+                                <>
+                                  <ShieldCheck size={14} color="#0ea5e9" />
+                                  {m.sender?.name || 'Staf CS Catavor'}
+                                </>
+                              ) : (
+                                <>
+                                  <Store size={14} />
+                                  {selectedTicket.store_slug || selectedTicket.user_email || 'Merchant'}
+                                </>
+                              )}
+                            </strong>
+                            <span style={{ color: 'var(--text-muted)' }}>{m.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}</span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {m.message}
+                          </p>
+
+                          {m.attachments && m.attachments.length > 0 && (
+                            <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {m.attachments.map((att: any, aIdx: number) => (
+                                  <div
+                                    key={aIdx}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openAttachmentLightbox(m.attachments, aIdx)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        openAttachmentLightbox(m.attachments, aIdx);
+                                      }
+                                    }}
+                                    style={{ width: '80px', height: '80px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative' }}
+                                  >
+                                    <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '0.55rem', padding: '2px', textAlign: 'center' }}>
+                                      Perbesar
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <button
-                  onClick={handleReplyTicket}
-                  disabled={ticketActionLoading || !replyMessage.trim()}
-                  style={{
-                    padding: '0.55rem 1.25rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: '#0ea5e9',
-                    border: 'none',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem'
-                  }}
-                >
-                  <Send size={15} />
-                  <span>{ticketActionLoading ? 'Mengirim...' : 'Kirim Balasan'}</span>
-                </button>
+
+                {/* Reply Composer Bar */}
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  borderTop: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem'
+                }}>
+                  {/* Attachment Previews */}
+                  {ticketReplyAttachments.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {ticketReplyAttachments.map((att, idx) => (
+                        <div key={idx} style={{ position: 'relative', width: '50px', height: '50px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid #0ea5e9' }}>
+                          <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button
+                            type="button"
+                            onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
+                            style={{ position: 'absolute', top: 1, right: 1, width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#ef4444', color: '#fff', border: 'none', fontSize: '0.6rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Mode Toggle & Composer */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsInternalNote(false)}
+                        style={{
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '0.4rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          backgroundColor: !isInternalNote ? '#0ea5e9' : 'rgba(255,255,255,0.05)',
+                          color: !isInternalNote ? '#fff' : 'var(--text-secondary)',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        💬 Balasan Publik
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsInternalNote(true)}
+                        style={{
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '0.4rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          backgroundColor: isInternalNote ? '#f59e0b' : 'rgba(255,255,255,0.05)',
+                          color: isInternalNote ? '#000' : 'var(--text-secondary)',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🔒 Catatan Internal CS
+                      </button>
+                    </div>
+
+                    <input
+                      type="file"
+                      id="desktop-admin-reply-file"
+                      multiple
+                      accept="image/png, image/jpeg, image/webp"
+                      style={{ display: 'none' }}
+                      onChange={(e) => handleUploadTicketAttachment(e.target.files)}
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingTicketAttachment}
+                      onClick={() => document.getElementById('desktop-admin-reply-file')?.click()}
+                      style={{
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '0.4rem',
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      {isUploadingTicketAttachment ? <RefreshCw size={13} className="animate-spin" /> : <Paperclip size={13} />}
+                      <span>Lampirkan Foto</span>
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                    <textarea
+                      value={replyMessage}
+                      onChange={e => setReplyMessage(e.target.value)}
+                      placeholder={isInternalNote ? "Tulis catatan rahasia untuk tim CS..." : "Tulis balasan resmi untuk pemilik toko/pengguna..."}
+                      rows={2}
+                      style={{
+                        flex: 1,
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isInternalNote ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-card)',
+                        border: `1px solid ${isInternalNote ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-light)'}`,
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        resize: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <button
+                      onClick={() => handleReplyTicket(false)}
+                      disabled={ticketActionLoading || (!replyMessage.trim() && ticketReplyAttachments.length === 0)}
+                      style={{
+                        padding: '0.65rem 1.15rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isInternalNote ? '#f59e0b' : '#0ea5e9',
+                        border: 'none',
+                        color: isInternalNote ? '#000' : '#fff',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        opacity: ticketActionLoading || (!replyMessage.trim() && ticketReplyAttachments.length === 0) ? 0.5 : 1
+                      }}
+                    >
+                      {ticketActionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
+                      <span>Kirim</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* SUPPORT TICKET ATTACHMENTS GALLERY LIGHTBOX MODAL (IDENTIK DENGAN ADMIN KATALOG) */}
+      {attachmentLightbox?.isOpen && attachmentLightbox.images.length > 0 && (() => {
+        const currentImg = attachmentLightbox.images[attachmentLightbox.currentIndex] || attachmentLightbox.images[0];
+        const total = attachmentLightbox.images.length;
+        const currentIdx = attachmentLightbox.currentIndex;
+
+        return (
+          <div 
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999999,
+              backgroundColor: 'rgba(5, 8, 15, 0.96)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              userSelect: 'none',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+            onClick={closeAttachmentLightbox}
+          >
+            {/* Top Header Bar */}
+            <div 
+              style={{
+                padding: '1rem 2rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                zIndex: 10
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <span style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '999px',
+                  backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.35)'
+                }}>
+                  {currentIdx + 1} / {total} Foto
+                </span>
+                <span style={{
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
+                  color: '#ffffff'
+                }}>
+                  {currentImg.file_name || `Lampiran_${currentIdx + 1}`}
+                </span>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  title="Download Foto"
+                  onClick={() => handleDownloadAttachmentImage(currentImg.file_url, currentImg.file_name)}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Download size={18} />
+                </button>
+
+                <a
+                  href={currentImg.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Buka File Asli di Tab Baru"
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ExternalLink size={18} />
+                </a>
+
+                <button
+                  type="button"
+                  title="Tutup (Esc)"
+                  onClick={closeAttachmentLightbox}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                    border: 'none',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 10px rgba(239, 68, 68, 0.4)'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Image Stage with Zoom & Pan */}
+            <div 
+              style={{
+                flex: 1,
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '1rem'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Left Nav Button */}
+              {total > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + total) % total } : null);
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: '2rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0,0,0,0.65)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 20,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)'
+                  }}
+                >
+                  <ChevronLeft size={24} />
+                </button>
+              )}
+
+              {/* Right Nav Button */}
+              {total > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % total } : null);
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '2rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0,0,0,0.65)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 20,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)'
+                  }}
+                >
+                  <ChevronRight size={24} />
+                </button>
+              )}
+
+              {/* Center Canvas */}
+              <div
+                style={{
+                  maxWidth: '85vw',
+                  maxHeight: '75vh',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
+                  transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  cursor: zoomScale > 1 ? 'grab' : 'zoom-in'
+                }}
+                onDoubleClick={() => {
+                  if (zoomScale > 1) {
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  } else {
+                    setZoomScale(2);
+                  }
+                }}
+              >
+                <img
+                  src={currentImg.file_url}
+                  alt={currentImg.file_name || 'Screenshot'}
+                  style={{
+                    maxWidth: '80vw',
+                    maxHeight: '70vh',
+                    objectFit: 'contain',
+                    borderRadius: '0.85rem',
+                    boxShadow: '0 16px 50px rgba(0,0,0,0.85)',
+                    border: '1px solid rgba(255,255,255,0.12)'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Bottom Thumbnail Strip & Zoom Bar */}
+            <div
+              style={{
+                padding: '1rem 2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.85rem',
+                background: 'linear-gradient(0deg, rgba(0,0,0,0.92) 0%, transparent 100%)',
+                zIndex: 10
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Zoom Controls Pill */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.85rem',
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                padding: '0.45rem 1.1rem',
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <button
+                  type="button"
+                  title="Zoom Out"
+                  disabled={zoomScale <= 0.75}
+                  onClick={() => setZoomScale(prev => Math.max(prev - 0.3, 0.75))}
+                  style={{ background: 'none', border: 'none', color: zoomScale <= 0.75 ? 'rgba(255,255,255,0.3)' : '#ffffff', cursor: zoomScale <= 0.75 ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <ZoomOut size={18} />
+                </button>
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ffffff', minWidth: '50px', textAlign: 'center' }}>
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  title="Zoom In"
+                  disabled={zoomScale >= 3.5}
+                  onClick={() => setZoomScale(prev => Math.min(prev + 0.3, 3.5))}
+                  style={{ background: 'none', border: 'none', color: zoomScale >= 3.5 ? 'rgba(255,255,255,0.3)' : '#ffffff', cursor: zoomScale >= 3.5 ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <ZoomIn size={18} />
+                </button>
+                <button
+                  type="button"
+                  title="Reset Zoom"
+                  onClick={() => {
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(255,255,255,0.12)',
+                    border: 'none',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+
+              {/* Thumbnail Preview Strip */}
+              {total > 1 && (
+                <div style={{
+                  display: 'flex',
+                  gap: '0.65rem',
+                  overflowX: 'auto',
+                  maxWidth: '100%',
+                  padding: '0.25rem',
+                  justifyContent: 'center'
+                }}>
+                  {attachmentLightbox.images.map((att, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: idx } : null);
+                        setZoomScale(1);
+                        setPanPosition({ x: 0, y: 0 });
+                      }}
+                      style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '0.5rem',
+                        overflow: 'hidden',
+                        border: currentIdx === idx ? '2.5px solid #06b6d4' : '1px solid rgba(255,255,255,0.25)',
+                        padding: 0,
+                        cursor: 'pointer',
+                        backgroundColor: 'transparent',
+                        transform: currentIdx === idx ? 'scale(1.08)' : 'scale(1)',
+                        transition: 'all 0.2s ease',
+                        flexShrink: 0
+                      }}
+                    >
+                      <img src={att.file_url} alt={`Thumb ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* 4. FINANCE & BILLING DIVISION                                             */}

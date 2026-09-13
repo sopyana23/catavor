@@ -226,6 +226,7 @@ func main() {
 
 		// Admin Support Moderation
 		guarded.Get("/admin/support/tickets", supportHandler.ListAllTickets)
+		guarded.Get("/admin/support/tickets/:id", supportHandler.GetAdminTicketDetails)
 		guarded.Post("/admin/support/tickets/:id/reply", supportHandler.ReplyAsAdmin)
 		guarded.Put("/admin/support/tickets/:id/status", supportHandler.UpdateTicketStatus)
 
@@ -325,6 +326,7 @@ func main() {
 
 		// Support & Helpdesk
 		adminApi.Get("/support/tickets", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.ListAllTickets)
+		adminApi.Get("/support/tickets/:id", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.GetAdminTicketDetails)
 		adminApi.Post("/support/tickets/:id/reply", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.ReplyAsAdmin)
 		adminApi.Put("/support/tickets/:id/status", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateTicketStatus)
 
