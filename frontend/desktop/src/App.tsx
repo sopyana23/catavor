@@ -5699,6 +5699,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
+  const merchantTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize and reset textarea height when ticket reply is typed or sent/cleared
+  useEffect(() => {
+    if (merchantTicketTextareaRef.current) {
+      if (!ticketReplyText) {
+        merchantTicketTextareaRef.current.style.height = 'auto';
+      } else {
+        merchantTicketTextareaRef.current.style.height = 'auto';
+        merchantTicketTextareaRef.current.style.height = `${Math.min(merchantTicketTextareaRef.current.scrollHeight, 140)}px`;
+      }
+    }
+  }, [ticketReplyText]);
 
   // Screenshot Attachment Upload States
   const [ticketNewAttachments, setTicketNewAttachments] = useState<TicketAttachment[]>([]);
@@ -16736,12 +16749,30 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               )}
 
                               <textarea
-                                rows={3}
+                                ref={merchantTicketTextareaRef}
+                                rows={1}
                                 className="form-input"
-                                placeholder="Ketik balasan pesan untuk Tim Support Catavor..."
+                                placeholder="Ketik balasan pesan untuk Tim Support Catavor... (Enter untuk kirim, Shift+Enter baris baru)"
                                 value={ticketReplyText}
                                 onChange={(e) => setTicketReplyText(e.target.value)}
-                                style={{ resize: 'none', marginBottom: '0.75rem', fontSize: '0.85rem' }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if ((ticketReplyText.trim() || ticketReplyAttachments.length > 0) && !isSubmittingReply) {
+                                      document.getElementById('btn-desktop-merchant-send-reply')?.click();
+                                    }
+                                  }
+                                }}
+                                style={{
+                                  resize: 'none',
+                                  marginBottom: '0.75rem',
+                                  fontSize: '0.85rem',
+                                  minHeight: '38px',
+                                  maxHeight: '140px',
+                                  height: 'auto',
+                                  lineHeight: 1.45,
+                                  overflowY: 'auto'
+                                }}
                               />
 
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -16780,6 +16811,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                                 <button
                                   type="button"
+                                  id="btn-desktop-merchant-send-reply"
                                   className="btn-primary"
                                   disabled={(!ticketReplyText.trim() && ticketReplyAttachments.length === 0) || isSubmittingReply}
                                   onClick={async () => {

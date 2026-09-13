@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Shield,
   ShieldAlert,
@@ -207,6 +207,19 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
   const [replyMessage, setReplyMessage] = useState('');
   const [ticketActionLoading, setTicketActionLoading] = useState(false);
+  const ticketTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize and reset textarea height when message is typed or sent/cleared
+  useEffect(() => {
+    if (ticketTextareaRef.current) {
+      if (!replyMessage) {
+        ticketTextareaRef.current.style.height = 'auto';
+      } else {
+        ticketTextareaRef.current.style.height = 'auto';
+        ticketTextareaRef.current.style.height = `${Math.min(ticketTextareaRef.current.scrollHeight, 140)}px`;
+      }
+    }
+  }, [replyMessage]);
 
   // State: Finance
   const [orders, setOrders] = useState<any[]>([]);
@@ -1783,20 +1796,34 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                     <textarea
+                      ref={ticketTextareaRef}
                       value={replyMessage}
                       onChange={e => setReplyMessage(e.target.value)}
-                      placeholder={isInternalNote ? "Tulis catatan rahasia untuk tim CS..." : "Tulis balasan resmi untuk pemilik toko/pengguna..."}
-                      rows={2}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if ((replyMessage.trim() || ticketReplyAttachments.length > 0) && !ticketActionLoading) {
+                            handleReplyTicket(false);
+                          }
+                        }
+                      }}
+                      placeholder={isInternalNote ? "Tulis catatan rahasia untuk tim CS... (Enter untuk kirim, Shift+Enter baris baru)" : "Tulis balasan resmi untuk pemilik toko... (Enter untuk kirim, Shift+Enter baris baru)"}
+                      rows={1}
                       style={{
                         flex: 1,
-                        padding: '0.65rem 0.85rem',
+                        minHeight: '38px',
+                        maxHeight: '140px',
+                        height: 'auto',
+                        padding: '0.55rem 0.85rem',
                         borderRadius: '0.65rem',
                         backgroundColor: isInternalNote ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-card)',
                         border: `1px solid ${isInternalNote ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-light)'}`,
                         color: 'var(--text-primary)',
                         fontSize: '0.85rem',
+                        lineHeight: 1.45,
                         outline: 'none',
                         resize: 'none',
+                        overflowY: 'auto',
                         boxSizing: 'border-box'
                       }}
                     />
