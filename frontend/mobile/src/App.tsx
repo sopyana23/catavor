@@ -20551,9 +20551,41 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 alignItems: 'center',
                 justifyContent: 'center',
                 overflow: 'hidden',
-                padding: '0.75rem'
+                padding: '0.75rem',
+                touchAction: 'none'
               }}
               onClick={(e) => e.stopPropagation()}
+              onMouseMove={(e) => {
+                if (isDragging && zoomScale > 1) {
+                  e.preventDefault();
+                  setPanPosition({
+                    x: e.clientX - dragStart.x,
+                    y: e.clientY - dragStart.y
+                  });
+                }
+              }}
+              onMouseUp={() => setIsDragging(false)}
+              onMouseLeave={() => setIsDragging(false)}
+              onTouchMove={(e) => {
+                if (isDragging && zoomScale > 1 && e.touches.length === 1) {
+                  const touch = e.touches[0];
+                  setPanPosition({
+                    x: touch.clientX - dragStart.x,
+                    y: touch.clientY - dragStart.y
+                  });
+                }
+              }}
+              onTouchEnd={() => setIsDragging(false)}
+              onTouchCancel={() => setIsDragging(false)}
+              onWheel={(e) => {
+                e.stopPropagation();
+                const delta = e.deltaY < 0 ? 0.25 : -0.25;
+                setZoomScale(prev => {
+                  const next = Math.min(Math.max(Number((prev + delta).toFixed(2)), 0.75), 4);
+                  if (next <= 1) setPanPosition({ x: 0, y: 0 });
+                  return next;
+                });
+              }}
             >
               {/* Left Nav Button (if multiple images) */}
               {total > 1 && (
@@ -20564,6 +20596,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + total) % total } : null);
                     setZoomScale(1);
                     setPanPosition({ x: 0, y: 0 });
+                    setIsDragging(false);
                   }}
                   style={{
                     position: 'absolute',
@@ -20598,6 +20631,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % total } : null);
                     setZoomScale(1);
                     setPanPosition({ x: 0, y: 0 });
+                    setIsDragging(false);
                   }}
                   style={{
                     position: 'absolute',
@@ -20632,28 +20666,71 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   alignItems: 'center',
                   justifyContent: 'center',
                   transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
-                  transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  cursor: zoomScale > 1 ? 'grab' : 'zoom-in'
+                  transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+                  cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  touchAction: 'none'
                 }}
+                onMouseDown={(e) => {
+                  if (zoomScale > 1) {
+                    e.preventDefault();
+                    setIsDragging(true);
+                    setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+                  }
+                }}
+                onMouseMove={(e) => {
+                  if (isDragging && zoomScale > 1) {
+                    e.preventDefault();
+                    setPanPosition({
+                      x: e.clientX - dragStart.x,
+                      y: e.clientY - dragStart.y
+                    });
+                  }
+                }}
+                onMouseUp={() => setIsDragging(false)}
+                onTouchStart={(e) => {
+                  if (zoomScale > 1 && e.touches.length === 1) {
+                    setIsDragging(true);
+                    const touch = e.touches[0];
+                    setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (isDragging && zoomScale > 1 && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    setPanPosition({
+                      x: touch.clientX - dragStart.x,
+                      y: touch.clientY - dragStart.y
+                    });
+                  }
+                }}
+                onTouchEnd={() => setIsDragging(false)}
+                onTouchCancel={() => setIsDragging(false)}
                 onDoubleClick={() => {
                   if (zoomScale > 1) {
                     setZoomScale(1);
                     setPanPosition({ x: 0, y: 0 });
+                    setIsDragging(false);
                   } else {
-                    setZoomScale(2);
+                    setZoomScale(2.5);
                   }
                 }}
               >
                 <img
                   src={currentImg.file_url}
                   alt={currentImg.file_name || 'Screenshot'}
+                  draggable={false}
                   style={{
                     maxWidth: '92vw',
                     maxHeight: '68vh',
                     objectFit: 'contain',
                     borderRadius: '0.75rem',
                     boxShadow: '0 12px 40px rgba(0,0,0,0.85)',
-                    border: '1px solid rgba(255,255,255,0.12)'
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    pointerEvents: 'none'
                   }}
                 />
               </div>
