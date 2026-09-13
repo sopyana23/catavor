@@ -2502,36 +2502,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         transition: 'transform 0.15s ease'
                       }}
                     >
-                      {/* Card Header: Ticket Number, Status Pill, Created Date */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#06b6d4' }}>
+                      {/* Card Header: Ticket Number on Left & Status Pill on Right */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: '0.18rem 0.5rem', borderRadius: '0.45rem', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#06b6d4', fontFamily: 'monospace' }}>
                             {t.ticket_number || `#TCK-${t.id}`}
                           </span>
-                          <span style={{
-                            padding: '0.15rem 0.55rem',
-                            borderRadius: '999px',
-                            fontSize: '0.62rem',
-                            fontWeight: 800,
-                            backgroundColor: statusBg,
-                            color: statusColor,
-                            border: `1px solid ${statusBorder}`
-                          }}>
-                            {statusLabel}
-                          </span>
                         </div>
-                        <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                          {formatSupportDateTime(t.created_at)}
+                        <span style={{
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '999px',
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          backgroundColor: statusBg,
+                          color: statusColor,
+                          border: `1px solid ${statusBorder}`,
+                          display: 'inline-flex',
+                          alignItems: 'center'
+                        }}>
+                          {statusLabel}
                         </span>
                       </div>
 
                       {/* Card Subject & Message Preview */}
                       <div>
-                        <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                        <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.94rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em', lineHeight: 1.35 }}>
                           {t.subject || 'Pertanyaan Layanan Toko'}
                         </h4>
-                        <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: theme.cardAlt, color: theme.textSecondary }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.64rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '4px', backgroundColor: theme.cardAlt, color: theme.textSecondary, border: `1px solid ${theme.border}` }}>
                             {
                               t.category === 'billing' ? 'Keuangan & Langganan' :
                               t.category === 'technical' ? 'Kendala Teknis & Bug' :
@@ -2541,16 +2542,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </span>
                           {t.priority && (
                             <span style={{
-                              fontSize: '0.62rem',
+                              fontSize: '0.64rem',
                               fontWeight: 800,
                               padding: '0.15rem 0.45rem',
                               borderRadius: '4px',
                               backgroundColor: t.priority === 'urgent' || t.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(6, 182, 212, 0.12)',
-                              color: t.priority === 'urgent' || t.priority === 'high' ? '#ef4444' : '#06b6d4'
+                              color: t.priority === 'urgent' || t.priority === 'high' ? '#ef4444' : '#06b6d4',
+                              border: `1px solid ${t.priority === 'urgent' || t.priority === 'high' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(6, 182, 212, 0.25)'}`
                             }}>
                               {String(t.priority).toUpperCase()}
                             </span>
                           )}
+                          <span style={{ fontSize: '0.68rem', color: theme.textMuted, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: 'auto' }}>
+                            <Clock size={11} /> {formatSupportDateTime(t.created_at)}
+                          </span>
                         </div>
                         <p style={{
                           margin: 0,
