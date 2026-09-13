@@ -68,6 +68,19 @@ const formatSupportDateTime = (dateStr?: string | Date) => {
   }).replace(/\./g, ':');
 };
 
+const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
+  if (ticket?.store?.name) return ticket.store.name;
+  if (ticket?.store_name) return ticket.store_name;
+  if (msgSender?.name && !msgSender.name.includes('@')) return msgSender.name;
+  if (ticket?.user?.name && !ticket.user.name.includes('@')) return ticket.user.name;
+  const rawEmail = ticket?.user_email || ticket?.user?.email || msgSender?.email || '';
+  if (rawEmail) {
+    const prefix = rawEmail.split('@')[0];
+    if (prefix) return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+  return 'Merchant';
+};
+
 export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   token,
   currentUser,
@@ -1463,7 +1476,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   </h3>
                 </div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'block' }}>
-                  Dari: <strong style={{ color: 'var(--text-primary)' }}>{selectedTicket.user?.email || selectedTicket.user_email || 'Pengguna'}</strong> &bull; Toko: {selectedTicket.store?.name || selectedTicket.store_slug || '-'} &bull; Dibuat: {formatSupportDateTime(selectedTicket.created_at)}
+                  Dari: <strong style={{ color: 'var(--text-primary)' }}>{getMerchantDisplayName(selectedTicket)}</strong> &bull; Email: <span style={{ color: 'var(--text-muted)' }}>{selectedTicket.user?.email || selectedTicket.user_email || '-'}</span> &bull; Toko: {selectedTicket.store?.name || selectedTicket.store_slug || '-'} &bull; Dibuat: {formatSupportDateTime(selectedTicket.created_at)}
                 </span>
               </div>
               <button onClick={handleCloseTicketChat} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} title="Tutup Chat &amp; Kembali ke Daftar Tiket">
@@ -1535,6 +1548,14 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       <strong style={{ color: '#0ea5e9' }}>{selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}</strong>
                     </div>
                     <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Pengirim: </span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{getMerchantDisplayName(selectedTicket)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Email Akun: </span>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>{selectedTicket.user?.email || selectedTicket.user_email || '-'}</span>
+                    </div>
+                    <div>
                       <span style={{ color: 'var(--text-muted)' }}>Kategori: </span>
                       <strong style={{ color: 'var(--text-primary)' }}>
                         {selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
@@ -1586,6 +1607,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       const isAgent = m.sender_type === 'agent' || m.is_admin;
                       const isInternal = m.is_internal_note;
                       const isInitialInquiry = idx === 0 && !isAgent && !isInternal;
+                      const merchantName = getMerchantDisplayName(selectedTicket, m.sender);
 
                       if (isInternal) {
                         return (
@@ -1607,7 +1629,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                               </span>
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                              Oleh: <strong>{m.sender?.name || m.sender?.email || 'Staf Admin'}</strong>
+                              Oleh: <strong>{m.sender?.name || 'Staf Admin'}</strong>
                             </div>
                             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                               {m.message}
@@ -1637,34 +1659,40 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                 ? '1rem 1rem 0.25rem 1rem'
                                 : '1rem 1rem 1rem 0.25rem',
                             backgroundColor: isInitialInquiry
-                              ? 'var(--bg-deep)'
+                              ? 'rgba(14, 165, 233, 0.06)'
                               : isAgent
                                 ? 'rgba(14, 165, 233, 0.12)'
                                 : 'var(--bg-deep)',
                             border: isInitialInquiry
-                              ? '1px solid rgba(14, 165, 233, 0.4)'
+                              ? '1px solid rgba(14, 165, 233, 0.35)'
                               : `1px solid ${isAgent ? 'rgba(14, 165, 233, 0.3)' : 'var(--border-light)'}`,
                             boxShadow: isInitialInquiry ? '0 4px 16px rgba(0,0,0,0.2)' : undefined
                           }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.45rem', fontSize: '0.75rem' }}>
-                              <strong style={{ color: isAgent ? '#0ea5e9' : isInitialInquiry ? '#38bdf8' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                {isInitialInquiry ? (
-                                  <>
-                                    <Store size={14} color="#38bdf8" />
-                                    <span>Pertanyaan Awal Merchant &bull; {selectedTicket.store?.name || selectedTicket.store_slug || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
-                                  </>
-                                ) : isAgent ? (
-                                  <>
-                                    <ShieldCheck size={14} color="#0ea5e9" />
-                                    <span>{m.sender?.name || 'Staf CS Catavor'}</span>
-                                  </>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                {isAgent ? (
+                                  <ShieldCheck size={14} color="#0ea5e9" />
                                 ) : (
-                                  <>
-                                    <Store size={14} />
-                                    <span>{selectedTicket.store?.name || selectedTicket.store_slug || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
-                                  </>
+                                  <Store size={14} color={isInitialInquiry ? '#38bdf8' : 'var(--text-secondary)'} />
                                 )}
-                              </strong>
+                                <strong style={{ color: isAgent ? '#0ea5e9' : isInitialInquiry ? '#38bdf8' : 'var(--text-primary)', fontWeight: 800 }}>
+                                  {isAgent ? (m.sender?.name || 'Staf CS Catavor') : merchantName}
+                                </strong>
+                                {isInitialInquiry && (
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '0.12rem 0.45rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                                    color: '#38bdf8',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.02em'
+                                  }}>
+                                    Pertanyaan Awal
+                                  </span>
+                                )}
+                              </div>
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0 }}>
                                 {formatSupportDateTime(m.created_at)}
                               </span>
