@@ -48,20 +48,24 @@
 
 ## 🌟 4. Fitur & Pembaruan Terkini yang Baru Selesai
 
-### A. Perbaikan Header Sticky Shaking / Jitter
-- **Masalah**: Header di halaman admin platform mengalami getar saat di-scroll pada posisi tertentu karena konflik `sticky` dengan wrapper layout.
-- **Solusi**: Diterapkan `position: sticky; top: 0; zIndex: 100; backdrop-filter: blur(12px); transform: translateZ(0); will-change: transform` pada kontainer utama tanpa nested overflow glitch.
+### A. Perbaikan Alur Data & Preloading Tiket Support Backend
+- **File Backend**: [`backend/internal/handlers/support_handler.go`](file:///c:/MyProject/DFauna/backend/internal/handlers/support_handler.go)
+- Endpoint `ListMyTickets`, `ListAllTickets`, dan `GetTicket` kini melakukan preloading relasi lengkap:
+  - `User`, `Store`, `Messages` (diurutkan `created_at ASC`), dan `Messages.Attachments`.
+- Menjamin tidak ada lagi pesan yang hilang atau pesan pembuka yang berstatus `"Tidak ada pesan tertulis"`.
 
-### B. Ruang Percakapan Chat Interaktif Helpdesk Platform Admin
-- Staf CS / Super Admin kini dapat membuka ruang chat detail dari setiap tiket (`selectedTicket`).
-- **Sistem Dual-Mode Composer**:
-  - **Mode Balas Merchant**: Mengirim balasan resmi langsung ke pengguna/merchant.
-  - **Mode Catatan Internal CS**: Catatan rahasia bergaris putus-putus kuning yang hanya terlihat oleh staf admin internal dan tidak dikirimkan ke merchant.
-- **Pembersihan Tombol Komposer**: Tombol "Kirim & Selesaikan" dihapus sesuai permintaan user agar tampilan rapi, bersih, dan profesional dengan hanya 1 tombol kirim adaptif.
+### B. Standardisasi Format Tanggal & Jam Lengkap Indonesia
+- Helper fungsi `formatSupportDateTime` diterapkan serentak di Desktop & Mobile ([`PlatformRolePortal.tsx`](file:///c:/MyProject/DFauna/frontend/mobile/src/components/PlatformRolePortal.tsx) & [`App.tsx`](file:///c:/MyProject/DFauna/frontend/desktop/src/App.tsx)).
+- Format output: `13 Sep 2026, 18:57` (Hari Bulan Tahun, Jam:Menit) menggunakan locale `id-ID` yang konsisten di semua kartu tiket dan header gelembung chat.
 
-### C. Penekanan Footer Navigasi pada Sub-Halaman
-- Pada portal mobile (`PlatformRolePortal.tsx`), variabel `isSubPage` mendeteksi jika admin sedang masuk ke sub-modul atau room chat (`selectedTicket !== null` atau `selectedProofOrder !== null`).
-- `<nav className="bottom-nav">` secara otomatis disembunyikan saat berada di sub-halaman agar ruang baca maksimal dan fokus.
+### C. Refactoring UI/UX Chat Support & Deduplikasi Email (Best Practice)
+- **Sentralisasi Identitas**: Kontak email merchant hanya ditampilkan satu kali secara elegan di kartu metadata atas (*Ticket Reference Card*), bukan diulang-ulang di setiap gelembung pesan.
+- **Nama Pengirim Bersih**: Helper `getMerchantDisplayName` memprioritaskan nama toko atau nama user, dan mengekstrak display username bersih (misal `Josericardo 66`) jika profil belum diisi.
+- **Penghapusan Badge Berlebih**: Badge `Pertanyaan Awal` dihapus sesuai kaidah UI/UX profesional (karena posisi urutan teratas sudah jelas merupakan inkuiri awal).
+- **Hierarki Gelembung Chat**:
+  - **Sisi Kiri (Merchant)**: Ikon `Store`, nama merchant/toko, timestamp ringkas, dan teks kendala.
+  - **Sisi Kanan (Admin/CS)**: Ikon `ShieldCheck` cyan, label `Catavor Support (Staf)` / nama staf, timestamp ringkas, dan teks solusi.
+  - **Catatan Internal (CS Only)**: Kartu bergaris putus-putus kuning/amber dengan label `CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)`.
 
 ### D. Kesetaraan Tampilan Lightbox Galeri Foto (Identik dengan Admin Katalog)
 - Tampilan detail foto/lampiran saat diklik di Admin Platform kini **100% identik** dengan `App.tsx` (Admin Katalog):
@@ -69,7 +73,10 @@
   - **Kanvas Tengah Interaktif**: Dukungan **Zoom & Pan**, geser mouse/touch, double-click untuk zoom in/out, tombol prev/next navigasi.
   - **Toolbar Bawah**: Pill zoom controls (`ZoomOut`, persentase `%`, `ZoomIn`, `Reset`) dan filmstrip bar preview gambar berjejer di bagian bawah.
   - **Aksesibilitas**: Keyboard navigation (`Enter`, `Space`, `Esc`, `tabIndex={0}`, `role="button"`).
-  - Terpasang pada lampiran pertanyaan tiket, lampiran bubble chat, serta bukti pembayaran transfer (*payment proof*).
+
+### E. Penekanan Footer Navigasi pada Sub-Halaman & Anti-Jitter Header
+- `<nav className="bottom-nav">` secara otomatis disembunyikan saat membuka chat tiket atau verifikasi transfer (`isSubPage = true`).
+- Kontainer sticky header dioptimalkan dengan `transform: translateZ(0); will-change: transform` untuk menghindari getar (*shaking/jitter*) saat scroll.
 
 ---
 
@@ -105,7 +112,7 @@ DFauna/
 ├── public/                                    # Static bundle output yang disajikan oleh Go backend
 │   ├── mobile/
 │   └── desktop/
-└── HANDOFF.md                                 # Dokumen ini
+└── HANDOFF.md                                 # Dokumen transisi & handoff ini
 ```
 
 ---
