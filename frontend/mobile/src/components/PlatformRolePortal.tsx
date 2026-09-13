@@ -2562,7 +2562,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical'
                         }}>
-                          {t.messages?.[0]?.message || t.message || t.description || 'Tidak ada pesan tertulis.'}
+                          {t.messages?.[0]?.message || (t.messages?.[0]?.attachments?.length ? `[${t.messages[0].attachments.length} Lampiran Bukti/Screenshot]` : (t.subject || t.title || 'Pertanyaan Bantuan Merchant'))}
                         </p>
                       </div>
 

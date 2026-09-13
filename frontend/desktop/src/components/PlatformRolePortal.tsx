@@ -1342,7 +1342,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                         <td style={{ padding: '0.85rem 1rem' }}>
                           <span style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>{t.subject || t.title || 'Pertanyaan Pengguna'}</span>
                           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '280px' }}>
-                            {t.messages?.[0]?.message || t.message || t.description || `Toko: ${t.store_slug || t.store?.name || '-'}`}
+                            {t.messages?.[0]?.message || (t.messages?.[0]?.attachments?.length ? `[${t.messages[0].attachments.length} Lampiran Bukti/Screenshot]` : (t.subject || t.title || `Toko: ${t.store_slug || t.store?.name || '-'}`))}
                           </div>
                         </td>
                         <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>
