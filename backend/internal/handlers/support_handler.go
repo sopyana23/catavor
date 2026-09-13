@@ -356,6 +356,33 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 	})
 }
 
+// GetAdminTicketDetails returns full ticket with chronological messages (including internal notes), sender info, attachments, and store data.
+func (h *SupportHandler) GetAdminTicketDetails(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var ticket models.SupportTicket
+
+	if err := database.DB.Preload("User").Preload("Store").First(&ticket, id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Tiket bantuan tidak ditemukan.",
+		})
+	}
+
+	var messages []models.SupportMessage
+	database.DB.Where("ticket_id = ?", ticket.ID).
+		Preload("Attachments").
+		Preload("Sender").
+		Order("created_at ASC, id ASC").
+		Find(&messages)
+
+	ticket.Messages = messages
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    ticket,
+	})
+}
+
 // ReplyAsAdmin allows CS agents to reply or create internal notes.
 func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 	user, ok := c.Locals("user").(*models.User)

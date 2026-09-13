@@ -1,105 +1,144 @@
-# 📘 CATAVOR DEVELOPER & AI AGENT HANDOFF DOCUMENTATION
+# 🚀 Catavor (DFauna) — Comprehensive AI & Developer Handoff Document
 
-Dokumen ini adalah **panduan lengkap serah terima (handoff)** untuk developer atau agen AI penerus agar dapat langsung memahami seluruh arsitektur, fitur yang telah selesai, standar keamanan, alur kerja, dan cara melanjutkan pengembangan platform **Catavor**.
-
----
-
-## 🏛️ 1. Identitas Proyek & Arsitektur Sistem
-
-- **Nama Platform**: **Catavor** (Interactive Digital Catalog, Biolink, & Multi-Channel Commerce Engine).
-- **Repositori Git**: `https://github.com/sopyana23/catavor.git`
-- **Branch Utama**:
-  - `dev`: Branch pengembangan aktif (*currently active*).
-  - `main`: Branch produksi / rilis stabil.
-- **Teknologi Utama**:
-  - **Backend**: Golang 1.23+ dengan framework **Fiber v2**, ORM **GORM**, dan database **PostgreSQL**.
-  - **Frontend**: React 18 + TypeScript + Vite.
-    - `frontend/desktop/`: SPA khusus layar Desktop & Tablet (output build: `public/desktop/`).
-    - `frontend/mobile/`: SPA khusus layar Mobile / Smartphone (output build: `public/mobile/`).
-  - **Routing Multi-Tenant**: Dynamic Subdomain / Path (`/:slug/admin`, `/u/:slug`, `/u/:slug/products`, dsb).
-  - **Real-Time Engine**: Server-Sent Events (SSE) Hub terintegrasi di Go backend.
+> **Dokumen Transisi Proyek untuk AI Assistant & Pengembang**  
+> *Terakhir diperbarui: 13 September 2026*  
+> *Cabang Aktif:* `dev`
 
 ---
 
-## 📦 2. Status Fitur & Pekerjaan yang Telah Selesai (Completed Features)
+## 📌 1. Ringkasan Eksekutif & Tujuan Proyek
 
-### A. Sistem Notifikasi Enterprise (Dynamic Database, Paging & Real-Time)
-- **Persistensi Database Penuh**:
-  - Tabel `notifications` & `notification_reads` di PostgreSQL.
-  - Status dibaca dicatat per-user dan **tetap persisten** saat browser di-refresh.
-- **Server-Side Pagination & Infinite Scroll**:
-  - Endpoint `GET /api/notifications?page=1&limit=10&filter=all|unread`.
-  - Frontend Mobile & Desktop menggunakan `IntersectionObserver` sentinel untuk memuat data bertahap secara mulus (*infinite scroll*) tanpa flicker atau lonjakan scroll.
-- **Superadmin Broadcast (Hybrid Pattern - Hemat Storage)**:
-  - Superadmin dapat mengirim notifikasi broadcast ke target dinamis (`all`, `plan` dengan kode dinamis seperti `free`, `pro_starter`, `pro_business`, atau toko tertentu).
-- **Real-Time Delivery (SSE Hub)**:
-  - Endpoint `/api/notifications/stream` mengalirkan notifikasi baru secara langsung ke browser merchant aktif seketika tanpa refresh.
-- **Auto-Cleanup Retention Worker**:
-  - Background Goroutine Worker (`services.StartNotificationCleaner`) membersihkan notifikasi yang kedaluwarsa (`expires_at`) atau yang telah melewati masa retensi setelah dibaca (`retention_hours`).
-
-### B. Inactivity Lifecycle & Store Dormancy Management
-- **Background Dormancy Worker (`services.StartDormancyWorker`)**:
-  - Memantau keaktifan toko Free Tier setiap 1 jam secara otomatis.
-  - **H+30**: Peringatan awal (`warning_1`) via notifikasi & email.
-  - **H+38**: Peringatan kritis 7 hari menjelang suspend (`warning_2`).
-  - **H+45**: Katalog disuspend sementara (`suspended`) dan disembunyikan dari publik.
-  - **H+60**: Pembersihan data otomatis jika tidak ada reaktivasi.
-- **Reaktivasi Instan & Perpanjangan Masa Aktif**:
-  - Tombol *"Perpanjang Masa Aktif Katalog"* di dashboard (`POST /api/stores/extend-activity`).
-  - Magic link via email reaktivasi instan (`GET /api/auth/reactivate-store?token=...`).
-
-### C. Rich Textarea Fullscreen Editor & Formatted Text
-- **Form "Tentang Kami" (Deskripsi Profil Lengkap)**:
-  - Komponen `<RichTextarea>` dengan mode layar penuh (*fullscreen with live split preview*), toolbar tebal, miring, heading, bullet list, numbered list, checklist, dan link.
-- **Form "Kontak & Saluran Resmi" (Lokasi / Alamat Resmi)**:
-  - Komponen `<RichTextarea>` yang sama persis, mempermudah merchant menyusun alamat multi-baris, instruksi rute, atau tautan peta.
-- **Halaman Publik**:
-  - Merender data menggunakan komponen `<FormattedText>` (berstandar markdown rapi).
-- **Sanitasi Backend**:
-  - Menggunakan `SanitizeRichText` untuk melindungi dari XSS tanpa merusak format teks.
+**Catavor** (nama internal repositori: `DFauna`) adalah platform direktori katalog bisnis, usaha, fauna/flora, dan produk merchant multi-tenant terpadu. Sistem ini menyediakan antarmuka terpisah untuk:
+1. **Publik & Pengunjung**: Menjelajah direktori toko, fauna, produk, serta mengirimkan tiket keluhan/bantuan.
+2. **Admin Katalog (Merchant / Owner Toko)**: Mengelola katalog produk, jam buka, galeri, order, serta ruang percakapan tiket bantuan (Helpdesk) dengan staf platform.
+3. **Admin Pengelola Platform / Super Admin**: Portal internal multi-divisi berbasis RBAC (Role-Based Access Control) yang mengelola:
+   - **Overview & Statistik**: Metrik transaksi, dormancy toko, laporan kepatuhan, tiket support.
+   - **RBAC Management**: Pengaturan izin staf (*Role & Permission Management*).
+   - **Kepatuhan & Laporan (*Compliance*)**: Moderasi laporan toko bermasalah dan metrik toko pasif.
+   - **Helpdesk & Tiket (*Support*)**: Ruang chat thread real-time dua arah antara staf CS dan merchant/user, lengkap dengan catatan internal (*Internal Note*) dan lampiran foto.
+   - **Keuangan & Order (*Finance*)**: Verifikasi bukti pembayaran (*proof of payment*) paket langganan toko (*PRO/Enterprise*).
+   - **Konten & Editorial (*Content*)**: Pengiriman siaran (*Broadcast Notification*) global ke seluruh pengguna.
 
 ---
 
-## 🛡️ 3. Standar & Arsitektur Keamanan (Security Highlights)
+## 🛠️ 2. Tech Stack & Arsitektur Sistem
 
-1. **Autentikasi & Otorisasi Ketat**:
-   - JWT Token dengan algoritma HMAC-SHA256.
-   - Middleware `AuthRequired` dan `StoreOwnerRequired` memvalidasi kepemilikan toko di setiap permintaan admin/merchant.
-2. **Proteksi Injeksi SQL & Parameterized Queries**:
-   - Seluruh kueri backend menggunakan prepared statements & parameter GORM (`?` placeholders).
-3. **XSS Sanitization**:
-   - Modul `security.SanitizeRichText` dan `security.SanitizePlainText` membersihkan input berbahaya secara komprehensif.
-4. **Rate Limiting**:
-   - `AuthRateLimiter` pada endpoint login/register.
-   - `PublicSubmissionRateLimiter` pada formulir publik.
-5. **Connection Pool Database**:
-   - Batasan `MaxOpenConns(50)` dan `MaxIdleConns(10)` untuk menjaga stabilitas memori database server.
+| Layer | Teknologi | Keterangan |
+|---|---|---|
+| **Backend** | Go (Golang) + Fiber Framework | REST API berperforma tinggi, GORM ORM, JWT Auth, static file serving. |
+| **Database** | SQLite (Dev) / PostgreSQL (Prod) | Auto-migrasi skema melalui GORM. |
+| **Frontend Mobile** | React 18 + TypeScript + Vite | Dibangun di `frontend/mobile`, output build ke `public/mobile`. |
+| **Frontend Desktop** | React 18 + TypeScript + Vite | Dibangun di `frontend/desktop`, output build ke `public/desktop`. |
+| **Styling** | Vanilla CSS + CSS Variables + Glassmorphism | Dark & Light mode adaptif, HSL dynamic palettes, no heavy UI framework. |
+| **Icons** | Lucide React | Ikon modern, seragam, dan elegan. |
 
 ---
 
-## 🚀 4. Panduan Menjalankan & Menguji Proyek (Quick Commands)
+## 🔑 3. Kredensial Pengujian & Akun Standar
 
-### Build Frontend (Desktop & Mobile)
-```powershell
-powershell -ExecutionPolicy Bypass -File .\build-all.ps1
+- **Super Admin Platform**:
+  - URL: `http://localhost:8000/catavor/admin`
+  - Email: `admin@catavor.com`
+  - Password: `password123`
+- **Merchant Demo**:
+  - URL: `http://localhost:8000/catavor/login` atau `http://localhost:8000/`
+  - Toko / Store Slug: `catavor-official` atau toko hasil registrasi baru.
+
+---
+
+## 🌟 4. Fitur & Pembaruan Terkini yang Baru Selesai
+
+### A. Perbaikan Header Sticky Shaking / Jitter
+- **Masalah**: Header di halaman admin platform mengalami getar saat di-scroll pada posisi tertentu karena konflik `sticky` dengan wrapper layout.
+- **Solusi**: Diterapkan `position: sticky; top: 0; zIndex: 100; backdrop-filter: blur(12px); transform: translateZ(0); will-change: transform` pada kontainer utama tanpa nested overflow glitch.
+
+### B. Ruang Percakapan Chat Interaktif Helpdesk Platform Admin
+- Staf CS / Super Admin kini dapat membuka ruang chat detail dari setiap tiket (`selectedTicket`).
+- **Sistem Dual-Mode Composer**:
+  - **Mode Balas Merchant**: Mengirim balasan resmi langsung ke pengguna/merchant.
+  - **Mode Catatan Internal CS**: Catatan rahasia bergaris putus-putus kuning yang hanya terlihat oleh staf admin internal dan tidak dikirimkan ke merchant.
+- **Pembersihan Tombol Komposer**: Tombol "Kirim & Selesaikan" dihapus sesuai permintaan user agar tampilan rapi, bersih, dan profesional dengan hanya 1 tombol kirim adaptif.
+
+### C. Penekanan Footer Navigasi pada Sub-Halaman
+- Pada portal mobile (`PlatformRolePortal.tsx`), variabel `isSubPage` mendeteksi jika admin sedang masuk ke sub-modul atau room chat (`selectedTicket !== null` atau `selectedProofOrder !== null`).
+- `<nav className="bottom-nav">` secara otomatis disembunyikan saat berada di sub-halaman agar ruang baca maksimal dan fokus.
+
+### D. Kesetaraan Tampilan Lightbox Galeri Foto (Identik dengan Admin Katalog)
+- Tampilan detail foto/lampiran saat diklik di Admin Platform kini **100% identik** dengan `App.tsx` (Admin Katalog):
+  - **Header Bar Atas**: Badge counter `{currentIdx + 1} / {total} Foto`, nama lampiran, tombol download (`Download`), tombol buka file asli tab baru (`ExternalLink`), dan tombol tutup (`X`).
+  - **Kanvas Tengah Interaktif**: Dukungan **Zoom & Pan**, geser mouse/touch, double-click untuk zoom in/out, tombol prev/next navigasi.
+  - **Toolbar Bawah**: Pill zoom controls (`ZoomOut`, persentase `%`, `ZoomIn`, `Reset`) dan filmstrip bar preview gambar berjejer di bagian bawah.
+  - **Aksesibilitas**: Keyboard navigation (`Enter`, `Space`, `Esc`, `tabIndex={0}`, `role="button"`).
+  - Terpasang pada lampiran pertanyaan tiket, lampiran bubble chat, serta bukti pembayaran transfer (*payment proof*).
+
+---
+
+## 📂 5. Peta File Kunci & Struktur Repositori
+
+```text
+DFauna/
+├── backend/
+│   ├── cmd/server/main.go                     # Entry point server Go & routing registrasi API
+│   ├── internal/
+│   │   ├── handlers/
+│   │   │   ├── support_handler.go             # Handler tiket support, chat thread, reply, status, attachment upload
+│   │   │   ├── rbac_handler.go                # Handler RBAC & manajemen hak akses pengguna
+│   │   │   ├── compliance_handler.go          # Handler pelaporan toko & dormancy
+│   │   │   └── finance_handler.go             # Handler pesanan paket & verifikasi bukti transfer
+│   │   └── models/
+│   │       ├── support.go                     # Model SupportTicket, SupportMessage, TicketAttachment
+│   │       ├── rbac.go                        # Model PlatformRole, Permission, RolePermission
+│   │       └── subscription.go                # Model SubscriptionOrder
+├── frontend/
+│   ├── mobile/
+│   │   └── src/
+│   │       ├── App.tsx                        # Aplikasi Utama Mobile & Admin Katalog Merchant
+│   │       └── components/
+│   │           ├── PlatformRolePortal.tsx     # Portal Super Admin & Staf Divisi Mobile (Helpdesk, Compliance, Finance, RBAC)
+│   │           └── AdminRBACManagement.tsx    # Manajemen RBAC Mobile
+│   └── desktop/
+│       └── src/
+│           ├── App.tsx                        # Aplikasi Utama Desktop & Admin Katalog Merchant
+│           └── components/
+│               ├── PlatformRolePortal.tsx     # Portal Super Admin & Staf Divisi Desktop
+│               └── AdminRBACManagement.tsx    # Manajemen RBAC Desktop
+├── public/                                    # Static bundle output yang disajikan oleh Go backend
+│   ├── mobile/
+│   └── desktop/
+└── HANDOFF.md                                 # Dokumen ini
 ```
 
-### Build & Jalankan Backend Go
-```powershell
-# Build binary
-cd backend
-go build -o ..\catavor-server.exe .\cmd\server\main.go
-cd ..
+---
 
-# Jalankan server
-.\catavor-server.exe
+## ⚙️ 6. Cara Menjalankan & Membangun Proyek
+
+### 1. Menjalankan Backend (Go Server)
+```bash
+cd c:/MyProject/DFauna/backend
+go run cmd/server/main.go
+# Server berjalan di port 8000 (http://localhost:8000)
+```
+
+### 2. Membangun Frontend Mobile & Desktop
+```bash
+# Build Mobile Frontend
+cd c:/MyProject/DFauna/frontend/mobile
+npm run build
+
+# Build Desktop Frontend
+cd c:/MyProject/DFauna/frontend/desktop
+npm run build
 ```
 
 ---
 
-## 📌 5. Rekomendasi Langkah Selanjutnya untuk Agen Penerus
+## 🛡️ 7. Panduan & Aturan untuk AI / Pengembang Selanjutnya
 
-1. **Superadmin Broadcast GUI**:
-   - Menambahkan visual modal/form di panel Superadmin untuk memicu broadcast notifikasi secara interaktif.
-2. **Setup Checklist Widget**:
-   - Melengkapi widget progress onboarding pada dashboard utama yang membaca data riil kelengkapan profil toko.
+1. **Jaga Konsistensi Desain**:
+   - Pertahankan estetika premium, elegan, clean, dan profesional.
+   - Hindari icon/komponen dekoratif yang berlebihan (*avoid AI-generated looking clutters*).
+   - Selalu pertahankan keselarasan antara versi Mobile (`frontend/mobile`) dan Desktop (`frontend/desktop`).
+2. **Kustomisasi & RBAC**:
+   - Cek permission user menggunakan helper `hasPermission(currentUser, 'permission_name')` dan `isSuperAdmin(currentUser)`.
+3. **Build Verifikasi**:
+   - Selalu pastikan `npm run build` berhasil (exit code 0) di kedua direktori frontend sebelum menyelesaikan task.
