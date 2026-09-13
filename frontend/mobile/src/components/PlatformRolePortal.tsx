@@ -376,6 +376,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [selectedProofOrder, setSelectedProofOrder] = useState<any | null>(null);
   const [replyText, setReplyText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const mobileTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize and reset textarea height when message is typed or sent/cleared
+  useEffect(() => {
+    if (mobileTicketTextareaRef.current) {
+      if (!replyText) {
+        mobileTicketTextareaRef.current.style.height = 'auto';
+      } else {
+        mobileTicketTextareaRef.current.style.height = 'auto';
+        mobileTicketTextareaRef.current.style.height = `${Math.min(mobileTicketTextareaRef.current.scrollHeight, 120)}px`;
+      }
+    }
+  }, [replyText]);
   const [showBroadcastSheet, setShowBroadcastSheet] = useState(false);
   const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info', target_role: 'all' });
 
@@ -2381,18 +2394,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                 {/* Textarea */}
                 <textarea
+                  ref={mobileTicketTextareaRef}
                   rows={1}
                   placeholder={isInternalNote ? "Tulis catatan rahasia internal tim CS..." : "Ketik balasan untuk merchant..."}
                   value={replyText}
-                  onChange={(e) => {
-                    setReplyText(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
-                  }}
+                  onChange={(e) => setReplyText(e.target.value)}
                   style={{
                     flex: 1,
                     minHeight: '36px',
-                    maxHeight: '100px',
+                    maxHeight: '120px',
+                    height: 'auto',
                     padding: '0.45rem 0.35rem',
                     backgroundColor: 'transparent',
                     border: 'none',
@@ -2400,6 +2411,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     fontSize: '0.84rem',
                     lineHeight: 1.45,
                     resize: 'none',
+                    overflowY: 'auto',
                     outline: 'none',
                     boxSizing: 'border-box'
                   }}
