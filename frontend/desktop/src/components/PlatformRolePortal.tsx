@@ -72,8 +72,54 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || isSuperAdmin(currentUser);
   const canAccessContent = hasPermission(currentUser, 'monetization:google:manage') || hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
 
-  // Default active division
+  // Helper to synchronize URL query parameters cleanly and safely
+  const updatePlatformUrl = (division: string, ticketRef?: string | number | null) => {
+    try {
+      const url = new URL(window.location.href);
+      if (division) {
+        url.searchParams.set('tab', division);
+      } else {
+        url.searchParams.delete('tab');
+      }
+
+      if (ticketRef) {
+        const sanitized = String(ticketRef).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
+        url.searchParams.set('ticket', sanitized);
+      } else {
+        url.searchParams.delete('ticket');
+        url.searchParams.delete('ticket_id');
+      }
+
+      const newRelativePathQuery = url.pathname + url.search + url.hash;
+      const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
+      if (newRelativePathQuery !== currentRelativePathQuery) {
+        window.history.pushState({ division, ticket: ticketRef || null }, '', newRelativePathQuery);
+      }
+    } catch (e) {
+      console.error('Failed to sync URL:', e);
+    }
+  };
+
+  // Default active division reading from URL first
   const getDefaultDivision = (): 'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content' => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = (urlParams.get('tab') || urlParams.get('division') || urlParams.get('view') || '').toLowerCase();
+      if (['overview', 'rbac', 'compliance', 'support', 'finance', 'content'].includes(tabParam)) {
+        if (tabParam === 'rbac' && !canAccessRBAC) return 'overview';
+        if (tabParam === 'compliance' && !canAccessCompliance) return 'overview';
+        if (tabParam === 'support' && !canAccessSupport) return 'overview';
+        if (tabParam === 'finance' && !canAccessFinance) return 'overview';
+        if (tabParam === 'content' && !canAccessContent) return 'overview';
+        return tabParam as any;
+      }
+      if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
+        if (canAccessSupport) return 'support';
+      }
+    } catch {
+      // fallback
+    }
+
     if (isSuperAdmin(currentUser)) return 'overview';
     if (roleSlug === 'compliance' && canAccessCompliance) return 'compliance';
     if (roleSlug === 'support' && canAccessSupport) return 'support';
@@ -87,6 +133,17 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   };
 
   const [activeDivision, setActiveDivision] = useState<'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content'>(getDefaultDivision());
+
+  const handleSwitchDivision = (division: 'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content') => {
+    setActiveDivision(division);
+    setSelectedTicket(null);
+    updatePlatformUrl(division, null);
+  };
+
+  const handleCloseTicketChat = () => {
+    setSelectedTicket(null);
+    updatePlatformUrl(activeDivision || 'support', null);
+  };
   const [loading, setLoading] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -226,13 +283,78 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     fetchDivisionData();
   }, [activeDivision, token]);
 
-  // Open ticket and fetch full conversation stream
-  const handleOpenTicketChat = async (ticket: any) => {
+  // Synchronize URL on popstate (browser back/forward)
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const tabParam = (searchParams.get('tab') || searchParams.get('division') || searchParams.get('view') || '').toLowerCase();
+        const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+
+        if (tabParam) {
+          if (['overview', 'rbac', 'compliance', 'support', 'finance', 'content'].includes(tabParam)) {
+            setActiveDivision(tabParam as any);
+          } else if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
+            setActiveDivision('support');
+          }
+        }
+
+        if (!ticketParam) {
+          setSelectedTicket(null);
+        }
+      } catch (err) {
+        console.error('Error handling popstate:', err);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Deep-link direct ticket opener when tickets loaded or direct URL access
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+
+    if (ticketParam && !selectedTicket && canAccessSupport && token) {
+      const cleanParam = String(ticketParam).trim().toLowerCase();
+      const foundInList = tickets.find(
+        t => String(t.id).toLowerCase() === cleanParam ||
+             (t.ticket_number && t.ticket_number.toLowerCase() === cleanParam) ||
+             (`#TCK-${t.id}`).toLowerCase() === cleanParam
+      );
+
+      if (foundInList) {
+        handleOpenTicketChat(foundInList, false);
+      } else {
+        fetch(`/api/admin/support/tickets/${ticketParam}`, {
+          credentials: 'omit',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(d => {
+            if (d.data) {
+              setSelectedTicket(d.data);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [tickets, token]);
+
+  // Open ticket and fetch full conversation stream with URL state update
+  const handleOpenTicketChat = async (ticket: any, pushToHistory = true) => {
     setSelectedTicket(ticket);
     setTicketDetailsLoading(true);
     setReplyMessage('');
     setTicketReplyAttachments([]);
     setIsInternalNote(false);
+
+    if (pushToHistory) {
+      const ticketRef = ticket.ticket_number || ticket.id;
+      updatePlatformUrl('support', ticketRef);
+    }
+
     try {
       const res = await fetch(`/api/admin/support/tickets/${ticket.id}`, {
         credentials: 'omit',
@@ -545,7 +667,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           overflowX: 'auto'
         }}>
           <button
-            onClick={() => setActiveDivision('overview')}
+            onClick={() => handleSwitchDivision('overview')}
             style={{
               padding: '0.55rem 1.1rem',
               borderRadius: '0.65rem',
@@ -567,7 +689,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
           {canAccessRBAC && (
             <button
-              onClick={() => setActiveDivision('rbac')}
+              onClick={() => handleSwitchDivision('rbac')}
               style={{
                 padding: '0.55rem 1.1rem',
                 borderRadius: '0.65rem',
@@ -590,7 +712,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
           {canAccessCompliance && (
             <button
-              onClick={() => setActiveDivision('compliance')}
+              onClick={() => handleSwitchDivision('compliance')}
               style={{
                 padding: '0.55rem 1.1rem',
                 borderRadius: '0.65rem',
@@ -625,7 +747,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
           {canAccessSupport && (
             <button
-              onClick={() => setActiveDivision('support')}
+              onClick={() => handleSwitchDivision('support')}
               style={{
                 padding: '0.55rem 1.1rem',
                 borderRadius: '0.65rem',
@@ -660,7 +782,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
           {canAccessFinance && (
             <button
-              onClick={() => setActiveDivision('finance')}
+              onClick={() => handleSwitchDivision('finance')}
               style={{
                 padding: '0.55rem 1.1rem',
                 borderRadius: '0.65rem',
@@ -696,7 +818,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           {canAccessContent && (
             <button
               type="button"
-              onClick={() => setActiveDivision('content')}
+              onClick={() => handleSwitchDivision('content')}
               style={{
                 padding: '0.65rem 1.15rem',
                 borderRadius: '0.75rem',
@@ -739,7 +861,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 1. OVERVIEW / EXECUTIVE DASHBOARD                                         */}
+      {/* 1. EXECUTIVE OVERVIEW DASHBOARD VIEW                                      */}
       {/* ========================================================================= */}
       {activeDivision === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -754,7 +876,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               cursor: 'pointer'
-            }} onClick={() => setActiveDivision('compliance')}>
+            }} onClick={() => handleSwitchDivision('compliance')}>
               <div>
                 <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Laporan Kepatuhan</p>
                 <h3 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b' }}>{reports.length}</h3>
@@ -774,7 +896,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               cursor: 'pointer'
-            }} onClick={() => setActiveDivision('support')}>
+            }} onClick={() => handleSwitchDivision('support')}>
               <div>
                 <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Tiket Dukungan</p>
                 <h3 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: '#0ea5e9' }}>{tickets.length}</h3>
@@ -794,7 +916,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               cursor: 'pointer'
-            }} onClick={() => setActiveDivision('finance')}>
+            }} onClick={() => handleSwitchDivision('finance')}>
               <div>
                 <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Pesanan Langganan</p>
                 <h3 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: '#10b981' }}>{orders.length}</h3>
@@ -814,7 +936,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               cursor: 'pointer'
-            }} onClick={() => setActiveDivision('content')}>
+            }} onClick={() => handleSwitchDivision('content')}>
               <div>
                 <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Siaran Platform</p>
                 <h3 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: '#8b5cf6' }}>{broadcasts.length}</h3>
@@ -1313,7 +1435,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   Dari: <strong style={{ color: 'var(--text-primary)' }}>{selectedTicket.user_email || (selectedTicket.user?.email) || 'Pengguna'}</strong> &bull; Toko: {selectedTicket.store_slug || (selectedTicket.store?.name) || '-'} &bull; Dibuat: {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleDateString('id-ID') : '-'}
                 </span>
               </div>
-              <button onClick={() => setSelectedTicket(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <button onClick={handleCloseTicketChat} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} title="Tutup Chat &amp; Kembali ke Daftar Tiket">
                 <XCircle size={22} />
               </button>
             </div>
