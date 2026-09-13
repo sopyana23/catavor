@@ -101,6 +101,19 @@ const formatSupportDateTime = (dateStr?: string | Date) => {
   }).replace(/\./g, ':');
 };
 
+const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
+  if (ticket?.store?.name) return ticket.store.name;
+  if (ticket?.store_name) return ticket.store_name;
+  if (msgSender?.name && !msgSender.name.includes('@')) return msgSender.name;
+  if (ticket?.user?.name && !ticket.user.name.includes('@')) return ticket.user.name;
+  const rawEmail = ticket?.user_email || ticket?.user?.email || msgSender?.email || '';
+  if (rawEmail) {
+    const prefix = rawEmail.split('@')[0];
+    if (prefix) return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+  return 'Merchant';
+};
+
 export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   token,
   currentUser,
@@ -1214,7 +1227,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 fontWeight: 600
               }}>
                 {activeView === 'support' && selectedTicket
-                  ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • ${selectedTicket.user_email || (selectedTicket.user?.email) || selectedTicket.store_name || (selectedTicket.store?.name) || 'Merchant'}`
+                  ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • ${getMerchantDisplayName(selectedTicket)}`
                   : subStatusText}
               </span>
             </div>
@@ -1881,21 +1894,45 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             }}>
               {/* Subject, Ticket Number & Date */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#06b6d4', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                    {selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}
-                  </span>
-                  <h3 style={{ margin: '0.15rem 0 0', fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(6, 182, 212, 0.25)', marginBottom: '0.25rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#06b6d4', letterSpacing: '0.02em', textTransform: 'uppercase', fontFamily: 'monospace' }}>
+                      {selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}
+                    </span>
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em', lineHeight: 1.35 }}>
                     {selectedTicket.subject || 'Tiket Pertanyaan Pengguna'}
                   </h3>
                 </div>
-                <span style={{ fontSize: '0.68rem', color: theme.textMuted, whiteSpace: 'nowrap', paddingTop: '0.15rem', fontWeight: 600 }}>
+                <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap', paddingTop: '0.15rem', fontWeight: 600 }}>
                   {formatSupportDateTime(selectedTicket.created_at)}
                 </span>
               </div>
 
-              {/* Badges: Category, Urgency, Merchant Info */}
+              {/* Merchant Identity & Meta Chips */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                {/* Merchant Identity Chip */}
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                  color: isDark ? '#38bdf8' : '#0284c7',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  fontSize: '0.67rem',
+                  fontWeight: 700
+                }}>
+                  <Store size={12} />
+                  <span>{getMerchantDisplayName(selectedTicket)}</span>
+                  {(selectedTicket.user?.email || selectedTicket.user_email) && (
+                    <span style={{ opacity: 0.75, fontWeight: 500, fontSize: '0.62rem' }}>
+                      ({selectedTicket.user?.email || selectedTicket.user_email})
+                    </span>
+                  )}
+                </div>
+
                 <span style={{
                   fontSize: '0.65rem',
                   fontWeight: 700,
@@ -1905,7 +1942,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   color: theme.textSecondary,
                   border: `1px solid ${theme.border}`
                 }}>
-                  Kategori: {
+                  {
                     selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
                     selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
                     selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Produk' :
@@ -1923,18 +1960,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   border: `1px solid ${selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(6, 182, 212, 0.25)'}`
                 }}>
                   Urgensi: {String(selectedTicket.priority || 'medium').toUpperCase()}
-                </span>
-
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                  color: isDark ? '#38bdf8' : '#0284c7',
-                  border: '1px solid rgba(56, 189, 248, 0.25)'
-                }}>
-                  Pengirim: {selectedTicket.user?.email || selectedTicket.user_email || selectedTicket.store?.name || selectedTicket.store_name || 'Merchant Platform'}
                 </span>
               </div>
 
@@ -2032,6 +2057,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   const isAgent = msg.sender_type === 'agent' || msg.is_admin;
                   const isInternal = msg.is_internal_note;
                   const isInitialInquiry = idx === 0 && !isAgent && !isInternal;
+                  const merchantName = getMerchantDisplayName(selectedTicket, msg.sender);
 
                   if (isInternal) {
                     return (
@@ -2056,7 +2082,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </span>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
-                          Oleh: {msg.sender?.name || msg.sender?.email || 'Staf Admin'}
+                          Oleh: {msg.sender?.name || 'Staf Admin'}
                         </div>
                         <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                           {msg.message}
@@ -2086,38 +2112,44 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ? '1.1rem 1.1rem 0.25rem 1.1rem' 
                             : '1.1rem 1.1rem 1.1rem 0.25rem',
                         backgroundColor: isInitialInquiry
-                          ? theme.surface
+                          ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)')
                           : isAgent 
                             ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
                             : theme.surface,
                         color: theme.textPrimary,
                         border: isInitialInquiry
-                          ? (isDark ? '1px solid rgba(6, 182, 212, 0.45)' : '1px solid rgba(2, 132, 199, 0.35)')
+                          ? (isDark ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
                           : isAgent 
                             ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
                             : `1px solid ${theme.border}`,
-                        boxShadow: theme.cardShadow
+                        boxShadow: isInitialInquiry ? (isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(2, 132, 199, 0.08)') : theme.cardShadow
                       }}>
                         {/* Bubble Sender Label & Time */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
-                          <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 800 }}>
-                            {isInitialInquiry ? (
-                              <>
-                                <Store size={13} color="#38bdf8" />
-                                <span>Pertanyaan Awal Merchant &bull; {selectedTicket.store?.name || selectedTicket.store_name || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
-                              </>
-                            ) : isAgent ? (
-                              <>
-                                <ShieldCheck size={13} color="#06b6d4" />
-                                <span>{msg.sender?.name || 'Catavor Support (Staf)'}</span>
-                              </>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            {isAgent ? (
+                              <ShieldCheck size={13} color="#06b6d4" />
                             ) : (
-                              <>
-                                <Store size={13} />
-                                <span>{selectedTicket.store?.name || selectedTicket.store_name || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
-                              </>
+                              <Store size={13} color={isInitialInquiry ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary} />
                             )}
-                          </strong>
+                            <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
+                              {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : merchantName}
+                            </strong>
+                            {isInitialInquiry && (
+                              <span style={{
+                                fontSize: '0.58rem',
+                                fontWeight: 800,
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: '4px',
+                                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)',
+                                color: isDark ? '#38bdf8' : '#0284c7',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em'
+                              }}>
+                                Pertanyaan Awal
+                              </span>
+                            )}
+                          </div>
                           <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
                             {formatSupportDateTime(msg.created_at)}
                           </span>
