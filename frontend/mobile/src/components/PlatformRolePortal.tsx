@@ -144,8 +144,71 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
   const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
+  // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
+  const updatePlatformUrl = (view: string, ticketRef?: string | number | null) => {
+    try {
+      const url = new URL(window.location.href);
+      if (view) {
+        url.searchParams.set('tab', view);
+      } else {
+        url.searchParams.delete('tab');
+      }
 
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+      if (ticketRef) {
+        const sanitized = String(ticketRef).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
+        url.searchParams.set('ticket', sanitized);
+      } else {
+        url.searchParams.delete('ticket');
+        url.searchParams.delete('ticket_id');
+      }
+
+      const newRelativePathQuery = url.pathname + url.search + url.hash;
+      const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
+      if (newRelativePathQuery !== currentRelativePathQuery) {
+        window.history.pushState({ view, ticket: ticketRef || null }, '', newRelativePathQuery);
+      }
+    } catch (e) {
+      console.error('Failed to sync mobile URL:', e);
+    }
+  };
+
+  const getDefaultView = (): ActiveView => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = (urlParams.get('tab') || urlParams.get('view') || urlParams.get('division') || '').toLowerCase();
+      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'audit'].includes(tabParam)) {
+        return tabParam as ActiveView;
+      }
+      if (['overview', 'home'].includes(tabParam)) return 'dashboard';
+      if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) return 'support';
+      if (['compliance', 'laporan'].includes(tabParam)) return 'reports';
+      if (['keuangan', 'billing', 'orders'].includes(tabParam)) return 'finance';
+      if (['iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
+      if (['siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
+    } catch {
+      // fallback
+    }
+
+    if (isSuperAdmin(currentUser)) return 'dashboard';
+    if (roleSlug === 'compliance' && canAccessCompliance) return 'reports';
+    if (roleSlug === 'support' && canAccessSupport) return 'support';
+    if (roleSlug === 'finance' && canAccessFinance) return 'finance';
+    if (roleSlug === 'content' && canAccessBroadcast) return 'broadcast';
+    return 'dashboard';
+  };
+
+  const [activeView, setActiveView] = useState<ActiveView>(getDefaultView());
+
+  const handleSwitchView = (view: ActiveView) => {
+    setActiveView(view);
+    setSelectedTicket(null);
+    updatePlatformUrl(view, null);
+  };
+
+  const handleCloseTicketChat = () => {
+    setSelectedTicket(null);
+    updatePlatformUrl(activeView || 'support', null);
+  };
   const [loading, setLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -397,13 +460,87 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     loadData();
   }, [token]);
 
-  // Open ticket and fetch full conversation stream
-  const handleOpenTicketChat = async (ticket: any) => {
+  // Synchronize URL on popstate (browser back/forward)
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const tabParam = (searchParams.get('tab') || searchParams.get('view') || searchParams.get('division') || '').toLowerCase();
+        const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+
+        if (tabParam) {
+          if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'audit'].includes(tabParam)) {
+            setActiveView(tabParam as ActiveView);
+          } else if (['overview', 'home'].includes(tabParam)) {
+            setActiveView('dashboard');
+          } else if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
+            setActiveView('support');
+          } else if (['compliance', 'laporan'].includes(tabParam)) {
+            setActiveView('reports');
+          } else if (['keuangan', 'billing', 'orders'].includes(tabParam)) {
+            setActiveView('finance');
+          } else if (['iklan', 'ads', 'google'].includes(tabParam)) {
+            setActiveView('monetization');
+          } else if (['siaran', 'notifikasi'].includes(tabParam)) {
+            setActiveView('broadcast');
+          }
+        }
+
+        if (!ticketParam) {
+          setSelectedTicket(null);
+        }
+      } catch (err) {
+        console.error('Error handling mobile popstate:', err);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Deep-link direct ticket opener when tickets are loaded or direct URL access
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+
+    if (ticketParam && !selectedTicket && canAccessSupport && token) {
+      const cleanParam = String(ticketParam).trim().toLowerCase();
+      const foundInList = tickets.find(
+        t => String(t.id).toLowerCase() === cleanParam ||
+             (t.ticket_number && t.ticket_number.toLowerCase() === cleanParam) ||
+             (`#TCK-${t.id}`).toLowerCase() === cleanParam
+      );
+
+      if (foundInList) {
+        handleOpenTicketChat(foundInList, false);
+      } else {
+        fetch(`/api/admin/support/tickets/${ticketParam}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(d => {
+            if (d.data) {
+              setSelectedTicket(d.data);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [tickets, token]);
+
+  // Open ticket and fetch full conversation stream with URL state update
+  const handleOpenTicketChat = async (ticket: any, pushToHistory = true) => {
     setSelectedTicket(ticket);
     setTicketDetailsLoading(true);
     setReplyText('');
     setTicketReplyAttachments([]);
     setIsInternalNote(false);
+
+    if (pushToHistory) {
+      const ticketRef = ticket.ticket_number || ticket.id;
+      updatePlatformUrl('support', ticketRef);
+    }
+
     try {
       const res = await fetch(`/api/admin/support/tickets/${ticket.id}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -1001,9 +1138,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <button
                 onClick={() => {
                   if (activeView === 'support' && selectedTicket) {
-                    setSelectedTicket(null);
+                    handleCloseTicketChat();
                   } else {
-                    setActiveView('dashboard');
+                    handleSwitchView('dashboard');
                   }
                 }}
                 title={activeView === 'support' && selectedTicket ? "Kembali ke Daftar Tiket" : "Kembali ke Dashboard"}
@@ -1357,7 +1494,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {pendingReportsCount > 0 && (
                   <button
-                    onClick={() => setActiveView('reports')}
+                    onClick={() => handleSwitchView('reports')}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1376,7 +1513,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
                 {openTicketsCount > 0 && (
                   <button
-                    onClick={() => setActiveView('support')}
+                    onClick={() => handleSwitchView('support')}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1395,7 +1532,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
                 {pendingOrdersCount > 0 && (
                   <button
-                    onClick={() => setActiveView('finance')}
+                    onClick={() => handleSwitchView('finance')}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1446,7 +1583,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {dashboardGridItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveView(item.id)}
+                onClick={() => handleSwitchView(item.id)}
                 style={{
                   padding: '0.95rem 0.85rem',
                   borderRadius: '1.15rem',
@@ -4007,7 +4144,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveView(tab.id)}
+                onClick={() => handleSwitchView(tab.id)}
                 style={{
                   flex: 1,
                   display: 'flex',
