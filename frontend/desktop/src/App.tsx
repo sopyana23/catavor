@@ -5816,14 +5816,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           category: t.category,
           priority: t.priority,
           status: t.status,
-          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
             id: m.id,
             sender: m.sender_type || 'user',
             sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
             message: m.message,
-            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           })) : []
         }));
@@ -5853,14 +5853,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           category: t.category,
           priority: t.priority,
           status: t.status,
-          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
             id: m.id,
             sender: m.sender_type || 'user',
             sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
             message: m.message,
-            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           })) : []
         };

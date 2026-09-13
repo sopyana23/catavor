@@ -65,7 +65,13 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	}
 
 	var tickets []models.SupportTicket
-	query := database.DB.Where("user_id = ?", user.ID)
+	query := database.DB.Where("user_id = ?", user.ID).
+		Preload("User").
+		Preload("Store").
+		Preload("Messages", func(db *gorm.DB) *gorm.DB {
+			return db.Where("is_internal_note = false").Order("created_at ASC, id ASC")
+		}).
+		Preload("Messages.Attachments")
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" && status != "all" {
 		query = query.Where("status = ?", status)
@@ -329,7 +335,13 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 
 // ListAllTickets returns all tickets in system with filtering for CS agents.
 func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
-	query := database.DB.Model(&models.SupportTicket{}).Preload("User").Preload("Store")
+	query := database.DB.Model(&models.SupportTicket{}).
+		Preload("User").
+		Preload("Store").
+		Preload("Messages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC, id ASC")
+		}).
+		Preload("Messages.Attachments")
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" && status != "all" {
 		query = query.Where("status = ?", status)
