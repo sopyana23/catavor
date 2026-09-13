@@ -88,6 +88,19 @@ type ActiveView =
   | 'broadcast' 
   | 'audit';
 
+const formatSupportDateTime = (dateStr?: string | Date) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).replace(/\./g, ':');
+};
+
 export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   token,
   currentUser,
@@ -1876,8 +1889,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {selectedTicket.subject || 'Tiket Pertanyaan Pengguna'}
                   </h3>
                 </div>
-                <span style={{ fontSize: '0.68rem', color: theme.textMuted, whiteSpace: 'nowrap', paddingTop: '0.15rem' }}>
-                  {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Baru'}
+                <span style={{ fontSize: '0.68rem', color: theme.textMuted, whiteSpace: 'nowrap', paddingTop: '0.15rem', fontWeight: 600 }}>
+                  {formatSupportDateTime(selectedTicket.created_at)}
                 </span>
               </div>
 
@@ -1921,7 +1934,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   color: isDark ? '#38bdf8' : '#0284c7',
                   border: '1px solid rgba(56, 189, 248, 0.25)'
                 }}>
-                  Pengirim: {selectedTicket.user_email || (selectedTicket.user?.email) || selectedTicket.store_name || (selectedTicket.store?.name) || 'Merchant Platform'}
+                  Pengirim: {selectedTicket.user?.email || selectedTicket.user_email || selectedTicket.store?.name || selectedTicket.store_name || 'Merchant Platform'}
                 </span>
               </div>
 
@@ -2004,85 +2017,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
             {/* 2. Messages Thread Stream */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Initial Inquiry Card */}
-              <div style={{
-                padding: '0.95rem 1.05rem',
-                borderRadius: '1.15rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.45rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ fontSize: '0.78rem', color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
-                    <MessageSquare size={13} /> Pertanyaan Awal Merchant:
-                  </strong>
-                  <span style={{ fontSize: '0.62rem', color: theme.textMuted }}>
-                    {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
-                  {selectedTicket.message || selectedTicket.description || 'Tidak ada deskripsi pesan tertulis.'}
-                </p>
-
-                {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
-                  <div style={{ marginTop: '0.45rem', paddingTop: '0.45rem', borderTop: `1px solid ${theme.border}` }}>
-                    <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Paperclip size={11} /> {selectedTicket.attachments.length} Lampiran Foto:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
-                      {selectedTicket.attachments.map((att: any, idx: number) => (
-                        <div
-                          key={idx}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => openAttachmentLightbox(selectedTicket.attachments, idx)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              openAttachmentLightbox(selectedTicket.attachments, idx);
-                            }
-                          }}
-                          style={{
-                            position: 'relative',
-                            borderRadius: '0.5rem',
-                            overflow: 'hidden',
-                            border: `1px solid ${theme.border}`,
-                            aspectRatio: '1',
-                            cursor: 'pointer',
-                            backgroundColor: '#000000'
-                          }}
-                          title="Perbesar gambar"
-                        >
-                          <img
-                            src={att.file_url}
-                            alt={att.file_name || 'Attachment'}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Interactive Message Bubbles Feed */}
               {ticketDetailsLoading ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: theme.textSecondary, fontSize: '0.8rem' }}>
+                <div style={{ padding: '2.5rem', textAlign: 'center', color: theme.textSecondary, fontSize: '0.8rem' }}>
                   <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#06b6d4' }} />
-                  Memuat riwayat percakapan...
+                  Memuat riwayat percakapan tiket...
                 </div>
-              ) : selectedTicket.messages && selectedTicket.messages.length > 0 ? (
-                selectedTicket.messages.map((msg: any) => {
+              ) : (!selectedTicket.messages || selectedTicket.messages.length === 0) ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: theme.textMuted, fontSize: '0.8rem' }}>
+                  Belum ada pesan dalam tiket ini.
+                </div>
+              ) : (
+                selectedTicket.messages.map((msg: any, idx: number) => {
                   const isAgent = msg.sender_type === 'agent' || msg.is_admin;
                   const isInternal = msg.is_internal_note;
+                  const isInitialInquiry = idx === 0 && !isAgent && !isInternal;
 
                   if (isInternal) {
                     return (
                       <div
-                        key={msg.id}
+                        key={msg.id || idx}
                         style={{
                           padding: '0.85rem 1rem',
                           borderRadius: '1rem',
@@ -2097,8 +2051,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                             <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
                           </span>
-                          <span style={{ fontSize: '0.62rem', color: theme.textMuted }}>
-                            {msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
+                            {formatSupportDateTime(msg.created_at)}
                           </span>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
@@ -2113,7 +2067,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                   return (
                     <div
-                      key={msg.id}
+                      key={msg.id || idx}
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -2122,35 +2076,50 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}
                     >
                       <div style={{
-                        maxWidth: '88%',
-                        padding: '0.85rem 1rem',
-                        borderRadius: isAgent ? '1.1rem 1.1rem 0.25rem 1.1rem' : '1.1rem 1.1rem 1.1rem 0.25rem',
-                        backgroundColor: isAgent 
-                          ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
-                          : theme.surface,
+                        maxWidth: isInitialInquiry ? '98%' : '88%',
+                        width: isInitialInquiry ? '100%' : 'auto',
+                        boxSizing: 'border-box',
+                        padding: '0.95rem 1.1rem',
+                        borderRadius: isInitialInquiry 
+                          ? '1.15rem' 
+                          : isAgent 
+                            ? '1.1rem 1.1rem 0.25rem 1.1rem' 
+                            : '1.1rem 1.1rem 1.1rem 0.25rem',
+                        backgroundColor: isInitialInquiry
+                          ? theme.surface
+                          : isAgent 
+                            ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
+                            : theme.surface,
                         color: theme.textPrimary,
-                        border: isAgent 
-                          ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
-                          : `1px solid ${theme.border}`,
+                        border: isInitialInquiry
+                          ? (isDark ? '1px solid rgba(6, 182, 212, 0.45)' : '1px solid rgba(2, 132, 199, 0.35)')
+                          : isAgent 
+                            ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
+                            : `1px solid ${theme.border}`,
                         boxShadow: theme.cardShadow
                       }}>
                         {/* Bubble Sender Label & Time */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
                           <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 800 }}>
-                            {isAgent ? (
+                            {isInitialInquiry ? (
+                              <>
+                                <Store size={13} color="#38bdf8" />
+                                <span>Pertanyaan Awal Merchant &bull; {selectedTicket.store?.name || selectedTicket.store_name || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
+                              </>
+                            ) : isAgent ? (
                               <>
                                 <ShieldCheck size={13} color="#06b6d4" />
-                                {msg.sender?.name || 'Catavor Support (Staf)'}
+                                <span>{msg.sender?.name || 'Catavor Support (Staf)'}</span>
                               </>
                             ) : (
                               <>
                                 <Store size={13} />
-                                {selectedTicket.store_name || selectedTicket.user_email || 'Merchant'}
+                                <span>{selectedTicket.store?.name || selectedTicket.store_name || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
                               </>
                             )}
                           </strong>
-                          <span style={{ fontSize: '0.62rem', color: theme.textMuted }}>
-                            {msg.created_at ? new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
+                            {formatSupportDateTime(msg.created_at)}
                           </span>
                         </div>
 
@@ -2163,19 +2132,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         {msg.attachments && msg.attachments.length > 0 && (
                           <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: `1px solid ${theme.border}` }}>
                             <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <Paperclip size={11} /> {msg.attachments.length} Lampiran Foto:
+                              <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Foto:
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
-                              {msg.attachments.map((att: any, idx: number) => (
+                              {msg.attachments.map((att: any, aIdx: number) => (
                                 <div
-                                  key={idx}
+                                  key={aIdx}
                                   role="button"
                                   tabIndex={0}
-                                  onClick={() => openAttachmentLightbox(msg.attachments, idx)}
+                                  onClick={() => openAttachmentLightbox(msg.attachments, aIdx)}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                       e.preventDefault();
-                                      openAttachmentLightbox(msg.attachments, idx);
+                                      openAttachmentLightbox(msg.attachments, aIdx);
                                     }
                                   }}
                                   style={{
@@ -2207,7 +2176,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                     justifyContent: 'space-between',
                                     alignItems: 'center'
                                   }}>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${idx+1}`}</span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${aIdx+1}`}</span>
                                     <ZoomIn size={10} />
                                   </div>
                                 </div>
@@ -2219,7 +2188,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   );
                 })
-              ) : null}
+              )}
             </div>
 
             {/* 3. Sleek Executive Bottom Reply Composer (Flush to Bottom) */}
@@ -2552,7 +2521,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </span>
                         </div>
                         <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                          {t.created_at ? new Date(t.created_at).toLocaleDateString('id-ID') : 'Baru'}
+                          {formatSupportDateTime(t.created_at)}
                         </span>
                       </div>
 
@@ -2593,7 +2562,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical'
                         }}>
-                          {t.message || t.description || 'Tidak ada pesan tertulis.'}
+                          {t.messages?.[0]?.message || t.message || t.description || 'Tidak ada pesan tertulis.'}
                         </p>
                       </div>
 

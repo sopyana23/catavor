@@ -55,6 +55,19 @@ interface PlatformRolePortalProps {
   onLogout?: () => void;
 }
 
+const formatSupportDateTime = (dateStr?: string | Date) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).replace(/\./g, ':');
+};
+
 export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   token,
   currentUser,
@@ -1319,17 +1332,22 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                     .map(t => (
                       <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={{ padding: '0.85rem 1.25rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                          #{t.id}
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
-                            {t.created_at ? new Date(t.created_at).toLocaleDateString('id-ID') : '-'}
+                          <span style={{ fontSize: '0.82rem', color: '#0ea5e9', fontWeight: 800 }}>
+                            {t.ticket_number || `#TCK-${t.id}`}
+                          </span>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, marginTop: '2px' }}>
+                            {formatSupportDateTime(t.created_at)}
                           </div>
                         </td>
                         <td style={{ padding: '0.85rem 1rem' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.subject || t.title || 'Pertanyaan Pengguna'}</span>
-                          <div style={{ fontSize: '0.75rem', color: '#0ea5e9' }}>{t.store_slug || t.store_name || 'Umum'}</div>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>{t.subject || t.title || 'Pertanyaan Pengguna'}</span>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '280px' }}>
+                            {t.messages?.[0]?.message || t.message || t.description || `Toko: ${t.store_slug || t.store?.name || '-'}`}
+                          </div>
                         </td>
                         <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>
-                          {t.user_email || t.email || t.user_name || '-'}
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'block', fontSize: '0.8rem' }}>{t.user?.name || t.store?.name || 'Merchant'}</span>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{t.user?.email || t.user_email || t.email || '-'}</span>
                         </td>
                         <td style={{ padding: '0.85rem 1rem' }}>
                           <span style={{
@@ -1445,7 +1463,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   </h3>
                 </div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'block' }}>
-                  Dari: <strong style={{ color: 'var(--text-primary)' }}>{selectedTicket.user_email || (selectedTicket.user?.email) || 'Pengguna'}</strong> &bull; Toko: {selectedTicket.store_slug || (selectedTicket.store?.name) || '-'} &bull; Dibuat: {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleDateString('id-ID') : '-'}
+                  Dari: <strong style={{ color: 'var(--text-primary)' }}>{selectedTicket.user?.email || selectedTicket.user_email || 'Pengguna'}</strong> &bull; Toko: {selectedTicket.store?.name || selectedTicket.store_slug || '-'} &bull; Dibuat: {formatSupportDateTime(selectedTicket.created_at)}
                 </span>
               </div>
               <button onClick={handleCloseTicketChat} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} title="Tutup Chat &amp; Kembali ke Daftar Tiket">
@@ -1511,7 +1529,11 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
                     Informasi Tiket:
                   </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.78rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.78rem' }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Nomor Tiket: </span>
+                      <strong style={{ color: '#0ea5e9' }}>{selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}</strong>
+                    </div>
                     <div>
                       <span style={{ color: 'var(--text-muted)' }}>Kategori: </span>
                       <strong style={{ color: 'var(--text-primary)' }}>
@@ -1534,6 +1556,14 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                         {String(selectedTicket.priority || 'medium').toUpperCase()}
                       </span>
                     </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Waktu Dibuat: </span>
+                      <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.74rem' }}>{formatSupportDateTime(selectedTicket.created_at)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Pembaruan Terakhir: </span>
+                      <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.74rem' }}>{formatSupportDateTime(selectedTicket.last_message_at || selectedTicket.updated_at)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1541,162 +1571,143 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
               {/* Right Area: Conversation Stream & Reply Box */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, backgroundColor: 'var(--bg-card)' }}>
                 {/* Messages Feed */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  {/* Initial Message */}
-                  <div style={{
-                    padding: '1rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <strong style={{ fontSize: '0.78rem', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Store size={14} /> Pertanyaan Awal Merchant:
-                      </strong>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleTimeString() : ''}
-                      </span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {selectedTicket.description || selectedTicket.message || 'Tidak ada pesan tertulis.'}
-                    </p>
-
-                    {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
-                      <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Paperclip size={12} /> {selectedTicket.attachments.length} Lampiran Foto:
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          {selectedTicket.attachments.map((att: any, idx: number) => (
-                            <div
-                              key={idx}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => openAttachmentLightbox(selectedTicket.attachments, idx)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  openAttachmentLightbox(selectedTicket.attachments, idx);
-                                }
-                              }}
-                              style={{ width: '80px', height: '80px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative' }}
-                            >
-                              <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '0.55rem', padding: '2px', textAlign: 'center' }}>
-                                Perbesar
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
                   {ticketDetailsLoading ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                       <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#0ea5e9' }} />
-                      Memuat percakapan...
+                      Memuat riwayat percakapan tiket...
                     </div>
-                  ) : selectedTicket.messages && selectedTicket.messages.map((m: any, idx: number) => {
-                    const isAgent = m.sender_type === 'agent' || m.is_admin;
-                    const isInternal = m.is_internal_note;
+                  ) : (!selectedTicket.messages || selectedTicket.messages.length === 0) ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      Belum ada pesan dalam tiket ini.
+                    </div>
+                  ) : (
+                    selectedTicket.messages.map((m: any, idx: number) => {
+                      const isAgent = m.sender_type === 'agent' || m.is_admin;
+                      const isInternal = m.is_internal_note;
+                      const isInitialInquiry = idx === 0 && !isAgent && !isInternal;
 
-                    if (isInternal) {
+                      if (isInternal) {
+                        return (
+                          <div key={idx} style={{
+                            padding: '0.9rem 1.15rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px dashed rgba(245, 158, 11, 0.45)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.35rem'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Lock size={13} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                              </span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                {formatSupportDateTime(m.created_at)}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              Oleh: <strong>{m.sender?.name || m.sender?.email || 'Staf Admin'}</strong>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                              {m.message}
+                            </p>
+                          </div>
+                        );
+                      }
+
                       return (
-                        <div key={idx} style={{
-                          padding: '0.85rem 1rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                          border: '1px dashed rgba(245, 158, 11, 0.45)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.25rem'
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <Lock size={13} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
-                            </span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                              {m.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}
-                            </span>
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: isAgent ? 'flex-end' : 'flex-start',
+                            gap: '0.25rem'
+                          }}
+                        >
+                          <div style={{
+                            maxWidth: isInitialInquiry ? '95%' : '85%',
+                            width: isInitialInquiry ? '100%' : 'auto',
+                            boxSizing: 'border-box',
+                            padding: '1rem 1.25rem',
+                            borderRadius: isInitialInquiry
+                              ? '1rem'
+                              : isAgent
+                                ? '1rem 1rem 0.25rem 1rem'
+                                : '1rem 1rem 1rem 0.25rem',
+                            backgroundColor: isInitialInquiry
+                              ? 'var(--bg-deep)'
+                              : isAgent
+                                ? 'rgba(14, 165, 233, 0.12)'
+                                : 'var(--bg-deep)',
+                            border: isInitialInquiry
+                              ? '1px solid rgba(14, 165, 233, 0.4)'
+                              : `1px solid ${isAgent ? 'rgba(14, 165, 233, 0.3)' : 'var(--border-light)'}`,
+                            boxShadow: isInitialInquiry ? '0 4px 16px rgba(0,0,0,0.2)' : undefined
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.45rem', fontSize: '0.75rem' }}>
+                              <strong style={{ color: isAgent ? '#0ea5e9' : isInitialInquiry ? '#38bdf8' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                {isInitialInquiry ? (
+                                  <>
+                                    <Store size={14} color="#38bdf8" />
+                                    <span>Pertanyaan Awal Merchant &bull; {selectedTicket.store?.name || selectedTicket.store_slug || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
+                                  </>
+                                ) : isAgent ? (
+                                  <>
+                                    <ShieldCheck size={14} color="#0ea5e9" />
+                                    <span>{m.sender?.name || 'Staf CS Catavor'}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Store size={14} />
+                                    <span>{selectedTicket.store?.name || selectedTicket.store_slug || selectedTicket.user?.email || selectedTicket.user_email || 'Merchant'}</span>
+                                  </>
+                                )}
+                              </strong>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0 }}>
+                                {formatSupportDateTime(m.created_at)}
+                              </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                              {m.message}
+                            </p>
+
+                            {m.attachments && m.attachments.length > 0 && (
+                              <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
+                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <Paperclip size={12} color={isAgent ? '#0ea5e9' : '#38bdf8'} /> {m.attachments.length} Lampiran Bukti / Screenshot:
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                                  {m.attachments.map((att: any, aIdx: number) => (
+                                    <div
+                                      key={aIdx}
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => openAttachmentLightbox(m.attachments, aIdx)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          openAttachmentLightbox(m.attachments, aIdx);
+                                        }
+                                      }}
+                                      style={{ width: '85px', height: '85px', borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative', backgroundColor: 'rgba(0,0,0,0.5)' }}
+                                      title="Klik untuk memperbesar gambar"
+                                    >
+                                      <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.58rem', padding: '2px 4px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                                        <ZoomIn size={10} /> Perbesar
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            Oleh: {m.sender?.name || m.sender?.email || 'Staf Admin'}
-                          </div>
-                          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-                            {m.message}
-                          </p>
                         </div>
                       );
-                    }
-
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: isAgent ? 'flex-end' : 'flex-start',
-                          gap: '0.25rem'
-                        }}
-                      >
-                        <div style={{
-                          maxWidth: '85%',
-                          padding: '0.85rem 1.15rem',
-                          borderRadius: isAgent ? '1rem 1rem 0.25rem 1rem' : '1rem 1rem 1rem 0.25rem',
-                          backgroundColor: isAgent ? 'rgba(14, 165, 233, 0.12)' : 'var(--bg-deep)',
-                          border: `1px solid ${isAgent ? 'rgba(14, 165, 233, 0.3)' : 'var(--border-light)'}`
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.35rem', fontSize: '0.75rem' }}>
-                            <strong style={{ color: isAgent ? '#0ea5e9' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                              {isAgent ? (
-                                <>
-                                  <ShieldCheck size={14} color="#0ea5e9" />
-                                  {m.sender?.name || 'Staf CS Catavor'}
-                                </>
-                              ) : (
-                                <>
-                                  <Store size={14} />
-                                  {selectedTicket.store_slug || selectedTicket.user_email || 'Merchant'}
-                                </>
-                              )}
-                            </strong>
-                            <span style={{ color: 'var(--text-muted)' }}>{m.created_at ? new Date(m.created_at).toLocaleTimeString() : ''}</span>
-                          </div>
-                          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                            {m.message}
-                          </p>
-
-                          {m.attachments && m.attachments.length > 0 && (
-                            <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {m.attachments.map((att: any, aIdx: number) => (
-                                  <div
-                                    key={aIdx}
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => openAttachmentLightbox(m.attachments, aIdx)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        openAttachmentLightbox(m.attachments, aIdx);
-                                      }
-                                    }}
-                                    style={{ width: '80px', height: '80px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative' }}
-                                  >
-                                    <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '0.55rem', padding: '2px', textAlign: 'center' }}>
-                                      Perbesar
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                    })
+                  )}
                 </div>
 
                 {/* Reply Composer Bar */}
