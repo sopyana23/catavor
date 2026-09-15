@@ -89,6 +89,7 @@ import {
   PhoneCall,
   MessageSquareHeart,
   UserCheck,
+  Bot,
   Scale,
   FileCheck,
   Palette,
@@ -900,6 +901,7 @@ interface TicketMessage {
   message: string;
   timestamp?: string;
   created_at?: string;
+  read_at?: string | null;
   attachments?: TicketAttachment[];
 }
 
@@ -913,6 +915,10 @@ interface SupportTicket {
   created_at: string;
   updated_at: string;
   last_message_at?: string;
+  raw_updated_at?: string;
+  raw_last_message_at?: string;
+  unread_count?: number;
+  has_unread?: boolean;
   messages: TicketMessage[];
 }
 
@@ -5799,40 +5805,118 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     message: ''
   });
 
-  // Fetch tickets from backend API
-  const fetchSupportTickets = async () => {
+  const prevTicketMessagesRef = useRef<Record<string, number>>({});
+  const isFirstTicketLoadRef = useRef<boolean>(true);
+  const readTicketIdsRef = useRef<Set<string | number>>(new Set());
+
+  // Soft audio chime saat ada balasan baru dari CS
+  const playSupportChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.33);
+    } catch {}
+  };
+
+  // Fetch tickets from backend API dengan mode silent untuk background live polling
+  const fetchSupportTickets = async (silent: boolean = false) => {
     if (!token) return;
     try {
-      setLoadingTickets(true);
+      if (!silent) setLoadingTickets(true);
       const res = await fetch(`${API_BASE}/support/tickets`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        const mappedTickets: SupportTicket[] = data.data.map((t: any) => ({
-          id: t.id,
-          ticket_number: t.ticket_number,
-          subject: t.subject,
-          category: t.category,
-          priority: t.priority,
-          status: t.status,
-          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
-            id: m.id,
-            sender: m.sender_type || 'user',
-            sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
-            message: m.message,
-            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            attachments: Array.isArray(m.attachments) ? m.attachments : []
-          })) : []
-        }));
+        const mappedTickets: SupportTicket[] = data.data.map((t: any) => {
+          const msgs = Array.isArray(t.messages) ? t.messages : [];
+          const hasUnreadAgent = msgs.some((m: any) => (m.sender_type === 'agent' || m.sender_type === 'support') && !m.read_at);
+          const isViewed = selectedTicket?.id === t.id || readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id));
+          const unreadCount = isViewed ? 0 : (t.unread_count !== undefined ? t.unread_count : (hasUnreadAgent ? msgs.filter((m: any) => (m.sender_type === 'agent' || m.sender_type === 'support') && !m.read_at).length : 0));
+          const hasUnread = unreadCount > 0;
+
+          return {
+            id: t.id,
+            ticket_number: t.ticket_number,
+            subject: t.subject,
+            category: t.category,
+            priority: t.priority,
+            status: t.status,
+            raw_updated_at: t.updated_at,
+            raw_last_message_at: t.last_message_at || t.updated_at,
+            unread_count: unreadCount,
+            has_unread: hasUnread,
+            created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
+            messages: msgs.map((m: any) => ({
+              id: m.id,
+              sender: m.sender_type || 'user',
+              sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
+              message: m.message,
+              timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              read_at: m.read_at,
+              attachments: Array.isArray(m.attachments) ? m.attachments : []
+            }))
+          };
+        });
+
+        // Deteksi balasan baru dari CS untuk memicu notifikasi toast & audio chime
+        if (!isFirstTicketLoadRef.current) {
+          mappedTickets.forEach(t => {
+            const prevCount = prevTicketMessagesRef.current[String(t.id)] || 0;
+            const curCount = t.messages.length;
+            if (curCount > prevCount && prevCount > 0) {
+              const lastMsg = t.messages[t.messages.length - 1];
+              if (lastMsg && (lastMsg.sender === 'agent' || lastMsg.sender === 'support')) {
+                const snippet = lastMsg.message ? (lastMsg.message.length > 50 ? lastMsg.message.substring(0, 50) + '...' : lastMsg.message) : '';
+                showToast('Pesan masuk', 'info');
+                playSupportChime();
+
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                  try {
+                    new Notification('Balasan Baru dari CS Catavor', {
+                      body: `Tiket #${t.ticket_number || t.id}: ${snippet}`,
+                      icon: '/favicon.ico'
+                    });
+                  } catch {}
+                }
+              }
+            }
+          });
+        }
+
+        const counts: Record<string, number> = {};
+        mappedTickets.forEach(t => {
+          counts[String(t.id)] = t.messages.length;
+        });
+        prevTicketMessagesRef.current = counts;
+        isFirstTicketLoadRef.current = false;
+
         setTickets(mappedTickets);
+
+        if (selectedTicket) {
+          const updatedActive = mappedTickets.find(t => t.id === selectedTicket.id);
+          if (updatedActive && updatedActive.messages.length !== selectedTicket.messages.length) {
+            setSelectedTicket(updatedActive);
+          }
+        }
       }
     } catch (e) {
       console.error("Gagal mengambil daftar tiket support:", e);
     } finally {
-      setLoadingTickets(false);
+      if (!silent) setLoadingTickets(false);
     }
   };
 
@@ -5854,29 +5938,56 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           category: t.category,
           priority: t.priority,
           status: t.status,
+          raw_updated_at: t.updated_at,
+          raw_last_message_at: t.last_message_at || t.updated_at,
+          unread_count: 0,
+          has_unread: false,
           created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
           messages: msgList.map((m: any) => ({
             id: m.id,
             sender: m.sender_type || 'user',
             sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
             message: m.message,
             timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            read_at: m.read_at,
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           }))
         };
         setSelectedTicket(mapped);
+
+        // Tandai tiket sebagai dibaca di referensi lokal & panggil API mark-read di backend
+        readTicketIdsRef.current.add(t.id);
+        readTicketIdsRef.current.add(String(t.id));
+        readTicketIdsRef.current.add(ticketId);
+        readTicketIdsRef.current.add(String(ticketId));
+
+        fetch(`${API_BASE}/support/tickets/${ticketId}/mark-read`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        }).catch(() => {});
+
+        // Hapus efek belum dibaca di UI tiket lokal
+        setTickets(prev => prev.map(item => (item.id === t.id || String(item.id) === String(t.id) || item.id === ticketId || String(item.id) === String(ticketId)) ? { ...item, unread_count: 0, has_unread: false, status: item.status === 'waiting_user' ? 'in_progress' : item.status } : item));
       }
     } catch (e) {
       console.error("Gagal memuat detail tiket:", e);
     }
   };
 
+  // Polling otomatis: 8 detik di tab bantuan, 20 detik di tab lain
   useEffect(() => {
-    if (adminTab === 'help' && token) {
-      fetchSupportTickets();
-    }
-  }, [adminTab, token]);
+    if (!token) return;
+    fetchSupportTickets(tickets.length > 0);
+
+    const intervalMs = adminTab === 'help' ? 8000 : 20000;
+    const timer = setInterval(() => {
+      fetchSupportTickets(true);
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [adminTab, token, selectedTicket?.id]);
 
   // Upload attachment helper for screenshots
   const handleUploadSupportAttachment = async (files: FileList | null, isReply: boolean = false) => {
@@ -5936,7 +6047,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   };
 
   const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
+    const list = tickets.filter(t => {
       const searchStr = ticketSearch.toLowerCase().trim();
       const matchesSearch = !searchStr || 
         t.subject.toLowerCase().includes(searchStr) || 
@@ -5944,11 +6055,38 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
       if (!matchesSearch) return false;
 
-      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'waiting_agent' || t.status === 'in_progress';
+      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'waiting_agent' || t.status === 'in_progress' || t.status === 'waiting_user';
       if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
       return true;
     });
-  }, [tickets, ticketFilter, ticketSearch]);
+
+    // URUTKAN: Pesan belum terbaca maupun sudah terbaca diurutkan berdasarkan tanggal/waktu terbaru dari isian chat terakhir layaknya aplikasi sosial media (WhatsApp/Telegram)
+    return [...list].sort((a, b) => {
+      const getLatestTime = (t: any): number => {
+        if (Array.isArray(t.messages) && t.messages.length > 0) {
+          const last = t.messages[t.messages.length - 1];
+          const mt = new Date(last.raw_created_at || last.created_at || last.timestamp || 0).getTime();
+          if (!isNaN(mt) && mt > 1000000000) return mt;
+        }
+        if (t.raw_last_message_at) {
+          const lma = new Date(t.raw_last_message_at).getTime();
+          if (!isNaN(lma) && lma > 1000000000) return lma;
+        }
+        if (t.raw_updated_at || t.updated_at) {
+          const ua = new Date(t.raw_updated_at || t.updated_at).getTime();
+          if (!isNaN(ua) && ua > 1000000000) return ua;
+        }
+        const ca = new Date(t.created_at || 0).getTime();
+        return isNaN(ca) ? 0 : ca;
+      };
+
+      return getLatestTime(b) - getLatestTime(a);
+    });
+  }, [tickets, ticketFilter, ticketSearch, selectedTicket?.id]);
+
+  const unreadTicketsCount = useMemo(() => {
+    return tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
+  }, [tickets, selectedTicket?.id]);
 
   const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
   const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')
@@ -13446,10 +13584,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       window.history.pushState({}, '', `/${slug}/admin/help`);
                     }
                   }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', position: 'relative' }}
                 >
                   <LifeBuoy size={16} />
                   <span>Pusat Bantuan &amp; Support</span>
+                  {unreadTicketsCount > 0 && (
+                    <span style={{
+                      padding: '0.12rem 0.5rem',
+                      borderRadius: '999px',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      fontSize: '0.66rem',
+                      fontWeight: 800,
+                      boxShadow: '0 0 8px rgba(239, 68, 68, 0.7)',
+                      animation: 'pulse 1.8s infinite'
+                    }}>
+                      {unreadTicketsCount} Baru
+                    </span>
+                  )}
                 </button>
                 {isSuperAdmin(adminUser) && (
                   <button 
@@ -16500,32 +16652,82 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           filteredTickets.map((ticket) => {
                             const isSelected = selectedTicket?.id === ticket.id;
                             const isResolved = ticket.status === 'resolved' || ticket.status === 'closed';
-                            const isInProgress = ticket.status === 'in_progress';
+                            const isInProgress = ticket.status === 'in_progress' || ticket.status === 'waiting_agent';
                             const msgs = Array.isArray(ticket.messages) ? ticket.messages : [];
                             const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+                            const isUnread = Boolean(!readTicketIdsRef.current.has(ticket.id) && !readTicketIdsRef.current.has(String(ticket.id)) && (ticket.has_unread || (ticket.unread_count && ticket.unread_count > 0)));
 
                             return (
                               <div
                                 key={ticket.id}
-                                onClick={() => setSelectedTicket(ticket)}
+                                onClick={() => {
+                                  // Hapus status unread secara instan di UI lokal & referensi read
+                                  readTicketIdsRef.current.add(ticket.id);
+                                  readTicketIdsRef.current.add(String(ticket.id));
+                                  setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id)) ? { ...t, unread_count: 0, has_unread: false, status: t.status === 'waiting_user' ? 'in_progress' : t.status } : t));
+                                  setSelectedTicket(ticket);
+                                  fetchTicketDetails(ticket.id);
+                                }}
                                 style={{
                                   padding: '0.95rem 1rem',
                                   borderRadius: '0.75rem',
-                                  border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
-                                  backgroundColor: isSelected ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.02)',
+                                  border: isSelected 
+                                    ? '1.5px solid var(--primary)' 
+                                    : (isUnread ? '1.5px solid #0284c7' : '1px solid var(--border-light)'),
+                                  backgroundColor: isSelected 
+                                    ? 'var(--primary-glow)' 
+                                    : (isUnread ? 'rgba(2, 132, 199, 0.08)' : 'rgba(255, 255, 255, 0.02)'),
                                   cursor: 'pointer',
                                   display: 'flex',
                                   flexDirection: 'column',
                                   gap: '0.45rem',
                                   transition: 'all 0.2s ease',
-                                  boxShadow: isSelected ? '0 4px 15px rgba(0,0,0,0.3)' : 'none'
+                                  boxShadow: isSelected 
+                                    ? '0 4px 15px rgba(0,0,0,0.3)' 
+                                    : (isUnread ? '0 4px 18px rgba(2, 132, 199, 0.2)' : 'none'),
+                                  position: 'relative',
+                                  overflow: 'hidden'
                                 }}
                               >
+                                {isUnread && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '3.5px',
+                                    height: '100%',
+                                    backgroundColor: '#0284c7',
+                                    boxShadow: '0 0 8px #0284c7'
+                                  }} />
+                                )}
+
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
-                                    <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                                      {ticket.ticket_number || ticket.id}
-                                    </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: isUnread ? 'rgba(2, 132, 199, 0.18)' : 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', border: `1px solid ${isUnread ? 'rgba(2, 132, 199, 0.4)' : 'var(--border-light)'}`, maxWidth: '100%' }}>
+                                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: isUnread ? '#38bdf8' : 'var(--primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                        {ticket.ticket_number || ticket.id}
+                                      </span>
+                                    </div>
+
+                                    {isUnread && (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        padding: '0.12rem 0.5rem',
+                                        borderRadius: '999px',
+                                        backgroundColor: '#0284c7',
+                                        color: '#ffffff',
+                                        fontSize: '0.64rem',
+                                        fontWeight: 800,
+                                        boxShadow: '0 0 8px rgba(2, 132, 199, 0.6)',
+                                        animation: 'pulse 1.8s infinite'
+                                      }}>
+                                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
+                                        Balasan Baru CS
+                                        {ticket.unread_count && ticket.unread_count > 1 ? ` (${ticket.unread_count})` : ''}
+                                      </span>
+                                    )}
                                   </div>
 
                                   <span style={{
@@ -16535,21 +16737,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     borderRadius: '999px',
                                     whiteSpace: 'nowrap',
                                     flexShrink: 0,
-                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                    color: isResolved ? '#10b981' : isInProgress ? '#f59e0b' : '#3b82f6',
-                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : isInProgress ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
+                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : (isUnread ? 'rgba(2, 132, 199, 0.2)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)'),
+                                    color: isResolved ? '#10b981' : (isUnread ? '#38bdf8' : isInProgress ? '#f59e0b' : '#3b82f6'),
+                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : (isUnread ? 'rgba(2, 132, 199, 0.4)' : isInProgress ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)')}`
                                   }}>
-                                    {isResolved ? '✓ Selesai' : isInProgress ? '● Proses' : '● Open'}
+                                    {isResolved ? '✓ Selesai' : (isUnread ? '● Perlu Dibaca' : isInProgress ? '● Proses' : '● Open')}
                                   </span>
                                 </div>
 
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: isUnread ? 900 : 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
                                   {ticket.subject}
                                 </h4>
 
                                 {lastMsg && (
-                                  <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : 'var(--text-primary)' }}>{lastMsg.sender_name}:</strong> {lastMsg.message}
+                                  <p style={{ fontSize: '0.74rem', color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 700 : 400, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#38bdf8' }}>
+                                      {lastMsg.sender_name || (lastMsg.sender === 'agent' ? 'CS Support' : 'User')}:
+                                    </strong> {lastMsg.message}
                                   </p>
                                 )}
 
@@ -16557,7 +16761,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   <span style={{ fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                                     {ticket.category === 'billing' || ticket.category === 'payment' ? 'Pembayaran' : ticket.category === 'technical' ? 'Teknis' : ticket.category === 'catalog_help' ? 'Katalog' : ticket.category === 'account' ? 'Akun' : 'Umum'}
                                   </span>
-                                  <span>{msgs.length} Pesan &bull; {ticket.updated_at}</span>
+                                  <span style={{ fontWeight: isUnread ? 700 : 400, color: isUnread ? '#38bdf8' : 'var(--text-muted)' }}>
+                                    {msgs.length} Pesan &bull; {ticket.updated_at}
+                                  </span>
                                 </div>
                               </div>
                             );
@@ -16618,6 +16824,61 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.1rem', paddingRight: '0.5rem', maxHeight: '380px' }}>
                             {selectedTicket.messages.map((msg) => {
                               const isUser = msg.sender === 'user';
+                              const isSystemBot = msg.sender === 'system';
+
+                              if (isSystemBot) {
+                                return (
+                                  <div
+                                    key={msg.id}
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      width: '100%',
+                                      boxSizing: 'border-box',
+                                      margin: '0.35rem 0'
+                                    }}
+                                  >
+                                    <div style={{
+                                      maxWidth: '92%',
+                                      width: '100%',
+                                      boxSizing: 'border-box',
+                                      overflowWrap: 'anywhere',
+                                      wordBreak: 'break-word',
+                                      padding: '0.95rem 1.15rem',
+                                      borderRadius: '1rem',
+                                      background: 'rgba(56, 189, 248, 0.08)',
+                                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                                      color: 'var(--text-primary)',
+                                      boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', marginBottom: '0.45rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                          <Bot size={16} color="#38bdf8" />
+                                          <strong style={{ fontSize: '0.82rem', color: '#38bdf8', fontWeight: 800 }}>
+                                            Sistem Otomatis Catavor
+                                          </strong>
+                                          <span style={{
+                                            fontSize: '0.62rem',
+                                            padding: '0.1rem 0.45rem',
+                                            borderRadius: '999px',
+                                            backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                                            color: '#38bdf8',
+                                            fontWeight: 800
+                                          }}>
+                                            BOT RESMI
+                                          </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
+                                      </div>
+                                      <p style={{ fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                        {msg.message}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div
                                   key={msg.id}
@@ -20359,6 +20620,65 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         storeSlogan={settings.about_slogan || settings.store_slogan}
         onToast={showToast} 
       />
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            padding: '0.55rem 1.25rem',
+            borderRadius: '999px',
+            backgroundColor: toast.type === 'success' 
+              ? 'rgba(10, 20, 16, 0.94)' 
+              : toast.type === 'info' 
+                ? 'rgba(15, 23, 42, 0.94)' 
+                : 'rgba(24, 12, 12, 0.94)',
+            color: '#f8fafc',
+            fontSize: '0.82rem',
+            fontWeight: 600,
+            boxShadow: toast.type === 'success' 
+              ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(16, 185, 129, 0.25)' 
+              : toast.type === 'info'
+                ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.25)'
+                : '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(239, 68, 68, 0.25)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: toast.type === 'success' 
+              ? '1px solid rgba(16, 185, 129, 0.35)' 
+              : toast.type === 'info'
+                ? '1px solid rgba(56, 189, 248, 0.35)'
+                : '1px solid rgba(239, 68, 68, 0.35)',
+            maxWidth: '85%',
+            animation: 'toast-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            boxSizing: 'border-box',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {toast.type === 'success' ? (
+            <ShieldCheck size={16} style={{ color: '#10b981', flexShrink: 0 }} /> 
+          ) : toast.type === 'info' ? (
+            <MessageSquare size={16} style={{ color: '#38bdf8', flexShrink: 0 }} />
+          ) : (
+            <AlertTriangle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+          )}
+          <span style={{ 
+            letterSpacing: '0.01em', 
+            lineHeight: 1.3, 
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis', 
+            whiteSpace: 'nowrap' 
+          }}>
+            {toast.message}
+          </span>
+        </div>
+      )}
     </>
   )
 }

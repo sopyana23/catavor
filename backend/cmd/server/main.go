@@ -226,12 +226,18 @@ func main() {
 		guarded.Get("/support/tickets/:id", supportHandler.GetTicketDetails)
 		guarded.Post("/support/tickets", supportHandler.CreateTicket)
 		guarded.Post("/support/tickets/:id/reply", supportHandler.ReplyTicket)
+		guarded.Post("/support/tickets/:id/mark-read", supportHandler.MarkTicketAsRead)
 
-		// Admin Support Moderation
+		// Admin Support Moderation & Quick Reply Canned Responses
 		guarded.Get("/admin/support/tickets", supportHandler.ListAllTickets)
 		guarded.Get("/admin/support/tickets/:id", supportHandler.GetAdminTicketDetails)
 		guarded.Post("/admin/support/tickets/:id/reply", supportHandler.ReplyAsAdmin)
 		guarded.Put("/admin/support/tickets/:id/status", supportHandler.UpdateTicketStatus)
+		guarded.Get("/admin/support/templates", supportHandler.ListCannedResponses)
+		guarded.Post("/admin/support/templates", supportHandler.CreateCannedResponse)
+		guarded.Put("/admin/support/templates/:id", supportHandler.UpdateCannedResponse)
+		guarded.Delete("/admin/support/templates/:id", supportHandler.DeleteCannedResponse)
+		guarded.Post("/admin/support/templates/reset-defaults", supportHandler.ResetDefaultCannedResponses)
 
 		// CRUD Item Catalog (Legacy Aliases)
 		guarded.Post("/fauna", productHandler.Store)
@@ -332,6 +338,11 @@ func main() {
 		adminApi.Get("/support/tickets/:id", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.GetAdminTicketDetails)
 		adminApi.Post("/support/tickets/:id/reply", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.ReplyAsAdmin)
 		adminApi.Put("/support/tickets/:id/status", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateTicketStatus)
+		adminApi.Get("/support/templates", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.ListCannedResponses)
+		adminApi.Post("/support/templates", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.CreateCannedResponse)
+		adminApi.Put("/support/templates/:id", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateCannedResponse)
+		adminApi.Delete("/support/templates/:id", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.DeleteCannedResponse)
+		adminApi.Post("/support/templates/reset-defaults", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.ResetDefaultCannedResponses)
 
 		// Content & Broadcast
 		adminApi.Get("/notifications", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminIndex)

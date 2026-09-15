@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		Preload("Messages", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_internal_note = false").Order("created_at ASC")
 		}).
-		Order("last_message_at DESC, id DESC").
+		Order("COALESCE(NULLIF(last_message_at, '0001-01-01 00:00:00+00'), updated_at, created_at) DESC, id DESC").
 		Limit(limit).
 		Offset(offset).
 		Find(&tickets).Error; err != nil {
@@ -127,6 +128,35 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			"message": "Gagal mengambil daftar tiket bantuan.",
 		})
 	}
+
+	// Compute unread count for merchant (agent replies that have not been read)
+	for i := range tickets {
+		unread := 0
+		for _, m := range tickets[i].Messages {
+			if m.SenderType == "agent" && m.ReadAt == nil {
+				unread++
+			}
+		}
+		tickets[i].UnreadCount = unread
+	}
+
+	// Urutan alami layaknya aplikasi sosial media/chat:
+	// Semua pesan (baik sudah terbaca maupun belum terbaca) diurutkan berdasarkan tanggal/waktu pesan terakhir (terbaru di paling atas)
+	sort.SliceStable(tickets, func(i, j int) bool {
+		timeI := tickets[i].UpdatedAt
+		if !tickets[i].LastMessageAt.IsZero() && tickets[i].LastMessageAt.Year() > 2000 {
+			timeI = tickets[i].LastMessageAt
+		} else if len(tickets[i].Messages) > 0 {
+			timeI = tickets[i].Messages[len(tickets[i].Messages)-1].CreatedAt
+		}
+		timeJ := tickets[j].UpdatedAt
+		if !tickets[j].LastMessageAt.IsZero() && tickets[j].LastMessageAt.Year() > 2000 {
+			timeJ = tickets[j].LastMessageAt
+		} else if len(tickets[j].Messages) > 0 {
+			timeJ = tickets[j].Messages[len(tickets[j].Messages)-1].CreatedAt
+		}
+		return timeI.After(timeJ)
+	})
 
 	totalPages := 0
 	if totalCount > 0 {
@@ -175,6 +205,17 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 		})
 	}
 
+	// Mark unread agent messages in this ticket as read by the user
+	now := time.Now().UTC()
+	database.DB.Model(&models.SupportMessage{}).
+		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "agent").
+		Update("read_at", now)
+
+	if ticket.Status == "waiting_user" {
+		database.DB.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
+		ticket.Status = "in_progress"
+	}
+
 	var messages []models.SupportMessage
 	database.DB.Where("ticket_id = ? AND is_internal_note = false", ticket.ID).
 		Preload("Attachments").
@@ -198,6 +239,46 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 			"created_at":    ticket.CreatedAt,
 			"updated_at":    ticket.UpdatedAt,
 		},
+	})
+}
+
+// MarkTicketAsRead marks all agent messages in a ticket as read by the merchant.
+func (h *SupportHandler) MarkTicketAsRead(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	id := c.Params("id")
+	var ticket models.SupportTicket
+	q := database.DB.Where("user_id = ?", user.ID)
+	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
+		q = q.Where("id = ? OR ticket_number = ?", num, id)
+	} else {
+		q = q.Where("ticket_number = ?", id)
+	}
+	if err := q.First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Tiket tidak ditemukan.",
+		})
+	}
+
+	now := time.Now().UTC()
+	database.DB.Model(&models.SupportMessage{}).
+		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "agent").
+		Update("read_at", now)
+
+	if ticket.Status == "waiting_user" {
+		database.DB.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Tiket ditandai sudah dibaca.",
 	})
 }
 
@@ -302,6 +383,39 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 			}
 		}
 	}
+
+	// 🤖 Automated SLA & Welcome Auto-Responder (Instant Trigger)
+	var systemUserID uint = 1
+	var firstAdmin models.User
+	if err := database.DB.Where("is_superadmin = ? OR platform_role IN ?", true, []string{"superadmin", "support"}).First(&firstAdmin).Error; err == nil && firstAdmin.ID != 0 {
+		systemUserID = firstAdmin.ID
+	}
+
+	wibLoc := time.FixedZone("WIB", 7*3600)
+	localNow := now.In(wibLoc)
+	isWorkingHour := localNow.Hour() >= 8 && localNow.Hour() < 17 && localNow.Weekday() >= time.Monday && localNow.Weekday() <= time.Friday
+
+	var autoMsgContent string
+	merchantName := user.Name
+	if merchantName == "" {
+		merchantName = "Bapak/Ibu Merchant"
+	}
+
+	if isWorkingHour {
+		autoMsgContent = fmt.Sprintf("Halo %s, terima kasih telah menghubungi Layanan Bantuan Catavor. Tiket Anda #%s telah masuk ke antrean tim Customer Support kami dengan komitmen estimasi respon 1-2 jam kerja.", merchantName, ticket.TicketNumber)
+	} else {
+		autoMsgContent = fmt.Sprintf("Halo %s, pesan Anda pada tiket #%s telah kami terima. Saat ini layanan bantuan sedang berada di luar jam operasional (Senin - Jumat, 08:00 - 17:00 WIB). Tim CS Catavor akan segera membalas kendala Anda mulai pukul 08:00 WIB pada hari kerja berikutnya.", merchantName, ticket.TicketNumber)
+	}
+
+	autoMsg := models.SupportMessage{
+		TicketID:       ticket.ID,
+		SenderID:       systemUserID,
+		SenderType:     "system",
+		Message:        autoMsgContent,
+		IsInternalNote: false,
+		CreatedAt:      now.Add(time.Second),
+	}
+	database.DB.Create(&autoMsg)
 
 	// Preload ticket relations
 	database.DB.Preload("User").Preload("Store").Preload("Messages.Attachments").First(&ticket, ticket.ID)
@@ -493,7 +607,7 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 		Preload("Messages", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at ASC")
 		}).
-		Order("last_message_at DESC, id DESC").
+		Order("COALESCE(NULLIF(last_message_at, '0001-01-01 00:00:00+00'), updated_at, created_at) DESC, id DESC").
 		Limit(limit).
 		Offset(offset).
 		Find(&tickets).Error; err != nil {
@@ -502,6 +616,24 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			"message": "Gagal mengambil data antrean tiket.",
 		})
 	}
+
+	// Urutan alami layaknya aplikasi sosial media/chat:
+	// Semua tiket diurutkan berdasarkan tanggal/waktu pesan terakhir (terbaru di paling atas)
+	sort.SliceStable(tickets, func(i, j int) bool {
+		timeI := tickets[i].UpdatedAt
+		if !tickets[i].LastMessageAt.IsZero() && tickets[i].LastMessageAt.Year() > 2000 {
+			timeI = tickets[i].LastMessageAt
+		} else if len(tickets[i].Messages) > 0 {
+			timeI = tickets[i].Messages[len(tickets[i].Messages)-1].CreatedAt
+		}
+		timeJ := tickets[j].UpdatedAt
+		if !tickets[j].LastMessageAt.IsZero() && tickets[j].LastMessageAt.Year() > 2000 {
+			timeJ = tickets[j].LastMessageAt
+		} else if len(tickets[j].Messages) > 0 {
+			timeJ = tickets[j].Messages[len(tickets[j].Messages)-1].CreatedAt
+		}
+		return timeI.After(timeJ)
+	})
 
 	totalPages := 0
 	if filteredCount > 0 {
@@ -548,6 +680,12 @@ func (h *SupportHandler) GetAdminTicketDetails(c *fiber.Ctx) error {
 			"message": "Tiket tidak ditemukan.",
 		})
 	}
+
+	// Tandai pesan user di tiket ini sebagai sudah dibaca oleh tim CS/Admin
+	now := time.Now().UTC()
+	database.DB.Model(&models.SupportMessage{}).
+		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "user").
+		Update("read_at", now)
 
 	var messages []models.SupportMessage
 	database.DB.Where("ticket_id = ?", ticket.ID).
@@ -699,6 +837,7 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 	}
 
 	now := time.Now().UTC()
+	oldStatus := ticket.Status
 	if req.Status != "" {
 		newStatus := strings.ToLower(strings.TrimSpace(req.Status))
 		ticket.Status = newStatus
@@ -724,6 +863,26 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 
 	database.DB.Save(&ticket)
 
+	// 🤖 Automated Resolution Notice (When status transitioned to resolved)
+	if ticket.Status == "resolved" && oldStatus != "resolved" {
+		var merchant models.User
+		database.DB.First(&merchant, ticket.UserID)
+		merchantName := merchant.Name
+		if merchantName == "" {
+			merchantName = "Bapak/Ibu Merchant"
+		}
+
+		resolutionMsg := models.SupportMessage{
+			TicketID:       ticket.ID,
+			SenderID:       ticket.UserID,
+			SenderType:     "system",
+			Message:        fmt.Sprintf("Halo %s, kendala pada tiket #%s telah dinyatakan selesai oleh tim Customer Support kami. Jika kendala masih berlanjut atau ada pertanyaan tambahan, Anda dapat membalas pesan ini kapan saja untuk membuka kembali tiket. Terima kasih telah menggunakan Catavor!", merchantName, ticket.TicketNumber),
+			IsInternalNote: false,
+			CreatedAt:      now.Add(time.Second),
+		}
+		database.DB.Create(&resolutionMsg)
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Status tiket berhasil diperbarui.",
@@ -735,33 +894,351 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 // marks resolved tickets older than 7 days as closed (Read-Only hard close).
 func (h *SupportHandler) StartAutoCloseTicketsWorker() {
 	go func() {
-		// Run initial check after 1 minute from boot
-		time.Sleep(1 * time.Minute)
-		h.runAutoCloseJob()
-
 		ticker := time.NewTicker(12 * time.Hour)
 		defer ticker.Stop()
+
 		for range ticker.C {
-			h.runAutoCloseJob()
+			sevenDaysAgo := time.Now().UTC().AddDate(0, 0, -7)
+			var staleTickets []models.SupportTicket
+			if err := database.DB.Where("status = ? AND resolved_at <= ?", "resolved", sevenDaysAgo).Find(&staleTickets).Error; err == nil {
+				now := time.Now().UTC()
+				for _, t := range staleTickets {
+					t.Status = "closed"
+					t.ClosedAt = &now
+					t.UpdatedAt = now
+					database.DB.Save(&t)
+				}
+			}
 		}
 	}()
 }
 
-func (h *SupportHandler) runAutoCloseJob() {
-	cutoff := time.Now().UTC().AddDate(0, 0, -7)
-	now := time.Now().UTC()
+// ListCannedResponses returns all canned response templates grouped or filtered.
+func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
+	var templates []models.SupportCannedResponse
+	q := database.DB.Model(&models.SupportCannedResponse{}).Order("sort_order asc, id asc")
 
-	res := database.DB.Model(&models.SupportTicket{}).
-		Where("status = ? AND (resolved_at <= ? OR (resolved_at IS NULL AND updated_at <= ?))", "resolved", cutoff, cutoff).
-		Updates(map[string]interface{}{
-			"status":     "closed",
-			"closed_at":  now,
-			"updated_at": now,
-		})
-
-	if res.RowsAffected > 0 {
-		fmt.Printf("[Support] Auto-closed %d resolved tickets older than 7 days.\n", res.RowsAffected)
+	includeInactive := c.Query("include_inactive") == "true"
+	if !includeInactive {
+		q = q.Where("is_active = true")
 	}
+
+	category := strings.TrimSpace(c.Query("category"))
+	if category != "" && category != "all" {
+		q = q.Where("category = ?", category)
+	}
+
+	search := strings.TrimSpace(c.Query("search"))
+	if search != "" {
+		term := "%" + strings.ToLower(search) + "%"
+		q = q.Where("LOWER(title) LIKE ? OR LOWER(shortcut) LIKE ? OR LOWER(content) LIKE ?", term, term, term)
+	}
+
+	if err := q.Find(&templates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat template balasan.",
+		})
+	}
+
+	// Auto-seed default canned responses if empty
+	if len(templates) == 0 && category == "" && search == "" {
+		SeedDefaultCannedResponses(database.DB)
+		if includeInactive {
+			database.DB.Order("sort_order asc, id asc").Find(&templates)
+		} else {
+			database.DB.Where("is_active = true").Order("sort_order asc, id asc").Find(&templates)
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"count":   len(templates),
+		"data":    templates,
+	})
+}
+
+// CreateCannedResponse adds a new quick reply template.
+func (h *SupportHandler) CreateCannedResponse(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	var req struct {
+		Title     string `json:"title"`
+		Shortcut  string `json:"shortcut"`
+		Category  string `json:"category"`
+		Content   string `json:"content"`
+		IsActive  *bool  `json:"is_active"`
+		SortOrder int    `json:"sort_order"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	title := security.SanitizePlainText(req.Title, 150)
+	content := security.SanitizePlainText(req.Content, 5000)
+	if title == "" || content == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Judul dan isi template wajib diisi.",
+		})
+	}
+
+	category := strings.ToLower(strings.TrimSpace(req.Category))
+	if category == "" {
+		category = "general"
+	}
+
+	shortcut := strings.ToLower(strings.TrimSpace(req.Shortcut))
+	shortcut = strings.TrimPrefix(shortcut, "/")
+
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
+	tmpl := models.SupportCannedResponse{
+		Title:       title,
+		Shortcut:    shortcut,
+		Category:    category,
+		Content:     content,
+		CreatedByID: user.ID,
+		IsActive:    isActive,
+		SortOrder:   req.SortOrder,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+
+	if err := database.DB.Create(&tmpl).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan template balasan.",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"success": true,
+		"message": "Template balasan berhasil ditambahkan.",
+		"data":    tmpl,
+	})
+}
+
+// UpdateCannedResponse updates an existing canned response template.
+func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
+	id := c.Params("id")
+	tmplID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID template tidak valid.",
+		})
+	}
+
+	var tmpl models.SupportCannedResponse
+	if err := database.DB.First(&tmpl, uint(tmplID)).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Template balasan tidak ditemukan.",
+		})
+	}
+
+	var req struct {
+		Title     *string `json:"title"`
+		Shortcut  *string `json:"shortcut"`
+		Category  *string `json:"category"`
+		Content   *string `json:"content"`
+		IsActive  *bool   `json:"is_active"`
+		SortOrder *int    `json:"sort_order"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	if req.Title != nil {
+		t := security.SanitizePlainText(*req.Title, 150)
+		if t != "" {
+			tmpl.Title = t
+		}
+	}
+	if req.Content != nil {
+		cnt := security.SanitizePlainText(*req.Content, 5000)
+		if cnt != "" {
+			tmpl.Content = cnt
+		}
+	}
+	if req.Category != nil {
+		cat := strings.ToLower(strings.TrimSpace(*req.Category))
+		if cat != "" {
+			tmpl.Category = cat
+		}
+	}
+	if req.Shortcut != nil {
+		sc := strings.ToLower(strings.TrimSpace(*req.Shortcut))
+		tmpl.Shortcut = strings.TrimPrefix(sc, "/")
+	}
+	if req.IsActive != nil {
+		tmpl.IsActive = *req.IsActive
+	}
+	if req.SortOrder != nil {
+		tmpl.SortOrder = *req.SortOrder
+	}
+	tmpl.UpdatedAt = time.Now().UTC()
+
+	if err := database.DB.Save(&tmpl).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui template balasan.",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Template balasan berhasil diperbarui.",
+		"data":    tmpl,
+	})
+}
+
+// DeleteCannedResponse soft-deletes a canned response template.
+func (h *SupportHandler) DeleteCannedResponse(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if tmplID, err := strconv.ParseUint(id, 10, 32); err == nil {
+		database.DB.Where("id = ?", uint(tmplID)).Delete(&models.SupportCannedResponse{})
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Template balasan berhasil dihapus.",
+		})
+	}
+
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"success": false,
+		"message": "ID template tidak valid.",
+	})
+}
+
+// ResetDefaultCannedResponses restores standard default templates into the database.
+func (h *SupportHandler) ResetDefaultCannedResponses(c *fiber.Ctx) error {
+	// Remove existing default or deleted
+	database.DB.Unscoped().Where("1 = 1").Delete(&models.SupportCannedResponse{})
+	SeedDefaultCannedResponses(database.DB)
+
+	var templates []models.SupportCannedResponse
+	database.DB.Order("sort_order asc, id asc").Find(&templates)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Template bawaan berhasil dipulihkan.",
+		"count":   len(templates),
+		"data":    templates,
+	})
+}
+
+// SeedDefaultCannedResponses populates standard industry quick replies into database.
+func SeedDefaultCannedResponses(db *gorm.DB) {
+	var count int64
+	db.Model(&models.SupportCannedResponse{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	defaults := []models.SupportCannedResponse{
+		{
+			Title:     "Salam & Permintaan Detail Bukti",
+			Shortcut:  "salam",
+			Category:  "general",
+			Content:   "Halo {{merchant_name}}, terima kasih telah menghubungi Bantuan Catavor. Saya {{agent_name}} siap membantu Anda. Untuk mempercepat investigasi tiket {{ticket_number}}, mohon dapat melampirkan screenshot layar kendala serta perkiraan waktu kejadian. Terima kasih!",
+			SortOrder: 1,
+			IsActive:  true,
+		},
+		{
+			Title:     "Verifikasi Pembayaran & Langganan Pro",
+			Shortcut:  "billing",
+			Category:  "billing",
+			Content:   "Halo {{merchant_name}}, terkait kendala pembayaran pada toko {{store_name}}, pembayaran Anda saat ini sedang dalam proses verifikasi oleh Tim Keuangan kami. Mohon pastikan bukti transfer menampilkan kode referensi/NMID yang jelas. Estimasi verifikasi adalah 10-30 menit.",
+			SortOrder: 2,
+			IsActive:  true,
+		},
+		{
+			Title:     "Panduan Refresh Cache & Tampilan",
+			Shortcut:  "teknis",
+			Category:  "technical",
+			Content:   "Halo {{merchant_name}}, kendala tampilan produk biasanya disebabkan oleh cache browser lama. Silakan coba langkah berikut: (1) Buka menu Pengaturan Browser -> Bersihkan Cache & Cookies, (2) Lakukan Hard Refresh (Ctrl + F5 di PC atau swipe refresh di HP), (3) Login kembali ke akun Anda.",
+			SortOrder: 3,
+			IsActive:  true,
+		},
+		{
+			Title:     "Eskalasi ke Tim Developer / Teknis",
+			Shortcut:  "eskalasi",
+			Category:  "technical",
+			Content:   "Halo {{merchant_name}}, laporan kendala Anda pada tiket {{ticket_number}} telah kami teruskan ke Tim Teknis Catavor untuk investigasi mendalam. Kami akan mengabari Anda segera setelah perbaikan selesai diterapkan.",
+			SortOrder: 4,
+			IsActive:  true,
+		},
+		{
+			Title:     "Konfirmasi Penyelesaian Kendala",
+			Shortcut:  "selesai",
+			Category:  "closing",
+			Content:   "Halo {{merchant_name}}, kendala Anda telah berhasil kami selesaikan. Silakan periksa kembali akun/katalog Anda. Jika ada hal lain yang perlu dibantu, jangan ragu untuk membalas pesan ini. Semoga bisnis {{store_name}} semakin sukses!",
+			SortOrder: 5,
+			IsActive:  true,
+		},
+		{
+			Title:     "Verifikasi Identitas & Keamanan Akun",
+			Shortcut:  "akun",
+			Category:  "account",
+			Content:   "Halo {{merchant_name}}, demi keamanan data toko {{store_name}}, mohon konfirmasi alamat email terdaftar dan nomor WhatsApp penanggung jawab akun untuk verifikasi perubahan data.",
+			SortOrder: 6,
+			IsActive:  true,
+		},
+		{
+			Title:     "Pemberitahuan Penutupan Tiket Otomatis",
+			Shortcut:  "tutup",
+			Category:  "closing",
+			Content:   "Halo {{merchant_name}}, karena belum ada tanggapan lanjutan selama beberapa hari pada tiket {{ticket_number}}, kami akan menandai tiket ini selesai. Anda dapat membalas tiket ini kapan saja jika masih membutuhkan bantuan.",
+			SortOrder: 7,
+			IsActive:  true,
+		},
+	}
+
+	for _, d := range defaults {
+		d.CreatedAt = time.Now().UTC()
+		d.UpdatedAt = time.Now().UTC()
+		db.Create(&d)
+	}
+}
+
+// ListHelpArticles returns a list of knowledge base guide articles.
+func (h *SupportHandler) ListHelpArticles(c *fiber.Ctx) error {
+	var articles []models.HelpArticle
+	q := database.DB.Where("is_published = true").Order("sort_order asc, id asc")
+
+	category := strings.TrimSpace(c.Query("category"))
+	if category != "" && category != "all" {
+		q = q.Where("category = ?", category)
+	}
+
+	if err := q.Find(&articles).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat artikel bantuan.",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"count":   len(articles),
+		"data":    articles,
+	})
 }
 
 // -----------------------------------------------------------------------------
