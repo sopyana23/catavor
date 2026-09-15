@@ -16629,6 +16629,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 >
                                   <div style={{
                                     maxWidth: '85%',
+                                    boxSizing: 'border-box',
+                                    overflowWrap: 'anywhere',
+                                    wordBreak: 'break-word',
                                     padding: '1rem 1.15rem',
                                     borderRadius: isUser ? '1.1rem 1.1rem 0.25rem 1.1rem' : '1.1rem 1.1rem 1.1rem 0.25rem',
                                     background: isUser ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)' : 'var(--bg-card, rgba(15, 23, 42, 0.95))',
@@ -16643,7 +16646,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       </strong>
                                       <span style={{ fontSize: '0.68rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
                                     </div>
-                                    <p style={{ fontSize: '0.88rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                    <p style={{ fontSize: '0.88rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                                       {msg.message}
                                     </p>
 
