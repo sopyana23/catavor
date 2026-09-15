@@ -24,9 +24,10 @@ type SupportTicket struct {
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
-	User     *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Store    *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Messages []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
+	User        *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Store       *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
+	Messages    []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
+	UnreadCount int              `gorm:"-" json:"unread_count"`
 }
 
 // TableName explicitly maps SupportTicket model to 'support_tickets' table.
@@ -96,3 +97,24 @@ type HelpArticle struct {
 func (HelpArticle) TableName() string {
 	return "help_articles"
 }
+
+// SupportCannedResponse represents a curated quick reply template for support staff.
+type SupportCannedResponse struct {
+	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title       string         `gorm:"size:150;not null" json:"title"`          // e.g. "Salam & Permintaan Bukti"
+	Shortcut    string         `gorm:"size:50;index" json:"shortcut"`           // e.g. "salam", "billing"
+	Category    string         `gorm:"size:100;index;not null" json:"category"` // "general", "billing", "technical", "closing"
+	Content     string         `gorm:"type:text;not null" json:"content"`       // Template with {{variables}}
+	CreatedByID uint           `gorm:"default:1" json:"created_by_id"`
+	IsActive    bool           `gorm:"default:true;index" json:"is_active"`
+	SortOrder   int            `gorm:"default:0" json:"sort_order"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// TableName explicitly maps SupportCannedResponse to 'support_canned_responses' table.
+func (SupportCannedResponse) TableName() string {
+	return "support_canned_responses"
+}
+

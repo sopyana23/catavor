@@ -80,6 +80,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.SupportTicket{},
 		&models.SupportMessage{},
 		&models.SupportAttachment{},
+		&models.SupportCannedResponse{},
 		&models.HelpArticle{},
 		&models.StoreDailyAnalytics{},
 		&models.ProductDailyAnalytics{},
@@ -335,16 +336,18 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
 
 	// 3. Create Support & Help Center Tables, Columns & Indexes
-	_ = db.AutoMigrate(&models.SupportTicket{}, &models.SupportMessage{}, &models.SupportAttachment{}, &models.HelpArticle{})
+	_ = db.AutoMigrate(&models.SupportTicket{}, &models.SupportMessage{}, &models.SupportAttachment{}, &models.HelpArticle{}, &models.SupportCannedResponse{})
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_attachments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE support_canned_responses ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON support_tickets(user_id, status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_status_prio ON support_tickets(status, priority, last_message_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_ticket_date ON support_messages(ticket_id, created_at ASC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON support_attachments(message_id);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_active_cat ON support_canned_responses(is_active, category, sort_order);").Error
 
 	// 4. Ensure Dormancy Tracking Columns & Indexes on Stores Table
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;").Error
@@ -444,6 +447,81 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 			db.Create(&art)
 		}
 		log.Info().Msg("Default Help Center articles seeded successfully")
+	}
+
+	// 9. Seed Default Support Canned Responses if table is empty
+	var cannedCount int64
+	db.Model(&models.SupportCannedResponse{}).Count(&cannedCount)
+	if cannedCount == 0 {
+		seedDefaultCannedResponses(db)
+		log.Info().Msg("Default Support Canned Responses seeded successfully")
+	}
+}
+
+func seedDefaultCannedResponses(db *gorm.DB) {
+	defaults := []models.SupportCannedResponse{
+		{
+			Title:     "Salam & Permintaan Detail Bukti",
+			Shortcut:  "salam",
+			Category:  "general",
+			Content:   "Halo {{merchant_name}}, terima kasih telah menghubungi Bantuan Catavor. Saya {{agent_name}} siap membantu Anda. Untuk mempercepat investigasi tiket {{ticket_number}}, mohon dapat melampirkan screenshot layar kendala serta perkiraan waktu kejadian. Terima kasih!",
+			SortOrder: 1,
+			IsActive:  true,
+		},
+		{
+			Title:     "Verifikasi Pembayaran & Langganan Pro",
+			Shortcut:  "billing",
+			Category:  "billing",
+			Content:   "Halo {{merchant_name}}, terkait kendala pembayaran pada toko {{store_name}}, pembayaran Anda saat ini sedang dalam proses verifikasi oleh Tim Keuangan kami. Mohon pastikan bukti transfer menampilkan kode referensi/NMID yang jelas. Estimasi verifikasi adalah 10-30 menit.",
+			SortOrder: 2,
+			IsActive:  true,
+		},
+		{
+			Title:     "Panduan Refresh Cache & Tampilan",
+			Shortcut:  "teknis",
+			Category:  "technical",
+			Content:   "Halo {{merchant_name}}, kendala tampilan produk biasanya disebabkan oleh cache browser lama. Silakan coba langkah berikut: (1) Buka menu Pengaturan Browser -> Bersihkan Cache & Cookies, (2) Lakukan Hard Refresh (Ctrl + F5 di PC atau swipe refresh di HP), (3) Login kembali ke akun Anda.",
+			SortOrder: 3,
+			IsActive:  true,
+		},
+		{
+			Title:     "Eskalasi ke Tim Developer / Teknis",
+			Shortcut:  "eskalasi",
+			Category:  "technical",
+			Content:   "Halo {{merchant_name}}, laporan kendala Anda pada tiket {{ticket_number}} telah kami teruskan ke Tim Teknis Catavor untuk investigasi mendalam. Kami akan mengabari Anda segera setelah perbaikan selesai diterapkan.",
+			SortOrder: 4,
+			IsActive:  true,
+		},
+		{
+			Title:     "Konfirmasi Penyelesaian Kendala",
+			Shortcut:  "selesai",
+			Category:  "closing",
+			Content:   "Halo {{merchant_name}}, kendala Anda telah berhasil kami selesaikan. Silakan periksa kembali akun/katalog Anda. Jika ada hal lain yang perlu dibantu, jangan ragu untuk membalas pesan ini. Semoga bisnis {{store_name}} semakin sukses!",
+			SortOrder: 5,
+			IsActive:  true,
+		},
+		{
+			Title:     "Verifikasi Identitas & Keamanan Akun",
+			Shortcut:  "akun",
+			Category:  "account",
+			Content:   "Halo {{merchant_name}}, demi keamanan data toko {{store_name}}, mohon konfirmasi alamat email terdaftar dan nomor WhatsApp penanggung jawab akun untuk verifikasi perubahan data.",
+			SortOrder: 6,
+			IsActive:  true,
+		},
+		{
+			Title:     "Pemberitahuan Penutupan Tiket Otomatis",
+			Shortcut:  "tutup",
+			Category:  "closing",
+			Content:   "Halo {{merchant_name}}, karena belum ada tanggapan lanjutan selama beberapa hari pada tiket {{ticket_number}}, kami akan menandai tiket ini selesai. Anda dapat membalas tiket ini kapan saja jika masih membutuhkan bantuan.",
+			SortOrder: 7,
+			IsActive:  true,
+		},
+	}
+
+	for _, d := range defaults {
+		d.CreatedAt = time.Now().UTC()
+		d.UpdatedAt = time.Now().UTC()
+		db.Create(&d)
 	}
 }
 

@@ -43,7 +43,9 @@ import {
   ChevronLeft,
   ChevronDown,
   Store,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Bot,
+  Zap
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -117,7 +119,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const canAccessContent = hasPermission(currentUser, 'monetization:google:manage') || hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
 
   // Helper to synchronize URL query parameters cleanly and safely
-  const updatePlatformUrl = (division: string, ticketRef?: string | number | null) => {
+  const updatePlatformUrl = (division: string, ticketRef?: string | number | null, subtabRef?: string | null) => {
     try {
       const url = new URL(window.location.href);
       if (division) {
@@ -134,10 +136,16 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
         url.searchParams.delete('ticket_id');
       }
 
+      if (subtabRef) {
+        url.searchParams.set('subtab', subtabRef);
+      } else {
+        url.searchParams.delete('subtab');
+      }
+
       const newRelativePathQuery = url.pathname + url.search + url.hash;
       const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
       if (newRelativePathQuery !== currentRelativePathQuery) {
-        window.history.pushState({ division, ticket: ticketRef || null }, '', newRelativePathQuery);
+        window.history.pushState({ division, ticket: ticketRef || null, subtab: subtabRef || null }, '', newRelativePathQuery);
       }
     } catch (e) {
       console.error('Failed to sync URL:', e);
@@ -204,6 +212,31 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
+
+  // Pengurutan alami tiket layaknya aplikasi media sosial / chat:
+  // Seluruh tiket diurutkan berdasarkan tanggal/waktu pesan terakhir (terbaru di posisi paling atas)
+  const sortedTickets = useMemo(() => {
+    return [...tickets].sort((a, b) => {
+      const getLatestTime = (t: any): number => {
+        if (Array.isArray(t.messages) && t.messages.length > 0) {
+          const last = t.messages[t.messages.length - 1];
+          const mt = new Date(last.raw_created_at || last.created_at || last.timestamp || 0).getTime();
+          if (!isNaN(mt) && mt > 1000000000) return mt;
+        }
+        if (t.raw_last_message_at || t.last_message_at) {
+          const lma = new Date(t.raw_last_message_at || t.last_message_at).getTime();
+          if (!isNaN(lma) && lma > 1000000000) return lma;
+        }
+        if (t.raw_updated_at || t.updated_at) {
+          const ua = new Date(t.raw_updated_at || t.updated_at).getTime();
+          if (!isNaN(ua) && ua > 1000000000) return ua;
+        }
+        const ca = new Date(t.created_at || 0).getTime();
+        return isNaN(ca) ? 0 : ca;
+      };
+      return getLatestTime(b) - getLatestTime(a);
+    });
+  }, [tickets]);
 
   // Server-Side Tickets Pagination & Metrics State
   const [ticketsMetrics, setTicketsMetrics] = useState<{
@@ -296,6 +329,204 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
   const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
+
+  // Support Division Sub-Navigation & Master Canned Responses State
+  const [supportSubView, setSupportSubView] = useState<'tickets' | 'templates'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sub = (params.get('subtab') || params.get('subview') || '').toLowerCase();
+      if (sub === 'templates' || sub === 'template' || sub === 'canned') return 'templates';
+    } catch {}
+    return 'tickets';
+  });
+  const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+
+  const handleNavigateToTemplatesMaster = () => {
+    setShowTemplateModal(false);
+    setSelectedTicket(null); // CRITICAL: Closes the full-screen ticket chat modal so user lands directly on Master Template page!
+    setActiveDivision('support');
+    setSupportSubView('templates');
+    updatePlatformUrl('support', null, 'templates');
+    fetchCannedTemplates(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState('all');
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+
+  // Master Template CRUD Modal State
+  const [showTemplateFormModal, setShowTemplateFormModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [templateForm, setTemplateForm] = useState({
+    title: '',
+    shortcut: '',
+    category: 'general',
+    content: '',
+    is_active: true,
+    sort_order: 0
+  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const fetchCannedTemplates = async (includeInactive = true) => {
+    setLoadingTemplates(true);
+    try {
+      const url = `/api/admin/support/templates${includeInactive ? '?include_inactive=true' : ''}`;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCannedTemplates(data.data || []);
+      }
+    } catch (e) {
+      console.error('Failed to load canned response templates:', e);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleOpenCreateTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateForm({
+      title: '',
+      shortcut: '',
+      category: 'general',
+      content: '',
+      is_active: true,
+      sort_order: (cannedTemplates.length + 1)
+    });
+    setShowTemplateFormModal(true);
+  };
+
+  const handleOpenEditTemplate = (tmpl: any) => {
+    setEditingTemplate(tmpl);
+    setTemplateForm({
+      title: tmpl.title || '',
+      shortcut: tmpl.shortcut || '',
+      category: tmpl.category || 'general',
+      content: tmpl.content || '',
+      is_active: tmpl.is_active !== false,
+      sort_order: tmpl.sort_order || 0
+    });
+    setShowTemplateFormModal(true);
+  };
+
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!templateForm.title.trim() || !templateForm.content.trim()) {
+      showToast('Judul dan isi template wajib diisi!', 'error');
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const isEdit = !!editingTemplate?.id;
+      const url = isEdit ? `/api/admin/support/templates/${editingTemplate.id}` : '/api/admin/support/templates';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(templateForm)
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showToast(isEdit ? 'Template berhasil diperbarui!' : 'Template baru berhasil ditambahkan!', 'success');
+        setShowTemplateFormModal(false);
+        fetchCannedTemplates(true);
+      } else {
+        showToast(data.message || 'Gagal menyimpan template', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Terjadi kesalahan saat menyimpan template', 'error');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (tmplId: number, tmplTitle: string) => {
+    if (!window.confirm(`Hapus template "${tmplTitle}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/support/templates/${tmplId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Template berhasil dihapus!', 'success');
+        fetchCannedTemplates(true);
+      } else {
+        showToast(data.message || 'Gagal menghapus template', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Gagal menghubungi server', 'error');
+    }
+  };
+
+  const handleToggleTemplateActive = async (tmpl: any) => {
+    try {
+      const nextActive = !tmpl.is_active;
+      const res = await fetch(`/api/admin/support/templates/${tmpl.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ is_active: nextActive })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Template "${tmpl.title}" ${nextActive ? 'diaktifkan' : 'dinonaktifkan'}!`, 'success');
+        fetchCannedTemplates(true);
+      }
+    } catch (e) {
+      console.error('Failed to toggle template active status:', e);
+    }
+  };
+
+  const handleResetDefaultTemplates = async () => {
+    if (!window.confirm('Pulihkan template bawaan standar Catavor? Template kustom Anda akan direset ke daftar default.')) return;
+
+    try {
+      const res = await fetch('/api/admin/support/templates/reset-defaults', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Template bawaan berhasil dipulihkan!', 'success');
+        fetchCannedTemplates(true);
+      } else {
+        showToast(data.message || 'Gagal memulihkan template', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Gagal menghubungi server', 'error');
+    }
+  };
+
+  const handleApplyTemplate = (tmpl: any) => {
+    if (!tmpl) return;
+    const merchantName = getMerchantDisplayName(selectedTicket);
+    const storeName = selectedTicket?.store?.name || selectedTicket?.store_name || 'Toko Anda';
+    const ticketNum = selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`;
+    const agentName = currentUser?.name || 'Staf CS';
+
+    let content = tmpl.content || '';
+    content = content.replace(/\{\{merchant_name\}\}/gi, merchantName);
+    content = content.replace(/\{\{store_name\}\}/gi, storeName);
+    content = content.replace(/\{\{ticket_number\}\}/gi, ticketNum);
+    content = content.replace(/\{\{agent_name\}\}/gi, agentName);
+
+    setReplyMessage((prev: string) => (prev ? `${prev}\n${content}` : content));
+    setShowTemplateModal(false);
+    showToast(`Template "${tmpl.title}" disisipkan!`, 'success');
+  };
   // Support Attachment Gallery Lightbox State (Identik dengan Admin Katalog)
   const [attachmentLightbox, setAttachmentLightbox] = useState<{
     isOpen: boolean;
@@ -1483,18 +1714,103 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* 1. Header & Quick Intro */}
+            {/* 1. Header & Sub-Navigation Switcher */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.25rem', color: 'var(--text-primary)' }}>
-                  Pusat Bantuan &amp; Helpdesk Tiket
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.25rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>Pusat Bantuan &amp; Helpdesk Tiket</span>
                 </h2>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Kelola percakapan dua arah, keluhan kendala teknis, billing, dan eskalasi merchant secara terpusat.
+                  {supportSubView === 'tickets'
+                    ? 'Kelola percakapan dua arah, keluhan kendala teknis, billing, dan eskalasi merchant secara terpusat.'
+                    : 'Kelola master template balasan cepat (canned responses) untuk mempermudah dan mempercepat respons tim CS.'}
                 </p>
+              </div>
+
+              {/* Sub-view Switcher Tabs */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backgroundColor: 'var(--bg-deep)',
+                padding: '0.25rem',
+                borderRadius: '0.75rem',
+                border: '1px solid var(--border-light)'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSupportSubView('tickets');
+                    updatePlatformUrl('support', null, null);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    fontSize: '0.8rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    backgroundColor: supportSubView === 'tickets' ? 'var(--primary)' : 'transparent',
+                    color: supportSubView === 'tickets' ? '#ffffff' : 'var(--text-secondary)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <MessageSquare size={14} />
+                  <span>Antrean Tiket</span>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    padding: '0.08rem 0.4rem',
+                    borderRadius: '999px',
+                    backgroundColor: supportSubView === 'tickets' ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
+                    color: supportSubView === 'tickets' ? '#ffffff' : 'var(--text-muted)'
+                  }}>
+                    {totalTicketsCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSupportSubView('templates');
+                    updatePlatformUrl('support', null, 'templates');
+                    fetchCannedTemplates(true);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    fontSize: '0.8rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    backgroundColor: supportSubView === 'templates' ? '#0ea5e9' : 'transparent',
+                    color: supportSubView === 'templates' ? '#ffffff' : 'var(--text-secondary)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Zap size={14} />
+                  <span>Master Template Balasan</span>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    padding: '0.08rem 0.4rem',
+                    borderRadius: '999px',
+                    backgroundColor: supportSubView === 'templates' ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
+                    color: supportSubView === 'templates' ? '#ffffff' : 'var(--text-muted)'
+                  }}>
+                    {cannedTemplates.length}
+                  </span>
+                </button>
               </div>
             </div>
 
+            {/* VIEW A: TICKETS QUEUE & CHAT THREAD */}
+            {supportSubView === 'tickets' && (
+              <>
             {/* 2. Unified Search & Filter Toolbar */}
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
@@ -1945,7 +2261,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {tickets.map(t => {
+                    {sortedTickets.map(t => {
                       const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
                       const storePlan = String(t.store?.plan || '').toLowerCase();
                       const storeDisplayName = t.store?.store_title || t.store?.name || t.store_slug || t.user?.name || 'Merchant';
@@ -2146,9 +2462,8 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                 </div>
               )}
             </div>
-          </div>
-        );
-      })()}
+          </>
+        )}
 
       {/* Ticket Conversation Chat & Workflow Modal */}
       {selectedTicket && (
@@ -2440,8 +2755,67 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                     selectedTicket.messages.map((m: any, idx: number) => {
                       const isAgent = m.sender_type === 'agent' || m.is_admin;
                       const isInternal = m.is_internal_note;
-                      const isInitialInquiry = idx === 0 && !isAgent && !isInternal;
+                      const isSystemBot = m.sender_type === 'system';
+                      const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
                       const merchantName = getMerchantDisplayName(selectedTicket, m.sender);
+
+                      if (isSystemBot) {
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              width: '100%',
+                              maxWidth: '100%',
+                              boxSizing: 'border-box',
+                              margin: '0.45rem 0'
+                            }}
+                          >
+                            <div style={{
+                              maxWidth: '92%',
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word',
+                              padding: '0.95rem 1.15rem',
+                              borderRadius: '0.85rem',
+                              backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                              border: '1px solid rgba(14, 165, 233, 0.3)',
+                              color: 'var(--text-primary)',
+                              boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.85rem', marginBottom: '0.35rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <Bot size={15} color="#0ea5e9" />
+                                  <strong style={{ fontSize: '0.78rem', color: '#0ea5e9', fontWeight: 800 }}>
+                                    Sistem Otomatis Catavor
+                                  </strong>
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    padding: '0.1rem 0.45rem',
+                                    borderRadius: '999px',
+                                    backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                                    color: '#0ea5e9',
+                                    fontWeight: 800,
+                                    letterSpacing: '0.02em'
+                                  }}>
+                                    BOT RESMI
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
+                                  {formatSupportDateTime(m.created_at)}
+                                </span>
+                              </div>
+                              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                {m.message}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
 
                       if (isInternal) {
                         return (
@@ -2661,35 +3035,63 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                         </button>
                       </div>
 
-                      <input
-                        type="file"
-                        id="desktop-admin-reply-file"
-                        multiple
-                        accept="image/png, image/jpeg, image/webp"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleUploadTicketAttachment(e.target.files)}
-                      />
-                      <button
-                        type="button"
-                        disabled={isUploadingTicketAttachment}
-                        onClick={() => document.getElementById('desktop-admin-reply-file')?.click()}
-                        style={{
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: 'rgba(255,255,255,0.05)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem'
-                        }}
-                      >
-                        {isUploadingTicketAttachment ? <RefreshCw size={13} className="animate-spin" /> : <Paperclip size={13} />}
-                        <span>Lampirkan Foto</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        {/* Quick Reply Templates Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fetchCannedTemplates();
+                            setShowTemplateModal(true);
+                          }}
+                          style={{
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '0.4rem',
+                            backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                            border: '1px solid rgba(14, 165, 233, 0.3)',
+                            color: '#0ea5e9',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                          title="Gunakan Template Balasan Cepat (Canned Responses)"
+                        >
+                          <Zap size={13} />
+                          <span>⚡ Template Balasan</span>
+                        </button>
+
+                        <input
+                          type="file"
+                          id="desktop-admin-reply-file"
+                          multiple
+                          accept="image/png, image/jpeg, image/webp"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleUploadTicketAttachment(e.target.files)}
+                        />
+                        <button
+                          type="button"
+                          disabled={isUploadingTicketAttachment}
+                          onClick={() => document.getElementById('desktop-admin-reply-file')?.click()}
+                          style={{
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '0.4rem',
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                        >
+                          {isUploadingTicketAttachment ? <RefreshCw size={13} className="animate-spin" /> : <Paperclip size={13} />}
+                          <span>Lampirkan Foto</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
@@ -2754,6 +3156,325 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           </div>
         </div>
       )}
+
+      {/* VIEW B: KELOLA MASTER TEMPLATE BALASAN CEPAT (CANNED RESPONSES) */}
+      {supportSubView === 'templates' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Action Bar & Filter */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            backgroundColor: 'var(--bg-card)',
+            padding: '1rem 1.25rem',
+            borderRadius: '1rem',
+            border: '1px solid var(--border-light)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  value={templateSearchQuery}
+                  onChange={e => setTemplateSearchQuery(e.target.value)}
+                  placeholder="Cari judul, shortcut (/salam), atau isi template..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.85rem 0.5rem 2.4rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Category Filter Pills */}
+              <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto' }}>
+                {[
+                  { id: 'all', label: 'Semua' },
+                  { id: 'general', label: 'Umum' },
+                  { id: 'billing', label: 'Keuangan' },
+                  { id: 'technical', label: 'Teknis' },
+                  { id: 'closing', label: 'Penutupan' },
+                  { id: 'account', label: 'Akun' }
+                ].map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setTemplateCategoryFilter(cat.id)}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
+                      backgroundColor: templateCategoryFilter === cat.id ? '#0ea5e9' : 'transparent',
+                      color: templateCategoryFilter === cat.id ? '#ffffff' : 'var(--text-secondary)',
+                      border: templateCategoryFilter === cat.id ? '1px solid #0ea5e9' : '1px solid var(--border-light)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={handleResetDefaultTemplates}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.55rem 0.9rem',
+                  borderRadius: '0.6rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+                title="Kembalikan template ke konfigurasi awal bawaan sistem"
+              >
+                <RefreshCw size={13} />
+                <span>Reset Bawaan</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenCreateTemplate}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.55rem 1.05rem',
+                  borderRadius: '0.6rem',
+                  backgroundColor: '#0ea5e9',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(14,165,233,0.3)'
+                }}
+              >
+                <Plus size={15} />
+                <span>Tambah Template</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Templates Grid / Cards */}
+          {loadingTemplates ? (
+            <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#0ea5e9' }} />
+              <span>Memuat master template...</span>
+            </div>
+          ) : cannedTemplates.filter(t => {
+            if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+            if (templateSearchQuery.trim()) {
+              const q = templateSearchQuery.toLowerCase();
+              return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+            }
+            return true;
+          }).length === 0 ? (
+            <div style={{
+              padding: '3.5rem 1rem',
+              textAlign: 'center',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px dashed var(--border-light)',
+              color: 'var(--text-muted)'
+            }}>
+              <Zap size={36} style={{ margin: '0 auto 0.6rem', display: 'block', opacity: 0.3 }} />
+              <strong style={{ fontSize: '0.95rem', display: 'block', marginBottom: '0.3rem', color: 'var(--text-primary)' }}>
+                Tidak Ada Template yang Cocok
+              </strong>
+              <p style={{ fontSize: '0.82rem', margin: '0 0 1rem', color: 'var(--text-secondary)' }}>
+                Belum ada template balasan pada kategori atau kata kunci ini.
+              </p>
+              <button
+                type="button"
+                onClick={handleOpenCreateTemplate}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: '#0ea5e9',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                + Buat Template Sekarang
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1rem' }}>
+              {cannedTemplates
+                .filter(t => {
+                  if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                  if (templateSearchQuery.trim()) {
+                    const q = templateSearchQuery.toLowerCase();
+                    return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                  }
+                  return true;
+                })
+                .map(tmpl => {
+                  const catColors: Record<string, { bg: string; text: string; label: string }> = {
+                    general: { bg: 'rgba(14, 165, 233, 0.15)', text: '#0ea5e9', label: 'Umum' },
+                    billing: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981', label: 'Keuangan' },
+                    technical: { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b', label: 'Teknis' },
+                    closing: { bg: 'rgba(168, 85, 247, 0.15)', text: '#a855f7', label: 'Penutupan' },
+                    account: { bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', label: 'Akun' }
+                  };
+                  const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
+
+                  return (
+                    <div
+                      key={tmpl.id}
+                      style={{
+                        backgroundColor: 'var(--bg-card)',
+                        border: `1px solid ${tmpl.is_active !== false ? 'var(--border-light)' : 'rgba(148, 163, 184, 0.2)'}`,
+                        borderRadius: '1rem',
+                        padding: '1.15rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem',
+                        opacity: tmpl.is_active !== false ? 1 : 0.65,
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '0.12rem 0.5rem',
+                              borderRadius: '999px',
+                              backgroundColor: catInfo.bg,
+                              color: catInfo.text
+                            }}>
+                              {catInfo.label}
+                            </span>
+
+                            {tmpl.shortcut && (
+                              <span style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                padding: '0.12rem 0.45rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                                color: '#0ea5e9'
+                              }}>
+                                /{tmpl.shortcut}
+                              </span>
+                            )}
+
+                            <span style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: '0.35rem',
+                              backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                              color: tmpl.is_active !== false ? '#10b981' : '#94a3b8'
+                            }}>
+                              {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                            </span>
+                          </div>
+
+                          <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)', fontWeight: 800, marginTop: '0.2rem' }}>
+                            {tmpl.title}
+                          </strong>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTemplateActive(tmpl)}
+                            style={{
+                              padding: '0.35rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
+                              cursor: 'pointer'
+                            }}
+                            title={tmpl.is_active !== false ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
+                          >
+                            {tmpl.is_active !== false ? <Check size={13} /> : <X size={13} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditTemplate(tmpl)}
+                            style={{
+                              padding: '0.35rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: '#0ea5e9',
+                              cursor: 'pointer'
+                            }}
+                            title="Edit Template"
+                          >
+                            <SlidersHorizontal size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
+                            style={{
+                              padding: '0.35rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.2)',
+                              color: '#ef4444',
+                              cursor: 'pointer'
+                            }}
+                            title="Hapus Template"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Template Content Box */}
+                      <div style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        maxHeight: '140px',
+                        overflowY: 'auto'
+                      }}>
+                        {tmpl.content}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+})()}
 
       {/* SUPPORT TICKET ATTACHMENTS GALLERY LIGHTBOX MODAL (IDENTIK DENGAN ADMIN KATALOG) */}
       {attachmentLightbox?.isOpen && attachmentLightbox.images.length > 0 && (() => {
@@ -3545,6 +4266,551 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   <Send size={15} />
                   <span>Kirim Siaran</span>
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DESKTOP MODAL: CANNED RESPONSES / QUICK REPLY TEMPLATES */}
+      {showTemplateModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+          onClick={() => setShowTemplateModal(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '680px',
+              maxHeight: '85vh',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '1.15rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'rgba(255,255,255,0.02)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                  color: '#0ea5e9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Zap size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Template Balasan Cepat (Canned Responses)
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Pilih template pesan standar untuk disisipkan otomatis ke form balasan
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={handleNavigateToTemplatesMaster}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                    border: '1px solid rgba(14, 165, 233, 0.3)',
+                    color: '#0ea5e9',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  title="Buka Halaman Kelola Master Template"
+                >
+                  <SlidersHorizontal size={13} strokeWidth={2.2} />
+                  <span>Kelola Master</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '0.4rem',
+                    borderRadius: '0.4rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Controls Bar: Search & Category Pills */}
+            <div style={{ padding: '1rem 1.5rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Cari judul, shortcut (/salam), atau isi template..."
+                  value={templateSearchQuery}
+                  onChange={e => setTemplateSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 1rem 0.65rem 2.4rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {templateSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setTemplateSearchQuery('')}
+                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Category Filter Pills */}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'all', label: 'Semua Kategori' },
+                  { id: 'general', label: 'Umum' },
+                  { id: 'billing', label: 'Keuangan & Billing' },
+                  { id: 'technical', label: 'Teknis & Solusi' },
+                  { id: 'closing', label: 'Penutupan Tiket' },
+                  { id: 'account', label: 'Akun & Keamanan' }
+                ].map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setTemplateCategoryFilter(cat.id)}
+                    style={{
+                      padding: '0.3rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.75rem',
+                      fontWeight: templateCategoryFilter === cat.id ? 700 : 500,
+                      backgroundColor: templateCategoryFilter === cat.id ? '#0ea5e9' : 'rgba(255,255,255,0.05)',
+                      color: templateCategoryFilter === cat.id ? '#ffffff' : 'var(--text-secondary)',
+                      border: '1px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Template Items List */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '1rem 1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              {loadingTemplates ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#0ea5e9' }} />
+                  Memuat template balasan...
+                </div>
+              ) : cannedTemplates.filter(t => {
+                if (t.is_active === false) return false;
+                if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                if (templateSearchQuery.trim()) {
+                  const q = templateSearchQuery.toLowerCase();
+                  return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                }
+                return true;
+              }).length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Tidak ada template yang cocok dengan pencarian Anda.
+                </div>
+              ) : (
+                cannedTemplates
+                  .filter(t => {
+                    if (t.is_active === false) return false;
+                    if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                    if (templateSearchQuery.trim()) {
+                      const q = templateSearchQuery.toLowerCase();
+                      return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                    }
+                    return true;
+                  })
+                  .map(tmpl => (
+                    <div
+                      key={tmpl.id}
+                      onClick={() => handleApplyTemplate(tmpl)}
+                      style={{
+                        padding: '1rem 1.15rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.45rem',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = '#0ea5e9')}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+                            {tmpl.title}
+                          </strong>
+                          {tmpl.shortcut && (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '0.12rem 0.45rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                              color: '#0ea5e9'
+                            }}>
+                              /{tmpl.shortcut}
+                            </span>
+                          )}
+                        </div>
+                        <span style={{
+                          fontSize: '0.68rem',
+                          textTransform: 'uppercase',
+                          fontWeight: 700,
+                          color: 'var(--text-muted)'
+                        }}>
+                          {tmpl.category}
+                        </span>
+                      </div>
+                      <p style={{
+                        margin: 0,
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {tmpl.content}
+                      </p>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DESKTOP MODAL: TAMBAH / EDIT MASTER TEMPLATE BALASAN CEPAT */}
+      {showTemplateFormModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem',
+          animation: 'fadeIn 0.15s ease-out'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '580px',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '1.25rem',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1.2rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              backgroundColor: 'rgba(255,255,255,0.02)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Zap size={20} color="#0ea5e9" />
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  {editingTemplate ? 'Edit Master Template Balasan' : 'Tambah Master Template Balasan'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTemplateFormModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTemplate} style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '80vh', overflowY: 'auto' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                  Judul Template <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={templateForm.title}
+                  onChange={e => setTemplateForm({ ...templateForm, title: e.target.value })}
+                  placeholder="Contoh: Salam & Permintaan Screenshot Bukti"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.85rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.84rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                    Shortcut Singkat
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#0ea5e9', fontWeight: 800, fontSize: '0.84rem' }}>
+                      /
+                    </span>
+                    <input
+                      type="text"
+                      value={templateForm.shortcut}
+                      onChange={e => setTemplateForm({ ...templateForm, shortcut: e.target.value.replace(/^\//, '').toLowerCase() })}
+                      placeholder="salam"
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.85rem 0.55rem 1.6rem',
+                        borderRadius: '0.6rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.84rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                    Kategori Template
+                  </label>
+                  <select
+                    value={templateForm.category}
+                    onChange={e => setTemplateForm({ ...templateForm, category: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.85rem',
+                      borderRadius: '0.6rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.84rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="general">Umum &amp; Greeting</option>
+                    <option value="billing">Keuangan &amp; Billing</option>
+                    <option value="technical">Kendala Teknis</option>
+                    <option value="closing">Penutupan Tiket</option>
+                    <option value="account">Akun &amp; Keamanan</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    Isi Template Pesan <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    Klik tag variabel untuk menyisipkan
+                  </span>
+                </div>
+
+                {/* Variable Tag Inserters */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                  {[
+                    { tag: '{{merchant_name}}', label: 'Nama Merchant' },
+                    { tag: '{{store_name}}', label: 'Nama Toko' },
+                    { tag: '{{ticket_number}}', label: 'Nomor Tiket' },
+                    { tag: '{{agent_name}}', label: 'Nama Petugas CS' }
+                  ].map(v => (
+                    <button
+                      key={v.tag}
+                      type="button"
+                      onClick={() => setTemplateForm(prev => ({ ...prev, content: prev.content + v.tag }))}
+                      style={{
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '0.4rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                        border: '1px dashed rgba(14, 165, 233, 0.4)',
+                        color: '#0ea5e9',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + {v.tag} ({v.label})
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={templateForm.content}
+                  onChange={e => setTemplateForm({ ...templateForm, content: e.target.value })}
+                  placeholder="Tulis draf pesan template di sini..."
+                  rows={5}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.84rem',
+                    lineHeight: 1.5,
+                    outline: 'none',
+                    resize: 'vertical',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Live Preview Box */}
+              {templateForm.content.trim() && (
+                <div style={{
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: '0.6rem',
+                  backgroundColor: 'rgba(14, 165, 233, 0.05)',
+                  border: '1px solid rgba(14, 165, 233, 0.2)'
+                }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#0ea5e9', display: 'block', marginBottom: '0.3rem' }}>
+                    🔍 Pratinjau Teks (Variabel Terisi):
+                  </span>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '0.78rem',
+                    color: 'var(--text-primary)',
+                    lineHeight: 1.45,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {templateForm.content
+                      .replace(/\{\{merchant_name\}\}/gi, 'Budi Santoso')
+                      .replace(/\{\{store_name\}\}/gi, 'Fauna Paradise')
+                      .replace(/\{\{ticket_number\}\}/gi, '#TCK-20260915-0812')
+                      .replace(/\{\{agent_name\}\}/gi, currentUser?.name || 'Staf CS')}
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={templateForm.is_active}
+                    onChange={e => setTemplateForm({ ...templateForm, is_active: e.target.checked })}
+                  />
+                  <span>Template Aktif (Bisa Dipilih CS)</span>
+                </label>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateFormModal(false)}
+                    style={{
+                      padding: '0.5rem 0.95rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'transparent',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingTemplate}
+                    style={{
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: '#0ea5e9',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      opacity: savingTemplate ? 0.6 : 1
+                    }}
+                  >
+                    {savingTemplate && <RefreshCw size={14} className="animate-spin" />}
+                    <span>{editingTemplate ? 'Simpan Perubahan' : 'Tambah Template'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

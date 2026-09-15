@@ -93,6 +93,7 @@ import {
   SlidersHorizontal,
   MessageSquareHeart,
   UserCheck,
+  Bot,
   Scale,
   FileCheck,
   Wand2,
@@ -450,6 +451,7 @@ interface TicketMessage {
   message: string;
   timestamp?: string;
   created_at?: string;
+  read_at?: string | null;
   attachments?: TicketAttachment[];
 }
 
@@ -463,6 +465,10 @@ interface SupportTicket {
   created_at: string;
   updated_at: string;
   last_message_at?: string;
+  raw_updated_at?: string;
+  raw_last_message_at?: string;
+  unread_count?: number;
+  has_unread?: boolean;
   messages: TicketMessage[];
 }
 
@@ -5307,15 +5313,27 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [purchaseQty, setPurchaseQty] = useState<number>(1)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+  const [toast, setToast] = useState<{ 
+    message: string; 
+    type: 'success' | 'error' | 'info';
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null)
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToast({ message, type });
+  const showToast = (
+    message: string, 
+    type: 'success' | 'error' | 'info' = 'success',
+    actionLabel?: string,
+    onAction?: () => void
+  ) => {
+    setToast({ message, type, actionLabel, onAction });
     setTimeout(() => {
       setToast(null);
-    }, 3500);
+    }, actionLabel ? 6000 : 3800);
   }
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const readTicketIdsRef = useRef<Set<string | number>>(new Set());
   const editorRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const savedRangeRef = useRef<Range | null>(null)
@@ -6089,40 +6107,134 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     message: ''
   });
 
-  // Fetch tickets from backend API
-  const fetchSupportTickets = async () => {
+  const prevTicketMessagesRef = useRef<Record<string, number>>({});
+  const isFirstTicketLoadRef = useRef<boolean>(true);
+
+  // Soft audio chime saat ada balasan baru dari CS
+  const playSupportChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.33);
+    } catch {}
+  };
+
+  // Fetch tickets from backend API dengan mode silent untuk live background polling
+  const fetchSupportTickets = async (silent: boolean = false) => {
     if (!token) return;
     try {
-      setLoadingTickets(true);
+      if (!silent) setLoadingTickets(true);
       const res = await fetch(`${API_BASE}/support/tickets`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        const mappedTickets: SupportTicket[] = data.data.map((t: any) => ({
-          id: t.id,
-          ticket_number: t.ticket_number,
-          subject: t.subject,
-          category: t.category,
-          priority: t.priority,
-          status: t.status,
-          created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
-            id: m.id,
-            sender: m.sender_type || 'user',
-            sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
-            message: m.message,
-            timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            attachments: Array.isArray(m.attachments) ? m.attachments : []
-          })) : []
-        }));
+        const mappedTickets: SupportTicket[] = data.data.map((t: any) => {
+          const msgs = Array.isArray(t.messages) ? t.messages : [];
+          const hasUnreadAgent = msgs.some((m: any) => (m.sender_type === 'agent' || m.sender_type === 'support') && !m.read_at);
+          const isViewed = selectedTicket?.id === t.id || readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id));
+          const unreadCount = isViewed ? 0 : (t.unread_count !== undefined ? t.unread_count : (hasUnreadAgent ? msgs.filter((m: any) => (m.sender_type === 'agent' || m.sender_type === 'support') && !m.read_at).length : 0));
+          const hasUnread = unreadCount > 0;
+
+          return {
+            id: t.id,
+            ticket_number: t.ticket_number,
+            subject: t.subject,
+            category: t.category,
+            priority: t.priority,
+            status: t.status,
+            raw_updated_at: t.updated_at,
+            raw_last_message_at: t.last_message_at || t.updated_at,
+            unread_count: unreadCount,
+            has_unread: hasUnread,
+            created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
+            messages: msgs.map((m: any) => ({
+              id: m.id,
+              sender: m.sender_type || 'user',
+              sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
+              message: m.message,
+              timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              read_at: m.read_at,
+              attachments: Array.isArray(m.attachments) ? m.attachments : []
+            }))
+          };
+        });
+
+        // Deteksi balasan baru dari CS untuk memicu notifikasi toast & audio chime
+        if (!isFirstTicketLoadRef.current) {
+          mappedTickets.forEach(t => {
+            const prevCount = prevTicketMessagesRef.current[String(t.id)] || 0;
+            const curCount = t.messages.length;
+            if (curCount > prevCount && prevCount > 0) {
+              const lastMsg = t.messages[t.messages.length - 1];
+              if (lastMsg && (lastMsg.sender === 'agent' || lastMsg.sender === 'support')) {
+                // Jika balasan baru tiba dan pengguna tidak sedang membuka obrolan tiket ini, lepas dari readTicketIdsRef
+                if (selectedTicket?.id !== t.id) {
+                  readTicketIdsRef.current.delete(t.id);
+                  readTicketIdsRef.current.delete(String(t.id));
+                }
+                const snippet = lastMsg.message ? (lastMsg.message.length > 50 ? lastMsg.message.substring(0, 50) + '...' : lastMsg.message) : '';
+                showToast(
+                  'Pesan masuk',
+                  'info',
+                  undefined,
+                  () => {
+                    setSelectedTicket(t);
+                    fetchTicketDetails(t.id);
+                    setAdminSubTab('help');
+                    const slug = getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${t.id}`);
+                  }
+                );
+                playSupportChime();
+
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                  try {
+                    new Notification('Balasan Baru dari CS Catavor', {
+                      body: `Tiket #${t.ticket_number || t.id}: ${snippet}`,
+                      icon: '/favicon.ico'
+                    });
+                  } catch {}
+                }
+              }
+            }
+          });
+        }
+
+        const counts: Record<string, number> = {};
+        mappedTickets.forEach(t => {
+          counts[String(t.id)] = t.messages.length;
+        });
+        prevTicketMessagesRef.current = counts;
+        isFirstTicketLoadRef.current = false;
+
         setTickets(mappedTickets);
+
+        // Jika user sedang aktif membuka tiket yang bersangkutan, perbarui thread obrolan secara live
+        if (selectedTicket) {
+          const updatedActive = mappedTickets.find(t => t.id === selectedTicket.id);
+          if (updatedActive && updatedActive.messages.length !== selectedTicket.messages.length) {
+            setSelectedTicket(updatedActive);
+          }
+        }
       }
     } catch (e) {
       console.error("Gagal mengambil daftar tiket support:", e);
     } finally {
-      setLoadingTickets(false);
+      if (!silent) setLoadingTickets(false);
     }
   };
 
@@ -6144,29 +6256,65 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           category: t.category,
           priority: t.priority,
           status: t.status,
+          raw_updated_at: t.updated_at,
+          raw_last_message_at: t.last_message_at || t.updated_at,
+          unread_count: 0,
+          has_unread: false,
           created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
           messages: msgList.map((m: any) => ({
             id: m.id,
             sender: m.sender_type || 'user',
             sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
             message: m.message,
             timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            read_at: m.read_at,
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           }))
         };
         setSelectedTicket(mapped);
+
+        // Tandai tiket sebagai dibaca di referensi lokal & panggil API mark-read di backend
+        readTicketIdsRef.current.add(t.id);
+        readTicketIdsRef.current.add(String(t.id));
+        readTicketIdsRef.current.add(ticketId);
+        readTicketIdsRef.current.add(String(ticketId));
+
+        fetch(`${API_BASE}/support/tickets/${ticketId}/mark-read`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        }).catch(() => {});
+
+        // Langsung hilangkan efek belum dibaca pada daftar tiket lokal
+        setTickets(prev => prev.map(item => (item.id === t.id || String(item.id) === String(t.id) || item.id === ticketId || String(item.id) === String(ticketId)) ? { ...item, unread_count: 0, has_unread: false, status: item.status === 'waiting_user' ? 'in_progress' : item.status } : item));
       }
     } catch (e) {
       console.error("Gagal memuat detail tiket:", e);
     }
   };
 
+  // Polling otomatis: 8 detik di tab bantuan, 20 detik di tab lain
   useEffect(() => {
-    if (adminSubTab === 'help' && token) {
-      fetchSupportTickets();
+    if (!token) return;
+    fetchSupportTickets(tickets.length > 0);
+
+    const intervalMs = adminSubTab === 'help' ? 8000 : 20000;
+    const timer = setInterval(() => {
+      fetchSupportTickets(true);
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [adminSubTab, token, selectedTicket?.id]);
+
+  // Auto-scroll ke pesan percakapan terbaru saat tiket dibuka atau pesan baru tiba
+  useEffect(() => {
+    if (selectedTicket) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 120);
     }
-  }, [adminSubTab, token]);
+  }, [selectedTicket?.id, selectedTicket?.messages?.length]);
 
   // Upload attachment helper for screenshots
   const handleUploadSupportAttachment = async (files: FileList | null, isReply: boolean = false) => {
@@ -6226,7 +6374,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   };
 
   const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
+    const list = tickets.filter(t => {
       const searchStr = ticketSearch.toLowerCase().trim();
       const matchesSearch = !searchStr || 
         t.subject.toLowerCase().includes(searchStr) || 
@@ -6234,11 +6382,38 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
       if (!matchesSearch) return false;
 
-      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'waiting_agent' || t.status === 'in_progress';
+      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'waiting_agent' || t.status === 'in_progress' || t.status === 'waiting_user';
       if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
       return true;
     });
-  }, [tickets, ticketFilter, ticketSearch]);
+
+    // URUTKAN: Pesan belum terbaca maupun sudah terbaca diurutkan berdasarkan tanggal/waktu terbaru dari isian chat terakhir layaknya aplikasi sosial media (WhatsApp/Telegram)
+    return [...list].sort((a, b) => {
+      const getLatestTime = (t: any): number => {
+        if (Array.isArray(t.messages) && t.messages.length > 0) {
+          const last = t.messages[t.messages.length - 1];
+          const mt = new Date(last.raw_created_at || last.created_at || last.timestamp || 0).getTime();
+          if (!isNaN(mt) && mt > 1000000000) return mt;
+        }
+        if (t.raw_last_message_at) {
+          const lma = new Date(t.raw_last_message_at).getTime();
+          if (!isNaN(lma) && lma > 1000000000) return lma;
+        }
+        if (t.raw_updated_at || t.updated_at) {
+          const ua = new Date(t.raw_updated_at || t.updated_at).getTime();
+          if (!isNaN(ua) && ua > 1000000000) return ua;
+        }
+        const ca = new Date(t.created_at || 0).getTime();
+        return isNaN(ca) ? 0 : ca;
+      };
+
+      return getLatestTime(b) - getLatestTime(a);
+    });
+  }, [tickets, ticketFilter, ticketSearch, selectedTicket?.id]);
+
+  const unreadTicketsCount = useMemo(() => {
+    return tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
+  }, [tickets, selectedTicket?.id]);
 
   const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
   const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')
@@ -13967,7 +14142,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         title="Notifikasi"
                       >
                         <Bell size={17} style={{ color: 'var(--text-secondary)' }} />
-                        {unreadCount > 0 && (
+                        {(unreadCount > 0 || unreadTicketsCount > 0) && (
                           <span style={{
                             position: 'absolute',
                             top: '4px',
@@ -13975,7 +14150,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             width: '8px',
                             height: '8px',
                             borderRadius: '50%',
-                            backgroundColor: 'var(--danger, #ef4444)'
+                            backgroundColor: 'var(--danger, #ef4444)',
+                            boxShadow: '0 0 8px #ef4444',
+                            animation: 'pulse 1.8s infinite'
                           }} />
                         )}
                       </button>
@@ -16229,20 +16406,46 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           cursor: 'pointer'
                         }}
                       >
-                        <div style={{
-                          width: '44px',
-                          height: '44px',
-                          borderRadius: '0.75rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--primary)'
-                        }}>
-                          <HelpCircle size={20} />
+                        <div style={{ position: 'relative' }}>
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: `1px solid ${unreadTicketsCount > 0 ? '#0284c7' : 'var(--border-light)'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: unreadTicketsCount > 0 ? '#0284c7' : 'var(--primary)',
+                            boxShadow: unreadTicketsCount > 0 ? '0 0 12px rgba(2, 132, 199, 0.35)' : 'none'
+                          }}>
+                            <HelpCircle size={20} />
+                          </div>
+                          {unreadTicketsCount > 0 && (
+                            <span style={{
+                              position: 'absolute',
+                              top: '-4px',
+                              right: '-4px',
+                              minWidth: '18px',
+                              height: '18px',
+                              borderRadius: '999px',
+                              backgroundColor: '#ef4444',
+                              color: '#ffffff',
+                              fontSize: '0.64rem',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 4px',
+                              border: '2px solid var(--bg-card)',
+                              boxShadow: '0 0 10px rgba(239, 68, 68, 0.75)',
+                              animation: 'pulse 1.8s infinite'
+                            }}>
+                              {unreadTicketsCount}
+                            </span>
+                          )}
                         </div>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: unreadTicketsCount > 0 ? 800 : 700, color: unreadTicketsCount > 0 ? 'var(--primary)' : 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
                           Bantuan
                         </span>
                       </button>
@@ -18483,6 +18686,68 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         )}
                       </div>
 
+                      {/* Banner Balasan CS Unread (Standard Industri Intercom/Zendesk) */}
+                      {unreadTicketsCount > 0 && (
+                        <div 
+                          onClick={() => {
+                            setAdminSubTab('help');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                          }}
+                          className="glass-panel"
+                          style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.85rem',
+                            border: '1.5px solid #0284c7',
+                            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.16) 0%, var(--card-bg-gradient) 100%)',
+                            boxShadow: '0 4px 18px rgba(2, 132, 199, 0.22)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                            cursor: 'pointer',
+                            marginBottom: '0.5rem',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: '4px',
+                            backgroundColor: '#0284c7',
+                            boxShadow: '0 0 10px #0284c7'
+                          }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              backgroundColor: '#0284c7',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#ffffff',
+                              flexShrink: 0,
+                              boxShadow: '0 0 12px rgba(2, 132, 199, 0.6)'
+                            }}>
+                              <MessageSquare size={18} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                {unreadTicketsCount} Balasan Baru dari CS Support
+                              </span>
+                              <span style={{ fontSize: '0.71rem', color: '#38bdf8', fontWeight: 600 }}>
+                                Ketuk untuk membuka ruang percakapan tiket bantuan
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight size={18} style={{ color: '#38bdf8', flexShrink: 0 }} />
+                        </div>
+                      )}
+
                       {/* Notifications List */}
                       {notifInitialLoading && notifications.length === 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -18919,6 +19184,61 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
                         {selectedTicket.messages.map((msg) => {
                           const isUser = msg.sender === 'user';
+                          const isSystemBot = msg.sender === 'system';
+
+                          if (isSystemBot) {
+                            return (
+                              <div
+                                key={msg.id}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  width: '100%',
+                                  boxSizing: 'border-box',
+                                  margin: '0.25rem 0'
+                                }}
+                              >
+                                <div style={{
+                                  maxWidth: '96%',
+                                  width: '100%',
+                                  boxSizing: 'border-box',
+                                  overflowWrap: 'anywhere',
+                                  wordBreak: 'break-word',
+                                  padding: '0.85rem 1rem',
+                                  borderRadius: '1rem',
+                                  background: 'rgba(56, 189, 248, 0.08)',
+                                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                                  color: 'var(--text-primary)',
+                                  boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                      <Bot size={14} color="#38bdf8" />
+                                      <strong style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 800 }}>
+                                        Sistem Otomatis Catavor
+                                      </strong>
+                                      <span style={{
+                                        fontSize: '0.58rem',
+                                        padding: '0.1rem 0.4rem',
+                                        borderRadius: '999px',
+                                        backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                                        color: '#38bdf8',
+                                        fontWeight: 800
+                                      }}>
+                                        BOT RESMI
+                                      </span>
+                                    </div>
+                                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.82rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                    {msg.message}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          }
+
                           return (
                             <div
                               key={msg.id}
@@ -19009,6 +19329,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
                           );
                         })}
+                        <div ref={messagesEndRef} style={{ height: '12px' }} />
                       </div>
 
                       {/* Sticky Mobile App Reply Bar */}
@@ -19705,12 +20026,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             const isInProgress = ticket.status === 'in_progress' || ticket.status === 'waiting_agent';
                             const msgs = Array.isArray(ticket.messages) ? ticket.messages : [];
                             const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+                            const isUnread = Boolean(!readTicketIdsRef.current.has(ticket.id) && !readTicketIdsRef.current.has(String(ticket.id)) && (ticket.has_unread || (ticket.unread_count && ticket.unread_count > 0)));
 
                             return (
                               <div
                                 key={ticket.id}
                                 className="glass-panel"
                                 onClick={() => {
+                                  // Hapus efek belum dibaca secara instan di UI lokal & referensi read
+                                  readTicketIdsRef.current.add(ticket.id);
+                                  readTicketIdsRef.current.add(String(ticket.id));
+                                  setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id)) ? { ...t, unread_count: 0, has_unread: false, status: t.status === 'waiting_user' ? 'in_progress' : t.status } : t));
                                   setSelectedTicket(ticket);
                                   fetchTicketDetails(ticket.id);
                                   const slug = getStoreSlug();
@@ -19721,21 +20047,62 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 style={{
                                   padding: '1.05rem',
                                   borderRadius: '0.9rem',
-                                  border: '1px solid var(--border-light)',
-                                  background: 'var(--card-bg-gradient)',
+                                  border: isUnread ? '1.5px solid #0284c7' : '1px solid var(--border-light)',
+                                  background: isUnread 
+                                    ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, var(--card-bg-gradient) 100%)' 
+                                    : 'var(--card-bg-gradient)',
                                   cursor: 'pointer',
                                   display: 'flex',
                                   flexDirection: 'column',
                                   gap: '0.6rem',
                                   transition: 'all 0.2s ease',
-                                  WebkitTapHighlightColor: 'transparent'
+                                  WebkitTapHighlightColor: 'transparent',
+                                  boxShadow: isUnread ? '0 4px 20px rgba(2, 132, 199, 0.25)' : 'none',
+                                  position: 'relative',
+                                  overflow: 'hidden'
                                 }}
                               >
+                                {isUnread && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '4px',
+                                    height: '100%',
+                                    backgroundColor: '#0284c7',
+                                    boxShadow: '0 0 10px #0284c7'
+                                  }} />
+                                )}
+
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
-                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                                      {ticket.ticket_number || `TCK-#${ticket.id}`}
-                                    </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: isUnread ? 'rgba(2, 132, 199, 0.22)' : 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', border: `1px solid ${isUnread ? 'rgba(2, 132, 199, 0.45)' : 'var(--border-light)'}`, maxWidth: '100%' }}>
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isUnread ? '#38bdf8' : 'var(--primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                        {ticket.ticket_number || `TCK-#${ticket.id}`}
+                                      </span>
+                                    </div>
+
+                                    {/* Efek visual Belum Dibaca / Balasan Baru CS */}
+                                    {isUnread && (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        padding: '0.15rem 0.55rem',
+                                        borderRadius: '999px',
+                                        backgroundColor: '#0284c7',
+                                        color: '#ffffff',
+                                        fontSize: '0.64rem',
+                                        fontWeight: 800,
+                                        letterSpacing: '0.02em',
+                                        boxShadow: '0 0 10px rgba(2, 132, 199, 0.6)',
+                                        animation: 'pulse 1.8s infinite'
+                                      }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
+                                        Balasan Baru CS
+                                        {ticket.unread_count && ticket.unread_count > 1 ? ` (${ticket.unread_count})` : ''}
+                                      </span>
+                                    )}
                                   </div>
 
                                   <span style={{
@@ -19745,21 +20112,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     borderRadius: '999px',
                                     whiteSpace: 'nowrap',
                                     flexShrink: 0,
-                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                    color: isResolved ? '#10b981' : isInProgress ? '#f59e0b' : '#3b82f6',
-                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : isInProgress ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
+                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : (isUnread ? 'rgba(2, 132, 199, 0.2)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)'),
+                                    color: isResolved ? '#10b981' : (isUnread ? '#38bdf8' : isInProgress ? '#f59e0b' : '#3b82f6'),
+                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : (isUnread ? 'rgba(2, 132, 199, 0.4)' : isInProgress ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)')}`
                                   }}>
-                                    {isResolved ? '✓ Selesai' : isInProgress ? '● Proses' : '● Open'}
+                                    {isResolved ? '✓ Selesai' : (isUnread ? '● Perlu Dibaca' : isInProgress ? '● Proses' : '● Open')}
                                   </span>
                                 </div>
 
-                                <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
+                                <h4 style={{ fontSize: '0.92rem', fontWeight: isUnread ? 900 : 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
                                   {ticket.subject}
                                 </h4>
 
                                 {lastMsg && (
-                                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : 'var(--text-primary)' }}>{lastMsg.sender_name || 'User'}:</strong> {lastMsg.message}
+                                  <p style={{ fontSize: '0.76rem', color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 700 : 400, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#38bdf8' }}>
+                                      {lastMsg.sender_name || (lastMsg.sender === 'agent' ? 'CS Support' : 'User')}:
+                                    </strong> {lastMsg.message}
                                   </p>
                                 )}
 
@@ -19767,7 +20136,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   <span style={{ fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                                     {getTicketCategoryLabel(ticket.category)}
                                   </span>
-                                  <span>{msgs.length} Pesan &bull; {ticket.updated_at}</span>
+                                  <span style={{ fontWeight: isUnread ? 700 : 400, color: isUnread ? '#38bdf8' : 'var(--text-muted)' }}>
+                                    {msgs.length} Pesan &bull; {ticket.updated_at}
+                                  </span>
                                 </div>
                               </div>
                             );
@@ -22377,38 +22748,94 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
       {/* Floating Toast Notification */}
       {toast && (
-        <div style={{
-          position: 'fixed',
-          top: '24px',
-          left: '50%',
-          zIndex: 9999,
-          padding: '0.75rem 1.25rem',
-          borderRadius: '2rem',
-          backgroundColor: toast.type === 'success' ? 'rgba(10, 18, 14, 0.93)' : 'rgba(22, 12, 12, 0.93)',
-          color: '#f3f4f6',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          boxShadow: toast.type === 'success' 
-            ? '0 12px 30px rgba(0,0,0,0.5), 0 0 15px rgba(16, 185, 129, 0.2)' 
-            : '0 12px 30px rgba(0,0,0,0.5), 0 0 15px rgba(239, 68, 68, 0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.65rem',
-          backdropFilter: 'blur(16px)',
-          border: toast.type === 'success' 
-            ? '1px solid rgba(16, 185, 129, 0.35)' 
-            : '1px solid rgba(239, 68, 68, 0.35)',
-          maxWidth: '90%',
-          minWidth: '280px',
-          justifyContent: 'center',
-          animation: 'toast-slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-          boxSizing: 'border-box'
-        }}>
-          {toast.type === 'success' 
-            ? <ShieldCheck size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} /> 
-            : <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
-          }
-          <span style={{ letterSpacing: '0.01em', lineHeight: 1.3 }}>{toast.message}</span>
+        <div 
+          onClick={() => {
+            if (toast.onAction) {
+              toast.onAction();
+              setToast(null);
+            }
+          }}
+          style={{
+            position: 'fixed',
+            top: '18px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            padding: '0.52rem 1.1rem',
+            borderRadius: '999px',
+            backgroundColor: toast.type === 'success' 
+              ? 'rgba(10, 20, 16, 0.94)' 
+              : toast.type === 'info' 
+                ? 'rgba(15, 23, 42, 0.94)' 
+                : 'rgba(24, 12, 12, 0.94)',
+            color: '#f8fafc',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            boxShadow: toast.type === 'success' 
+              ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(16, 185, 129, 0.25)' 
+              : toast.type === 'info'
+                ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.25)'
+                : '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(239, 68, 68, 0.25)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.55rem',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: toast.type === 'success' 
+              ? '1px solid rgba(16, 185, 129, 0.35)' 
+              : toast.type === 'info'
+                ? '1px solid rgba(56, 189, 248, 0.35)'
+                : '1px solid rgba(239, 68, 68, 0.35)',
+            maxWidth: '92%',
+            cursor: toast.onAction ? 'pointer' : 'default',
+            animation: 'toast-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            boxSizing: 'border-box',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {toast.type === 'success' ? (
+            <ShieldCheck size={16} style={{ color: '#10b981', flexShrink: 0 }} /> 
+          ) : toast.type === 'info' ? (
+            <MessageSquare size={16} style={{ color: '#38bdf8', flexShrink: 0 }} />
+          ) : (
+            <AlertTriangle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+          )}
+          <span style={{ 
+            letterSpacing: '0.01em', 
+            lineHeight: 1.3, 
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis', 
+            whiteSpace: 'nowrap' 
+          }}>
+            {toast.message}
+          </span>
+
+          {toast.actionLabel && toast.onAction && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toast.onAction?.();
+                setToast(null);
+              }}
+              style={{
+                marginLeft: '0.35rem',
+                padding: '0.22rem 0.65rem',
+                borderRadius: '999px',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 0 8px rgba(2, 132, 199, 0.5)',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+            >
+              {toast.actionLabel}
+            </button>
+          )}
         </div>
       )}
 
