@@ -2,26 +2,31 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // SupportTicket represents a support inquiry or issue thread submitted by a merchant/user.
 type SupportTicket struct {
-	ID            uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	TicketNumber  string     `gorm:"size:50;uniqueIndex;not null" json:"ticket_number"` // e.g. TCK-20260902-8F2A
-	UserID        uint       `gorm:"index;not null" json:"user_id"`
-	StoreID       *uint      `gorm:"index" json:"store_id,omitempty"`
-	Subject       string     `gorm:"size:255;not null" json:"subject"`
-	Category      string     `gorm:"size:100;not null" json:"category"` // billing | technical | catalog_help | account | general
-	Priority      string     `gorm:"size:50;default:'medium';index" json:"priority"` // low | medium | high | urgent
-	Status        string     `gorm:"size:50;default:'open';index" json:"status"` // open | waiting_agent | waiting_user | resolved | closed
-	LastMessageAt time.Time  `gorm:"index" json:"last_message_at"`
-	CreatedAt     time.Time  `gorm:"index" json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	TicketNumber  string         `gorm:"size:50;uniqueIndex;not null" json:"ticket_number"` // e.g. TCK-20260902-8F2A
+	UserID        uint           `gorm:"index;not null" json:"user_id"`
+	StoreID       *uint          `gorm:"index" json:"store_id,omitempty"`
+	Subject       string         `gorm:"size:255;not null" json:"subject"`
+	Category      string         `gorm:"size:100;not null" json:"category"`              // billing | technical | catalog_help | account | general
+	Priority      string         `gorm:"size:50;default:'medium';index" json:"priority"` // low | medium | high | urgent
+	Status        string         `gorm:"size:50;default:'open';index" json:"status"`     // open | waiting_agent | waiting_user | resolved | closed
+	ResolvedAt    *time.Time     `gorm:"index" json:"resolved_at,omitempty"`
+	ClosedAt      *time.Time     `gorm:"index" json:"closed_at,omitempty"`
+	LastMessageAt time.Time      `gorm:"index" json:"last_message_at"`
+	CreatedAt     time.Time      `gorm:"index" json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
 	User     *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Store    *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Messages []SupportMessage `gorm:"foreignKey:TicketID" json:"messages,omitempty"`
+	Messages []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
 }
 
 // TableName explicitly maps SupportTicket model to 'support_tickets' table.
@@ -31,14 +36,15 @@ func (SupportTicket) TableName() string {
 
 // SupportMessage represents a single two-way chat message in a support ticket thread.
 type SupportMessage struct {
-	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	TicketID       uint      `gorm:"index;not null" json:"ticket_id"`
-	SenderID       uint      `gorm:"index;not null" json:"sender_id"`
-	SenderType     string    `gorm:"size:50;not null" json:"sender_type"` // 'user' | 'agent' | 'system'
-	Message        string    `gorm:"type:text;not null" json:"message"`
-	IsInternalNote bool      `gorm:"default:false" json:"is_internal_note"`
-	ReadAt         *time.Time `json:"read_at,omitempty"`
-	CreatedAt      time.Time  `gorm:"index" json:"created_at"`
+	ID             uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	TicketID       uint           `gorm:"index;not null" json:"ticket_id"`
+	SenderID       uint           `gorm:"index;not null" json:"sender_id"`
+	SenderType     string         `gorm:"size:50;not null" json:"sender_type"` // 'user' | 'agent' | 'system'
+	Message        string         `gorm:"type:text;not null" json:"message"`
+	IsInternalNote bool           `gorm:"default:false" json:"is_internal_note"`
+	ReadAt         *time.Time     `json:"read_at,omitempty"`
+	CreatedAt      time.Time      `gorm:"index" json:"created_at"`
+	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
 	Ticket      *SupportTicket      `gorm:"foreignKey:TicketID" json:"ticket,omitempty"`
@@ -53,14 +59,15 @@ func (SupportMessage) TableName() string {
 
 // SupportAttachment represents a normalized image screenshot or file attachment attached to a support message.
 type SupportAttachment struct {
-	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	MessageID  uint      `gorm:"index;not null" json:"message_id"`
-	FileURL    string    `gorm:"type:text;not null" json:"file_url"`
-	StorageKey string    `gorm:"size:500;not null" json:"storage_key"`
-	FileName   string    `gorm:"size:255;not null" json:"file_name"`
-	FileSize   int       `gorm:"default:0" json:"file_size"`
-	FileType   string    `gorm:"size:100;default:'image/jpeg'" json:"file_type"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	MessageID  uint           `gorm:"index;not null" json:"message_id"`
+	FileURL    string         `gorm:"type:text;not null" json:"file_url"`
+	StorageKey string         `gorm:"size:500;not null" json:"storage_key"`
+	FileName   string         `gorm:"size:255;not null" json:"file_name"`
+	FileSize   int            `gorm:"default:0" json:"file_size"`
+	FileType   string         `gorm:"size:100;default:'image/jpeg'" json:"file_type"`
+	CreatedAt  time.Time      `json:"created_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
 	Message *SupportMessage `gorm:"foreignKey:MessageID" json:"message,omitempty"`

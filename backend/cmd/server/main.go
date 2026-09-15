@@ -86,6 +86,9 @@ func main() {
 	// Start Background Dormancy & Free Tier Lifecycle Worker (Runs on boot and every 1 hour)
 	services.StartDormancyWorker(context.Background(), database.DB, storageService, 1*time.Hour)
 
+	// Start Background Support Ticket Auto-Close Worker (Auto-closes resolved tickets older than 7 days)
+	supportHandler.StartAutoCloseTicketsWorker()
+
 	// Start Background Subscription Lifecycle Worker (Runs on boot and every 1 hour)
 	go func() {
 		if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
