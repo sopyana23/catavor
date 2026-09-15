@@ -334,7 +334,13 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_price ON products(store_id, price);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
 
-	// 3. Create Support & Help Center Indexes
+	// 3. Create Support & Help Center Tables, Columns & Indexes
+	_ = db.AutoMigrate(&models.SupportTicket{}, &models.SupportMessage{}, &models.SupportAttachment{}, &models.HelpArticle{})
+	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE support_attachments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON support_tickets(user_id, status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_status_prio ON support_tickets(status, priority, last_message_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_ticket_date ON support_messages(ticket_id, created_at ASC);").Error

@@ -3235,7 +3235,7 @@ export function parseWAContacts(raw: string | null | undefined): WAContactItem[]
         return parsed
           .map((item: any, idx: number) => ({
             label: item.label || item.name || `WhatsApp ${idx + 1}`,
-            number: (item.number || item.phone || item.whatsapp || '').toString().trim()
+            number: String(item?.number ?? item?.phone ?? item?.whatsapp ?? '').trim()
           }))
           .filter(item => item.number !== '');
       }
@@ -5532,9 +5532,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
-  const formatPrice = (num?: number) => {
-    if (!num && num !== 0) return 'Rp 0'
-    return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const formatPrice = (num?: number | string | null) => {
+    if (num === undefined || num === null || num === '') return 'Rp 0';
+    return 'Rp ' + String(num).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
   // Available Product Types in this store
@@ -6135,7 +6135,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       });
       const data = await res.json();
       if (data.success && data.data) {
-        const t = data.data;
+        const t = data.data.ticket || data.data;
+        const msgList = Array.isArray(data.data.messages) ? data.data.messages : (Array.isArray(t.messages) ? t.messages : []);
         const mapped: SupportTicket = {
           id: t.id,
           ticket_number: t.ticket_number,
@@ -6145,14 +6146,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           status: t.status,
           created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          messages: Array.isArray(t.messages) ? t.messages.map((m: any) => ({
+          messages: msgList.map((m: any) => ({
             id: m.id,
             sender: m.sender_type || 'user',
             sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
             message: m.message,
             timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             attachments: Array.isArray(m.attachments) ? m.attachments : []
-          })) : []
+          }))
         };
         setSelectedTicket(mapped);
       }
@@ -6782,7 +6783,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const urlParams = new URLSearchParams(window.location.search);
     const itemId = urlParams.get('item');
     if (itemId && !selectedFauna) {
-      const found = faunas.find(f => f.id.toString() === itemId);
+      const found = faunas.find(f => f && f.id !== undefined && String(f.id) === itemId);
       if (found) setSelectedFauna(found);
     }
   }, [faunas]);
@@ -7448,8 +7449,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           targetPath += `/admin/help/new`;
         } else {
           targetPath += `/admin/help`;
-          if (selectedTicket) {
-            params.set('ticket', selectedTicket.id.toString());
+          if (selectedTicket && selectedTicket.id !== undefined && selectedTicket.id !== null) {
+            params.set('ticket', String(selectedTicket.id));
           }
         }
       } else if (adminSubTab === 'share') {
@@ -7471,8 +7472,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       targetPath += `/sightings`;
     }
 
-    if (selectedFauna && view !== 'fauna-editor') {
-      params.set('item', selectedFauna.id.toString());
+    if (selectedFauna && selectedFauna.id !== undefined && selectedFauna.id !== null && view !== 'fauna-editor') {
+      params.set('item', String(selectedFauna.id));
     }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
@@ -7501,7 +7502,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     if (storeSlug || error || isInvalidRoute()) return;
 
     sessionStorage.setItem('catavor_portal_tab', portalTab);
-    sessionStorage.setItem('catavor_register_step', registerStep.toString());
+    sessionStorage.setItem('catavor_register_step', String(registerStep ?? 1));
     sessionStorage.setItem('catavor_register_plan', registerPlan);
     sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
 
@@ -8815,10 +8816,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   }
 
   // Formatter helper for Rupiah with dots thousands separator
-  const formatRupiahInput = (num: number) => {
-    if (!num) return '0'
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  }
+  const formatRupiahInput = (num?: number | string | null) => {
+    if (num === undefined || num === null || num === '') return '0';
+    return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
 
   const parseRupiahInput = (val: string) => {
     const clean = val.replace(/\D/g, '')
@@ -19699,7 +19700,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           {filteredTickets.map((ticket) => {
                             const isResolved = ticket.status === 'resolved' || ticket.status === 'closed';
                             const isInProgress = ticket.status === 'in_progress' || ticket.status === 'waiting_agent';
-                            const lastMsg = ticket.messages[ticket.messages.length - 1];
+                            const msgs = Array.isArray(ticket.messages) ? ticket.messages : [];
+                            const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
 
                             return (
                               <div
@@ -19762,7 +19764,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   <span style={{ fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                                     {getTicketCategoryLabel(ticket.category)}
                                   </span>
-                                  <span>{ticket.messages.length} Pesan &bull; {ticket.updated_at}</span>
+                                  <span>{msgs.length} Pesan &bull; {ticket.updated_at}</span>
                                 </div>
                               </div>
                             );

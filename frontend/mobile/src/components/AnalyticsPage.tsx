@@ -219,8 +219,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         setProductsLoading(true);
         const token = localStorage.getItem('catavor_token');
         const params = new URLSearchParams({
-          page: currentPage.toString(),
-          per_page: pageSize.toString(),
+          page: String(currentPage ?? 1),
+          per_page: String(pageSize ?? 10),
           search: debouncedSearch,
           product_type: selectedProductType,
           sort: productSort
@@ -257,9 +257,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }
   }, [analyticsData, loading, onRefresh]);
 
-  const formatPrice = (num?: number) => {
-    if (!num && num !== 0) return 'Rp 0';
-    return 'Rp ' + Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const formatPrice = (num?: number | string | null) => {
+    if (num === undefined || num === null || num === '') return 'Rp 0';
+    const parsed = typeof num === 'number' ? num : parseFloat(String(num));
+    if (isNaN(parsed)) return 'Rp 0';
+    return 'Rp ' + Math.round(parsed).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
   const formatShortDate = (dateStr: string) => {
@@ -360,9 +362,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   };
 
   // Format compact number for large numbers (1.2k, 15k, 1.5M)
-  const formatCompactNumber = (num: number): string => {
-    if (num === 0) return '0';
-    if (num < 1000) return num.toString();
+  const formatCompactNumber = (num?: number | null): string => {
+    if (!num) return '0';
+    if (num < 1000) return String(num);
     if (num < 1000000) {
       const k = num / 1000;
       return k % 1 === 0 ? `${k}k` : `${k.toFixed(1).replace(/\.0$/, '')}k`;
