@@ -741,7 +741,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
+    <div className="catavor-platform-portal" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
       {/* Toast */}
       {notificationMsg && (
         <div style={{
@@ -1501,6 +1501,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                 <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                 <input
                   type="text"
+                  className="search-input"
                   value={ticketSearchQuery}
                   onChange={(e) => setTicketSearchQuery(e.target.value)}
                   placeholder="Cari ID tiket (#TCK-...), nama toko, subjek, atau email..."
@@ -2451,7 +2452,11 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                             border: '1px dashed rgba(245, 158, 11, 0.45)',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.35rem'
+                            gap: '0.35rem',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word'
                           }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -2464,7 +2469,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                               Oleh: <strong>{m.sender?.name || 'Staf Admin'}</strong>
                             </div>
-                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                               {m.message}
                             </p>
                           </div>
@@ -2478,13 +2483,17 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: isAgent ? 'flex-end' : 'flex-start',
-                            gap: '0.25rem'
+                            gap: '0.25rem',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box'
                           }}
                         >
                           <div style={{
-                            maxWidth: isInitialInquiry ? '95%' : '85%',
+                            maxWidth: isInitialInquiry ? '100%' : '88%',
                             width: isInitialInquiry ? '100%' : 'auto',
                             boxSizing: 'border-box',
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
                             padding: '1rem 1.25rem',
                             borderRadius: isInitialInquiry
                               ? '1rem'
@@ -2516,7 +2525,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                 {formatSupportDateTime(m.created_at)}
                               </span>
                             </div>
-                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                               {m.message}
                             </p>
 

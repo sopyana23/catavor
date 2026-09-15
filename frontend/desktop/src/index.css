@@ -383,11 +383,11 @@ button, input, textarea, select {
 
 .form-input, .form-textarea, .form-select, input.form-input, textarea.form-textarea, select.form-select, .search-input {
   width: 100%;
-  background-color: var(--bg-card-hover) !important;
-  border: 1px solid var(--border-light) !important;
+  background-color: var(--bg-card-hover);
+  border: 1px solid var(--border-light);
   border-radius: 0.65rem;
   padding: 0.75rem 1rem;
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
   font-size: 0.9rem;
   font-weight: 500;
   transition: var(--transition-smooth);
@@ -396,26 +396,82 @@ button, input, textarea, select {
 }
 
 .form-input:focus, .form-textarea:focus, .form-select:focus, input.form-input:focus, textarea.form-textarea:focus, select.form-select:focus, .search-input:focus {
-  outline: none !important;
-  border-color: var(--primary) !important;
-  background-color: var(--bg-card) !important;
-  box-shadow: 0 0 0 3px var(--primary-glow), 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  outline: none;
+  border-color: var(--primary);
+  background-color: var(--bg-card);
+  box-shadow: 0 0 0 3px var(--primary-glow), 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* Crisp & High-Contrast Placeholders */
-input::placeholder, textarea::placeholder, select::placeholder, .form-input::placeholder, .form-textarea::placeholder, .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.65) !important;
+/* Portal Dynamic Theme Inputs (Light / Dark) */
+.portal-light .search-input,
+.portal-light .form-input,
+.portal-light .filter-search-input,
+.light-input,
+input.light-input {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+.portal-dark .search-input,
+.portal-dark .form-input,
+.portal-dark .filter-search-input,
+.dark-input,
+input.dark-input {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.portal-light .search-input:focus,
+.portal-light .form-input:focus,
+.portal-light .filter-search-input:focus,
+.light-input:focus,
+input.light-input:focus {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.2) !important;
+  background-color: #ffffff !important;
+}
+
+.portal-dark .search-input:focus,
+.portal-dark .form-input:focus,
+.portal-dark .filter-search-input:focus,
+.dark-input:focus,
+input.dark-input:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
+  background-color: #0f172a !important;
+}
+
+/* Crisp & High-Contrast Placeholders System */
+input::placeholder, textarea::placeholder, select::placeholder, .form-input::placeholder, .form-textarea::placeholder, .search-input::placeholder, .filter-search-input::placeholder {
+  color: var(--text-muted, #94a3b8) !important;
   font-weight: 500 !important;
-  opacity: 1 !important;
+  opacity: 0.9 !important;
 }
 
+/* Light Theme Mode Placeholders - High Contrast Slate-600/700 */
+[data-theme="light"] input::placeholder, [data-theme="light"] textarea::placeholder, [data-theme="light"] select::placeholder, [data-theme="light"] .form-input::placeholder, [data-theme="light"] .form-textarea::placeholder, [data-theme="light"] .search-input::placeholder,
 [data-theme="pastel"] input::placeholder, [data-theme="pastel"] textarea::placeholder, [data-theme="pastel"] select::placeholder, [data-theme="pastel"] .form-input::placeholder, [data-theme="pastel"] .form-textarea::placeholder, [data-theme="pastel"] .search-input::placeholder,
 [data-theme="sage"] input::placeholder, [data-theme="sage"] textarea::placeholder, [data-theme="sage"] select::placeholder, [data-theme="sage"] .form-input::placeholder, [data-theme="sage"] .form-textarea::placeholder, [data-theme="sage"] .search-input::placeholder,
 [data-theme="navy"] input::placeholder, [data-theme="navy"] textarea::placeholder, [data-theme="navy"] select::placeholder, [data-theme="navy"] .form-input::placeholder, [data-theme="navy"] .form-textarea::placeholder, [data-theme="navy"] .search-input::placeholder,
-[data-theme="cream"] input::placeholder, [data-theme="cream"] textarea::placeholder, [data-theme="cream"] select::placeholder, [data-theme="cream"] .form-input::placeholder, [data-theme="cream"] .form-textarea::placeholder, [data-theme="cream"] .search-input::placeholder {
-  color: rgba(15, 23, 42, 0.55) !important;
+[data-theme="cream"] input::placeholder, [data-theme="cream"] textarea::placeholder, [data-theme="cream"] select::placeholder, [data-theme="cream"] .form-input::placeholder, [data-theme="cream"] .form-textarea::placeholder, [data-theme="cream"] .search-input::placeholder,
+.portal-light input::placeholder, .portal-light textarea::placeholder, .portal-light .search-input::placeholder, .portal-light .filter-search-input::placeholder,
+.light-mode input::placeholder, .light-input::placeholder, input.light-input::placeholder {
+  color: #64748b !important;
   font-weight: 500 !important;
-  opacity: 1 !important;
+  opacity: 0.95 !important;
+}
+
+/* Dark Theme Mode Placeholders - Crisp Slate-400 */
+[data-theme="dark"] input::placeholder, [data-theme="emerald"] input::placeholder, [data-theme="cyberpunk"] input::placeholder, [data-theme="ocean"] input::placeholder, [data-theme="nordic"] input::placeholder,
+.portal-dark input::placeholder, .portal-dark textarea::placeholder, .portal-dark .search-input::placeholder, .portal-dark .filter-search-input::placeholder,
+.dark-mode input::placeholder, .dark-input::placeholder, input.dark-input::placeholder {
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+  opacity: 0.9 !important;
 }
 
 /* Glassmorphism Panel - SaaS Style */

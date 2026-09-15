@@ -161,10 +161,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     border: isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
     borderStrong: isDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1',
     textPrimary: isDark ? '#f8fafc' : '#0f172a',
-    textSecondary: isDark ? '#94a3b8' : '#475569',
-    textMuted: isDark ? '#64748b' : '#94a3b8',
-    inputBg: isDark ? 'rgba(0, 0, 0, 0.3)' : '#f8fafc',
-    inputBorder: isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1',
+    textSecondary: isDark ? '#cbd5e1' : '#475569',
+    textMuted: isDark ? '#94a3b8' : '#64748b',
+    inputBg: isDark ? '#0f172a' : '#ffffff',
+    inputBorder: isDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1',
     quoteBg: isDark ? 'rgba(0, 0, 0, 0.3)' : '#f1f5f9',
     modalBg: isDark ? '#0f172a' : '#ffffff',
     modalOverlay: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.45)',
@@ -1123,22 +1123,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     (activeView === 'finance' && Boolean(selectedProofOrder));
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '1.15rem',
-      width: '100%',
-      backgroundColor: theme.bg,
-      color: theme.textPrimary,
-      padding: (activeView === 'support' && selectedTicket)
-        ? '0.5rem 0.85rem 7.5rem 0.85rem'
-        : isSubPage
-          ? '0.5rem 0.85rem 2rem 0.85rem'
-          : '0.5rem 0.85rem 5.5rem 0.85rem',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      minHeight: '100vh',
-      boxSizing: 'border-box'
-    }}>
+    <div
+      className={`catavor-platform-portal ${isDark ? 'portal-dark' : 'portal-light'}`}
+      data-portal-theme={isDark ? 'dark' : 'light'}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.15rem',
+        width: '100%',
+        backgroundColor: theme.bg,
+        color: theme.textPrimary,
+        padding: (activeView === 'support' && selectedTicket)
+          ? '0.5rem 0.85rem 10.5rem 0.85rem'
+          : isSubPage
+            ? '0.5rem 0.85rem 2rem 0.85rem'
+            : '0.5rem 0.85rem 5.5rem 0.85rem',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        minHeight: '100vh',
+        boxSizing: 'border-box'
+      }}
+    >
       {/* Toast Notification */}
       {toastMsg && (
         <div style={{
@@ -2394,7 +2398,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           border: isDark ? '1px dashed rgba(245, 158, 11, 0.45)' : '1px dashed rgba(245, 158, 11, 0.5)',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                          overflowWrap: 'anywhere',
+                          wordBreak: 'break-word'
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2408,7 +2416,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
                           Oleh: {msg.sender?.name || 'Staf Admin'}
                         </div>
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                           {msg.message}
                         </p>
                       </div>
@@ -2422,13 +2430,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: isAgent ? 'flex-end' : 'flex-start',
-                        gap: '0.2rem'
+                        gap: '0.2rem',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box'
                       }}
                     >
                       <div style={{
-                        maxWidth: isInitialInquiry ? '98%' : '88%',
+                        maxWidth: isInitialInquiry ? '100%' : '90%',
                         width: isInitialInquiry ? '100%' : 'auto',
                         boxSizing: 'border-box',
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-word',
                         padding: '0.95rem 1.1rem',
                         borderRadius: isInitialInquiry 
                           ? '1.15rem' 
@@ -2466,7 +2478,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </div>
 
                         {/* Message Text */}
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                           {msg.message}
                         </p>
 
@@ -2800,22 +2812,24 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {/* 1. Instant Search Bar */}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={15} style={{ position: 'absolute', left: '0.85rem', color: theme.textMuted, pointerEvents: 'none' }} />
+              <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
               <input
                 type="text"
+                className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
                 value={ticketSearchQuery}
                 onChange={(e) => setTicketSearchQuery(e.target.value)}
                 placeholder="Cari No Tiket (#TCK), Toko, Subjek, Email..."
                 style={{
                   width: '100%',
-                  padding: '0.55rem 2.2rem 0.55rem 2.4rem',
+                  padding: '0.65rem 2.2rem 0.65rem 2.5rem',
                   borderRadius: '0.85rem',
-                  backgroundColor: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  fontSize: '0.78rem',
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+                  color: isDark ? '#f8fafc' : '#0f172a',
+                  fontSize: '0.82rem',
+                  fontWeight: 500,
                   outline: 'none',
-                  boxShadow: theme.cardShadow,
+                  boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
                   boxSizing: 'border-box'
                 }}
               />
@@ -2825,17 +2839,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   onClick={() => setTicketSearchQuery('')}
                   style={{
                     position: 'absolute',
-                    right: '0.65rem',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    padding: '0.2rem',
+                    color: isDark ? '#94a3b8' : '#64748b',
                     cursor: 'pointer',
-                    color: theme.textMuted,
-                    display: 'flex',
-                    alignItems: 'center'
+                    fontSize: '0.8rem',
+                    padding: '0.2rem'
                   }}
                 >
-                  <X size={14} />
+                  ✕
                 </button>
               )}
             </div>
@@ -4999,29 +5014,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {activeFilterModal === 'category' && availableCategories.length > 4 && (
               <div style={{ padding: '0.65rem 1.25rem 0.25rem', flexShrink: 0 }}>
                 <div style={{ position: 'relative', width: '100%' }}>
-                  <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted, pointerEvents: 'none' }} />
+                  <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
                   <input
                     type="text"
+                    className={`filter-search-input ${isDark ? 'dark-input' : 'light-input'}`}
                     placeholder="Cari kategori tiket..."
                     value={filterSearchQuery}
                     onChange={(e) => setFilterSearchQuery(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '0.55rem 2rem 0.55rem 2.2rem',
+                      padding: '0.6rem 2rem 0.6rem 2.25rem',
                       borderRadius: '0.75rem',
-                      border: `1px solid ${theme.border}`,
-                      backgroundColor: theme.cardAlt,
+                      border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+                      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.35)' : '#ffffff',
                       color: theme.textPrimary,
-                      fontSize: '0.78rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
                       outline: 'none',
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      boxShadow: isDark ? 'inset 0 1px 3px rgba(0,0,0,0.5)' : 'inset 0 1px 2px rgba(0,0,0,0.04)'
                     }}
                   />
                   {filterSearchQuery && (
                     <button
                       type="button"
                       onClick={() => setFilterSearchQuery('')}
-                      style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', fontSize: '0.75rem' }}
+                      style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: isDark ? '#94a3b8' : '#64748b', cursor: 'pointer', fontSize: '0.75rem' }}
                     >
                       ✕
                     </button>
