@@ -19,7 +19,7 @@ type Notification struct {
 	ActionLabel           string     `json:"action_label" gorm:"type:varchar(128)"`                  // e.g. 'Buka Pengaturan Tentang Kami →'
 	ActionURL             string     `json:"action_url" gorm:"type:varchar(512)"`
 	ExpiresAt             *time.Time `json:"expires_at" gorm:"index"`                                 // Absolute expiration timestamp (nil = unlimited)
-	RetentionHours        int        `json:"retention_hours" gorm:"default:72"`                       // Hours to retain in history after being read (default 72h / 3 days)
+	RetentionHours        int        `json:"retention_hours" gorm:"default:720"`                      // Hours to retain in history after being read (default 720h / 30 days)
 	CreatedBy             uint       `json:"created_by" gorm:"default:0"`                             // Superadmin User ID who created the broadcast
 	CreatedAt             time.Time  `json:"created_at" gorm:"index"`
 	UpdatedAt             time.Time  `json:"updated_at"`

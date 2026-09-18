@@ -77,7 +77,6 @@ export const initGoogleAdSense = (
     }
 
     initializedAdSenseClient = formattedClient;
-    console.log(`[Catavor AdSense] Dynamic verification & script injected into <head> for ${formattedClient}`);
   } catch (err) {
     console.warn('[Catavor AdSense] Failed to inject head verification script:', err);
   }

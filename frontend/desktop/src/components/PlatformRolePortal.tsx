@@ -45,7 +45,12 @@ import {
   Store,
   SlidersHorizontal,
   Bot,
-  Zap
+  Zap,
+  Volume2,
+  VolumeX,
+  Bell,
+  Star,
+  ArrowUp
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -88,15 +93,40 @@ const PRIORITY_META: Record<string, { label: string; color: string }> = {
   low: { label: 'Low (Rendah)', color: '#06b6d4' }
 };
 
+const getFirstName = (name?: string): string => {
+  if (!name) return 'Merchant';
+  const trimmed = name.trim();
+  if (!trimmed) return 'Merchant';
+
+  // 1. Take first word before any whitespace
+  let first = trimmed.split(/\s+/)[0];
+
+  // 2. If it contains email-like separators, extract the first segment
+  if (first.includes('.') || first.includes('_') || first.includes('-')) {
+    const subParts = first.split(/[._\-+]/).filter(Boolean);
+    if (subParts.length > 0) {
+      first = subParts[0];
+    }
+  }
+
+  // 3. Strip trailing numbers if the remaining letters are a valid name
+  const lettersOnly = first.replace(/\d+$/, '');
+  if (lettersOnly.length >= 2) {
+    first = lettersOnly;
+  }
+
+  return first.charAt(0).toUpperCase() + first.slice(1);
+};
+
 const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
-  if (ticket?.store?.name) return ticket.store.name;
-  if (ticket?.store_name) return ticket.store_name;
-  if (msgSender?.name && !msgSender.name.includes('@')) return msgSender.name;
-  if (ticket?.user?.name && !ticket.user.name.includes('@')) return ticket.user.name;
+  if (msgSender?.name && !msgSender.name.includes('@')) return getFirstName(msgSender.name);
+  if (ticket?.user?.name && !ticket.user.name.includes('@')) return getFirstName(ticket.user.name);
+  if (ticket?.store?.name) return getFirstName(ticket.store.name);
+  if (ticket?.store_name) return getFirstName(ticket.store_name);
   const rawEmail = ticket?.user_email || ticket?.user?.email || msgSender?.email || '';
   if (rawEmail) {
     const prefix = rawEmail.split('@')[0];
-    if (prefix) return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    if (prefix) return getFirstName(prefix);
   }
   return 'Merchant';
 };
@@ -213,10 +243,37 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
 
+  // Scroll to Top state & handlers
+  const [showPageScrollTop, setShowPageScrollTop] = useState(false);
+  const [showChatScrollTop, setShowChatScrollTop] = useState(false);
+  const desktopChatFeedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowPageScrollTop(window.scrollY > 220);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollPageToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollChatToTop = () => {
+    if (desktopChatFeedRef.current) {
+      desktopChatFeedRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   // Pengurutan alami tiket layaknya aplikasi media sosial / chat:
   // Seluruh tiket diurutkan berdasarkan tanggal/waktu pesan terakhir (terbaru di posisi paling atas)
   const sortedTickets = useMemo(() => {
-    return [...tickets].sort((a, b) => {
+    let list = [...tickets];
+    if (ticketsFilter === 'unread') {
+      list = list.filter(t => t.has_unread || (t.unread_count && t.unread_count > 0));
+    }
+    return list.sort((a, b) => {
       const getLatestTime = (t: any): number => {
         if (Array.isArray(t.messages) && t.messages.length > 0) {
           const last = t.messages[t.messages.length - 1];
@@ -236,7 +293,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       };
       return getLatestTime(b) - getLatestTime(a);
     });
-  }, [tickets]);
+  }, [tickets, ticketsFilter]);
 
   // Server-Side Tickets Pagination & Metrics State
   const [ticketsMetrics, setTicketsMetrics] = useState<{
@@ -246,13 +303,21 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     waiting_user: number;
     urgent: number;
     resolved: number;
+    sla_breached?: number;
+    csat_rated_count?: number;
+    csat_avg?: number;
+    csat_score_percent?: number;
   }>({
     total: 0,
     action_required: 0,
     in_progress: 0,
     waiting_user: 0,
     urgent: 0,
-    resolved: 0
+    resolved: 0,
+    sla_breached: 0,
+    csat_rated_count: 0,
+    csat_avg: 5.0,
+    csat_score_percent: 100
   });
   const [ticketsPagination, setTicketsPagination] = useState<{
     page: number;
@@ -271,6 +336,66 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [ticketsLoadingMore, setTicketsLoadingMore] = useState(false);
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Unread & Incoming Chat Audio/Notification Management
+  const readTicketIdsRef = useRef<Set<string | number>>(new Set());
+  const prevTicketMessagesRef = useRef<Record<string, number>>({});
+  const isFirstTicketLoadRef = useRef<boolean>(true);
+  const [isChimeMuted, setIsChimeMuted] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('catavor_admin_chime_muted') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const playSupportChime = () => {
+    if (isChimeMuted) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch {}
+  };
+
+  const handleToggleChimeMute = () => {
+    setIsChimeMuted(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('catavor_admin_chime_muted', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const sendSupportNotification = (title: string, body: string) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, { body, icon: '/favicon.ico' });
+        } catch {}
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            try {
+              new Notification(title, { body, icon: '/favicon.ico' });
+            } catch {}
+          }
+        }).catch(() => {});
+      }
+    }
+  };
 
   // Custom Dropdown Popover States for Helpdesk Filter
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -587,6 +712,56 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     }
   }, [replyMessage]);
 
+  // Agent Collision Detection Presence (Fase 5)
+  const [activePresences, setActivePresences] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedTicket || !token || !canAccessSupport) {
+      setActivePresences([]);
+      return;
+    }
+
+    const sendPresence = async () => {
+      try {
+        await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: replyMessage.trim().length > 0 })
+        });
+      } catch (err) {
+        // Ignore network hiccups
+      }
+    };
+
+    const fetchPresence = async () => {
+      try {
+        const res = await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            setActivePresences(json.data);
+          }
+        }
+      } catch (err) {
+        // Ignore network hiccups
+      }
+    };
+
+    sendPresence();
+    fetchPresence();
+    const interval = setInterval(() => {
+      sendPresence();
+      fetchPresence();
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [selectedTicket?.id, token, canAccessSupport, replyMessage]);
+
   // State: Finance
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersFilter, setOrdersFilter] = useState<string>('all');
@@ -622,7 +797,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       const params = new URLSearchParams();
       params.set('page', String(pageToFetch));
       params.set('limit', '20');
-      if (ticketsFilter !== 'all') params.set('status', ticketsFilter);
+      if (ticketsFilter !== 'all' && ticketsFilter !== 'unread') params.set('status', ticketsFilter);
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
       if (ticketsFilter === 'resolved' && resolvedTimeRangeFilter !== 'all') {
@@ -639,10 +814,78 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       if (res.ok) {
         const json = await res.json();
         const data = Array.isArray(json) ? json : (json.data || json.tickets || []);
+        
+        const mappedData = data.map((t: any) => {
+          const msgs = Array.isArray(t.messages) ? t.messages : [];
+          const isViewed = readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id)) || (selectedTicket && selectedTicket.id === t.id);
+          const unreadMsgs = msgs.filter((m: any) => m.sender_type === 'user' && !m.read_at);
+          const unreadCount = isViewed ? 0 : unreadMsgs.length;
+          const hasUnread = isViewed ? false : (unreadCount > 0 || t.status === 'open' || t.status === 'waiting_agent');
+          const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+
+          return {
+            ...t,
+            unread_count: unreadCount,
+            has_unread: hasUnread,
+            last_msg: lastMsg
+          };
+        });
+
+        // Deteksi chat balasan baru dari merchant untuk memicu chime & desktop push
+        if (!isFirstTicketLoadRef.current) {
+          let hasNewIncoming = false;
+          let incomingSender = '';
+          let incomingTicketNum = '';
+          let incomingSnippet = '';
+          let totalNewIncoming = 0;
+
+          mappedData.forEach((t: any) => {
+            const prevCount = prevTicketMessagesRef.current[String(t.id)] || 0;
+            const curCount = Array.isArray(t.messages) ? t.messages.length : 0;
+            if (curCount > prevCount && prevCount > 0) {
+              const msgs = Array.isArray(t.messages) ? t.messages : [];
+              const newMsgs = msgs.slice(prevCount);
+              const userMsgs = newMsgs.filter((m: any) => m.sender_type === 'user');
+              if (userMsgs.length > 0) {
+                hasNewIncoming = true;
+                totalNewIncoming += userMsgs.length;
+                const lastMsg = userMsgs[userMsgs.length - 1];
+                incomingSender = getMerchantDisplayName(t, lastMsg.sender);
+                incomingTicketNum = t.ticket_number || `#TCK-${t.id}`;
+                incomingSnippet = lastMsg.message ? (lastMsg.message.length > 60 ? lastMsg.message.substring(0, 60) + '...' : lastMsg.message) : '';
+              }
+            }
+          });
+
+          if (hasNewIncoming) {
+            playSupportChime();
+            const incomingTitle = totalNewIncoming === 1 ? '1 pesan masuk' : `${totalNewIncoming} pesan masuk`;
+            sendSupportNotification(
+              `💬 ${incomingTitle}: ${incomingTicketNum}`,
+              `${incomingSender}: ${incomingSnippet}`
+            );
+          }
+        }
+
+        const counts: Record<string, number> = {};
+        mappedData.forEach((t: any) => {
+          counts[String(t.id)] = Array.isArray(t.messages) ? t.messages.length : 0;
+        });
+        prevTicketMessagesRef.current = counts;
+        isFirstTicketLoadRef.current = false;
+
+        // Auto-update thread chat jika tiket yang sedang dibuka menerima balasan baru
+        if (selectedTicket) {
+          const activeUpdated = mappedData.find((t: any) => t.id === selectedTicket.id || String(t.id) === String(selectedTicket.id));
+          if (activeUpdated && Array.isArray(activeUpdated.messages) && activeUpdated.messages.length !== (selectedTicket.messages?.length || 0)) {
+            setSelectedTicket((prev: any) => prev ? ({ ...prev, messages: activeUpdated.messages }) : null);
+          }
+        }
+
         if (append) {
-          setTickets(prev => [...prev, ...data]);
+          setTickets(prev => [...prev, ...mappedData]);
         } else {
-          setTickets(data);
+          setTickets(mappedData);
         }
         if (json.metrics) {
           setTicketsMetrics(json.metrics);
@@ -670,6 +913,15 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       fetchTickets(1, false);
     }
   }, [token, canAccessSupport, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+
+  // Polling cerdas setiap 10 detik agar chat masuk terdeteksi secara real-time
+  useEffect(() => {
+    if (!token || !canAccessSupport) return;
+    const interval = setInterval(() => {
+      fetchTickets(1, false);
+    }, activeDivision === 'support' ? 10000 : 25000);
+    return () => clearInterval(interval);
+  }, [token, canAccessSupport, activeDivision, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   const fetchDivisionData = async () => {
     if (!token) return;
@@ -793,7 +1045,16 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   // Open ticket and fetch full conversation stream with URL state update
   const handleOpenTicketChat = async (ticket: any, pushToHistory = true) => {
     const rawId = ticket.id || ticket.ticket_number || ticket.ticket?.id;
-    setSelectedTicket(ticket);
+    readTicketIdsRef.current.add(ticket.id);
+    readTicketIdsRef.current.add(String(ticket.id));
+    if (ticket.ticket_number) {
+      readTicketIdsRef.current.add(ticket.ticket_number);
+    }
+
+    // Hapus tanda unread secara instan di state UI lokal
+    setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id) || t.ticket_number === ticket.ticket_number) ? { ...t, unread_count: 0, has_unread: false } : t));
+
+    setSelectedTicket({ ...ticket, unread_count: 0, has_unread: false });
     setTicketDetailsLoading(true);
     setReplyMessage('');
     setTicketReplyAttachments([]);
@@ -816,6 +1077,8 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           const messagesList = d.data.messages || ticketObj.messages || [];
           setSelectedTicket({
             ...ticketObj,
+            unread_count: 0,
+            has_unread: false,
             messages: messagesList
           });
         }
@@ -888,14 +1151,25 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        const createdMsg = data.data;
         showToast(isInternalNote ? 'Catatan internal CS disimpan!' : 'Balasan staf berhasil terkirim!', 'success');
         setReplyMessage('');
         setTicketReplyAttachments([]);
         setIsInternalNote(false);
+        if (createdMsg) {
+          setSelectedTicket((prev: any) => {
+            if (!prev) return null;
+            const currentMsgs = prev.messages || [];
+            if (!currentMsgs.some((m: any) => m.id === createdMsg.id)) {
+              return { ...prev, messages: [...currentMsgs, createdMsg] };
+            }
+            return prev;
+          });
+        }
         if (shouldResolve) {
           await handleUpdateTicketStatus(targetTicketId, 'resolved');
         } else {
-          handleOpenTicketChat(selectedTicket);
+          handleOpenTicketChat(selectedTicket, false);
         }
         fetchDivisionData();
       } else {
@@ -1220,18 +1494,29 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
             >
               <HelpCircle size={16} />
               <span>Customer Support</span>
-              {tickets.filter(t => t.status === 'open').length > 0 && (
-                <span style={{
-                  padding: '0.15rem 0.45rem',
-                  borderRadius: '999px',
-                  backgroundColor: '#38bdf8',
-                  color: '#000',
-                  fontSize: '0.7rem',
-                  fontWeight: 800
-                }}>
-                  {tickets.filter(t => t.status === 'open').length}
-                </span>
-              )}
+              {(() => {
+                const unreadTotal = tickets.filter(t => t.has_unread || (t.unread_count && t.unread_count > 0)).length;
+                const openTotal = tickets.filter(t => t.status === 'open').length;
+                const displayCount = unreadTotal > 0 ? unreadTotal : openTotal;
+                if (displayCount <= 0) return null;
+                return (
+                  <span style={{
+                    padding: '0.12rem 0.5rem',
+                    borderRadius: '999px',
+                    backgroundColor: unreadTotal > 0 ? '#38bdf8' : '#0284c7',
+                    color: '#000',
+                    fontSize: '0.7rem',
+                    fontWeight: 900,
+                    boxShadow: unreadTotal > 0 ? '0 0 10px rgba(56, 189, 248, 0.6)' : undefined,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}>
+                    {unreadTotal > 0 && <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#0284c7' }} />}
+                    {displayCount}
+                  </span>
+                );
+              })()}
             </button>
           )}
 
@@ -1795,15 +2080,31 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                 >
                   <Zap size={14} />
                   <span>Master Template Balasan</span>
-                  <span style={{
-                    fontSize: '0.68rem',
-                    padding: '0.08rem 0.4rem',
-                    borderRadius: '999px',
-                    backgroundColor: supportSubView === 'templates' ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
-                    color: supportSubView === 'templates' ? '#ffffff' : 'var(--text-muted)'
-                  }}>
-                    {cannedTemplates.length}
-                  </span>
+                </button>
+
+                <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-light)', margin: '0 0.25rem' }} />
+
+                <button
+                  type="button"
+                  onClick={handleToggleChimeMute}
+                  title={isChimeMuted ? "Suara Notifikasi Chat Dimatikan (Klik untuk membunyikan)" : "Suara Notifikasi Chat Aktif (Klik untuk mute)"}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    backgroundColor: isChimeMuted ? 'rgba(239, 68, 68, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                    color: isChimeMuted ? '#ef4444' : '#38bdf8',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isChimeMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  <span>{isChimeMuted ? 'Muted' : 'Sound ON'}</span>
                 </button>
               </div>
             </div>
@@ -2151,6 +2452,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {[
                 { id: 'all', label: 'Semua Tiket', count: totalTicketsCount, color: '#0ea5e9', isPriority: false },
+                { id: 'unread', label: 'Belum Dibaca', count: tickets.filter(t => t.has_unread || (t.unread_count && t.unread_count > 0)).length, color: '#38bdf8', isPriority: false, isUnreadTab: true },
                 { id: 'action_required', label: 'Perlu Respon CS', count: actionRequiredCount, color: '#0ea5e9', isPriority: false },
                 { id: 'open', label: 'Open (Baru)', count: openCount, color: '#0ea5e9', isPriority: false },
                 { id: 'in_progress', label: 'Sedang Diproses', count: inProgressCount, color: '#f59e0b', isPriority: false },
@@ -2178,10 +2480,10 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       padding: '0.45rem 0.85rem',
                       borderRadius: '0.65rem',
                       backgroundColor: isActive
-                        ? (tab.id === 'urgent' ? '#ef4444' : (tab.id === 'in_progress' ? '#f59e0b' : (tab.id === 'waiting_user' ? '#a855f7' : (tab.id === 'resolved' ? '#10b981' : '#0ea5e9'))))
+                        ? (tab.id === 'unread' ? '#38bdf8' : (tab.id === 'urgent' ? '#ef4444' : (tab.id === 'in_progress' ? '#f59e0b' : (tab.id === 'waiting_user' ? '#a855f7' : (tab.id === 'resolved' ? '#10b981' : '#0ea5e9')))))
                         : 'var(--bg-card)',
                       border: `1px solid ${isActive ? 'transparent' : 'var(--border-light)'}`,
-                      color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                      color: isActive ? (tab.id === 'unread' ? '#000' : '#ffffff') : 'var(--text-secondary)',
                       fontSize: '0.8rem',
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -2197,9 +2499,9 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       fontWeight: 800,
                       padding: '0.1rem 0.45rem',
                       borderRadius: '999px',
-                      backgroundColor: isActive ? 'rgba(0,0,0,0.25)' : 'var(--bg-deep)',
-                      color: isActive ? '#ffffff' : (tab.count > 0 && (tab.id === 'action_required' || tab.id === 'urgent') ? '#ef4444' : 'var(--text-muted)'),
-                      border: `1px solid ${isActive ? 'rgba(255,255,255,0.2)' : 'var(--border-light)'}`
+                      backgroundColor: isActive ? 'rgba(0,0,0,0.2)' : 'var(--bg-deep)',
+                      color: isActive ? (tab.id === 'unread' ? '#000' : '#ffffff') : (tab.count > 0 && (tab.id === 'unread' || tab.id === 'action_required' || tab.id === 'urgent') ? '#38bdf8' : 'var(--text-muted)'),
+                      border: `1px solid ${isActive ? 'rgba(0,0,0,0.1)' : 'var(--border-light)'}`
                     }}>
                       {tab.count}
                     </span>
@@ -2265,6 +2567,11 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
                       const storePlan = String(t.store?.plan || '').toLowerCase();
                       const storeDisplayName = t.store?.store_title || t.store?.name || t.store_slug || t.user?.name || 'Merchant';
+                      const msgs = Array.isArray(t.messages) ? t.messages : [];
+                      const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
+                      const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
+                      const unreadCount = t.unread_count || 0;
+                      const lastSenderName = lastMsg ? (lastMsg.sender_type === 'agent' ? 'CS Support' : getFirstName(getMerchantDisplayName(t, lastMsg.sender))) : '';
 
                       return (
                         <tr
@@ -2272,29 +2579,68 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                           onClick={() => handleOpenTicketChat(t)}
                           style={{
                             borderBottom: '1px solid var(--border-light)',
+                            backgroundColor: isUnread ? 'rgba(14, 165, 233, 0.06)' : 'transparent',
+                            boxShadow: isUnread ? 'inset 3px 0 0 #0ea5e9' : undefined,
                             cursor: 'pointer',
                             transition: 'background-color 0.15s'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isUnread ? 'rgba(14, 165, 233, 0.1)' : 'rgba(255,255,255,0.03)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isUnread ? 'rgba(14, 165, 233, 0.06)' : 'transparent'}
                         >
                           <td style={{ padding: '0.85rem 1.25rem' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0ea5e9', fontFamily: 'monospace' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                              {isUnread && (
+                                <span
+                                  title="Pesan Baru Belum Dibaca"
+                                  style={{
+                                    display: 'inline-block',
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: '#38bdf8',
+                                    boxShadow: '0 0 8px #38bdf8',
+                                    flexShrink: 0
+                                  }}
+                                />
+                              )}
+                              <span style={{ fontSize: '0.8rem', fontWeight: isUnread ? 900 : 800, color: '#0ea5e9', fontFamily: 'monospace' }}>
                                 {t.ticket_number || `#TCK-${t.id}`}
                               </span>
+                              {isUnread && unreadCount > 0 && (
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                                  color: '#38bdf8',
+                                  border: '1px solid rgba(14, 165, 233, 0.4)',
+                                  letterSpacing: '0.02em'
+                                }}>
+                                  ● {unreadCount} BARU
+                                </span>
+                              )}
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <div style={{ fontSize: '0.72rem', color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 600 : 400, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                               <Clock size={11} /> {formatSupportDateTime(t.last_message_at || t.created_at)}
                             </div>
                           </td>
                           <td style={{ padding: '0.85rem 1rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', maxWidth: '340px' }}>
-                              <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <strong style={{ fontSize: '0.84rem', color: isUnread ? '#38bdf8' : 'var(--text-primary)', fontWeight: isUnread ? 900 : 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {t.subject || t.title || 'Pertanyaan Layanan Toko'}
                               </strong>
-                              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {t.messages?.[0]?.message || (t.messages?.[0]?.attachments?.length ? `[${t.messages[0].attachments.length} Lampiran]` : 'Inkuiri Bantuan')}
+                              <span style={{ fontSize: '0.74rem', color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {lastMsg ? (
+                                  <>
+                                    <strong style={{ color: lastMsg.sender_type === 'user' ? '#38bdf8' : 'var(--primary)' }}>
+                                      {lastSenderName}:
+                                    </strong>{' '}
+                                    {lastMsg.message || (lastMsg.attachments?.length ? `[${lastMsg.attachments.length} Lampiran Bukti]` : '')}
+                                  </>
+                                ) : (
+                                  t.messages?.[0]?.message || 'Inkuiri Bantuan'
+                                )}
                               </span>
                             </div>
                           </td>
@@ -2322,57 +2668,126 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                             </div>
                           </td>
                           <td style={{ padding: '0.85rem 1rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-deep)', color: 'var(--text-secondary)', border: '1px solid var(--border-light)' }}>
-                                {
-                                  t.category === 'billing' ? 'Keuangan & Langganan' :
-                                  t.category === 'technical' ? 'Kendala Teknis & Bug' :
-                                  t.category === 'catalog_help' ? 'Bantuan Katalog' :
-                                  t.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
-                                }
-                              </span>
-                              <span style={{
-                                fontSize: '0.7rem',
-                                fontWeight: 800,
-                                padding: '0.15rem 0.45rem',
-                                borderRadius: '4px',
-                                backgroundColor: (t.priority === 'urgent' || t.priority === 'high') ? 'rgba(239, 68, 68, 0.15)' : 'rgba(14, 165, 233, 0.15)',
-                                color: (t.priority === 'urgent' || t.priority === 'high') ? '#ef4444' : '#0ea5e9',
-                                border: `1px solid ${t.priority === 'urgent' || t.priority === 'high' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`,
-                                textTransform: 'uppercase'
-                              }}>
-                                {String(t.priority || 'MEDIUM').toUpperCase()}
-                              </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-deep)', color: 'var(--text-secondary)', border: '1px solid var(--border-light)' }}>
+                                  {
+                                    t.category === 'billing' ? 'Keuangan & Langganan' :
+                                    t.category === 'technical' ? 'Kendala Teknis & Bug' :
+                                    t.category === 'catalog_help' ? 'Bantuan Katalog' :
+                                    t.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
+                                  }
+                                </span>
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 800,
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: (t.priority === 'urgent' || t.priority === 'high') ? 'rgba(239, 68, 68, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                                  color: (t.priority === 'urgent' || t.priority === 'high') ? '#ef4444' : '#0ea5e9',
+                                  border: `1px solid ${t.priority === 'urgent' || t.priority === 'high' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`,
+                                  textTransform: 'uppercase'
+                                }}>
+                                  {String(t.priority || 'MEDIUM').toUpperCase()}
+                                </span>
+                              </div>
+
+                              {/* Multi-Tier SLA Countdown Pill */}
+                              {t.sla_breached ? (
+                                <span style={{ fontSize: '0.64rem', fontWeight: 900, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
+                                  ⚠️ SLA Terlewat
+                                </span>
+                              ) : (t.status === 'open' && t.sla_due_at) ? (
+                                (() => {
+                                  const diffMin = Math.round((new Date(t.sla_due_at).getTime() - Date.now()) / (1000 * 60));
+                                  if (diffMin <= 0) {
+                                    return (
+                                      <span style={{ fontSize: '0.64rem', fontWeight: 900, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
+                                        ⚠️ SLA Terlewat
+                                      </span>
+                                    );
+                                  }
+                                  const hours = Math.floor(diffMin / 60);
+                                  const mins = diffMin % 60;
+                                  const isClose = diffMin < 30;
+                                  return (
+                                    <span style={{
+                                      fontSize: '0.64rem',
+                                      fontWeight: 800,
+                                      padding: '0.1rem 0.45rem',
+                                      borderRadius: '4px',
+                                      backgroundColor: isClose ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                      color: isClose ? '#f59e0b' : '#10b981',
+                                      border: `1px solid ${isClose ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                      width: 'fit-content'
+                                    }}>
+                                      ⏱️ SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m
+                                    </span>
+                                  );
+                                })()
+                              ) : t.first_response_at ? (
+                                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                  ✓ Respon Pertama Terpenuhi
+                                </span>
+                              ) : null}
                             </div>
                           </td>
                           <td style={{ padding: '0.85rem 1rem' }}>
-                            <span style={{
-                              padding: '0.2rem 0.65rem',
-                              borderRadius: '999px',
-                              fontSize: '0.74rem',
-                              fontWeight: 800,
-                              backgroundColor:
-                                t.status === 'resolved' || t.status === 'closed' ? 'rgba(16, 185, 129, 0.15)' :
-                                t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' :
-                                t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)',
-                              color:
-                                t.status === 'resolved' || t.status === 'closed' ? '#10b981' :
-                                t.status === 'in_progress' ? '#f59e0b' :
-                                t.status === 'waiting_user' ? '#c084fc' : '#0ea5e9',
-                              border: `1px solid ${
-                                t.status === 'resolved' || t.status === 'closed' ? 'rgba(16, 185, 129, 0.3)' :
-                                t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.3)' :
-                                t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'
-                              }`
-                            }}>
-                              {
-                                t.status === 'open' ? 'Open (Baru)' :
-                                t.status === 'in_progress' ? 'Sedang Diproses' :
-                                t.status === 'waiting_user' ? 'Menunggu Merchant' :
-                                t.status === 'resolved' ? 'Terselesaikan' :
-                                t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase()
-                              }
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <span style={{
+                                padding: '0.2rem 0.65rem',
+                                borderRadius: '999px',
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                                width: 'fit-content',
+                                backgroundColor:
+                                  t.status === 'resolved' || t.status === 'closed' ? 'rgba(16, 185, 129, 0.15)' :
+                                  t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' :
+                                  t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                                color:
+                                  t.status === 'resolved' || t.status === 'closed' ? '#10b981' :
+                                  t.status === 'in_progress' ? '#f59e0b' :
+                                  t.status === 'waiting_user' ? '#c084fc' : '#0ea5e9',
+                                border: `1px solid ${
+                                  t.status === 'resolved' || t.status === 'closed' ? 'rgba(16, 185, 129, 0.3)' :
+                                  t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.3)' :
+                                  t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'
+                                }`
+                              }}>
+                                {
+                                  t.status === 'open' ? 'Open (Baru)' :
+                                  t.status === 'in_progress' ? 'Sedang Diproses' :
+                                  t.status === 'waiting_user' ? 'Menunggu Merchant' :
+                                  t.status === 'resolved' ? 'Terselesaikan' :
+                                  t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase()
+                                }
+                              </span>
+
+                              {/* CSAT Rating Badge */}
+                              {t.rating && (
+                                <span
+                                  title={t.rating_comment ? `Ulasan: "${t.rating_comment}"` : `Rating Kepuasan: ${t.rating}/5`}
+                                  style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 900,
+                                    padding: '0.12rem 0.45rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                    color: '#f59e0b',
+                                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem',
+                                    width: 'fit-content'
+                                  }}
+                                >
+                                  ⭐ {t.rating}/5 CSAT
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '0.85rem 1.25rem', textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -2734,14 +3149,95 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       <span style={{ color: 'var(--text-muted)' }}>Pembaruan Terakhir: </span>
                       <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.74rem' }}>{formatSupportDateTime(selectedTicket.last_message_at || selectedTicket.updated_at)}</span>
                     </div>
+
+                    {/* CSAT Customer Feedback Card in Drawer */}
+                    {selectedTicket.rating && (
+                      <div style={{
+                        marginTop: '0.65rem',
+                        padding: '0.65rem 0.75rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)'
+                      }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#f59e0b', marginBottom: '0.2rem' }}>
+                          Ulasan Kepuasan Merchant:
+                        </div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 900, color: '#f59e0b' }}>
+                          ⭐ {selectedTicket.rating} / 5 Bintang
+                        </div>
+                        {selectedTicket.rating_comment && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                            "{selectedTicket.rating_comment}"
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Right Area: Conversation Stream & Reply Box */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, backgroundColor: 'var(--bg-card)' }}>
+                {/* Agent Collision Warning Banner */}
+                {activePresences.length > 0 && (
+                  <div style={{
+                    padding: '0.55rem 1rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    borderBottom: '1px solid rgba(245, 158, 11, 0.35)',
+                    color: '#f59e0b',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem'
+                  }}>
+                    <AlertTriangle size={14} />
+                    <span>
+                      {activePresences.map(p => p.admin_name).join(', ')} juga sedang membuka tiket ini
+                      {activePresences.some(p => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
+                    </span>
+                  </div>
+                )}
                 {/* Messages Feed */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                <div 
+                  ref={desktopChatFeedRef}
+                  onScroll={(e) => {
+                    setShowChatScrollTop(e.currentTarget.scrollTop > 180);
+                  }}
+                  style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.95rem' }}
+                >
+                  {/* Floating Chat Scroll to Top Pill */}
+                  {showChatScrollTop && (
+                    <button
+                      type="button"
+                      onClick={scrollChatToTop}
+                      style={{
+                        position: 'sticky',
+                        top: '4px',
+                        alignSelf: 'center',
+                        zIndex: 20,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.35rem 0.85rem',
+                        borderRadius: '999px',
+                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                        color: '#38bdf8',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Kembali ke Pesan Teratas"
+                    >
+                      <ArrowUp size={13} strokeWidth={2.5} />
+                      <span>Kembali ke Atas</span>
+                    </button>
+                  )}
                   {ticketDetailsLoading ? (
                     <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                       <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#0ea5e9' }} />
@@ -2752,191 +3248,216 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       Belum ada pesan dalam tiket ini.
                     </div>
                   ) : (
-                    selectedTicket.messages.map((m: any, idx: number) => {
-                      const isAgent = m.sender_type === 'agent' || m.is_admin;
-                      const isInternal = m.is_internal_note;
-                      const isSystemBot = m.sender_type === 'system';
-                      const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
-                      const merchantName = getMerchantDisplayName(selectedTicket, m.sender);
+                    (() => {
+                      const firstUnreadIdx = selectedTicket.messages.findIndex((msg: any) => msg.sender_type === 'user' && !msg.read_at);
+                      return selectedTicket.messages.map((m: any, idx: number) => {
+                        const isAgent = m.sender_type === 'agent' || m.is_admin;
+                        const isInternal = m.is_internal_note;
+                        const isSystemBot = m.sender_type === 'system';
+                        const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
+                        const merchantName = getMerchantDisplayName(selectedTicket, m.sender);
+                        const showUnreadDivider = firstUnreadIdx > 0 && idx === firstUnreadIdx;
 
-                      if (isSystemBot) {
                         return (
-                          <div
-                            key={idx}
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              width: '100%',
-                              maxWidth: '100%',
-                              boxSizing: 'border-box',
-                              margin: '0.45rem 0'
-                            }}
-                          >
-                            <div style={{
-                              maxWidth: '92%',
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word',
-                              padding: '0.95rem 1.15rem',
-                              borderRadius: '0.85rem',
-                              backgroundColor: 'rgba(14, 165, 233, 0.08)',
-                              border: '1px solid rgba(14, 165, 233, 0.3)',
-                              color: 'var(--text-primary)',
-                              boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
-                            }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.85rem', marginBottom: '0.35rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                  <Bot size={15} color="#0ea5e9" />
-                                  <strong style={{ fontSize: '0.78rem', color: '#0ea5e9', fontWeight: 800 }}>
-                                    Sistem Otomatis Catavor
-                                  </strong>
-                                  <span style={{
-                                    fontSize: '0.62rem',
-                                    padding: '0.1rem 0.45rem',
-                                    borderRadius: '999px',
-                                    backgroundColor: 'rgba(14, 165, 233, 0.2)',
-                                    color: '#0ea5e9',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.02em'
-                                  }}>
-                                    BOT RESMI
+                          <React.Fragment key={m.id || idx}>
+                            {showUnreadDivider && (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.75rem',
+                                  margin: '0.75rem 0',
+                                  width: '100%'
+                                }}
+                              >
+                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(14, 165, 233, 0.4)' }} />
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 800,
+                                  color: '#38bdf8',
+                                  backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                                  padding: '0.2rem 0.65rem',
+                                  borderRadius: '999px',
+                                  border: '1px solid rgba(14, 165, 233, 0.35)',
+                                  letterSpacing: '0.02em',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem'
+                                }}>
+                                  <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#38bdf8' }} />
+                                  Pesan Baru Belum Terbaca
+                                </span>
+                                <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(14, 165, 233, 0.4)' }} />
+                              </div>
+                            )}
+
+                            {isSystemBot ? (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  width: '100%',
+                                  maxWidth: '100%',
+                                  boxSizing: 'border-box',
+                                  margin: '0.45rem 0'
+                                }}
+                              >
+                                <div style={{
+                                  maxWidth: '92%',
+                                  width: '100%',
+                                  boxSizing: 'border-box',
+                                  overflowWrap: 'anywhere',
+                                  wordBreak: 'break-word',
+                                  padding: '0.95rem 1.15rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                                  border: '1px solid rgba(14, 165, 233, 0.3)',
+                                  color: 'var(--text-primary)',
+                                  boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.85rem', marginBottom: '0.35rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                      <Bot size={15} color="#0ea5e9" />
+                                      <strong style={{ fontSize: '0.78rem', color: '#0ea5e9', fontWeight: 800 }}>
+                                        Sistem Otomatis Catavor
+                                      </strong>
+                                    </div>
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
+                                      {formatSupportDateTime(m.created_at)}
+                                    </span>
+                                  </div>
+                                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                    {m.message}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : isInternal ? (
+                              <div style={{
+                                padding: '0.9rem 1.15rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                border: '1px dashed rgba(245, 158, 11, 0.45)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.35rem',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <Lock size={13} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    {formatSupportDateTime(m.created_at)}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
-                                  {formatSupportDateTime(m.created_at)}
-                                </span>
-                              </div>
-                              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                                {m.message}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      if (isInternal) {
-                        return (
-                          <div key={idx} style={{
-                            padding: '0.9rem 1.15rem',
-                            borderRadius: '0.85rem',
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            border: '1px dashed rgba(245, 158, 11, 0.45)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.35rem',
-                            maxWidth: '100%',
-                            boxSizing: 'border-box',
-                            overflowWrap: 'anywhere',
-                            wordBreak: 'break-word'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <Lock size={13} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
-                              </span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                {formatSupportDateTime(m.created_at)}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                              Oleh: <strong>{m.sender?.name || 'Staf Admin'}</strong>
-                            </div>
-                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                              {m.message}
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: isAgent ? 'flex-end' : 'flex-start',
-                            gap: '0.25rem',
-                            maxWidth: '100%',
-                            boxSizing: 'border-box'
-                          }}
-                        >
-                          <div style={{
-                            maxWidth: isInitialInquiry ? '100%' : '88%',
-                            width: isInitialInquiry ? '100%' : 'auto',
-                            boxSizing: 'border-box',
-                            overflowWrap: 'anywhere',
-                            wordBreak: 'break-word',
-                            padding: '1rem 1.25rem',
-                            borderRadius: isInitialInquiry
-                              ? '1rem'
-                              : isAgent
-                                ? '1rem 1rem 0.25rem 1rem'
-                                : '1rem 1rem 1rem 0.25rem',
-                            backgroundColor: isInitialInquiry
-                              ? 'rgba(14, 165, 233, 0.06)'
-                              : isAgent
-                                ? 'rgba(14, 165, 233, 0.12)'
-                                : 'var(--bg-deep)',
-                            border: isInitialInquiry
-                              ? '1px solid rgba(14, 165, 233, 0.35)'
-                              : `1px solid ${isAgent ? 'rgba(14, 165, 233, 0.3)' : 'var(--border-light)'}`,
-                            boxShadow: isInitialInquiry ? '0 4px 16px rgba(0,0,0,0.2)' : undefined
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.45rem', fontSize: '0.75rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                {isAgent ? (
-                                  <ShieldCheck size={14} color="#0ea5e9" />
-                                ) : (
-                                  <Store size={14} color="var(--primary)" />
-                                )}
-                                <strong style={{ color: isAgent ? '#0ea5e9' : 'var(--text-primary)', fontWeight: 800 }}>
-                                  {isAgent ? (m.sender?.name || 'Staf CS Catavor') : merchantName}
-                                </strong>
-                              </div>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0 }}>
-                                {formatSupportDateTime(m.created_at)}
-                              </span>
-                            </div>
-                            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                              {m.message}
-                            </p>
-
-                            {m.attachments && m.attachments.length > 0 && (
-                              <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
-                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                  <Paperclip size={12} color={isAgent ? '#0ea5e9' : '#38bdf8'} /> {m.attachments.length} Lampiran Bukti / Screenshot:
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                  Oleh: <strong>{m.sender?.name || 'Staf Admin'}</strong>
                                 </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                                  {m.attachments.map((att: any, aIdx: number) => (
-                                    <div
-                                      key={aIdx}
-                                      role="button"
-                                      tabIndex={0}
-                                      onClick={() => openAttachmentLightbox(m.attachments, aIdx)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          openAttachmentLightbox(m.attachments, aIdx);
-                                        }
-                                      }}
-                                      style={{ width: '85px', height: '85px', borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative', backgroundColor: 'rgba(0,0,0,0.5)' }}
-                                      title="Klik untuk memperbesar gambar"
-                                    >
-                                      <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.58rem', padding: '2px 4px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                                        <ZoomIn size={10} /> Perbesar
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                  {m.message}
+                                </p>
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: isAgent ? 'flex-end' : 'flex-start',
+                                  gap: '0.25rem',
+                                  maxWidth: '100%',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                <div style={{
+                                  maxWidth: isInitialInquiry ? '100%' : '88%',
+                                  width: isInitialInquiry ? '100%' : 'auto',
+                                  boxSizing: 'border-box',
+                                  overflowWrap: 'anywhere',
+                                  wordBreak: 'break-word',
+                                  padding: '1rem 1.25rem',
+                                  borderRadius: isInitialInquiry
+                                    ? '1rem'
+                                    : isAgent
+                                      ? '1rem 1rem 0.25rem 1rem'
+                                      : '1rem 1rem 1rem 0.25rem',
+                                  backgroundColor: isInitialInquiry
+                                    ? 'rgba(14, 165, 233, 0.06)'
+                                    : isAgent
+                                      ? 'rgba(14, 165, 233, 0.12)'
+                                      : 'var(--bg-deep)',
+                                  border: isInitialInquiry
+                                    ? '1px solid rgba(14, 165, 233, 0.35)'
+                                    : `1px solid ${isAgent ? 'rgba(14, 165, 233, 0.3)' : 'var(--border-light)'}`,
+                                  boxShadow: isInitialInquiry ? '0 4px 16px rgba(0,0,0,0.2)' : undefined
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.45rem', fontSize: '0.75rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                      {isAgent ? (
+                                        <ShieldCheck size={14} color="#0ea5e9" />
+                                      ) : (
+                                        <Store size={14} color="var(--primary)" />
+                                      )}
+                                      <strong style={{ color: isAgent ? '#0ea5e9' : 'var(--text-primary)', fontWeight: 800 }}>
+                                        {isAgent ? (m.sender?.name || 'Staf CS Catavor') : getFirstName(merchantName)}
+                                      </strong>
+                                    </div>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0 }}>
+                                      {formatSupportDateTime(m.created_at)}
+                                    </span>
+                                  </div>
+                                  {m.message ? (
+                                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                      {m.message}
+                                    </p>
+                                  ) : null}
+
+                                  {m.attachments && m.attachments.length > 0 && (
+                                    <div style={{ 
+                                      marginTop: m.message ? '0.75rem' : '0.25rem', 
+                                      paddingTop: m.message ? '0.65rem' : '0', 
+                                      borderTop: m.message ? '1px solid var(--border-light)' : 'none' 
+                                    }}>
+                                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                        <Paperclip size={12} color={isAgent ? '#0ea5e9' : '#38bdf8'} /> {m.attachments.length} Lampiran Bukti / Screenshot:
+                                      </div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                                        {m.attachments.map((att: any, aIdx: number) => (
+                                          <div
+                                            key={aIdx}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => openAttachmentLightbox(m.attachments, aIdx)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                openAttachmentLightbox(m.attachments, aIdx);
+                                              }
+                                            }}
+                                            style={{ width: '85px', height: '85px', borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid var(--border-light)', cursor: 'pointer', position: 'relative', backgroundColor: 'rgba(0,0,0,0.5)' }}
+                                            title="Klik untuk memperbesar gambar"
+                                          >
+                                            <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.58rem', padding: '2px 4px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                                              <ZoomIn size={10} /> Perbesar
+                                            </div>
+                                          </div>
+                                        ))}
                                       </div>
                                     </div>
-                                  ))}
+                                  )}
                                 </div>
                               </div>
                             )}
-                          </div>
-                        </div>
-                      );
-                    })
+                          </React.Fragment>
+                        );
+                      });
+                    })()
                   )}
                   {/* Anchor for auto-scroll to bottom of chat */}
                   <div ref={messagesEndRef} />
@@ -3059,7 +3580,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                           title="Gunakan Template Balasan Cepat (Canned Responses)"
                         >
                           <Zap size={13} />
-                          <span>⚡ Template Balasan</span>
+                          <span>Template Balasan</span>
                         </button>
 
                         <input
@@ -4815,6 +5336,37 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Page-level Floating Scroll to Top Button */}
+      {showPageScrollTop && !selectedTicket && (
+        <button
+          type="button"
+          onClick={scrollPageToTop}
+          style={{
+            position: 'fixed',
+            right: '28px',
+            bottom: '28px',
+            zIndex: 99,
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(15, 23, 42, 0.94)',
+            color: '#38bdf8',
+            border: '1.5px solid rgba(56, 189, 248, 0.4)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          title="Kembali ke Atas Halaman"
+        >
+          <ArrowUp size={20} strokeWidth={2.5} />
+        </button>
       )}
     </div>
   );

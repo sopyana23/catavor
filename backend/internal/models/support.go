@@ -19,9 +19,24 @@ type SupportTicket struct {
 	ResolvedAt    *time.Time     `gorm:"index" json:"resolved_at,omitempty"`
 	ClosedAt      *time.Time     `gorm:"index" json:"closed_at,omitempty"`
 	LastMessageAt time.Time      `gorm:"index" json:"last_message_at"`
-	CreatedAt     time.Time      `gorm:"index" json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Smart Lifecycle Automation
+	ReminderSentAt *time.Time `gorm:"index" json:"reminder_sent_at,omitempty"`
+	ReminderCount  int        `gorm:"default:0" json:"reminder_count"`
+
+	// Multi-Tier SLA Tracking
+	FirstResponseAt *time.Time `gorm:"index" json:"first_response_at,omitempty"`
+	SLADueAt        *time.Time `gorm:"index" json:"sla_due_at,omitempty"`
+	SLABreached     bool       `gorm:"default:false;index" json:"sla_breached"`
+
+	// CSAT (Customer Satisfaction Score)
+	Rating        *int       `gorm:"index" json:"rating,omitempty"`
+	RatingComment string     `gorm:"type:text" json:"rating_comment,omitempty"`
+	RatedAt       *time.Time `gorm:"index" json:"rated_at,omitempty"`
+
+	CreatedAt time.Time      `gorm:"index" json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
 	User        *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`

@@ -58,12 +58,16 @@ import {
   MoreVertical,
   ChevronLeft,
   LayoutDashboard,
+  Star,
   Paperclip,
   ZoomIn,
   ZoomOut,
   Download,
   MessageCircle,
-  Bot
+  Bot,
+  Volume2,
+  VolumeX,
+  ArrowUp
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -119,15 +123,40 @@ const PRIORITY_META: Record<string, { label: string; color: string }> = {
   low: { label: 'Low (Rendah)', color: 'var(--primary)' }
 };
 
+const getFirstName = (name?: string): string => {
+  if (!name) return 'Merchant';
+  const trimmed = name.trim();
+  if (!trimmed) return 'Merchant';
+
+  // 1. Take first word before any whitespace
+  let first = trimmed.split(/\s+/)[0];
+
+  // 2. If it contains email-like separators, extract the first segment
+  if (first.includes('.') || first.includes('_') || first.includes('-')) {
+    const subParts = first.split(/[._\-+]/).filter(Boolean);
+    if (subParts.length > 0) {
+      first = subParts[0];
+    }
+  }
+
+  // 3. Strip trailing numbers if the remaining letters are a valid name
+  const lettersOnly = first.replace(/\d+$/, '');
+  if (lettersOnly.length >= 2) {
+    first = lettersOnly;
+  }
+
+  return first.charAt(0).toUpperCase() + first.slice(1);
+};
+
 const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
-  if (ticket?.store?.name) return ticket.store.name;
-  if (ticket?.store_name) return ticket.store_name;
-  if (msgSender?.name && !msgSender.name.includes('@')) return msgSender.name;
-  if (ticket?.user?.name && !ticket.user.name.includes('@')) return ticket.user.name;
+  if (msgSender?.name && !msgSender.name.includes('@')) return getFirstName(msgSender.name);
+  if (ticket?.user?.name && !ticket.user.name.includes('@')) return getFirstName(ticket.user.name);
+  if (ticket?.store?.name) return getFirstName(ticket.store.name);
+  if (ticket?.store_name) return getFirstName(ticket.store_name);
   const rawEmail = ticket?.user_email || ticket?.user?.email || msgSender?.email || '';
   if (rawEmail) {
     const prefix = rawEmail.split('@')[0];
-    if (prefix) return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    if (prefix) return getFirstName(prefix);
   }
   return 'Merchant';
 };
@@ -276,6 +305,72 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showFooterStatusMenu, setShowFooterStatusMenu] = useState(false);
+
+  const getTicketStatusMeta = (status: string) => {
+    switch (status) {
+      case 'open':
+        return {
+          id: 'open',
+          label: 'Open (Baru)',
+          shortLabel: 'Open',
+          color: '#06b6d4',
+          bg: isDark ? 'rgba(6, 182, 212, 0.16)' : 'rgba(6, 182, 212, 0.1)',
+          border: isDark ? 'rgba(6, 182, 212, 0.35)' : 'rgba(6, 182, 212, 0.25)',
+          desc: 'Tiket baru, menunggu respons pertama CS'
+        };
+      case 'in_progress':
+        return {
+          id: 'in_progress',
+          label: 'Proses (In Progress)',
+          shortLabel: 'Proses',
+          color: isDark ? '#fbbf24' : '#d97706',
+          bg: isDark ? 'rgba(245, 158, 11, 0.16)' : 'rgba(245, 158, 11, 0.1)',
+          border: isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(245, 158, 11, 0.25)',
+          desc: 'Sedang diinvestigasi / dikerjakan oleh tim CS'
+        };
+      case 'waiting_user':
+        return {
+          id: 'waiting_user',
+          label: 'Tunggu User (Pending)',
+          shortLabel: 'Tunggu User',
+          color: isDark ? '#c084fc' : '#9333ea',
+          bg: isDark ? 'rgba(168, 85, 247, 0.16)' : 'rgba(168, 85, 247, 0.1)',
+          border: isDark ? 'rgba(168, 85, 247, 0.35)' : 'rgba(168, 85, 247, 0.25)',
+          desc: 'CS telah menjawab, menunggu tanggapan merchant'
+        };
+      case 'resolved':
+        return {
+          id: 'resolved',
+          label: 'Selesai (Resolved)',
+          shortLabel: 'Selesai',
+          color: isDark ? '#34d399' : '#059669',
+          bg: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.1)',
+          border: isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)',
+          desc: 'Kendala tuntas diselesaikan oleh CS'
+        };
+      case 'closed':
+        return {
+          id: 'closed',
+          label: 'Tutup (Closed)',
+          shortLabel: 'Tutup',
+          color: '#94a3b8',
+          bg: isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(148, 163, 184, 0.1)',
+          border: isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.25)',
+          desc: 'Tiket ditutup permanen (arsip)'
+        };
+      default:
+        return {
+          id: status || 'open',
+          label: status || 'Open',
+          shortLabel: status || 'Open',
+          color: '#38bdf8',
+          bg: isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(56, 189, 248, 0.1)',
+          border: isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.25)',
+          desc: ''
+        };
+    }
+  };
 
   const handleNavigateToTemplatesMaster = () => {
     setShowTemplateModal(false);
@@ -339,6 +434,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [showTemplateModal]);
 
+  // Swipe & Drag Bottom Sheet State for Ticket Status Modal
+  const [statusSheetDragY, setStatusSheetDragY] = useState(0);
+  const [isStatusSheetDragging, setIsStatusSheetDragging] = useState(false);
+  const statusDragStartY = useRef(0);
+
+  const handleStatusSheetDragStart = (clientY: number) => {
+    statusDragStartY.current = clientY;
+    setIsStatusSheetDragging(true);
+  };
+
+  const handleStatusSheetDragMove = (clientY: number) => {
+    if (!isStatusSheetDragging) return;
+    const delta = clientY - statusDragStartY.current;
+    if (delta > 0) {
+      setStatusSheetDragY(delta);
+    } else {
+      setStatusSheetDragY(delta * 0.18);
+    }
+  };
+
+  const handleStatusSheetDragEnd = () => {
+    if (!isStatusSheetDragging) return;
+    setIsStatusSheetDragging(false);
+    if (statusSheetDragY > 75) {
+      setShowFooterStatusMenu(false);
+    }
+    setStatusSheetDragY(0);
+  };
+
+  useEffect(() => {
+    if (!showFooterStatusMenu) {
+      setStatusSheetDragY(0);
+      setIsStatusSheetDragging(false);
+    }
+  }, [showFooterStatusMenu]);
+
   // Swipe & Drag Bottom Sheet State for Template Form Modal (Tambah / Edit)
   const [templateFormDragY, setTemplateFormDragY] = useState(0);
   const [isTemplateFormDragging, setIsTemplateFormDragging] = useState(false);
@@ -374,6 +505,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setIsTemplateFormDragging(false);
     }
   }, [showTemplateFormModal]);
+
+  // Floating Scroll to Top button state & listener
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 200);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const fetchCannedTemplates = async (includeInactive = true) => {
     setLoadingTemplates(true);
@@ -617,7 +762,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [dormancyMetrics, setDormancyMetrics] = useState<any | null>(null);
 
   const [tickets, setTickets] = useState<any[]>([]);
-  const [ticketsFilter, setTicketsFilter] = useState<'all' | 'action_required' | 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed'>('all');
+  const [ticketsFilter, setTicketsFilter] = useState<'all' | 'unread' | 'action_required' | 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed'>('all');
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
@@ -656,13 +801,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     waiting_user: number;
     urgent: number;
     resolved: number;
+    sla_breached?: number;
+    csat_rated_count?: number;
+    csat_avg?: number;
+    csat_score_percent?: number;
   }>({
     total: 0,
     action_required: 0,
     in_progress: 0,
     waiting_user: 0,
     urgent: 0,
-    resolved: 0
+    resolved: 0,
+    sla_breached: 0,
+    csat_rated_count: 0,
+    csat_avg: 5.0,
+    csat_score_percent: 100
   });
   const [ticketsPagination, setTicketsPagination] = useState<{
     page: number;
@@ -834,6 +987,57 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
     }
   }, [replyText]);
+
+  // Agent Collision Detection Presence (Fase 5)
+  const [activePresences, setActivePresences] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedTicket || !token || !canAccessSupport) {
+      setActivePresences([]);
+      return;
+    }
+
+    const sendPresence = async () => {
+      try {
+        await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: replyText.trim().length > 0 })
+        });
+      } catch (err) {
+        // Ignore network hiccups
+      }
+    };
+
+    const fetchPresence = async () => {
+      try {
+        const res = await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            setActivePresences(json.data);
+          }
+        }
+      } catch (err) {
+        // Ignore network hiccups
+      }
+    };
+
+    sendPresence();
+    fetchPresence();
+    const interval = setInterval(() => {
+      sendPresence();
+      fetchPresence();
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [selectedTicket?.id, token, canAccessSupport, replyText]);
+
   const [showBroadcastSheet, setShowBroadcastSheet] = useState(false);
   const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info', target_role: 'all' });
 
@@ -859,6 +1063,56 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return () => clearTimeout(handler);
   }, [ticketSearchQuery]);
 
+  // Unread & Incoming Chat Audio/Notification Management for Mobile
+  const readTicketIdsRef = useRef<Set<string | number>>(new Set());
+  const prevTicketMessagesRef = useRef<Record<string, number>>({});
+  const isFirstTicketLoadRef = useRef<boolean>(true);
+  const [isChimeMuted, setIsChimeMuted] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('catavor_admin_chime_muted') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const playSupportChime = () => {
+    if (isChimeMuted) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch {}
+  };
+
+  const sendSupportNotification = (title: string, body: string) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, { body, icon: '/favicon.ico' });
+        } catch {}
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            try {
+              new Notification(title, { body, icon: '/favicon.ico' });
+            } catch {}
+          }
+        }).catch(() => {});
+      }
+    }
+  };
+
   // Dedicated Server-Side Support Tickets Fetcher
   const fetchTickets = async (pageToFetch = 1, append = false) => {
     if (!token || !canAccessSupport) return;
@@ -871,7 +1125,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const params = new URLSearchParams();
       params.set('page', String(pageToFetch));
       params.set('limit', '20');
-      if (ticketsFilter !== 'all') params.set('status', ticketsFilter);
+      if (ticketsFilter !== 'all' && ticketsFilter !== 'unread') params.set('status', ticketsFilter);
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
       if (ticketsFilter === 'resolved' && resolvedTimeRangeFilter !== 'all') {
@@ -887,10 +1141,88 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (res.ok) {
         const json = await res.json();
         const data = Array.isArray(json) ? json : (json.data || json.tickets || []);
+        
+        const mappedData = data.map((t: any) => {
+          const msgs = Array.isArray(t.messages) ? t.messages : [];
+          const isViewed = readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id)) || (selectedTicket && selectedTicket.id === t.id);
+          const unreadMsgs = msgs.filter((m: any) => m.sender_type === 'user' && !m.read_at);
+          const unreadCount = isViewed ? 0 : unreadMsgs.length;
+          const hasUnread = isViewed ? false : (unreadCount > 0 || t.status === 'open' || t.status === 'waiting_agent');
+          const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+
+          return {
+            ...t,
+            unread_count: unreadCount,
+            has_unread: hasUnread,
+            last_msg: lastMsg
+          };
+        });
+
+        // Deteksi chat balasan baru dari merchant untuk memicu chime & desktop push
+        if (!isFirstTicketLoadRef.current) {
+          let hasNewIncoming = false;
+          let incomingSender = '';
+          let incomingTicketNum = '';
+          let incomingSnippet = '';
+          let totalNewIncoming = 0;
+
+          mappedData.forEach((t: any) => {
+            const prevCount = prevTicketMessagesRef.current[String(t.id)] || 0;
+            const curCount = Array.isArray(t.messages) ? t.messages.length : 0;
+            if (curCount > prevCount && prevCount > 0) {
+              const msgs = Array.isArray(t.messages) ? t.messages : [];
+              const newMsgs = msgs.slice(prevCount);
+              const userMsgs = newMsgs.filter((m: any) => m.sender_type === 'user');
+              if (userMsgs.length > 0) {
+                hasNewIncoming = true;
+                totalNewIncoming += userMsgs.length;
+                const lastMsg = userMsgs[userMsgs.length - 1];
+                incomingSender = getMerchantDisplayName(t, lastMsg.sender);
+                incomingTicketNum = t.ticket_number || `#TCK-${t.id}`;
+                incomingSnippet = lastMsg.message ? (lastMsg.message.length > 50 ? lastMsg.message.substring(0, 50) + '...' : lastMsg.message) : '';
+              }
+            }
+          });
+
+          if (hasNewIncoming) {
+            playSupportChime();
+            const incomingTitle = totalNewIncoming === 1 ? '1 pesan masuk' : `${totalNewIncoming} pesan masuk`;
+            sendSupportNotification(
+              `💬 ${incomingTitle}: ${incomingTicketNum}`,
+              `${incomingSender}: ${incomingSnippet}`
+            );
+          }
+        }
+
+        const counts: Record<string, number> = {};
+        mappedData.forEach((t: any) => {
+          counts[String(t.id)] = Array.isArray(t.messages) ? t.messages.length : 0;
+        });
+        prevTicketMessagesRef.current = counts;
+        isFirstTicketLoadRef.current = false;
+
+        // Auto-update thread chat jika tiket yang sedang dibuka menerima balasan baru
+        if (selectedTicket) {
+          const activeUpdated = mappedData.find((t: any) => t.id === selectedTicket.id || String(t.id) === String(selectedTicket.id));
+          if (activeUpdated && Array.isArray(activeUpdated.messages) && activeUpdated.messages.length !== (selectedTicket.messages?.length || 0)) {
+            setSelectedTicket((prev: any) => {
+              if (!prev) return null;
+              const mergedMsgs = activeUpdated.messages.map((m: any) => {
+                const existing = prev.messages?.find((em: any) => em.id === m.id);
+                if (existing?.attachments?.length && (!m.attachments || m.attachments.length === 0)) {
+                  return { ...m, attachments: existing.attachments };
+                }
+                return m;
+              });
+              return { ...prev, ...activeUpdated, messages: mergedMsgs };
+            });
+          }
+        }
+
         if (append) {
-          setTickets(prev => [...prev, ...data]);
+          setTickets(prev => [...prev, ...mappedData]);
         } else {
-          setTickets(data);
+          setTickets(mappedData);
         }
         if (json.metrics) {
           setTicketsMetrics(json.metrics);
@@ -918,6 +1250,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       fetchTickets(1, false);
     }
   }, [token, canAccessSupport, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+
+  // Polling berkala setiap 10 detik di mobile saat tab support aktif
+  useEffect(() => {
+    if (!token || !canAccessSupport) return;
+    const interval = setInterval(() => {
+      fetchTickets(1, false);
+    }, activeView === 'support' ? 10000 : 25000);
+    return () => clearInterval(interval);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   const loadData = async () => {
     if (!token) return;
@@ -1058,7 +1399,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   // Open ticket and fetch full conversation stream with URL state update
   const handleOpenTicketChat = async (ticket: any, pushToHistory = true) => {
     const rawId = ticket.id || ticket.ticket_number || ticket.ticket?.id;
-    setSelectedTicket(ticket);
+    readTicketIdsRef.current.add(ticket.id);
+    readTicketIdsRef.current.add(String(ticket.id));
+    if (ticket.ticket_number) {
+      readTicketIdsRef.current.add(ticket.ticket_number);
+    }
+
+    // Hapus tanda unread secara instan di state UI lokal
+    setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id) || t.ticket_number === ticket.ticket_number) ? { ...t, unread_count: 0, has_unread: false } : t));
+
+    setSelectedTicket({ ...ticket, unread_count: 0, has_unread: false });
     setTicketDetailsLoading(true);
     setReplyText('');
     setTicketReplyAttachments([]);
@@ -1080,6 +1430,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           const messagesList = d.data.messages || ticketObj.messages || [];
           setSelectedTicket({
             ...ticketObj,
+            unread_count: 0,
+            has_unread: false,
             messages: messagesList
           });
         }
@@ -1108,15 +1460,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        const createdMsg = data.data;
         setReplyText('');
         setTicketReplyAttachments([]);
         setIsInternalNote(false);
         showToast(isInternalNote ? 'Catatan internal CS berhasil disimpan' : 'Balasan berhasil dikirim ke merchant', 'success');
+
+        if (createdMsg) {
+          setSelectedTicket((prev: any) => {
+            if (!prev) return null;
+            const currentMsgs = prev.messages || [];
+            if (!currentMsgs.some((m: any) => m.id === createdMsg.id)) {
+              return { ...prev, messages: [...currentMsgs, createdMsg] };
+            }
+            return prev;
+          });
+        }
+
         if (shouldResolve) {
           await handleUpdateTicketStatus(targetTicketId, 'resolved');
         } else {
-          // Re-fetch conversation
-          handleOpenTicketChat(selectedTicket);
+          // If public reply, optimistically update status to waiting_user (Zendesk / Intercom Best Practice)
+          if (!isInternalNote && selectedTicket?.status !== 'resolved' && selectedTicket?.status !== 'closed') {
+            setSelectedTicket((prev: any) => prev ? { ...prev, status: 'waiting_user' } : null);
+          }
+          // Re-fetch conversation without clearing UI state
+          handleOpenTicketChat(selectedTicket, false);
         }
         loadData();
       } else {
@@ -1291,6 +1660,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const pendingReportsCount = reports.filter(r => r.status === 'pending').length;
   const actionRequiredTicketsCount = ticketsMetrics.action_required ?? tickets.filter(t => (t.status === 'open' || t.status === 'waiting_agent')).length;
   const openTicketsCount = tickets.filter(t => t.status === 'open').length;
+  const unreadTicketsCount = tickets.filter(t => t.has_unread || (t.unread_count && t.unread_count > 0)).length;
   const inProgressTicketsCount = ticketsMetrics.in_progress ?? tickets.filter(t => t.status === 'in_progress').length;
   const waitingUserTicketsCount = ticketsMetrics.waiting_user ?? tickets.filter(t => t.status === 'waiting_user').length;
   const urgentTicketsCount = ticketsMetrics.urgent ?? tickets.filter(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'resolved' && t.status !== 'closed').length;
@@ -1407,7 +1777,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       id: 'support' as ActiveView,
       label: 'Helpdesk',
       icon: <HelpCircle size={20} />,
-      badge: openTicketsCount,
+      badge: unreadTicketsCount > 0 ? unreadTicketsCount : (actionRequiredTicketsCount > 0 ? actionRequiredTicketsCount : openTicketsCount),
       visible: canAccessSupport
     },
     {
@@ -1437,7 +1807,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         backgroundColor: theme.bg,
         color: theme.textPrimary,
         padding: (activeView === 'support' && selectedTicket)
-          ? '0.5rem 0.85rem 10.5rem 0.85rem'
+          ? `0.5rem 0.85rem calc(${selectedTicket.status === 'closed' ? '70px' : '160px'} + 1rem + env(safe-area-inset-bottom, 0px)) 0.85rem`
           : isSubPage
             ? '0.5rem 0.85rem 2rem 0.85rem'
             : '0.5rem 0.85rem 5.5rem 0.85rem',
@@ -2401,7 +2771,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '7.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Agent Collision Warning Banner (Fase 5) */}
+            {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
+              <div style={{
+                padding: '0.75rem 1rem',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                color: '#ef4444',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                boxShadow: '0 2px 10px rgba(239, 68, 68, 0.15)'
+              }}>
+                <AlertTriangle size={17} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <span>
+                    👀 <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                    {activePresences.filter((p: any) => p.user_id !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* 1. Ticket Meta & Status Controller Header Card */}
             <div style={{
               padding: '1rem 1.15rem',
@@ -2482,83 +2877,93 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }}>
                   Urgensi: {String(selectedTicket.priority || 'medium').toUpperCase()}
                 </span>
+
+                {/* Status Badge Chip (Clean, compact & opens standard bottom sheet) */}
+                {(() => {
+                  const statusMeta = getTicketStatusMeta(selectedTicket.status);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowFooterStatusMenu(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: statusMeta.bg,
+                        color: statusMeta.color,
+                        border: `1px solid ${statusMeta.border}`,
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Klik untuk ubah status pengerjaan tiket"
+                    >
+                      <span style={{
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        backgroundColor: statusMeta.color,
+                        display: 'inline-block',
+                        boxShadow: `0 0 6px ${statusMeta.color}88`
+                      }} />
+                      <span>{statusMeta.label}</span>
+                    </button>
+                  );
+                })()}
               </div>
 
-              {/* Interactive Status Switcher (Workflow Pipeline) */}
-              <div style={{
-                padding: '0.65rem 0.75rem',
-                borderRadius: '0.85rem',
-                backgroundColor: theme.cardAlt,
-                border: `1px solid ${theme.border}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.45rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textSecondary, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <SlidersHorizontal size={12} /> Status Pengerjaan Tiket:
-                  </span>
-                  <span style={{
-                    fontSize: '0.62rem',
-                    fontWeight: 800,
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '999px',
-                    backgroundColor: 
-                      selectedTicket.status === 'open' ? 'rgba(6, 182, 212, 0.15)' :
-                      selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' :
-                      selectedTicket.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.15)' :
-                      selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)',
-                    color:
-                      selectedTicket.status === 'open' ? '#06b6d4' :
-                      selectedTicket.status === 'in_progress' ? (isDark ? '#fbbf24' : '#d97706') :
-                      selectedTicket.status === 'waiting_user' ? (isDark ? '#c084fc' : '#9333ea') :
-                      selectedTicket.status === 'resolved' ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
-                  }}>
-                    {
-                      selectedTicket.status === 'open' ? 'Open (Baru)' :
-                      selectedTicket.status === 'in_progress' ? 'Sedang Diproses' :
-                      selectedTicket.status === 'waiting_user' ? 'Menunggu Merchant' :
-                      selectedTicket.status === 'resolved' ? 'Terselesaikan' :
-                      selectedTicket.status === 'closed' ? 'Ditutup' : String(selectedTicket.status).toUpperCase()
-                    }
-                  </span>
+              {/* CSAT Rating Card if Rated (Fase 2) */}
+              {selectedTicket.rating && (
+                <div style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.25rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Star size={13} fill="#f59e0b" color="#f59e0b" /> Ulasan Kepuasan Merchant (CSAT)
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 900, color: '#f59e0b' }}>
+                      {selectedTicket.rating} / 5 Bintang
+                    </span>
+                  </div>
+                  {selectedTicket.rating_comment && (
+                    <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, fontStyle: 'italic', lineHeight: 1.4 }}>
+                      "{selectedTicket.rating_comment}"
+                    </p>
+                  )}
                 </div>
+              )}
 
-                {/* Status Switcher Pills */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.25rem' }}>
-                  {[
-                    { id: 'open', label: 'Open', color: '#06b6d4' },
-                    { id: 'in_progress', label: 'Proses', color: isDark ? '#fbbf24' : '#d97706' },
-                    { id: 'waiting_user', label: 'Tunggu User', color: isDark ? '#c084fc' : '#9333ea' },
-                    { id: 'resolved', label: 'Selesai', color: isDark ? '#34d399' : '#059669' },
-                    { id: 'closed', label: 'Tutup', color: '#94a3b8' }
-                  ].map((st) => {
-                    const isActive = selectedTicket.status === st.id;
-                    return (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => handleUpdateTicketStatus(selectedTicket.id, st.id)}
-                        style={{
-                          padding: '0.35rem 0.1rem',
-                          borderRadius: '0.55rem',
-                          fontSize: '0.62rem',
-                          fontWeight: isActive ? 900 : 700,
-                          backgroundColor: isActive ? st.color : 'transparent',
-                          color: isActive ? '#ffffff' : theme.textMuted,
-                          border: `1px solid ${isActive ? st.color : theme.border}`,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          whiteSpace: 'nowrap',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {st.label}
-                      </button>
-                    );
-                  })}
+              {/* SLA Status Card (Fase 3) */}
+              {selectedTicket.sla_due_at && (
+                <div style={{
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: selectedTicket.sla_breached ? 'rgba(239, 68, 68, 0.08)' : (selectedTicket.first_response_at ? 'rgba(16, 185, 129, 0.08)' : 'rgba(56, 189, 248, 0.08)'),
+                  border: `1px solid ${selectedTicket.sla_breached ? 'rgba(239, 68, 68, 0.25)' : (selectedTicket.first_response_at ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.25)')}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: selectedTicket.sla_breached ? '#ef4444' : (selectedTicket.first_response_at ? '#10b981' : (isDark ? '#38bdf8' : '#0284c7'))
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Clock size={12} /> Target Respon Pertama:
+                  </span>
+                  <span>
+                    {selectedTicket.sla_breached ? '⚠️ Melewati SLA' : (selectedTicket.first_response_at ? '✓ Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
+                  </span>
                 </div>
-              </div>
+              )}
 
               {/* Two-Stage Lifecycle Grace Period & Locked Banners */}
               {selectedTicket.status === 'resolved' && (
@@ -2684,226 +3089,250 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   Belum ada pesan dalam tiket ini.
                 </div>
               ) : (
-                selectedTicket.messages.map((msg: any, idx: number) => {
-                  const isAgent = msg.sender_type === 'agent' || msg.is_admin;
-                  const isInternal = msg.is_internal_note;
-                  const isSystemBot = msg.sender_type === 'system';
-                  const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
-                  const merchantName = getMerchantDisplayName(selectedTicket, msg.sender);
+                (() => {
+                  const firstUnreadIdx = selectedTicket.messages.findIndex((msg: any) => msg.sender_type === 'user' && !msg.read_at);
+                  return selectedTicket.messages.map((msg: any, idx: number) => {
+                    const isAgent = msg.sender_type === 'agent' || msg.is_admin;
+                    const isInternal = msg.is_internal_note;
+                    const isSystemBot = msg.sender_type === 'system';
+                    const isInitialInquiry = idx === 0 && !isAgent && !isInternal && !isSystemBot;
+                    const merchantName = getMerchantDisplayName(selectedTicket, msg.sender);
+                    const showUnreadDivider = firstUnreadIdx > 0 && idx === firstUnreadIdx;
 
-                  if (isSystemBot) {
                     return (
-                      <div
-                        key={msg.id || idx}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '0.2rem',
-                          width: '100%',
-                          maxWidth: '100%',
-                          boxSizing: 'border-box',
-                          margin: '0.35rem 0'
-                        }}
-                      >
-                        <div style={{
-                          maxWidth: '96%',
-                          width: '100%',
-                          boxSizing: 'border-box',
-                          overflowWrap: 'anywhere',
-                          wordBreak: 'break-word',
-                          padding: '0.85rem 1rem',
-                          borderRadius: '1rem',
-                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.06)',
-                          border: isDark ? '1px solid rgba(56, 189, 248, 0.28)' : '1px solid rgba(2, 132, 199, 0.2)',
-                          color: theme.textPrimary,
-                          boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(2, 132, 199, 0.04)'
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <Bot size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
-                              <strong style={{ fontSize: '0.74rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 800 }}>
-                                Sistem Otomatis Catavor
-                              </strong>
-                              <span style={{
-                                fontSize: '0.58rem',
-                                padding: '0.1rem 0.4rem',
-                                borderRadius: '999px',
-                                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)',
-                                color: isDark ? '#38bdf8' : '#0284c7',
-                                fontWeight: 800,
-                                letterSpacing: '0.02em'
-                              }}>
-                                BOT RESMI
+                      <React.Fragment key={msg.id || idx}>
+                        {showUnreadDivider && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.65rem',
+                              margin: '0.65rem 0',
+                              width: '100%'
+                            }}
+                          >
+                            <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(6, 182, 212, 0.4)' }} />
+                            <span style={{
+                              fontSize: '0.64rem',
+                              fontWeight: 800,
+                              color: isDark ? '#38bdf8' : '#0284c7',
+                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(6, 182, 212, 0.35)',
+                              letterSpacing: '0.02em',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <span style={{ display: 'inline-block', width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#06b6d4' }} />
+                              Pesan Baru Belum Terbaca
+                            </span>
+                            <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(6, 182, 212, 0.4)' }} />
+                          </div>
+                        )}
+
+                        {isSystemBot ? (
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '0.2rem',
+                              width: '100%',
+                              maxWidth: '100%',
+                              boxSizing: 'border-box',
+                              margin: '0.35rem 0'
+                            }}
+                          >
+                            <div style={{
+                              maxWidth: '96%',
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word',
+                              padding: '0.85rem 1rem',
+                              borderRadius: '1rem',
+                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.06)',
+                              border: isDark ? '1px solid rgba(56, 189, 248, 0.28)' : '1px solid rgba(2, 132, 199, 0.2)',
+                              color: theme.textPrimary,
+                              boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(2, 132, 199, 0.04)'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <Bot size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
+                                  <strong style={{ fontSize: '0.74rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 800 }}>
+                                    Sistem Otomatis Catavor
+                                  </strong>
+                                </div>
+                                <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
+                                  {formatSupportDateTime(msg.created_at)}
+                                </span>
+                              </div>
+                              <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                {msg.message}
+                              </p>
+                            </div>
+                          </div>
+                        ) : isInternal ? (
+                          <div
+                            style={{
+                              padding: '0.85rem 1rem',
+                              borderRadius: '1rem',
+                              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                              border: isDark ? '1px dashed rgba(245, 158, 11, 0.45)' : '1px dashed rgba(245, 158, 11, 0.5)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.35rem',
+                              maxWidth: '100%',
+                              boxSizing: 'border-box',
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                              </span>
+                              <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
+                                {formatSupportDateTime(msg.created_at)}
                               </span>
                             </div>
-                            <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
-                              {formatSupportDateTime(msg.created_at)}
-                            </span>
-                          </div>
-                          <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                            {msg.message}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  if (isInternal) {
-                    return (
-                      <div
-                        key={msg.id || idx}
-                        style={{
-                          padding: '0.85rem 1rem',
-                          borderRadius: '1rem',
-                          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                          border: isDark ? '1px dashed rgba(245, 158, 11, 0.45)' : '1px dashed rgba(245, 158, 11, 0.5)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.35rem',
-                          maxWidth: '100%',
-                          boxSizing: 'border-box',
-                          overflowWrap: 'anywhere',
-                          wordBreak: 'break-word'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
-                          </span>
-                          <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
-                            {formatSupportDateTime(msg.created_at)}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
-                          Oleh: {msg.sender?.name || 'Staf Admin'}
-                        </div>
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                          {msg.message}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={msg.id || idx}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: isAgent ? 'flex-end' : 'flex-start',
-                        gap: '0.2rem',
-                        maxWidth: '100%',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      <div style={{
-                        maxWidth: isInitialInquiry ? '100%' : '90%',
-                        width: isInitialInquiry ? '100%' : 'auto',
-                        boxSizing: 'border-box',
-                        overflowWrap: 'anywhere',
-                        wordBreak: 'break-word',
-                        padding: '0.95rem 1.1rem',
-                        borderRadius: isInitialInquiry 
-                          ? '1.15rem' 
-                          : isAgent 
-                            ? '1.1rem 1.1rem 0.25rem 1.1rem' 
-                            : '1.1rem 1.1rem 1.1rem 0.25rem',
-                        backgroundColor: isInitialInquiry
-                          ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)')
-                          : isAgent 
-                            ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
-                            : theme.surface,
-                        color: theme.textPrimary,
-                        border: isInitialInquiry
-                          ? (isDark ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
-                          : isAgent 
-                            ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
-                            : `1px solid ${theme.border}`,
-                        boxShadow: isInitialInquiry ? (isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(2, 132, 199, 0.08)') : theme.cardShadow
-                      }}>
-                        {/* Bubble Sender Label & Time */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            {isAgent ? (
-                              <ShieldCheck size={13} color="#06b6d4" />
-                            ) : (
-                              <Store size={13} color={isDark ? '#38bdf8' : '#0284c7'} />
-                            )}
-                            <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
-                              {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : merchantName}
-                            </strong>
-                          </div>
-                          <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
-                            {formatSupportDateTime(msg.created_at)}
-                          </span>
-                        </div>
-
-                        {/* Message Text */}
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                          {msg.message}
-                        </p>
-
-                        {/* Attached Images / Screenshots Gallery */}
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: `1px solid ${theme.border}` }}>
-                            <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Foto:
+                            <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
+                              Oleh: {msg.sender?.name || 'Staf Admin'}
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
-                              {msg.attachments.map((att: any, aIdx: number) => (
-                                <div
-                                  key={aIdx}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => openAttachmentLightbox(msg.attachments, aIdx)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      openAttachmentLightbox(msg.attachments, aIdx);
-                                    }
-                                  }}
-                                  style={{
-                                    position: 'relative',
-                                    borderRadius: '0.5rem',
-                                    overflow: 'hidden',
-                                    border: `1px solid ${theme.border}`,
-                                    aspectRatio: '1',
-                                    cursor: 'pointer',
-                                    backgroundColor: '#000000'
-                                  }}
-                                  title="Perbesar gambar"
-                                >
-                                  <img
-                                    src={att.file_url}
-                                    alt={att.file_name || 'Attachment'}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  />
-                                  <div style={{
-                                    position: 'absolute',
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    padding: '2px 4px',
-                                    backgroundColor: 'rgba(0,0,0,0.7)',
-                                    fontSize: '0.55rem',
-                                    color: '#ffffff',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                  }}>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${aIdx+1}`}</span>
-                                    <ZoomIn size={10} />
+                            <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                              {msg.message}
+                            </p>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: isAgent ? 'flex-end' : 'flex-start',
+                              gap: '0.2rem',
+                              maxWidth: '100%',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <div style={{
+                              maxWidth: isInitialInquiry ? '100%' : '90%',
+                              width: isInitialInquiry ? '100%' : 'auto',
+                              boxSizing: 'border-box',
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word',
+                              padding: '0.95rem 1.1rem',
+                              borderRadius: isInitialInquiry 
+                                ? '1.15rem' 
+                                : isAgent 
+                                  ? '1.1rem 1.1rem 0.25rem 1.1rem' 
+                                  : '1.1rem 1.1rem 1.1rem 0.25rem',
+                              backgroundColor: isInitialInquiry
+                                ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)')
+                                : isAgent 
+                                  ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
+                                  : theme.surface,
+                              color: theme.textPrimary,
+                              border: isInitialInquiry
+                                ? (isDark ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
+                                : isAgent 
+                                  ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
+                                  : `1px solid ${theme.border}`,
+                              boxShadow: isInitialInquiry ? (isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(2, 132, 199, 0.08)') : theme.cardShadow
+                            }}>
+                              {/* Bubble Sender Label & Time */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  {isAgent ? (
+                                    <ShieldCheck size={13} color="#06b6d4" />
+                                  ) : (
+                                    <Store size={13} color={isDark ? '#38bdf8' : '#0284c7'} />
+                                  )}
+                                  <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
+                                    {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : getFirstName(merchantName)}
+                                  </strong>
+                                </div>
+                                <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
+                                  {formatSupportDateTime(msg.created_at)}
+                                </span>
+                              </div>
+
+                              {/* Message Text (Only rendered if message text exists) */}
+                              {msg.message ? (
+                                <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                  {msg.message}
+                                </p>
+                              ) : null}
+
+                              {/* Attached Images / Screenshots Gallery */}
+                              {msg.attachments && msg.attachments.length > 0 && (
+                                <div style={{ 
+                                  marginTop: msg.message ? '0.65rem' : '0.2rem', 
+                                  paddingTop: msg.message ? '0.5rem' : '0', 
+                                  borderTop: msg.message ? `1px solid ${theme.border}` : 'none' 
+                                }}>
+                                  <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Foto:
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
+                                    {msg.attachments.map((att: any, aIdx: number) => (
+                                      <div
+                                        key={aIdx}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => openAttachmentLightbox(msg.attachments, aIdx)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            openAttachmentLightbox(msg.attachments, aIdx);
+                                          }
+                                        }}
+                                        style={{
+                                          position: 'relative',
+                                          borderRadius: '0.5rem',
+                                          overflow: 'hidden',
+                                          border: `1px solid ${theme.border}`,
+                                          aspectRatio: '1',
+                                          cursor: 'pointer',
+                                          backgroundColor: '#000000'
+                                        }}
+                                        title="Perbesar gambar"
+                                      >
+                                        <img
+                                          src={att.file_url}
+                                          alt={att.file_name || 'Attachment'}
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                        <div style={{
+                                          position: 'absolute',
+                                          bottom: 0,
+                                          left: 0,
+                                          right: 0,
+                                          padding: '2px 4px',
+                                          backgroundColor: 'rgba(0,0,0,0.7)',
+                                          fontSize: '0.55rem',
+                                          color: '#ffffff',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center'
+                                        }}>
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${aIdx+1}`}</span>
+                                          <ZoomIn size={10} />
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                              ))}
+                              )}
                             </div>
                           </div>
                         )}
-                      </div>
-                    </div>
-                  );
-                })
+                      </React.Fragment>
+                    );
+                  });
+                })()
               )}
               {/* Anchor for Auto-Scroll to bottom */}
               <div ref={messagesEndRef} />
@@ -3064,6 +3493,86 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               )}
 
+              {/* Quick Action Toolbar Strip: Status Capsule Pill on Left, Template Capsule Pill on Right */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.15rem 0.15rem 0.35rem',
+                gap: '0.6rem'
+              }}>
+                {/* Left: Premium Interactive Ticket Status Pill */}
+                {(() => {
+                  const statusMeta = getTicketStatusMeta(selectedTicket.status);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowFooterStatusMenu(true)}
+                      style={{
+                        height: '36px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0 0.85rem',
+                        borderRadius: '999px',
+                        backgroundColor: statusMeta.bg,
+                        color: statusMeta.color,
+                        border: `1.5px solid ${statusMeta.border}`,
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+                        transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
+                      }}
+                      title="Ubah Status Pengerjaan Tiket"
+                    >
+                      <span style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: statusMeta.color,
+                        display: 'inline-block',
+                        boxShadow: `0 0 6px ${statusMeta.color}88`,
+                        flexShrink: 0
+                      }} />
+                      <span style={{ whiteSpace: 'nowrap' }}>
+                        Status: <span style={{ textDecoration: 'underline', textUnderlineOffset: '2px' }}>{statusMeta.shortLabel}</span>
+                      </span>
+                      <ChevronDown size={13} strokeWidth={2.5} style={{ opacity: 0.8 }} />
+                    </button>
+                  );
+                })()}
+
+                {/* Right: Premium Quick Reply Canned Response Templates Pill */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchCannedTemplates();
+                    setShowTemplateModal(true);
+                  }}
+                  style={{
+                    height: '36px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0 0.85rem',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.22)'}`,
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.05)',
+                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                  title="Gunakan Template Balasan Cepat (Canned Responses)"
+                >
+                  <Zap size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                  <span style={{ whiteSpace: 'nowrap' }}>Template Balasan</span>
+                </button>
+              </div>
+
               {/* Input Bar Row */}
               <div style={{
                 display: 'flex',
@@ -3110,33 +3619,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   title="Lampirkan Gambar"
                 >
                   {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
-                </button>
-
-                {/* Quick Reply Canned Response Templates Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    fetchCannedTemplates();
-                    setShowTemplateModal(true);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.2rem',
-                    padding: '0.35rem 0.5rem',
-                    borderRadius: '0.55rem',
-                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`,
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    flexShrink: 0
-                  }}
-                  title="Gunakan Template Balasan Cepat (Canned Responses)"
-                >
-                  <Zap size={13} />
-                  <span>Template</span>
                 </button>
 
                 {/* Textarea */}
@@ -3270,15 +3752,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               >
                 <Zap size={13} />
                 <span>Master Template</span>
-                <span style={{
-                  fontSize: '0.62rem',
-                  padding: '0.05rem 0.35rem',
-                  borderRadius: '999px',
-                  backgroundColor: supportSubView === 'templates' ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
-                  color: supportSubView === 'templates' ? '#ffffff' : theme.textMuted
-                }}>
-                  {cannedTemplates.length}
-                </span>
               </button>
             </div>
 
@@ -3576,6 +4049,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   const storePlan = String(t.store?.plan || '').toLowerCase();
                   const storeDisplayName = t.store?.store_title || t.store?.name || t.store_name || t.user?.name || 'Merchant';
                   const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
+                  const msgs = Array.isArray(t.messages) ? t.messages : [];
+                  const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
+                  const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
+                  const unreadCount = t.unread_count || 0;
+                  const lastSenderName = lastMsg ? (lastMsg.sender_type === 'agent' ? 'CS Support' : getFirstName(getMerchantDisplayName(t, lastMsg.sender))) : '';
 
                   return (
                     <div
@@ -3584,11 +4062,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       style={{
                         padding: '1rem',
                         borderRadius: '1.15rem',
-                        backgroundColor: theme.surface,
-                        border: (t.status === 'open' || t.status === 'waiting_agent') 
-                          ? '1px solid rgba(6, 182, 212, 0.45)' 
-                          : (t.priority === 'urgent' ? '1px solid rgba(239, 68, 68, 0.4)' : `1px solid ${theme.border}`),
-                        boxShadow: theme.cardShadow,
+                        backgroundColor: isUnread ? (isDark ? 'rgba(6, 182, 212, 0.08)' : 'rgba(6, 182, 212, 0.04)') : theme.surface,
+                        border: isUnread
+                          ? '1px solid rgba(6, 182, 212, 0.65)'
+                          : (t.status === 'open' || t.status === 'waiting_agent') 
+                            ? '1px solid rgba(6, 182, 212, 0.45)' 
+                            : (t.priority === 'urgent' ? '1px solid rgba(239, 68, 68, 0.4)' : `1px solid ${theme.border}`),
+                        boxShadow: isUnread ? '0 4px 18px rgba(6, 182, 212, 0.16)' : theme.cardShadow,
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '0.65rem',
@@ -3597,32 +4077,63 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         position: 'relative'
                       }}
                     >
-                      {/* Card Header: Ticket Number & Store Tier on Left | Status Pill on Right */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: '0.18rem 0.48rem', borderRadius: '0.45rem', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#06b6d4', fontFamily: 'monospace' }}>
+                      {/* Card Header: Ticket Number & Unread Dot on Left | Status Pill on Right (Single Row, Never Wraps) */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                          {/* Unread Glow Dot Indicator */}
+                          {isUnread && (
+                            <span 
+                              title={unreadCount > 0 ? `${unreadCount} Pesan Baru` : 'Pesan Baru'}
+                              style={{ 
+                                display: 'inline-block', 
+                                width: '7px', 
+                                height: '7px', 
+                                borderRadius: '50%', 
+                                backgroundColor: '#06b6d4',
+                                boxShadow: '0 0 8px rgba(6, 182, 212, 0.7)',
+                                flexShrink: 0
+                              }} 
+                            />
+                          )}
+
+                          {/* Ticket Number */}
+                          <div style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)', 
+                            padding: '0.15rem 0.42rem', 
+                            borderRadius: '0.35rem', 
+                            border: '1px solid rgba(6, 182, 212, 0.22)',
+                            flexShrink: 0
+                          }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', letterSpacing: '0.01em' }}>
                               {t.ticket_number || `#TCK-${t.id}`}
                             </span>
                           </div>
 
-                          {/* Store Tier Badge */}
-                          {storePlan === 'enterprise' && (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 900, padding: '0.15rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-                              ENTERPRISE
-                            </span>
-                          )}
-                          {storePlan === 'pro' && (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 900, padding: '0.15rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                              PRO
+                          {/* SLA Breached Alert (Only shown if critical/breached to prevent clutter) */}
+                          {t.sla_breached && (
+                            <span style={{ 
+                              fontSize: '0.58rem', 
+                              fontWeight: 800, 
+                              padding: '0.1rem 0.35rem', 
+                              borderRadius: '0.3rem', 
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                              color: '#ef4444', 
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}>
+                              ⚠️ SLA Lewat
                             </span>
                           )}
                         </div>
 
+                        {/* Status Pill with live indicator dot (Pinned Top-Right, No wrap) */}
                         <span style={{
                           padding: '0.2rem 0.55rem',
                           borderRadius: '999px',
-                          fontSize: '0.65rem',
+                          fontSize: '0.64rem',
                           fontWeight: 800,
                           whiteSpace: 'nowrap',
                           flexShrink: 0,
@@ -3630,19 +4141,38 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           color: statusColor,
                           border: `1px solid ${statusBorder}`,
                           display: 'inline-flex',
-                          alignItems: 'center'
+                          alignItems: 'center',
+                          gap: '0.3rem'
                         }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: statusColor, flexShrink: 0 }} />
                           {statusLabel}
                         </span>
                       </div>
 
-                      {/* Card Subject & Metadata Badges */}
+                      {/* Card Subject & Clean Metadata Row */}
                       <div>
-                        <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em', lineHeight: 1.35 }}>
+                        <h4 style={{ 
+                          margin: '0 0 0.3rem 0', 
+                          fontSize: '0.92rem', 
+                          fontWeight: isUnread ? 900 : 700, 
+                          color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textPrimary, 
+                          letterSpacing: '-0.01em', 
+                          lineHeight: 1.35 
+                        }}>
                           {t.subject || 'Pertanyaan Layanan Toko'}
                         </h4>
-                        <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.64rem', fontWeight: 700, padding: '0.15rem 0.42rem', borderRadius: '4px', backgroundColor: theme.cardAlt, color: theme.textSecondary, border: `1px solid ${theme.border}` }}>
+
+                        {/* Streamlined Meta Info (Category, Priority, Time) */}
+                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.45rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.66rem' }}>
+                          <span style={{ 
+                            fontWeight: 700, 
+                            padding: '0.12rem 0.38rem', 
+                            borderRadius: '4px', 
+                            backgroundColor: theme.cardAlt, 
+                            color: theme.textSecondary, 
+                            border: `1px solid ${theme.border}`,
+                            fontSize: '0.62rem'
+                          }}>
                             {
                               t.category === 'billing' ? 'Keuangan & Langganan' :
                               t.category === 'technical' ? 'Kendala Teknis & Bug' :
@@ -3653,9 +4183,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                           {t.priority && (
                             <span style={{
-                              fontSize: '0.64rem',
+                              fontSize: '0.62rem',
                               fontWeight: 800,
-                              padding: '0.15rem 0.42rem',
+                              padding: '0.12rem 0.38rem',
                               borderRadius: '4px',
                               backgroundColor: (t.priority === 'urgent' || t.priority === 'high') ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : theme.cardAlt,
                               color: (t.priority === 'urgent' || t.priority === 'high') ? '#ef4444' : theme.textSecondary,
@@ -3666,14 +4196,48 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             </span>
                           )}
 
-                          <span style={{ fontSize: '0.64rem', color: theme.textMuted, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginLeft: 'auto' }}>
-                            <Clock size={11} />
+                          {/* CSAT Rating if present */}
+                          {t.rating && (
+                            <span style={{ 
+                              fontSize: '0.62rem', 
+                              fontWeight: 800, 
+                              color: '#f59e0b', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.15rem' 
+                            }}>
+                              <Star size={10} fill="#f59e0b" color="#f59e0b" />
+                              <span>{t.rating}/5</span>
+                            </span>
+                          )}
+
+                          {/* Time */}
+                          <span style={{ fontSize: '0.63rem', color: isUnread ? theme.textPrimary : theme.textMuted, fontWeight: isUnread ? 700 : 400, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginLeft: 'auto' }}>
+                            <Clock size={10} />
                             {formatSupportDateTime(t.last_message_at || t.created_at)}
                           </span>
                         </div>
 
                         {/* Snippet message */}
-                        {t.messages && t.messages.length > 0 && (
+                        {lastMsg ? (
+                          <p style={{
+                            margin: 0,
+                            fontSize: '0.76rem',
+                            color: isUnread ? theme.textPrimary : theme.textSecondary,
+                            fontWeight: isUnread ? 600 : 400,
+                            lineHeight: 1.45,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}>
+                            <strong style={{ color: lastMsg.sender_type === 'user' ? '#06b6d4' : 'var(--primary)' }}>
+                              {lastSenderName}:
+                            </strong>{' '}
+                            {lastMsg.message || (lastMsg.attachments?.length ? `[${lastMsg.attachments.length} Lampiran Bukti]` : '')}
+                          </p>
+                        ) : (t.messages && t.messages.length > 0 && (
                           <p style={{
                             margin: 0,
                             fontSize: '0.76rem',
@@ -3685,12 +4249,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: 'vertical'
                           }}>
-                            {t.messages[t.messages.length - 1]?.message || t.messages[0]?.message}
+                            {t.messages[0]?.message}
                           </p>
-                        )}
+                        ))}
                       </div>
 
-                      {/* Card Footer: Merchant Identity & Messages Count */}
+                      {/* Card Footer: Merchant Identity & Plan Badge on Left | Messages Count on Right */}
                       <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -3699,7 +4263,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         borderTop: `1px solid ${theme.border}`,
                         marginTop: '0.15rem'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, marginRight: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1, marginRight: '0.5rem' }}>
                           <Store size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                           <span style={{
                             fontSize: '0.74rem',
@@ -3711,6 +4275,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           }}>
                             {storeDisplayName}
                           </span>
+
+                          {/* Store Tier Badge (Contextually placed next to Store Name) */}
+                          {storePlan === 'enterprise' && (
+                            <span style={{ fontSize: '0.58rem', fontWeight: 900, padding: '0.08rem 0.35rem', borderRadius: '0.3rem', backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', flexShrink: 0 }}>
+                              ENTERPRISE
+                            </span>
+                          )}
+                          {storePlan === 'pro' && (
+                            <span style={{ fontSize: '0.58rem', fontWeight: 900, padding: '0.08rem 0.35rem', borderRadius: '0.3rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', flexShrink: 0 }}>
+                              PRO
+                            </span>
+                          )}
                         </div>
 
                         <div style={{
@@ -4104,7 +4680,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       </div>
                     );
                   })}
-              </div>
+                </div>
             )}
           </div>
         )}
@@ -6200,6 +6776,193 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
+      {/* 5. STANDARD MOBILE BOTTOM SHEET MODAL: STATUS PENGERJAAN TIKET */}
+      {showFooterStatusMenu && selectedTicket && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 13500,
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onClick={() => {
+            setShowFooterStatusMenu(false);
+            setStatusSheetDragY(0);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${Math.max(0, statusSheetDragY)}px)`,
+              transition: isStatusSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '82vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '0.65rem 0 0 0',
+              backgroundColor: theme.surface,
+              borderTop: `1px solid ${theme.borderStrong}`,
+              borderTopLeftRadius: '1.6rem',
+              borderTopRightRadius: '1.6rem',
+              boxShadow: isDark ? '0 -12px 48px rgba(0, 0, 0, 0.6)' : '0 -10px 35px rgba(0, 0, 0, 0.12)',
+              color: theme.textPrimary,
+              boxSizing: 'border-box',
+              width: '100%',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.35rem 0 0.75rem',
+                flexShrink: 0,
+                cursor: isStatusSheetDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                userSelect: 'none'
+              }}
+              onTouchStart={(e) => handleStatusSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleStatusSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleStatusSheetDragEnd}
+              onMouseDown={(e) => handleStatusSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleStatusSheetDragMove(e.clientY)}
+              onMouseUp={handleStatusSheetDragEnd}
+            >
+              <div style={{
+                width: '44px',
+                height: '5px',
+                borderRadius: '999px',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)'
+              }} />
+            </div>
+
+            {/* Header (Clean, draggable, WITHOUT X icon, matching platform standard) */}
+            <div
+              style={{
+                padding: '0.15rem 1.25rem 0.85rem',
+                borderBottom: `1px solid ${theme.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexShrink: 0,
+                cursor: isStatusSheetDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                userSelect: 'none'
+              }}
+              onTouchStart={(e) => handleStatusSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleStatusSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleStatusSheetDragEnd}
+              onMouseDown={(e) => handleStatusSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleStatusSheetDragMove(e.clientY)}
+              onMouseUp={handleStatusSheetDragEnd}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Activity size={18} style={{ color: isDark ? '#38bdf8' : '#0284c7' }} />
+                  <h3 style={{
+                    fontSize: '1.02rem',
+                    fontWeight: 800,
+                    color: theme.textPrimary,
+                    letterSpacing: '-0.02em',
+                    margin: 0
+                  }}>
+                    Status Pengerjaan Tiket
+                  </h3>
+                </div>
+                <span style={{ fontSize: '0.73rem', color: theme.textSecondary }}>
+                  Pilih status terbaru untuk tiket #{selectedTicket.ticket_number || selectedTicket.id}
+                </span>
+              </div>
+            </div>
+
+            {/* Scrollable Body: Standard Selection List */}
+            <div style={{ padding: '1rem 1.15rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', overflowY: 'auto' }}>
+              {[
+                { id: 'open', label: 'Open (Baru)', desc: 'Tiket baru masuk dari merchant, menunggu respons pertama tim CS.', color: '#06b6d4' },
+                { id: 'in_progress', label: 'Proses (In Progress)', desc: 'Sedang dalam penanganan / investigasi aktif oleh staf CS.', color: isDark ? '#fbbf24' : '#d97706' },
+                { id: 'waiting_user', label: 'Tunggu User (Pending)', desc: 'CS telah membalas, menunggu tanggapan merchant (Otomatis saat membalas).', color: isDark ? '#c084fc' : '#9333ea' },
+                { id: 'resolved', label: 'Selesai (Resolved)', desc: 'Kendala tuntas diselesaikan. Tiket masuk masa sanggah 7 hari sebelum ditutup.', color: isDark ? '#34d399' : '#059669' },
+                { id: 'closed', label: 'Tutup (Closed)', desc: 'Tiket ditutup permanen dan diarsipkan secara Read-Only.', color: '#94a3b8' }
+              ].map(st => {
+                const isSelected = selectedTicket.status === st.id;
+                return (
+                  <div
+                    key={st.id}
+                    onClick={async () => {
+                      setShowFooterStatusMenu(false);
+                      setStatusSheetDragY(0);
+                      await handleUpdateTicketStatus(selectedTicket.id, st.id);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.95rem',
+                      backgroundColor: isSelected 
+                        ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.07)')
+                        : (isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc'),
+                      border: isSelected 
+                        ? `1.5px solid ${isDark ? '#38bdf8' : '#0284c7'}`
+                        : `1px solid ${theme.border}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                      gap: '0.75rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                      <span style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: st.color,
+                        flexShrink: 0,
+                        boxShadow: `0 0 10px ${st.color}55`
+                      }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '0.86rem',
+                          fontWeight: isSelected ? 800 : 700,
+                          color: isSelected ? (isDark ? '#38bdf8' : '#0284c7') : theme.textPrimary,
+                          marginBottom: '0.15rem'
+                        }}>
+                          {st.label}
+                        </div>
+                        <div style={{ fontSize: '0.71rem', color: theme.textSecondary, lineHeight: 1.4 }}>
+                          {st.desc}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Radio / Check Indicator */}
+                    <div style={{
+                      width: '22px',
+                      height: '22px',
+                      borderRadius: '50%',
+                      border: isSelected ? `2px solid ${isDark ? '#38bdf8' : '#0284c7'}` : `2px solid ${theme.borderStrong}`,
+                      backgroundColor: isSelected ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      {isSelected && <Check size={14} color="#ffffff" strokeWidth={3} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE BOTTOM SHEET MODAL: CANNED RESPONSES / QUICK REPLY TEMPLATES */}
       {showTemplateModal && (
         <div
@@ -6824,6 +7587,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room) */}
+      {showScrollTop && !selectedTicket && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          style={{
+            position: 'fixed',
+            right: '16px',
+            bottom: selectedTicket ? '96px' : '24px',
+            zIndex: 90,
+            width: '42px',
+            height: '42px',
+            borderRadius: '50%',
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.94)' : 'rgba(255, 255, 255, 0.95)',
+            color: isDark ? '#38bdf8' : '#0284c7',
+            border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.45)' : 'rgba(2, 132, 199, 0.35)'}`,
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.28)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          title="Kembali ke Atas"
+        >
+          <ArrowUp size={20} strokeWidth={2.5} />
+        </button>
       )}
     </div>
   );

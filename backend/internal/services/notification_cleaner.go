@@ -34,13 +34,14 @@ func StartNotificationCleaner(ctx context.Context, db *gorm.DB, interval time.Du
 	}()
 }
 
-// runCleanup executes the database cleanup queries for expired notifications.
+// runCleanup executes the database cleanup queries for expired notifications and 30-day retention.
 func runCleanup(db *gorm.DB) {
 	if db == nil {
 		return
 	}
 
 	now := time.Now().UTC()
+	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
 
 	// 1. Delete absolute expired notifications
 	resExpired := db.Exec("DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < ?", now)
@@ -50,13 +51,15 @@ func runCleanup(db *gorm.DB) {
 		log.Info().Int64("purged_count", resExpired.RowsAffected).Msg("Purged expired notifications from database")
 	}
 
-	// 2. Delete orphaned notification_reads (where notification no longer exists)
-	resOrphaned := db.Exec("DELETE FROM notification_reads WHERE notification_id NOT IN (SELECT id FROM notifications)")
-	if resOrphaned.Error != nil {
-		log.Warn().Err(resOrphaned.Error).Msg("Failed to clean orphaned notification reads")
+	// 2. Delete targeted notifications older than 30 days
+	resOldTargeted := db.Exec("DELETE FROM notifications WHERE target_type IN ('single_store', 'single_user') AND created_at < ?", thirtyDaysAgo)
+	if resOldTargeted.Error != nil {
+		log.Warn().Err(resOldTargeted.Error).Msg("Failed to clean targeted notifications older than 30 days")
+	} else if resOldTargeted.RowsAffected > 0 {
+		log.Info().Int64("purged_count", resOldTargeted.RowsAffected).Msg("Purged 30-day old targeted notifications from database")
 	}
 
-	// 3. Delete single-store notifications that passed retention hours after being read
+	// 3. Delete single-store notifications that passed retention after being read
 	resRetention := db.Exec(`
 		DELETE FROM notifications 
 		WHERE target_type IN ('single_store', 'single_user') 
@@ -64,12 +67,28 @@ func runCleanup(db *gorm.DB) {
 		    SELECT nr.notification_id 
 		    FROM notification_reads nr 
 		    JOIN notifications n ON n.id = nr.notification_id 
-		    WHERE (nr.read_at + (n.retention_hours * INTERVAL '1 hour')) <= ?
+		    WHERE nr.read_at <= ?
 		  )
-	`, now)
+	`, thirtyDaysAgo)
 	if resRetention.Error != nil {
 		log.Warn().Err(resRetention.Error).Msg("Failed to clean retained read notifications")
 	} else if resRetention.RowsAffected > 0 {
 		log.Info().Int64("purged_count", resRetention.RowsAffected).Msg("Purged read notifications past retention window")
+	}
+
+	// 4. Delete old dismissed read receipts older than 30 days
+	resOldDismissed := db.Exec("DELETE FROM notification_reads WHERE dismissed_at IS NOT NULL AND dismissed_at < ?", thirtyDaysAgo)
+	if resOldDismissed.Error != nil {
+		log.Warn().Err(resOldDismissed.Error).Msg("Failed to clean old dismissed notification receipts")
+	} else if resOldDismissed.RowsAffected > 0 {
+		log.Info().Int64("purged_count", resOldDismissed.RowsAffected).Msg("Purged 30-day old dismissed receipts from database")
+	}
+
+	// 5. Delete orphaned notification_reads (where notification no longer exists)
+	resOrphaned := db.Exec("DELETE FROM notification_reads WHERE notification_id NOT IN (SELECT id FROM notifications)")
+	if resOrphaned.Error != nil {
+		log.Warn().Err(resOrphaned.Error).Msg("Failed to clean orphaned notification reads")
+	} else if resOrphaned.RowsAffected > 0 {
+		log.Info().Int64("purged_count", resOrphaned.RowsAffected).Msg("Purged orphaned notification reads")
 	}
 }

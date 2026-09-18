@@ -86,8 +86,8 @@ func main() {
 	// Start Background Dormancy & Free Tier Lifecycle Worker (Runs on boot and every 1 hour)
 	services.StartDormancyWorker(context.Background(), database.DB, storageService, 1*time.Hour)
 
-	// Start Background Support Ticket Auto-Close Worker (Auto-closes resolved tickets older than 7 days)
-	supportHandler.StartAutoCloseTicketsWorker()
+	// Start Background Support Ticket Enterprise Lifecycle Worker (Stale Reminder 3d, Auto-Resolve 5d, Auto-Close 7d, SLA Breach)
+	supportHandler.StartSupportLifecycleWorker()
 
 	// Start Background Subscription Lifecycle Worker (Runs on boot and every 1 hour)
 	go func() {
@@ -227,12 +227,16 @@ func main() {
 		guarded.Post("/support/tickets", supportHandler.CreateTicket)
 		guarded.Post("/support/tickets/:id/reply", supportHandler.ReplyTicket)
 		guarded.Post("/support/tickets/:id/mark-read", supportHandler.MarkTicketAsRead)
+		guarded.Post("/support/tickets/:id/rating", supportHandler.RateTicket)
+		guarded.Get("/support/tickets-ping", supportHandler.GetSupportTicketsPing)
 
-		// Admin Support Moderation & Quick Reply Canned Responses
+		// Admin Support Moderation, Quick Reply Canned Responses & Collision Detection
 		guarded.Get("/admin/support/tickets", supportHandler.ListAllTickets)
 		guarded.Get("/admin/support/tickets/:id", supportHandler.GetAdminTicketDetails)
 		guarded.Post("/admin/support/tickets/:id/reply", supportHandler.ReplyAsAdmin)
 		guarded.Put("/admin/support/tickets/:id/status", supportHandler.UpdateTicketStatus)
+		guarded.Post("/admin/support/tickets/:id/presence", supportHandler.UpdatePresence)
+		guarded.Get("/admin/support/tickets/:id/presence", supportHandler.GetPresence)
 		guarded.Get("/admin/support/templates", supportHandler.ListCannedResponses)
 		guarded.Post("/admin/support/templates", supportHandler.CreateCannedResponse)
 		guarded.Put("/admin/support/templates/:id", supportHandler.UpdateCannedResponse)
@@ -288,6 +292,7 @@ func main() {
 		// Dynamic Notifications & Real-Time SSE
 		guarded.Get("/notifications", notificationHandler.GetNotifications)
 		guarded.Post("/notifications/read-all", notificationHandler.MarkAllAsRead)
+		guarded.Post("/notifications/clear-read", notificationHandler.ClearReadNotifications)
 		guarded.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
 		guarded.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
 		guarded.Get("/notifications/stream", notificationHandler.Stream)
@@ -338,6 +343,8 @@ func main() {
 		adminApi.Get("/support/tickets/:id", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.GetAdminTicketDetails)
 		adminApi.Post("/support/tickets/:id/reply", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.ReplyAsAdmin)
 		adminApi.Put("/support/tickets/:id/status", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateTicketStatus)
+		adminApi.Post("/support/tickets/:id/presence", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.UpdatePresence)
+		adminApi.Get("/support/tickets/:id/presence", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.GetPresence)
 		adminApi.Get("/support/templates", middleware.RequirePermission(cfg, "support:tickets:read"), supportHandler.ListCannedResponses)
 		adminApi.Post("/support/templates", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.CreateCannedResponse)
 		adminApi.Put("/support/templates/:id", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateCannedResponse)

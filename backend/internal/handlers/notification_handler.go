@@ -74,6 +74,8 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	var allResults []NotifResult
 
 	// Target matching: all, matching dynamic plan, single_store, single_user
+	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
+
 	baseQuery := h.DB.Table("notifications").
 		Select(`notifications.*, 
 		        notification_reads.id as read_id, 
@@ -82,6 +84,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.store_id = ?", storeID).
 		Where(`
 			(notifications.expires_at IS NULL OR notifications.expires_at > ?)
+			AND notifications.created_at >= ?
 			AND (
 				notifications.target_type = 'all'
 				OR (notifications.target_type = 'plan' AND notifications.target_plan_code = ?)
@@ -89,13 +92,13 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 				OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
 			)
 			AND (notification_reads.dismissed_at IS NULL)
-		`, now, storePlan, storeID, userID)
+		`, now, thirtyDaysAgo, storePlan, storeID, userID)
 
-	// Exclude read notifications that have exceeded their retention window
+	// Exclude read notifications that have exceeded the 30-day retention window
 	baseQuery = baseQuery.Where(`
 		notification_reads.read_at IS NULL 
-		OR ((notification_reads.read_at + (notifications.retention_hours * INTERVAL '1 hour')) >= ?)
-	`, now)
+		OR notification_reads.read_at >= ?
+	`, thirtyDaysAgo)
 
 	err := baseQuery.Order("notifications.created_at DESC").Find(&allResults).Error
 	if err != nil {
@@ -291,6 +294,45 @@ func (h *NotificationHandler) Dismiss(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Notification dismissed",
+	})
+}
+
+// ClearReadNotifications dismisses all notifications that have already been read by the store.
+func (h *NotificationHandler) ClearReadNotifications(c *fiber.Ctx) error {
+	store, _ := c.Locals("store").(*models.Store)
+	user, _ := c.Locals("user").(*models.User)
+
+	var storeID uint
+	var userID uint
+	if store != nil {
+		storeID = store.ID
+	}
+	if user != nil {
+		userID = user.ID
+	}
+
+	now := time.Now().UTC()
+
+	// Update all read receipts for this store that are not yet dismissed
+	query := h.DB.Model(&models.NotificationRead{}).Where("dismissed_at IS NULL")
+	if storeID > 0 {
+		query = query.Where("store_id = ?", storeID)
+	} else if userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	} else {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Identitas pengguna atau toko tidak valid"})
+	}
+
+	res := query.Update("dismissed_at", now)
+	if res.Error != nil {
+		log.Error().Err(res.Error).Msg("Failed to clear read notifications")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membersihkan riwayat notifikasi"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":       true,
+		"cleared_count": res.RowsAffected,
+		"message":       "Riwayat notifikasi terbaca berhasil dibersihkan",
 	})
 }
 

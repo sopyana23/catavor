@@ -167,6 +167,12 @@ func StoreOwnerRequired() fiber.Handler {
 		}
 
 		var matchedStore *models.Store
+		isPlatformAdminUser := strings.EqualFold(user.PlatformRole, "superadmin") || 
+			strings.EqualFold(user.PlatformRole, "support") || 
+			strings.EqualFold(user.PlatformRole, "compliance") || 
+			strings.EqualFold(user.PlatformRole, "finance") || 
+			strings.EqualFold(user.PlatformRole, "admin") || 
+			user.Email == "admin@catavor.com"
 
 		if targetSlug != "" {
 			// Check against user's owned stores
@@ -185,6 +191,14 @@ func StoreOwnerRequired() fiber.Handler {
 				}
 			}
 
+			// Platform Admins (Superadmin, Support, Staff) have authorized oversight over any store
+			if matchedStore == nil && isPlatformAdminUser {
+				var dbStore models.Store
+				if err := database.DB.Where("LOWER(slug) = ?", strings.ToLower(targetSlug)).First(&dbStore).Error; err == nil {
+					matchedStore = &dbStore
+				}
+			}
+
 			if matchedStore == nil {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"success": false,
@@ -199,6 +213,14 @@ func StoreOwnerRequired() fiber.Handler {
 				matchedStore = &user.Stores[0]
 			} else if user.Store != nil {
 				matchedStore = user.Store
+			} else if isPlatformAdminUser {
+				// Fallback to default or first store for platform admins
+				var defaultStore models.Store
+				if err := database.DB.Where("LOWER(slug) = 'catavor'").First(&defaultStore).Error; err == nil {
+					matchedStore = &defaultStore
+				} else if err := database.DB.Order("id ASC").First(&defaultStore).Error; err == nil {
+					matchedStore = &defaultStore
+				}
 			}
 		}
 
