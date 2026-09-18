@@ -4,9 +4,9 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"catavor-backend/internal/config"
@@ -16,6 +16,18 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+)
+
+type AdminPresenceInfo struct {
+	AdminID   uint      `json:"admin_id"`
+	AdminName string    `json:"admin_name"`
+	LastSeen  time.Time `json:"last_seen"`
+	IsTyping  bool      `json:"is_typing"`
+}
+
+var (
+	presenceMutex  sync.RWMutex
+	ticketPresence = make(map[uint]map[uint]AdminPresenceInfo) // ticketID -> adminID -> AdminPresenceInfo
 )
 
 type SupportHandler struct {
@@ -76,7 +88,35 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	baseQuery := database.DB.Model(&models.SupportTicket{}).Where("user_id = ?", user.ID)
+	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
+		strings.EqualFold(user.PlatformRole, "support") || 
+		user.Email == "admin@catavor.com"
+
+	baseQuery := database.DB.Model(&models.SupportTicket{})
+	if !isStaff {
+		baseQuery = baseQuery.Where("user_id = ?", user.ID)
+	}
+
+	// Realtime summary metrics across all tickets for this user
+	var metricTotal, metricActive, metricResolved int64
+	type statusGroup struct {
+		Status string
+		Count  int64
+	}
+	var sgs []statusGroup
+	metricQuery := database.DB.Model(&models.SupportTicket{})
+	if !isStaff {
+		metricQuery = metricQuery.Where("user_id = ?", user.ID)
+	}
+	metricQuery.Select("status, COUNT(*) as count").Group("status").Scan(&sgs)
+	for _, sg := range sgs {
+		metricTotal += sg.Count
+		if sg.Status == "resolved" || sg.Status == "closed" {
+			metricResolved += sg.Count
+		} else {
+			metricActive += sg.Count
+		}
+	}
 
 	// Status filtering
 	status := strings.TrimSpace(c.Query("status"))
@@ -116,9 +156,6 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	if err := baseQuery.Session(&gorm.Session{}).
 		Preload("User").
 		Preload("Store").
-		Preload("Messages", func(db *gorm.DB) *gorm.DB {
-			return db.Where("is_internal_note = false").Order("created_at ASC")
-		}).
 		Order("COALESCE(NULLIF(last_message_at, '0001-01-01 00:00:00+00'), updated_at, created_at) DESC, id DESC").
 		Limit(limit).
 		Offset(offset).
@@ -129,34 +166,55 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		})
 	}
 
-	// Compute unread count for merchant (agent replies that have not been read)
-	for i := range tickets {
-		unread := 0
-		for _, m := range tickets[i].Messages {
-			if m.SenderType == "agent" && m.ReadAt == nil {
-				unread++
+	if len(tickets) > 0 {
+		ticketIDs := make([]uint, len(tickets))
+		for i, t := range tickets {
+			ticketIDs[i] = t.ID
+		}
+
+		// 1. Batch unread counts in 1 single fast index query
+		type unreadRes struct {
+			TicketID uint `gorm:"column:ticket_id"`
+			Count    int  `gorm:"column:count"`
+		}
+		var unreadRows []unreadRes
+		database.DB.Model(&models.SupportMessage{}).
+			Select("ticket_id, COUNT(id) as count").
+			Where("ticket_id IN (?) AND sender_type = ? AND read_at IS NULL AND is_internal_note = false", ticketIDs, "agent").
+			Group("ticket_id").
+			Scan(&unreadRows)
+
+		unreadMap := make(map[uint]int, len(unreadRows))
+		for _, r := range unreadRows {
+			unreadMap[r.TicketID] = r.Count
+		}
+
+		// 2. Batch fetch ONLY the single latest message per ticket (lean DTO compatibility)
+		var latestMessages []models.SupportMessage
+		database.DB.Raw(`
+			SELECT sm.* FROM support_messages sm
+			INNER JOIN (
+				SELECT ticket_id, MAX(id) as max_id 
+				FROM support_messages 
+				WHERE ticket_id IN (?) AND is_internal_note = false 
+				GROUP BY ticket_id
+			) latest ON sm.id = latest.max_id
+		`, ticketIDs).Scan(&latestMessages)
+
+		latestMsgMap := make(map[uint]models.SupportMessage, len(latestMessages))
+		for _, lm := range latestMessages {
+			latestMsgMap[lm.TicketID] = lm
+		}
+
+		for i := range tickets {
+			tickets[i].UnreadCount = unreadMap[tickets[i].ID]
+			if lm, ok := latestMsgMap[tickets[i].ID]; ok {
+				tickets[i].Messages = []models.SupportMessage{lm}
+			} else {
+				tickets[i].Messages = []models.SupportMessage{}
 			}
 		}
-		tickets[i].UnreadCount = unread
 	}
-
-	// Urutan alami layaknya aplikasi sosial media/chat:
-	// Semua pesan (baik sudah terbaca maupun belum terbaca) diurutkan berdasarkan tanggal/waktu pesan terakhir (terbaru di paling atas)
-	sort.SliceStable(tickets, func(i, j int) bool {
-		timeI := tickets[i].UpdatedAt
-		if !tickets[i].LastMessageAt.IsZero() && tickets[i].LastMessageAt.Year() > 2000 {
-			timeI = tickets[i].LastMessageAt
-		} else if len(tickets[i].Messages) > 0 {
-			timeI = tickets[i].Messages[len(tickets[i].Messages)-1].CreatedAt
-		}
-		timeJ := tickets[j].UpdatedAt
-		if !tickets[j].LastMessageAt.IsZero() && tickets[j].LastMessageAt.Year() > 2000 {
-			timeJ = tickets[j].LastMessageAt
-		} else if len(tickets[j].Messages) > 0 {
-			timeJ = tickets[j].Messages[len(tickets[j].Messages)-1].CreatedAt
-		}
-		return timeI.After(timeJ)
-	})
 
 	totalPages := 0
 	if totalCount > 0 {
@@ -168,6 +226,11 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		"success": true,
 		"count":   len(tickets),
 		"data":    tickets,
+		"metrics": fiber.Map{
+			"total":    metricTotal,
+			"active":   metricActive,
+			"resolved": metricResolved,
+		},
 		"pagination": fiber.Map{
 			"page":        page,
 			"limit":       limit,
@@ -191,8 +254,15 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var ticket models.SupportTicket
 
-	// Scoped ownership check: user must own the ticket (lookup by id or ticket_number)
-	q := database.DB.Preload("User").Preload("Store").Where("user_id = ?", user.ID)
+	// Scoped ownership check: user must own the ticket, or be platform staff (lookup by id or ticket_number)
+	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
+		strings.EqualFold(user.PlatformRole, "support") || 
+		user.Email == "admin@catavor.com"
+
+	q := database.DB.Preload("User").Preload("Store")
+	if !isStaff {
+		q = q.Where("user_id = ?", user.ID)
+	}
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
 		q = q.Where("id = ? OR ticket_number = ?", num, id)
 	} else {
@@ -334,6 +404,19 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	}
 
 	now := time.Now().UTC()
+
+	// Compute Multi-Tier SLA based on merchant store tier
+	var slaDuration time.Duration
+	storePlan := strings.ToLower(string(store.Plan))
+	if storePlan == "enterprise" {
+		slaDuration = 30 * time.Minute
+	} else if storePlan == "pro" {
+		slaDuration = 2 * time.Hour
+	} else {
+		slaDuration = 8 * time.Hour
+	}
+	slaDueAt := now.Add(slaDuration)
+
 	ticket := models.SupportTicket{
 		TicketNumber:  generateTicketNumber(),
 		UserID:        user.ID,
@@ -342,6 +425,8 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		Category:      category,
 		Priority:      priority,
 		Status:        "open",
+		SLADueAt:      &slaDueAt,
+		SLABreached:   false,
 		LastMessageAt: now,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -514,6 +599,8 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	} else {
 		ticket.Status = "waiting_agent"
 	}
+	ticket.ReminderCount = 0
+	ticket.ReminderSentAt = nil
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
 	database.DB.Save(&ticket)
@@ -546,13 +633,26 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 	}
 
 	// 1. Calculate Realtime Triage Metrics across all tickets
-	var totalCount, actionReqCount, inProgCount, waitUserCount, urgentCount, resolvedCount int64
+	var totalCount, actionReqCount, inProgCount, waitUserCount, urgentCount, resolvedCount, slaBreachedCount int64
+	nowTime := time.Now().UTC()
 	database.DB.Model(&models.SupportTicket{}).Count(&totalCount)
 	database.DB.Model(&models.SupportTicket{}).Where("status IN (?)", []string{"open", "waiting_agent"}).Count(&actionReqCount)
 	database.DB.Model(&models.SupportTicket{}).Where("status = ?", "in_progress").Count(&inProgCount)
 	database.DB.Model(&models.SupportTicket{}).Where("status = ?", "waiting_user").Count(&waitUserCount)
 	database.DB.Model(&models.SupportTicket{}).Where("priority IN (?) AND status NOT IN (?)", []string{"urgent", "high"}, []string{"resolved", "closed"}).Count(&urgentCount)
 	database.DB.Model(&models.SupportTicket{}).Where("status IN (?)", []string{"resolved", "closed"}).Count(&resolvedCount)
+	database.DB.Model(&models.SupportTicket{}).Where("(sla_breached = true OR (status = 'open' AND sla_due_at IS NOT NULL AND sla_due_at < ?)) AND status NOT IN (?)", nowTime, []string{"resolved", "closed"}).Count(&slaBreachedCount)
+
+	// CSAT Metrics
+	var csatRatedCount, csatPositiveCount int64
+	var csatAvg float64
+	database.DB.Model(&models.SupportTicket{}).Where("rating IS NOT NULL AND rating > 0").Count(&csatRatedCount)
+	database.DB.Model(&models.SupportTicket{}).Where("rating >= 4").Count(&csatPositiveCount)
+	database.DB.Model(&models.SupportTicket{}).Where("rating IS NOT NULL AND rating > 0").Select("COALESCE(AVG(rating), 0)").Scan(&csatAvg)
+	var csatScorePct float64
+	if csatRatedCount > 0 {
+		csatScorePct = (float64(csatPositiveCount) / float64(csatRatedCount)) * 100.0
+	}
 
 	// 2. Build Filtered Query
 	query := database.DB.Model(&models.SupportTicket{})
@@ -604,9 +704,6 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 	if err := query.Session(&gorm.Session{}).
 		Preload("User").
 		Preload("Store").
-		Preload("Messages", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at ASC")
-		}).
 		Order("COALESCE(NULLIF(last_message_at, '0001-01-01 00:00:00+00'), updated_at, created_at) DESC, id DESC").
 		Limit(limit).
 		Offset(offset).
@@ -617,23 +714,53 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 		})
 	}
 
-	// Urutan alami layaknya aplikasi sosial media/chat:
-	// Semua tiket diurutkan berdasarkan tanggal/waktu pesan terakhir (terbaru di paling atas)
-	sort.SliceStable(tickets, func(i, j int) bool {
-		timeI := tickets[i].UpdatedAt
-		if !tickets[i].LastMessageAt.IsZero() && tickets[i].LastMessageAt.Year() > 2000 {
-			timeI = tickets[i].LastMessageAt
-		} else if len(tickets[i].Messages) > 0 {
-			timeI = tickets[i].Messages[len(tickets[i].Messages)-1].CreatedAt
+	if len(tickets) > 0 {
+		ticketIDs := make([]uint, len(tickets))
+		for i, t := range tickets {
+			ticketIDs[i] = t.ID
 		}
-		timeJ := tickets[j].UpdatedAt
-		if !tickets[j].LastMessageAt.IsZero() && tickets[j].LastMessageAt.Year() > 2000 {
-			timeJ = tickets[j].LastMessageAt
-		} else if len(tickets[j].Messages) > 0 {
-			timeJ = tickets[j].Messages[len(tickets[j].Messages)-1].CreatedAt
+
+		type unreadRes struct {
+			TicketID uint `gorm:"column:ticket_id"`
+			Count    int  `gorm:"column:count"`
 		}
-		return timeI.After(timeJ)
-	})
+		var unreadRows []unreadRes
+		database.DB.Model(&models.SupportMessage{}).
+			Select("ticket_id, COUNT(id) as count").
+			Where("ticket_id IN (?) AND sender_type = ? AND read_at IS NULL", ticketIDs, "user").
+			Group("ticket_id").
+			Scan(&unreadRows)
+
+		unreadMap := make(map[uint]int, len(unreadRows))
+		for _, r := range unreadRows {
+			unreadMap[r.TicketID] = r.Count
+		}
+
+		var latestMessages []models.SupportMessage
+		database.DB.Raw(`
+			SELECT sm.* FROM support_messages sm
+			INNER JOIN (
+				SELECT ticket_id, MAX(id) as max_id 
+				FROM support_messages 
+				WHERE ticket_id IN (?) 
+				GROUP BY ticket_id
+			) latest ON sm.id = latest.max_id
+		`, ticketIDs).Scan(&latestMessages)
+
+		latestMsgMap := make(map[uint]models.SupportMessage, len(latestMessages))
+		for _, lm := range latestMessages {
+			latestMsgMap[lm.TicketID] = lm
+		}
+
+		for i := range tickets {
+			tickets[i].UnreadCount = unreadMap[tickets[i].ID]
+			if lm, ok := latestMsgMap[tickets[i].ID]; ok {
+				tickets[i].Messages = []models.SupportMessage{lm}
+			} else {
+				tickets[i].Messages = []models.SupportMessage{}
+			}
+		}
+	}
 
 	totalPages := 0
 	if filteredCount > 0 {
@@ -649,9 +776,13 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			"total":           totalCount,
 			"action_required": actionReqCount,
 			"in_progress":     inProgCount,
-			"waiting_user":    waitUserCount,
-			"urgent":          urgentCount,
-			"resolved":        resolvedCount,
+			"waiting_user":       waitUserCount,
+			"urgent":             urgentCount,
+			"resolved":           resolvedCount,
+			"sla_breached":       slaBreachedCount,
+			"csat_rated_count":   csatRatedCount,
+			"csat_avg":           fmt.Sprintf("%.1f", csatAvg),
+			"csat_score_percent": int(csatScorePct),
 		},
 		"pagination": fiber.Map{
 			"page":        page,
@@ -791,9 +922,35 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		}
 	}
 
-	// If not internal note, update ticket status to waiting_user
+	// If not internal note, update ticket status to waiting_user, track First Response SLA & notify merchant
 	if !req.IsInternalNote {
 		ticket.Status = "waiting_user"
+
+		// Multi-Tier SLA First Response Tracking
+		if ticket.FirstResponseAt == nil {
+			ticket.FirstResponseAt = &now
+			if ticket.SLADueAt != nil && now.After(*ticket.SLADueAt) {
+				ticket.SLABreached = true
+			}
+		}
+
+		// Multi-Channel Outbound Alert: Create In-App Notification for merchant
+		notif := models.Notification{
+			ID:          fmt.Sprintf("notif-supp-%d-%d", ticket.ID, now.UnixNano()),
+			TargetType:  "single_user",
+			TargetID:    ticket.UserID,
+			Title:       "Balasan Baru dari CS Catavor",
+			Message:     fmt.Sprintf("Tim Customer Support Catavor telah menjawab tiket kendala Anda #%s: \"%s\".", ticket.TicketNumber, ticket.Subject),
+			Category:    "SISTEM",
+			Type:        "ticket",
+			ActionType:  "navigate",
+			LinkSubTab:  "help",
+			ActionLabel: "Buka Tiket Bantuan →",
+			ActionURL:   fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber),
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		database.DB.Create(&notif)
 	}
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
@@ -890,27 +1047,270 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 	})
 }
 
-// StartAutoCloseTicketsWorker runs a background cron worker that periodically (every 12 hours)
-// marks resolved tickets older than 7 days as closed (Read-Only hard close).
-func (h *SupportHandler) StartAutoCloseTicketsWorker() {
-	go func() {
-		ticker := time.NewTicker(12 * time.Hour)
-		defer ticker.Stop()
+// RateTicket allows a merchant to submit CSAT rating & optional feedback for a resolved or closed ticket.
+func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
 
-		for range ticker.C {
-			sevenDaysAgo := time.Now().UTC().AddDate(0, 0, -7)
-			var staleTickets []models.SupportTicket
-			if err := database.DB.Where("status = ? AND resolved_at <= ?", "resolved", sevenDaysAgo).Find(&staleTickets).Error; err == nil {
-				now := time.Now().UTC()
-				for _, t := range staleTickets {
-					t.Status = "closed"
-					t.ClosedAt = &now
-					t.UpdatedAt = now
-					database.DB.Save(&t)
-				}
+	id := c.Params("id")
+	var ticket models.SupportTicket
+	q := database.DB.Where("user_id = ?", user.ID)
+	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
+		q = q.Where("id = ? OR ticket_number = ?", num, id)
+	} else {
+		q = q.Where("ticket_number = ?", id)
+	}
+	if err := q.First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Tiket tidak ditemukan.",
+		})
+	}
+
+	if ticket.Status != "resolved" && ticket.Status != "closed" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Penilaian hanya dapat diberikan pada tiket yang telah dinyatakan selesai atau ditutup.",
+		})
+	}
+
+	var req struct {
+		Rating  int    `json:"rating"`
+		Comment string `json:"comment"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data penilaian tidak valid.",
+		})
+	}
+
+	if req.Rating < 1 || req.Rating > 5 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Rating harus berskala 1 hingga 5.",
+		})
+	}
+
+	now := time.Now().UTC()
+	ticket.Rating = &req.Rating
+	ticket.RatingComment = security.SanitizePlainText(req.Comment, 1000)
+	ticket.RatedAt = &now
+	ticket.UpdatedAt = now
+
+	database.DB.Save(&ticket)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Terima kasih atas penilaian dan ulasan Anda!",
+		"data":    ticket,
+	})
+}
+
+// UpdatePresence records an active admin presence and typing state on a support ticket.
+func (h *SupportHandler) UpdatePresence(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	id := c.Params("id")
+	var ticketID uint
+	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
+		ticketID = uint(num)
+	} else {
+		var t models.SupportTicket
+		if err := database.DB.Where("ticket_number = ?", id).Select("id").First(&t).Error; err == nil {
+			ticketID = t.ID
+		}
+	}
+	if ticketID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Tiket tidak valid.",
+		})
+	}
+
+	var req struct {
+		IsTyping bool `json:"is_typing"`
+	}
+	_ = c.BodyParser(&req)
+
+	now := time.Now()
+	presenceMutex.Lock()
+	if ticketPresence[ticketID] == nil {
+		ticketPresence[ticketID] = make(map[uint]AdminPresenceInfo)
+	}
+	ticketPresence[ticketID][user.ID] = AdminPresenceInfo{
+		AdminID:   user.ID,
+		AdminName: user.Name,
+		LastSeen:  now,
+		IsTyping:  req.IsTyping,
+	}
+
+	// Purge stale presence entries (> 35 seconds)
+	for aid, p := range ticketPresence[ticketID] {
+		if now.Sub(p.LastSeen) > 35*time.Second {
+			delete(ticketPresence[ticketID], aid)
+		}
+	}
+	presenceMutex.Unlock()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+	})
+}
+
+// GetPresence returns list of other CS agents currently viewing or typing on this ticket.
+func (h *SupportHandler) GetPresence(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	id := c.Params("id")
+	var ticketID uint
+	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
+		ticketID = uint(num)
+	} else {
+		var t models.SupportTicket
+		if err := database.DB.Where("ticket_number = ?", id).Select("id").First(&t).Error; err == nil {
+			ticketID = t.ID
+		}
+	}
+
+	now := time.Now()
+	presenceMutex.RLock()
+	otherAdmins := make([]AdminPresenceInfo, 0)
+	if presMap, ok := ticketPresence[ticketID]; ok {
+		for aid, p := range presMap {
+			if aid != user.ID && now.Sub(p.LastSeen) <= 35*time.Second {
+				otherAdmins = append(otherAdmins, p)
 			}
 		}
+	}
+	presenceMutex.RUnlock()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    otherAdmins,
+	})
+}
+
+// StartSupportLifecycleWorker executes the full enterprise lifecycle pipeline:
+// 1. Stale Auto-Reminder (72h inactivity in waiting_user)
+// 2. Stale Auto-Resolve (48h after reminder)
+// 3. Stale Auto-Close (7-day grace period expiry)
+// 4. Multi-Tier SLA Breach Detection
+func (h *SupportHandler) StartSupportLifecycleWorker() {
+	go func() {
+		// Proactive background cycle every 15 minutes
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+
+		// Initial cycle run after 10 seconds of server boot
+		time.Sleep(10 * time.Second)
+		h.runLifecycleTasks()
+
+		for range ticker.C {
+			h.runLifecycleTasks()
+		}
 	}()
+}
+
+// StartAutoCloseTicketsWorker maintains backward-compatibility with server boot
+func (h *SupportHandler) StartAutoCloseTicketsWorker() {
+	h.StartSupportLifecycleWorker()
+}
+
+func (h *SupportHandler) runLifecycleTasks() {
+	now := time.Now().UTC()
+
+	// 1. Stale Ticket Auto-Reminder (72 jam / 3 hari di waiting_user)
+	threeDaysAgo := now.Add(-72 * time.Hour)
+	var staleWaitingTickets []models.SupportTicket
+	if err := database.DB.Where("status = ? AND reminder_count = 0 AND last_message_at <= ?", "waiting_user", threeDaysAgo).Find(&staleWaitingTickets).Error; err == nil {
+		for _, t := range staleWaitingTickets {
+			var merchant models.User
+			database.DB.First(&merchant, t.UserID)
+			merchantName := merchant.Name
+			if merchantName == "" {
+				merchantName = "Bapak/Ibu Merchant"
+			}
+
+			reminderMsg := models.SupportMessage{
+				TicketID:       t.ID,
+				SenderID:       t.UserID,
+				SenderType:     "system",
+				Message:        fmt.Sprintf("Halo %s, kami mencatat bahwa belum ada tanggapan lanjutan pada tiket kendala #%s. Apakah kendala ini masih Anda alami atau sudah terselesaikan? Jika sudah tidak ada kendala, tiket ini akan ditandai selesai secara otomatis oleh sistem dalam 48 jam ke depan. Terima kasih!", merchantName, t.TicketNumber),
+				IsInternalNote: false,
+				CreatedAt:      now,
+			}
+			database.DB.Create(&reminderMsg)
+
+			t.ReminderCount = 1
+			t.ReminderSentAt = &now
+			t.UpdatedAt = now
+			database.DB.Save(&t)
+		}
+	}
+
+	// 2. Stale Ticket Auto-Resolve (48 jam setelah Reminder)
+	twoDaysAgo := now.Add(-48 * time.Hour)
+	var ticketsToResolve []models.SupportTicket
+	if err := database.DB.Where("status = ? AND reminder_count >= 1 AND reminder_sent_at <= ?", "waiting_user", twoDaysAgo).Find(&ticketsToResolve).Error; err == nil {
+		for _, t := range ticketsToResolve {
+			var merchant models.User
+			database.DB.First(&merchant, t.UserID)
+			merchantName := merchant.Name
+			if merchantName == "" {
+				merchantName = "Bapak/Ibu Merchant"
+			}
+
+			autoResolveMsg := models.SupportMessage{
+				TicketID:       t.ID,
+				SenderID:       t.UserID,
+				SenderType:     "system",
+				Message:        fmt.Sprintf("Halo %s, karena tidak ada tanggapan lanjutan setelah pemberitahuan pengingat, tiket #%s telah kami tandai Selesai secara otomatis. Tiket kini memasuki Masa Sanggah 7 Hari. Anda dapat membalas pesan ini kapan saja jika kendala masih berlanjut untuk membukanya kembali.", merchantName, t.TicketNumber),
+				IsInternalNote: false,
+				CreatedAt:      now,
+			}
+			database.DB.Create(&autoResolveMsg)
+
+			t.Status = "resolved"
+			t.ResolvedAt = &now
+			t.UpdatedAt = now
+			database.DB.Save(&t)
+		}
+	}
+
+	// 3. Stale Resolved Ticket Auto-Close (7 hari setelah Resolved)
+	sevenDaysAgo := now.AddDate(0, 0, -7)
+	var staleResolvedTickets []models.SupportTicket
+	if err := database.DB.Where("status = ? AND resolved_at <= ?", "resolved", sevenDaysAgo).Find(&staleResolvedTickets).Error; err == nil {
+		for _, t := range staleResolvedTickets {
+			t.Status = "closed"
+			t.ClosedAt = &now
+			t.UpdatedAt = now
+			database.DB.Save(&t)
+		}
+	}
+
+	// 4. Multi-Tier SLA Breach Detection
+	database.DB.Model(&models.SupportTicket{}).
+		Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
+		Update("sla_breached", true)
 }
 
 // ListCannedResponses returns all canned response templates grouped or filtered.
@@ -1305,5 +1705,46 @@ func (h *SupportHandler) VoteHelpful(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 		"success": false,
 		"message": "ID artikel tidak valid.",
+	})
+}
+
+// GetSupportTicketsPing provides a super-fast, lightweight polling heartbeat for merchants and staff.
+func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
+		strings.EqualFold(user.PlatformRole, "support") || 
+		user.Email == "admin@catavor.com"
+
+	var unreadTicketsCount int64
+	if isStaff {
+		database.DB.Model(&models.SupportTicket{}).
+			Where("status IN (?)", []string{"open", "waiting_agent"}).
+			Count(&unreadTicketsCount)
+	} else {
+		database.DB.Model(&models.SupportMessage{}).
+			Where("ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ?) AND sender_type = ? AND read_at IS NULL AND is_internal_note = false", user.ID, "agent").
+			Select("COUNT(DISTINCT ticket_id)").
+			Scan(&unreadTicketsCount)
+	}
+
+	var latestTime time.Time
+	if isStaff {
+		database.DB.Model(&models.SupportTicket{}).Select("MAX(last_message_at)").Scan(&latestTime)
+	} else {
+		database.DB.Model(&models.SupportTicket{}).Where("user_id = ?", user.ID).Select("MAX(last_message_at)").Scan(&latestTime)
+	}
+
+	return c.JSON(fiber.Map{
+		"success":           true,
+		"unread_count":      unreadTicketsCount,
+		"latest_message_at": latestTime,
+		"timestamp":         time.Now().UTC().Unix(),
 	})
 }

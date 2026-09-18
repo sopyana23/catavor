@@ -53,7 +53,6 @@ export const initGoogleAnalytics = (measurementId?: string, isEnabled: boolean =
     });
 
     initializedMeasurementId = cleanId;
-    console.log(`[Catavor GA4] Successfully initialized runtime tracking for ${cleanId}`);
   } catch (err) {
     console.warn('[Catavor GA4] Failed to initialize Google Analytics:', err);
   }

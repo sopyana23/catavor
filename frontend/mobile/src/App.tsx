@@ -172,7 +172,7 @@ function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
   
   if (parts.length === 0) return null;
   if (reservedPortal.includes(parts[0])) return null;
@@ -470,7 +470,40 @@ interface SupportTicket {
   unread_count?: number;
   has_unread?: boolean;
   messages: TicketMessage[];
+  rating?: number;
+  rating_comment?: string;
+  rated_at?: string;
+  sla_due_at?: string;
+  sla_breached?: boolean;
 }
+
+export const getChatFirstName = (name?: string, fallback = 'Pengelola'): string => {
+  if (!name) return fallback;
+  const trimmed = name.trim();
+  if (!trimmed) return fallback;
+
+  // 1. Ambil kata pertama sebelum spasi
+  let first = trimmed.split(/\s+/)[0];
+
+  // 2. Jika mengandung separator email (@, ., _, -), ambil segmen pertama
+  if (first.includes('@')) {
+    first = first.split('@')[0];
+  }
+  if (first.includes('.') || first.includes('_') || first.includes('-')) {
+    const subParts = first.split(/[._\-+]/).filter(Boolean);
+    if (subParts.length > 0) {
+      first = subParts[0];
+    }
+  }
+
+  // 3. Hapus angka di belakang jika menyisakan nama valid (misal: "Josericardo 66" / "Josericardo66" -> "Josericardo")
+  const lettersOnly = first.replace(/\d+$/, '');
+  if (lettersOnly.length >= 2) {
+    first = lettersOnly;
+  }
+
+  return first.charAt(0).toUpperCase() + first.slice(1);
+};
 
 const INITIAL_TICKETS: SupportTicket[] = [
   {
@@ -485,7 +518,7 @@ const INITIAL_TICKETS: SupportTicket[] = [
       {
         id: 'msg-1',
         sender: 'user',
-        sender_name: 'Pengelola Katalog',
+        sender_name: 'Pengelola',
         message: 'Halo Tim Catavor, saya sudah melakukan pembayaran transaksi aktivasi ke Paket Pro via QRIS. Mohon bantuannya untuk verifikasi agar fitur Pro aktif.',
         timestamp: '28 Jul 2026, 14:20'
       },
@@ -510,7 +543,7 @@ const INITIAL_TICKETS: SupportTicket[] = [
       {
         id: 'msg-10',
         sender: 'user',
-        sender_name: 'Pengelola Katalog',
+        sender_name: 'Pengelola',
         message: 'Bagaimana cara mengubah URL slug katalog saya agar lebih ringkas?',
         timestamp: '25 Jul 2026, 09:15'
       },
@@ -4392,7 +4425,7 @@ function App() {
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return null;
     
@@ -4401,19 +4434,46 @@ function App() {
     }
     return null;
   };
-  const [storeSlug, setStoreSlug] = useState<string | null>(getStoreSlug());
+  const [storeSlug, setStoreSlug] = useState<string | null>(() => {
+    const slug = getStoreSlug();
+    if (slug) return slug;
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('/admin')) {
+        try {
+          const userRaw = localStorage.getItem('catavor_user');
+          if (userRaw) {
+            const u = JSON.parse(userRaw);
+            if (!isPlatformAdmin(u) && u.store_slug) {
+              return u.store_slug;
+            }
+          }
+        } catch {}
+      }
+    }
+    return null;
+  });
 
   // Persistent Onboarding Registration State across Page Refreshes (Mobile) & Industry Standard Clean URLs
   const loadSavedRegistrationState = () => {
     try {
       const path = window.location.pathname.toLowerCase();
+      if (path.includes('/admin')) {
+        return {
+          tab: 'home' as const,
+          step: 1 as const,
+          plan: 'free' as const,
+          form: { name: '', email: '', password: '', store_name: '', store_slug: '' }
+        };
+      }
+
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
       let pathTab: 'home' | 'login' | 'register' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
-      if (path === '/admin' || path === '/dashboard') {
+      if (path === '/dashboard') {
         const savedToken = localStorage.getItem('catavor_token');
         const savedUserStr = localStorage.getItem('catavor_user');
         const savedStoresStr = localStorage.getItem('catavor_stores');
@@ -4435,7 +4495,7 @@ function App() {
         } else {
           pathTab = 'login';
           try {
-            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: '/admin' }));
+            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: window.location.pathname + window.location.search }));
           } catch {}
         }
       } else if (path === '/login') {
@@ -4720,7 +4780,6 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
     } catch (err) {
@@ -4728,7 +4787,26 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   }, [storeSlug]);
 
-  // Enterprise Activity & Audit Logs State (Mobile)
+  const handleClearReadNotifications = useCallback(async () => {
+    setNotifications(prev => prev.filter(n => !n.read));
+    showToast('Riwayat notifikasi terbaca telah dibersihkan!');
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch('/api/notifications/clear-read', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+      fetchNotificationsFromBackend(1, false, notifFilter);
+    } catch (err) {
+      console.warn('Failed to clear read notifications on server:', err);
+    }
+  }, [storeSlug, notifFilter, fetchNotificationsFromBackend]);
+
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activityTotal, setActivityTotal] = useState<number>(0);
   const [activityPage, setActivityPage] = useState<number>(1);
@@ -5361,9 +5439,45 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Mobile navigation views: 'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'
   const isPopStateRef = useRef<boolean>(false)
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
-  const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>('catalog')
+  const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('/admin')) {
+        return 'admin';
+      }
+    }
+    return 'catalog';
+  })
   const [aboutSubView, setAboutSubView] = useState<'main' | 'qrcode'>('main')
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>('menu')
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      const urlParams = new URLSearchParams(window.location.search);
+      const parts = path.split('/').filter(Boolean);
+      const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
+      if (['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) || urlParams.get('ticket') || (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2]))) {
+        return 'help';
+      }
+      if (parts.length >= 3 && parts[1] === 'admin') {
+        const sub = parts[2];
+        if (['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+          return sub as any;
+        }
+      }
+    }
+    return 'menu';
+  })
+
+  // Smart default tab: Saat membuka notifikasi, prioritaskan 'unread' jika ada yang belum dibaca
+  useEffect(() => {
+    if (adminSubTab === 'notifications') {
+      if (notifUnreadCount > 0) {
+        setNotifFilter('unread');
+      } else {
+        setNotifFilter('all');
+      }
+    }
+  }, [adminSubTab, notifUnreadCount]);
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -6021,6 +6135,26 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [showPrioritySelectModal, setShowPrioritySelectModal] = useState<boolean>(false);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
   const [ticketSearch, setTicketSearch] = useState<string>('');
+  const [debouncedTicketSearch, setDebouncedTicketSearch] = useState<string>('');
+  const [ticketPage, setTicketPage] = useState<number>(1);
+  const [ticketTotalPages, setTicketTotalPages] = useState<number>(1);
+  const [ticketTotalItems, setTicketTotalItems] = useState<number>(0);
+  const [ticketLimit] = useState<number>(15);
+  const [ticketMetrics, setTicketMetrics] = useState<{ total: number; active: number; resolved: number }>({ total: 0, active: 0, resolved: 0 });
+
+  // Debounce ticketSearch input by 350ms to prevent mobile network spam
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTicketSearch(ticketSearch);
+      setTicketPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [ticketSearch]);
+
+  // Reset to page 1 on filter tab change
+  useEffect(() => {
+    setTicketPage(1);
+  }, [ticketFilter]);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
 
   // Screenshot Attachment Upload States (Mobile)
@@ -6029,6 +6163,47 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState<boolean>(false);
   const [isSubmittingReply, setIsSubmittingReply] = useState<boolean>(false);
+
+  // CSAT 1-Click Rating States (Fase 2)
+  const [csatRating, setCsatRating] = useState<number>(5);
+  const [csatComment, setCsatComment] = useState<string>('');
+  const [isSubmittingCSAT, setIsSubmittingCSAT] = useState<boolean>(false);
+  const [csatHoverRating, setCsatHoverRating] = useState<number>(0);
+
+  useEffect(() => {
+    if (selectedTicket) {
+      setCsatRating(selectedTicket.rating || 5);
+      setCsatComment(selectedTicket.rating_comment || '');
+      setCsatHoverRating(0);
+    }
+  }, [selectedTicket?.id]);
+
+  const handleSubmitCSAT = async (ticketId: string | number) => {
+    if (!token || !ticketId) return;
+    setIsSubmittingCSAT(true);
+    try {
+      const res = await fetch(`${API_BASE}/support/tickets/${ticketId}/rating`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          rating: csatRating,
+          comment: csatComment.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Terima kasih! Ulasan kepuasan Anda berhasil disimpan.', 'success');
+        setSelectedTicket(prev => prev ? { ...prev, rating: csatRating, rating_comment: csatComment.trim(), rated_at: new Date().toISOString() } : null);
+        setTickets(prev => prev.map(t => (t.id === ticketId || String(t.id) === String(ticketId)) ? { ...t, rating: csatRating, rating_comment: csatComment.trim(), rated_at: new Date().toISOString() } : t));
+      } else {
+        showToast(data.message || 'Gagal mengirim rating CSAT.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menghubungi server.', 'error');
+    } finally {
+      setIsSubmittingCSAT(false);
+    }
+  };
 
   // In-App Support Attachment Lightbox State
   const [attachmentLightbox, setAttachmentLightbox] = useState<{
@@ -6131,15 +6306,50 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   };
 
   // Fetch tickets from backend API dengan mode silent untuk live background polling
-  const fetchSupportTickets = async (silent: boolean = false) => {
+  // Fetch tickets from backend API dengan dukungan server-side search, filtering, dan paginasi
+  const fetchSupportTickets = async (silent: boolean = false, pageToFetch: number = ticketPage) => {
     if (!token) return;
     try {
       if (!silent) setLoadingTickets(true);
-      const res = await fetch(`${API_BASE}/support/tickets`, {
+      const queryParams = new URLSearchParams();
+      queryParams.set('page', String(pageToFetch));
+      queryParams.set('limit', String(ticketLimit));
+      if (ticketFilter !== 'all') {
+        queryParams.set('status', ticketFilter);
+      }
+      if (debouncedTicketSearch.trim()) {
+        queryParams.set('q', debouncedTicketSearch.trim());
+      }
+
+      const res = await fetch(`${API_BASE}/support/tickets?${queryParams.toString()}`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
+        if (data.pagination) {
+          setTicketTotalPages(data.pagination.total_pages || 1);
+          setTicketTotalItems(data.pagination.total_items || data.data.length);
+        }
+        if (data.metrics) {
+          setTicketMetrics({
+            total: Number(data.metrics.total) || 0,
+            active: Number(data.metrics.active) || 0,
+            resolved: Number(data.metrics.resolved) || 0
+          });
+        } else {
+          // Client-side fallback if server metrics is not yet provided:
+          // Update only when fetching all without search filter to keep counts stable across tab switches
+          if (ticketFilter === 'all' && !debouncedTicketSearch.trim()) {
+            const allItems = data.data;
+            const act = allItems.filter((t: any) => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length;
+            const res = allItems.filter((t: any) => t.status === 'resolved' || t.status === 'closed').length;
+            setTicketMetrics({
+              total: data.pagination?.total_items || allItems.length,
+              active: act,
+              resolved: res
+            });
+          }
+        }
         const mappedTickets: SupportTicket[] = data.data.map((t: any) => {
           const msgs = Array.isArray(t.messages) ? t.messages : [];
           const hasUnreadAgent = msgs.some((m: any) => (m.sender_type === 'agent' || m.sender_type === 'support') && !m.read_at);
@@ -6158,13 +6368,20 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             raw_last_message_at: t.last_message_at || t.updated_at,
             unread_count: unreadCount,
             has_unread: hasUnread,
+            rating: t.rating,
+            rating_comment: t.rating_comment,
+            rated_at: t.rated_at,
+            sla_due_at: t.sla_due_at,
+            sla_breached: t.sla_breached,
             created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
             messages: msgs.map((m: any) => ({
               id: m.id,
               sender: m.sender_type || 'user',
-              sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
+              sender_name: m.sender_type === 'agent' 
+                ? 'Catavor Official Support' 
+                : getChatFirstName(m.sender?.name || adminUser?.name || 'Pengelola'),
               message: m.message,
               timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               read_at: m.read_at,
@@ -6175,43 +6392,60 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
         // Deteksi balasan baru dari CS untuk memicu notifikasi toast & audio chime
         if (!isFirstTicketLoadRef.current) {
+          let totalNewIncoming = 0;
+          let latestTicket: any = null;
+          let latestSnippet = '';
+
           mappedTickets.forEach(t => {
             const prevCount = prevTicketMessagesRef.current[String(t.id)] || 0;
             const curCount = t.messages.length;
             if (curCount > prevCount && prevCount > 0) {
-              const lastMsg = t.messages[t.messages.length - 1];
-              if (lastMsg && (lastMsg.sender === 'agent' || lastMsg.sender === 'support')) {
+              const newMsgs = t.messages.slice(prevCount);
+              const agentMsgs = newMsgs.filter((m: any) => m.sender === 'agent' || m.sender === 'support');
+              if (agentMsgs.length > 0) {
+                totalNewIncoming += agentMsgs.length;
+                latestTicket = t;
+                const lastMsg = agentMsgs[agentMsgs.length - 1];
+                latestSnippet = lastMsg?.message ? (lastMsg.message.length > 50 ? lastMsg.message.substring(0, 50) + '...' : lastMsg.message) : '';
+
                 // Jika balasan baru tiba dan pengguna tidak sedang membuka obrolan tiket ini, lepas dari readTicketIdsRef
                 if (selectedTicket?.id !== t.id) {
                   readTicketIdsRef.current.delete(t.id);
                   readTicketIdsRef.current.delete(String(t.id));
                 }
-                const snippet = lastMsg.message ? (lastMsg.message.length > 50 ? lastMsg.message.substring(0, 50) + '...' : lastMsg.message) : '';
-                showToast(
-                  'Pesan masuk',
-                  'info',
-                  undefined,
-                  () => {
-                    setSelectedTicket(t);
-                    fetchTicketDetails(t.id);
-                    setAdminSubTab('help');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${t.id}`);
-                  }
-                );
-                playSupportChime();
-
-                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-                  try {
-                    new Notification('Balasan Baru dari CS Catavor', {
-                      body: `Tiket #${t.ticket_number || t.id}: ${snippet}`,
-                      icon: '/favicon.ico'
-                    });
-                  } catch {}
-                }
               }
             }
           });
+
+          if (totalNewIncoming > 0 && latestTicket) {
+            const toastText = totalNewIncoming === 1 
+              ? '1 pesan masuk' 
+              : `${totalNewIncoming} pesan masuk`;
+
+            const targetTicket = latestTicket;
+            showToast(
+              toastText,
+              'info',
+              undefined,
+              () => {
+                setSelectedTicket(targetTicket);
+                fetchTicketDetails(targetTicket.id);
+                setAdminSubTab('help');
+                const slug = getStoreSlug();
+                if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${targetTicket.id}`);
+              }
+            );
+            playSupportChime();
+
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification('Balasan Baru dari CS Catavor', {
+                  body: `Tiket #${(targetTicket as any).ticket_number || targetTicket.id}: ${latestSnippet}`,
+                  icon: '/favicon.ico'
+                });
+              } catch {}
+            }
+          }
         }
 
         const counts: Record<string, number> = {};
@@ -6227,7 +6461,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (selectedTicket) {
           const updatedActive = mappedTickets.find(t => t.id === selectedTicket.id);
           if (updatedActive && updatedActive.messages.length !== selectedTicket.messages.length) {
-            setSelectedTicket(updatedActive);
+            setSelectedTicket(prev => {
+              if (!prev) return updatedActive;
+              const mergedMsgs = updatedActive.messages.map((m: any) => {
+                const existing = prev.messages?.find((em: any) => em.id === m.id);
+                if (existing?.attachments?.length && (!m.attachments || m.attachments.length === 0)) {
+                  return { ...m, attachments: existing.attachments };
+                }
+                return m;
+              });
+              return { ...prev, ...updatedActive, messages: mergedMsgs };
+            });
           }
         }
       }
@@ -6260,13 +6504,20 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           raw_last_message_at: t.last_message_at || t.updated_at,
           unread_count: 0,
           has_unread: false,
+          rating: t.rating,
+          rating_comment: t.rating_comment,
+          rated_at: t.rated_at,
+          sla_due_at: t.sla_due_at,
+          sla_breached: t.sla_breached,
           created_at: new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           updated_at: new Date(t.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
           messages: msgList.map((m: any) => ({
             id: m.id,
             sender: m.sender_type || 'user',
-            sender_name: m.sender_type === 'agent' ? 'Catavor Official Support' : (adminUser?.name || 'Pengelola Katalog'),
+            sender_name: m.sender_type === 'agent' 
+              ? 'Catavor Official Support' 
+              : getChatFirstName(m.sender?.name || adminUser?.name || 'Pengelola'),
             message: m.message,
             timestamp: new Date(m.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             read_at: m.read_at,
@@ -6294,18 +6545,67 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
-  // Polling otomatis: 8 detik di tab bantuan, 20 detik di tab lain
+  // Helper: Ekstrak nomor atau ID tiket dari item notifikasi untuk Contextual Deep Linking
+  const extractTicketFromNotif = (item: any): string | null => {
+    if (!item) return null;
+    if (item.action_url) {
+      const urlMatch = item.action_url.match(/(?:support_ticket|ticket)=([^&#]+)/i);
+      if (urlMatch && urlMatch[1]) return decodeURIComponent(urlMatch[1]);
+    }
+    const combined = `${item.title || ''} ${item.message || ''} ${item.detail_content || ''}`;
+    const codeMatch = combined.match(/#?(TCK-\d{8}-\d+)/i);
+    if (codeMatch && codeMatch[1]) return codeMatch[1];
+    if (item.ticket_number || item.ticket_id) return String(item.ticket_number || item.ticket_id);
+    return null;
+  };
+
+  // Best Practice: Navigasi langsung (Deep-Link) dari notifikasi ke detail chat tiket bantuan
+  const handleNavigateToTicketFromNotif = (notifItem: any) => {
+    const ticketRef = extractTicketFromNotif(notifItem);
+    setAdminSubTab('help');
+    setIsCreatingTicket(false);
+    setSelectedNotification(null);
+    const slug = getStoreSlug();
+
+    if (ticketRef) {
+      const found = tickets.find(t => String(t.id) === String(ticketRef) || String(t.ticket_number) === String(ticketRef));
+      if (found) {
+        setSelectedTicket(found);
+        fetchTicketDetails(found.id);
+      } else {
+        fetchTicketDetails(ticketRef);
+      }
+      if (slug) {
+        window.history.pushState({}, '', `/${slug}/admin/help?ticket=${ticketRef}`);
+      }
+    } else {
+      setSelectedTicket(null);
+      if (slug) {
+        window.history.pushState({}, '', `/${slug}/admin/help`);
+      }
+    }
+  };
+
+  // Trigger fetch ketika filter status, kata kunci debounced search, atau halaman paginasi berubah
   useEffect(() => {
     if (!token) return;
-    fetchSupportTickets(tickets.length > 0);
+    fetchSupportTickets(tickets.length > 0, ticketPage);
+  }, [adminSubTab, token, debouncedTicketSearch, ticketFilter, ticketPage]);
 
-    const intervalMs = adminSubTab === 'help' ? 8000 : 20000;
+  // Polling otomatis hemat resource: 10 detik di tab bantuan, 25 detik di tab lain
+  useEffect(() => {
+    if (!token) return;
+
+    const intervalMs = adminSubTab === 'help' ? 10000 : 25000;
     const timer = setInterval(() => {
-      fetchSupportTickets(true);
+      if (selectedTicket?.id) {
+        fetchTicketDetails(selectedTicket.id);
+      }
+      fetchSupportTickets(true, ticketPage);
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [adminSubTab, token, selectedTicket?.id]);
+  }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter]);
 
   // Auto-scroll ke pesan percakapan terbaru saat tiket dibuka atau pesan baru tiba
   useEffect(() => {
@@ -6373,43 +6673,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
+  // Data tiket telah disaring dan diurutkan secara server-side
   const filteredTickets = useMemo(() => {
-    const list = tickets.filter(t => {
-      const searchStr = ticketSearch.toLowerCase().trim();
-      const matchesSearch = !searchStr || 
-        t.subject.toLowerCase().includes(searchStr) || 
-        String(t.ticket_number || t.id).toLowerCase().includes(searchStr);
-
-      if (!matchesSearch) return false;
-
-      if (ticketFilter === 'active') return t.status === 'open' || t.status === 'waiting_agent' || t.status === 'in_progress' || t.status === 'waiting_user';
-      if (ticketFilter === 'resolved') return t.status === 'resolved' || t.status === 'closed';
-      return true;
-    });
-
-    // URUTKAN: Pesan belum terbaca maupun sudah terbaca diurutkan berdasarkan tanggal/waktu terbaru dari isian chat terakhir layaknya aplikasi sosial media (WhatsApp/Telegram)
-    return [...list].sort((a, b) => {
-      const getLatestTime = (t: any): number => {
-        if (Array.isArray(t.messages) && t.messages.length > 0) {
-          const last = t.messages[t.messages.length - 1];
-          const mt = new Date(last.raw_created_at || last.created_at || last.timestamp || 0).getTime();
-          if (!isNaN(mt) && mt > 1000000000) return mt;
-        }
-        if (t.raw_last_message_at) {
-          const lma = new Date(t.raw_last_message_at).getTime();
-          if (!isNaN(lma) && lma > 1000000000) return lma;
-        }
-        if (t.raw_updated_at || t.updated_at) {
-          const ua = new Date(t.raw_updated_at || t.updated_at).getTime();
-          if (!isNaN(ua) && ua > 1000000000) return ua;
-        }
-        const ca = new Date(t.created_at || 0).getTime();
-        return isNaN(ca) ? 0 : ca;
-      };
-
-      return getLatestTime(b) - getLatestTime(a);
-    });
-  }, [tickets, ticketFilter, ticketSearch, selectedTicket?.id]);
+    return tickets;
+  }, [tickets]);
 
   const unreadTicketsCount = useMemo(() => {
     return tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
@@ -6634,7 +6901,43 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Detect URL path on mount
   // Detect & parse URL path on mount (Mobile)
   useEffect(() => {
-    const slug = getStoreSlug();
+    const path = window.location.pathname.toLowerCase();
+    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+
+    if (isPlatformAdminPath) {
+      if (token && isPlatformAdmin(adminUser)) {
+        setActiveTab('admin');
+        setStoreSlug(null);
+        return;
+      }
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasTicketParam = Boolean(urlParams.get('ticket'));
+    const isSupportTab = ['support', 'help', 'bantuan'].includes((urlParams.get('tab') || '').toLowerCase());
+
+    let slug = getStoreSlug();
+    if (!slug && (path.includes('/admin') || hasTicketParam || isSupportTab)) {
+      const savedUserStr = localStorage.getItem('catavor_user');
+      if (savedUserStr) {
+        try {
+          const u = JSON.parse(savedUserStr);
+          if (isPlatformAdmin(u) && (hasTicketParam || isSupportTab)) {
+            setActiveTab('admin');
+            setStoreSlug(null);
+            if (path === '/' || path === '') {
+              window.history.replaceState({}, '', `/catavor/admin?${urlParams.toString()}`);
+            }
+            return;
+          } else if (u.store_slug) {
+            slug = u.store_slug;
+            if (path === '/' || path === '') {
+              window.history.replaceState({}, '', `/${slug}/admin?${urlParams.toString()}`);
+            }
+          }
+        } catch {}
+      }
+    }
     setStoreSlug(slug);
 
     if (slug) {
@@ -6642,11 +6945,13 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const parts = path.split('/').filter(Boolean);
       const urlParams = new URLSearchParams(window.location.search);
 
-      if (parts.length >= 2) {
-        const sub = parts[1];
+      if (parts.length >= 2 || path.includes('/admin')) {
+        const sub = (parts.length >= 2 ? parts[1] : '') || (path.includes('/admin') ? 'admin' : '');
         if (sub === 'admin') {
           setActiveTab('admin');
-          const pageSub = parts[2] || urlParams.get('sub');
+          const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
+          const isSupportQuery = ['support', 'help', 'bantuan', 'tickets', 'chat'].includes(rawTabParam) || Boolean(urlParams.get('ticket'));
+          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || urlParams.get('tab');
           const subSub = parts[3];
           const paramId = parts[4];
 
@@ -6713,7 +7018,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
             setAdminSubTab('subscription');
             setView('tabs');
-          } else if (pageSub === 'help' || pageSub === 'bantuan') {
+          } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminSubTab('help');
             setView('tabs');
             if (subSub === 'new' || subSub === 'create' || urlParams.get('action') === 'new' || urlParams.get('ticket') === 'new') {
@@ -6731,7 +7036,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                     return INITIAL_TICKETS;
                   }
                 })();
-                const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+                const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === ticketParam.toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === ticketParam.toLowerCase()));
                 if (found) {
                   setSelectedTicket(found);
                 }
@@ -6844,21 +7149,32 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Browser Back/Forward PopState Event Listener for Mobile Navigation
   useEffect(() => {
     const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase();
+      const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+      if (isPlatformAdminPath) {
+        if (token && isPlatformAdmin(adminUser)) {
+          setActiveTab('admin');
+          setStoreSlug(null);
+          return;
+        }
+      }
+
       const slug = getStoreSlug();
       if (slug) {
-        const path = window.location.pathname.toLowerCase();
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);
 
         if (parts.length >= 2 && parts[1] === 'admin') {
           setActiveTab('admin');
-          const pageSub = parts[2] || urlParams.get('sub');
+          const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
+          const isSupportQuery = ['support', 'help', 'bantuan', 'tickets', 'chat'].includes(rawTabParam) || Boolean(urlParams.get('ticket'));
+          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || urlParams.get('tab');
           const subSub = parts[3];
           if (pageSub === 'notifications') {
             setAdminSubTab('notifications');
             setSelectedTicket(null);
             setIsCreatingTicket(false);
-          } else if (pageSub === 'help' || pageSub === 'bantuan') {
+          } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminSubTab('help');
             if (subSub === 'new' || subSub === 'create' || urlParams.get('action') === 'new' || urlParams.get('ticket') === 'new') {
               setIsCreatingTicket(true);
@@ -6875,7 +7191,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                     return INITIAL_TICKETS;
                   }
                 })();
-                const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+                const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === ticketParam.toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === ticketParam.toLowerCase()));
                 if (found) setSelectedTicket(found);
                 else setSelectedTicket(null);
                 fetchTicketDetails(ticketParam);
@@ -7118,9 +7434,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
-      if (path === '/admin' || path === '/dashboard') {
+      const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+      if (isPlatformAdminPath || path === '/dashboard') {
         const savedToken = token || localStorage.getItem('catavor_token');
         const savedUserStr = localStorage.getItem('catavor_user');
+        if (savedUserStr) {
+          try {
+            const u = JSON.parse(savedUserStr);
+            if (isPlatformAdmin(u)) {
+              setActiveTab('admin');
+              return;
+            }
+          } catch {}
+        }
         let activeSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
         if (!activeSlug && savedUserStr) {
           try {
@@ -7137,7 +7463,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         } else {
           setPortalTab('login');
           try {
-            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: '/admin' }));
+            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: window.location.pathname + window.location.search }));
           } catch {}
         }
       } else if (path === '/login') {
@@ -7178,6 +7504,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Sync active portalTab to Browser Address Bar URL and Session Storage
   useEffect(() => {
     if (storeSlug) return;
+    const path = window.location.pathname.toLowerCase();
+    if (path.includes('/admin')) return;
     let targetPath = '/';
     if (portalTab === 'login') targetPath = '/login';
     else if (portalTab === 'register') targetPath = `/register/step-${registerStep}`;
@@ -7390,8 +7718,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) {
+      return false;
+    }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -7410,6 +7741,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Load Data
   const loadData = async (overrideSlug?: string) => {
+    const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+    if (isPlatformAdminPath && isPlatformAdmin(adminUser)) {
+      setLoading(false);
+      setIsAppInitializing(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -7587,6 +7926,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Sync activeTab state, admin sub-tab, sub-sub-paths, settings section, and open views/modals to browser URL
   useEffect(() => {
     if (!storeSlug || error || isInvalidRoute()) return;
+    const path = window.location.pathname.toLowerCase();
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) return;
+    if (isPlatformAdmin(adminUser)) return;
 
     let targetPath = `/${storeSlug}`;
     const params = new URLSearchParams();
@@ -7675,6 +8017,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
     if (storeSlug || error || isInvalidRoute()) return;
+    const path = window.location.pathname.toLowerCase();
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) return;
+    if (token && isPlatformAdmin(adminUser)) return;
 
     sessionStorage.setItem('catavor_portal_tab', portalTab);
     sessionStorage.setItem('catavor_register_step', String(registerStep ?? 1));
@@ -7704,11 +8049,20 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Mobile PopState listener for Back/Forward & gesture back navigation across clean paths
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      const path = window.location.pathname.toLowerCase();
+      const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+      if (isPlatformAdminPath) {
+        if (token && isPlatformAdmin(adminUser)) {
+          setActiveTab('admin');
+          setStoreSlug(null);
+          return;
+        }
+      }
+
       const slug = getStoreSlug();
       setStoreSlug(slug);
       if (slug) return;
 
-      const path = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
@@ -9740,7 +10094,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   }
 
   // Render Dedicated Platform Administration Console for Platform Admins (Mobile)
-  if (token && isPlatformAdmin(adminUser) && (activeTab === 'admin' || window.location.pathname.toLowerCase().includes('/admin'))) {
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+  const isPlatformAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/') || currentPath === '/catavor/admin' || currentPath.startsWith('/catavor/admin/');
+  if (token && isPlatformAdmin(adminUser) && (activeTab === 'admin' || isPlatformAdminPath)) {
     return (
       <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', padding: 0, margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box', overflowX: 'clip' }}>
         <PlatformRolePortal
@@ -9752,8 +10108,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     );
   }
 
-  // Render Landing Portal Page (Mobile Responsive Layout)
-  if (!storeSlug && !error) {
+  // Render Landing Portal Page (Mobile Responsive Layout - strictly guarded so admin routes NEVER render landing page)
+  const isAnyAdminPath = currentPath.includes('/admin');
+  if (!storeSlug && !error && !isAnyAdminPath) {
     const activeIndustryData = LANDING_INDUSTRIES.find(ind => ind.id === landingCategory) || LANDING_INDUSTRIES[0];
     const filteredStores = featuredStores.filter(st => {
       if (!searchStoreQuery.trim()) return true;
@@ -18568,6 +18925,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               type="button"
                               className="btn-primary"
                               onClick={() => {
+                                const ticketRef = extractTicketFromNotif(selectedNotification);
+                                const isTicketNotif = Boolean(ticketRef) || selectedNotification.type === 'ticket' || selectedNotification.linkSubTab === 'help' || (selectedNotification.title && selectedNotification.title.includes('CS Catavor'));
+
+                                if (isTicketNotif) {
+                                  handleNavigateToTicketFromNotif(selectedNotification);
+                                  return;
+                                }
+
                                 const subTab = selectedNotification.linkSubTab;
                                 const settingsTab = selectedNotification.linkMobileSettingsTab;
                                 setSelectedNotification(null);
@@ -18667,23 +19032,43 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           </button>
                         </div>
 
-                        {unreadCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={handleMarkAllAsRead}
-                            style={{
-                              fontSize: '0.72rem',
-                              fontWeight: 800,
-                              color: 'var(--primary)',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            Tandai Semua Dibaca
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                          {unreadCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleMarkAllAsRead}
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                color: 'var(--primary)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              Tandai Semua Dibaca
+                            </button>
+                          )}
+                          {notifFilter === 'all' && notifications.some(n => n.read) && (
+                            <button
+                              type="button"
+                              onClick={handleClearReadNotifications}
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                color: 'var(--text-muted)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title="Bersihkan riwayat notifikasi yang sudah dibaca"
+                            >
+                              Bersihkan Terbaca
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Banner Balasan CS Unread (Standard Industri Intercom/Zendesk) */}
@@ -18691,8 +19076,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <div 
                           onClick={() => {
                             setAdminSubTab('help');
+                            setIsCreatingTicket(false);
+                            const unreadTicket = tickets.find(t => t.has_unread || (t.unread_count || 0) > 0) || tickets[0];
                             const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                            if (unreadTicket) {
+                              setSelectedTicket(unreadTicket);
+                              fetchTicketDetails(unreadTicket.id);
+                              if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${unreadTicket.ticket_number || unreadTicket.id}`);
+                            } else {
+                              setSelectedTicket(null);
+                              if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                            }
                           }}
                           className="glass-panel"
                           style={{
@@ -18774,6 +19168,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 onClick={() => {
                                   // Mark as read in state & persist to backend database
                                   handleMarkAsRead(item.id);
+
+                                  const ticketRef = extractTicketFromNotif(item);
+                                  const isTicketNotif = Boolean(ticketRef) || item.type === 'ticket' || item.linkSubTab === 'help' || (item.title && item.title.includes('CS Catavor'));
+
+                                  if (isTicketNotif) {
+                                    handleNavigateToTicketFromNotif(item);
+                                    return;
+                                  }
+
                                   if (isDirectNav && item.linkSubTab) {
                                     setAdminSubTab(item.linkSubTab);
                                     if (item.linkMobileSettingsTab) {
@@ -18895,10 +19298,25 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           {/* Sentinel element to trigger next page load */}
                           <div ref={notifSentinelRef} style={{ height: '20px', width: '100%', pointerEvents: 'none' }} />
 
-                          {/* End of list banner */}
-                          {!notifHasMore && filteredNotifications.length > 0 && (
-                            <div style={{ textAlign: 'center', padding: '1.25rem 0.5rem 0.5rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.74rem', fontWeight: 600 }}>
-                              — Semua notifikasi telah dimuat —
+                          {/* End of list banner & 30-Day Retention Notice */}
+                          {filteredNotifications.length > 0 && (
+                            <div style={{
+                              marginTop: '0.75rem',
+                              marginBottom: '0.5rem',
+                              padding: '0.75rem 0.9rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px dashed var(--border-light)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.6rem',
+                              color: 'var(--text-muted)',
+                              fontSize: '0.72rem',
+                              lineHeight: 1.45,
+                              textAlign: 'left'
+                            }}>
+                              <Clock size={15} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+                              <span>Menampilkan riwayat notifikasi 30 hari terakhir. Sistem otomatis membersihkan notifikasi lama untuk menjaga performa akun.</span>
                             </div>
                           )}
                         </div>
@@ -19218,16 +19636,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                       <strong style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 800 }}>
                                         Sistem Otomatis Catavor
                                       </strong>
-                                      <span style={{
-                                        fontSize: '0.58rem',
-                                        padding: '0.1rem 0.4rem',
-                                        borderRadius: '999px',
-                                        backgroundColor: 'rgba(56, 189, 248, 0.2)',
-                                        color: '#38bdf8',
-                                        fontWeight: 800
-                                      }}>
-                                        BOT RESMI
-                                      </span>
                                     </div>
                                     <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
                                   </div>
@@ -19263,17 +19671,25 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.38rem' }}>
                                   <strong style={{ fontSize: '0.78rem', color: isUser ? '#ffffff' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 800 }}>
                                     {!isUser && <ShieldCheck size={14} color="var(--primary)" />}
-                                    {msg.sender_name || (isUser ? (adminUser?.name || 'Saya (Pengelola)') : 'Catavor Official Support')}
+                                    {isUser
+                                      ? getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')
+                                      : (msg.sender_name || 'Catavor Official Support')}
                                   </strong>
                                   <span style={{ fontSize: '0.62rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
                                 </div>
-                                <p style={{ fontSize: '0.84rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                                  {msg.message}
-                                </p>
+                                {msg.message ? (
+                                  <p style={{ fontSize: '0.84rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                    {msg.message}
+                                  </p>
+                                ) : null}
 
                                 {/* MOBILE ATTACHMENT IMAGES / SCREENSHOTS GALLERY */}
                                 {msg.attachments && msg.attachments.length > 0 && (
-                                  <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: isUser ? '1px dashed rgba(255,255,255,0.35)' : '1px dashed var(--border-light)' }}>
+                                  <div style={{ 
+                                    marginTop: msg.message ? '0.75rem' : '0.25rem', 
+                                    paddingTop: msg.message ? '0.65rem' : '0', 
+                                    borderTop: msg.message ? (isUser ? '1px dashed rgba(255,255,255,0.35)' : '1px dashed var(--border-light)') : 'none' 
+                                  }}>
                                     <div style={{ fontSize: '0.68rem', fontWeight: 700, color: isUser ? 'rgba(255,255,255,0.95)' : 'var(--text-secondary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                                       <Paperclip size={12} color={isUser ? '#ffffff' : 'var(--primary)'} /> {msg.attachments.length} Screenshot / Bukti Foto:
                                     </div>
@@ -19466,11 +19882,31 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   });
                                   const data = await res.json();
                                   if (res.ok && data.success) {
+                                    const createdMsg = data.data;
                                     setTicketReplyText('');
                                     setTicketReplyAttachments([]);
                                     showToast('Balasan Anda telah terkirim!');
+                                    if (createdMsg) {
+                                      const formatted = {
+                                        id: createdMsg.id,
+                                        sender: createdMsg.sender_type || 'user',
+                                        sender_name: getChatFirstName(adminUser?.name || 'Pengelola'),
+                                        message: createdMsg.message,
+                                        timestamp: new Date(createdMsg.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                                        read_at: createdMsg.read_at,
+                                        attachments: Array.isArray(createdMsg.attachments) ? createdMsg.attachments : []
+                                      };
+                                      setSelectedTicket(prev => {
+                                        if (!prev) return null;
+                                        const current = prev.messages || [];
+                                        if (!current.some((m: any) => m.id === formatted.id)) {
+                                          return { ...prev, messages: [...current, formatted] };
+                                        }
+                                        return prev;
+                                      });
+                                    }
                                     fetchTicketDetails(selectedTicket.id);
-                                    fetchSupportTickets();
+                                    fetchSupportTickets(true);
                                   } else {
                                     showToast(data.message || 'Gagal mengirim balasan tiket.', 'error');
                                   }
@@ -19497,10 +19933,132 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           </div>
                         </div>
                       ) : (
-                        <div className="glass-panel" style={{ padding: '0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
-                          <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
-                            ✓ Tiket ini telah ditandai Selesai. Buat tiket baru jika ada pertanyaan lain.
-                          </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div className="glass-panel" style={{ padding: '0.75rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
+                            <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
+                              ✓ Tiket ini telah ditandai Selesai. Buat tiket baru jika ada pertanyaan lain.
+                            </span>
+                          </div>
+
+                          {/* CSAT 1-Click Rating Widget (Fase 2) */}
+                          {selectedTicket.rating ? (
+                            <div className="glass-panel" style={{
+                              padding: '0.85rem 1rem',
+                              borderRadius: '0.85rem',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              background: 'rgba(245, 158, 11, 0.06)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.4rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <Star size={15} fill="#f59e0b" color="#f59e0b" /> Ulasan Layanan:
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                                  {[1, 2, 3, 4, 5].map(star => (
+                                    <Star
+                                      key={star}
+                                      size={14}
+                                      fill={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'none'}
+                                      color={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'var(--text-muted)'}
+                                    />
+                                  ))}
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.3rem' }}>
+                                    {selectedTicket.rating}/5
+                                  </span>
+                                </div>
+                              </div>
+                              {selectedTicket.rating_comment && (
+                                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                  "{selectedTicket.rating_comment}"
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="glass-panel" style={{
+                              padding: '0.9rem 1rem',
+                              borderRadius: '0.85rem',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.65rem'
+                            }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Beri Nilai Kepuasan Layanan:
+                                </h4>
+                                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Ketuk bintang untuk menilai kualitas respon tim Catavor
+                                </p>
+                              </div>
+
+                              {/* Star Buttons */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.25rem 0' }}>
+                                {[1, 2, 3, 4, 5].map(star => {
+                                  const isFilled = (csatHoverRating || csatRating) >= star;
+                                  return (
+                                    <button
+                                      key={star}
+                                      type="button"
+                                      onClick={() => setCsatRating(star)}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '0.25rem',
+                                        transition: 'transform 0.1s ease',
+                                        transform: (csatHoverRating || csatRating) >= star ? 'scale(1.15)' : 'scale(1)'
+                                      }}
+                                    >
+                                      <Star
+                                        size={22}
+                                        fill={isFilled ? '#f59e0b' : 'none'}
+                                        color={isFilled ? '#f59e0b' : 'var(--text-muted)'}
+                                      />
+                                    </button>
+                                  );
+                                })}
+                                <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.25rem' }}>
+                                  {csatRating}/5
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <input
+                                  type="text"
+                                  value={csatComment}
+                                  onChange={(e) => setCsatComment(e.target.value)}
+                                  placeholder="Komentar singkat (opsional)..."
+                                  className="search-input"
+                                  style={{ flex: 1, fontSize: '0.78rem', padding: '0.45rem 0.65rem' }}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={isSubmittingCSAT}
+                                  onClick={() => handleSubmitCSAT(selectedTicket.id)}
+                                  style={{
+                                    padding: '0.5rem 0.9rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: '#f59e0b',
+                                    color: '#000000',
+                                    fontWeight: 800,
+                                    fontSize: '0.78rem',
+                                    border: 'none',
+                                    cursor: isSubmittingCSAT ? 'not-allowed' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {isSubmittingCSAT ? <Loader size={13} className="animate-spin" /> : <Star size={13} fill="#000000" />}
+                                  <span>Kirim</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -19919,63 +20477,72 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           </div>
 
                           <div style={{ display: 'flex', width: '100%', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', boxSizing: 'border-box' }}>
-                            <button
-                              type="button"
-                              onClick={() => setTicketFilter('all')}
-                              style={{
-                                flex: 1,
-                                padding: '0.38rem 0.5rem',
-                                borderRadius: '0.45rem',
-                                border: 'none',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                backgroundColor: ticketFilter === 'all' ? 'var(--primary)' : 'transparent',
-                                color: ticketFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                textAlign: 'center'
-                              }}
-                            >
-                              Semua ({tickets.length})
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setTicketFilter('active')}
-                              style={{
-                                flex: 1,
-                                padding: '0.38rem 0.5rem',
-                                borderRadius: '0.45rem',
-                                border: 'none',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                backgroundColor: ticketFilter === 'active' ? 'var(--primary)' : 'transparent',
-                                color: ticketFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                textAlign: 'center'
-                              }}
-                            >
-                              Aktif ({tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent').length})
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setTicketFilter('resolved')}
-                              style={{
-                                flex: 1,
-                                padding: '0.38rem 0.5rem',
-                                borderRadius: '0.45rem',
-                                border: 'none',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                backgroundColor: ticketFilter === 'resolved' ? 'var(--primary)' : 'transparent',
-                                color: ticketFilter === 'resolved' ? '#ffffff' : 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                textAlign: 'center'
-                              }}
-                            >
-                              Selesai ({tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length})
-                            </button>
+                            {(() => {
+                              const allCount = ticketMetrics.total > 0 ? ticketMetrics.total : tickets.length;
+                              const actCount = ticketMetrics.total > 0 ? ticketMetrics.active : tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length;
+                              const resCount = ticketMetrics.total > 0 ? ticketMetrics.resolved : tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTicketFilter('all')}
+                                    style={{
+                                      flex: 1,
+                                      padding: '0.38rem 0.5rem',
+                                      borderRadius: '0.45rem',
+                                      border: 'none',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      backgroundColor: ticketFilter === 'all' ? 'var(--primary)' : 'transparent',
+                                      color: ticketFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease',
+                                      textAlign: 'center'
+                                    }}
+                                  >
+                                    Semua ({allCount})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTicketFilter('active')}
+                                    style={{
+                                      flex: 1,
+                                      padding: '0.38rem 0.5rem',
+                                      borderRadius: '0.45rem',
+                                      border: 'none',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      backgroundColor: ticketFilter === 'active' ? 'var(--primary)' : 'transparent',
+                                      color: ticketFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease',
+                                      textAlign: 'center'
+                                    }}
+                                  >
+                                    Aktif ({actCount})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTicketFilter('resolved')}
+                                    style={{
+                                      flex: 1,
+                                      padding: '0.38rem 0.5rem',
+                                      borderRadius: '0.45rem',
+                                      border: 'none',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      backgroundColor: ticketFilter === 'resolved' ? 'var(--primary)' : 'transparent',
+                                      color: ticketFilter === 'resolved' ? '#ffffff' : 'var(--text-secondary)',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease',
+                                      textAlign: 'center'
+                                    }}
+                                  >
+                                    Selesai ({resCount})
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -20020,7 +20587,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           )}
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                           {filteredTickets.map((ticket) => {
                             const isResolved = ticket.status === 'resolved' || ticket.status === 'closed';
                             const isInProgress = ticket.status === 'in_progress' || ticket.status === 'waiting_agent';
@@ -20127,7 +20695,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 {lastMsg && (
                                   <p style={{ fontSize: '0.76rem', color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 700 : 400, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#38bdf8' }}>
-                                      {lastMsg.sender_name || (lastMsg.sender === 'agent' ? 'CS Support' : 'User')}:
+                                      {lastMsg.sender === 'user'
+                                        ? getChatFirstName(lastMsg.sender_name || adminUser?.name || 'Pengelola')
+                                        : (lastMsg.sender_name || (lastMsg.sender === 'agent' ? 'CS Support' : 'User'))}:
                                     </strong> {lastMsg.message}
                                   </p>
                                 )}
@@ -20144,7 +20714,67 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             );
                           })}
                         </div>
-                      )}
+
+                        {/* Pagination Controls Mobile */}
+                        {ticketTotalPages > 1 && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.85rem 0.25rem 0.25rem',
+                            marginTop: '0.65rem',
+                            borderTop: '1px solid var(--border-light)',
+                            fontSize: '0.78rem'
+                          }}>
+                            <button
+                              type="button"
+                              disabled={ticketPage <= 1 || loadingTickets}
+                              onClick={() => {
+                                const newP = Math.max(1, ticketPage - 1);
+                                setTicketPage(newP);
+                              }}
+                              style={{
+                                padding: '0.4rem 0.85rem',
+                                borderRadius: '0.6rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: ticketPage <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                                color: ticketPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                cursor: ticketPage <= 1 ? 'not-allowed' : 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.74rem'
+                              }}
+                            >
+                              &larr; Prev
+                            </button>
+
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.72rem' }}>
+                              Hal {ticketPage} / {ticketTotalPages} ({ticketTotalItems})
+                            </span>
+
+                            <button
+                              type="button"
+                              disabled={ticketPage >= ticketTotalPages || loadingTickets}
+                              onClick={() => {
+                                const newP = Math.min(ticketTotalPages, ticketPage + 1);
+                                setTicketPage(newP);
+                              }}
+                              style={{
+                                padding: '0.4rem 0.85rem',
+                                borderRadius: '0.6rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: ticketPage >= ticketTotalPages ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                                color: ticketPage >= ticketTotalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                                cursor: ticketPage >= ticketTotalPages ? 'not-allowed' : 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.74rem'
+                              }}
+                            >
+                              Next &rarr;
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
                     </div>
                   )}
 
