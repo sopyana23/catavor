@@ -1068,23 +1068,23 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     fetchTickets(ticketsPagination.page + 1, true);
   };
 
-  // Re-fetch tickets server-side whenever active filters or debounced search query change
+  // Re-fetch tickets server-side whenever active filters or debounced search query change (HANYA saat divisi support aktif)
   useEffect(() => {
-    if (canAccessSupport && token) {
+    if (canAccessSupport && token && activeDivision === 'support') {
       fetchTickets(1, false);
     }
-  }, [token, canAccessSupport, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeDivision, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Polling cerdas saat tab support aktif (12 detik saat aktif, hemat baterai saat tab hidden)
   useEffect(() => {
-    if (!token || !canAccessSupport) return;
+    if (!token || !canAccessSupport || activeDivision !== 'support') return;
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchTickets(1, false);
-    }, activeDivision === 'support' ? 12000 : 30000);
+    }, 12000);
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && activeDivision === 'support') {
         fetchTickets(1, false);
       }
     };
