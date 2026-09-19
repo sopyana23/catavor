@@ -5412,6 +5412,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   }
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastViewedTicketIdRef = useRef<number | string | null>(null);
+  const lastMessagesCountRef = useRef<number>(0);
   const readTicketIdsRef = useRef<Set<string | number>>(new Set());
   const editorRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -6507,21 +6509,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
         setTickets(mappedTickets);
 
-        // Jika user sedang aktif membuka tiket yang bersangkutan, perbarui thread obrolan secara live
+        // Sinkronisasi status tiket aktif jika status diupdate oleh CS (tanpa menimpa thread pesan lengkap)
         if (selectedTicket) {
           const updatedActive = mappedTickets.find(t => t.id === selectedTicket.id);
-          if (updatedActive && updatedActive.messages.length !== selectedTicket.messages.length) {
-            setSelectedTicket(prev => {
-              if (!prev) return updatedActive;
-              const mergedMsgs = updatedActive.messages.map((m: any) => {
-                const existing = prev.messages?.find((em: any) => em.id === m.id);
-                if (existing?.attachments?.length && (!m.attachments || m.attachments.length === 0)) {
-                  return { ...m, attachments: existing.attachments };
-                }
-                return m;
-              });
-              return { ...prev, ...updatedActive, messages: mergedMsgs };
-            });
+          if (updatedActive && updatedActive.status !== selectedTicket.status) {
+            setSelectedTicket(prev => prev ? { ...prev, status: updatedActive.status } : prev);
           }
         }
       }
@@ -6574,7 +6566,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           }))
         };
-        setSelectedTicket(mapped);
+        setSelectedTicket(prev => {
+          if (!prev || prev.id !== mapped.id) return mapped;
+          if (
+            prev.status === mapped.status &&
+            prev.messages.length === mapped.messages.length &&
+            prev.updated_at === mapped.updated_at &&
+            prev.rating === mapped.rating &&
+            prev.rating_comment === mapped.rating_comment
+          ) {
+            return prev;
+          }
+          return mapped;
+        });
 
         // Tandai tiket sebagai dibaca di referensi lokal & panggil API mark-read di backend
         readTicketIdsRef.current.add(t.id);
@@ -6657,12 +6661,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return () => clearInterval(timer);
   }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter]);
 
-  // Auto-scroll ke pesan percakapan terbaru saat tiket dibuka atau pesan baru tiba
+  // Auto-scroll ke pesan percakapan terbaru saat tiket baru dibuka atau pesan baru tiba
   useEffect(() => {
-    if (selectedTicket) {
+    if (!selectedTicket) {
+      lastViewedTicketIdRef.current = null;
+      lastMessagesCountRef.current = 0;
+      return;
+    }
+
+    const isNewTicket = selectedTicket.id !== lastViewedTicketIdRef.current;
+    const isNewMessageAdded = selectedTicket.messages.length > lastMessagesCountRef.current;
+
+    if (isNewTicket || isNewMessageAdded) {
+      lastViewedTicketIdRef.current = selectedTicket.id;
+      lastMessagesCountRef.current = selectedTicket.messages.length;
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 120);
+        messagesEndRef.current?.scrollIntoView({ behavior: isNewTicket ? 'instant' : 'smooth' });
+      }, 100);
     }
   }, [selectedTicket?.id, selectedTicket?.messages?.length]);
 
@@ -7570,11 +7585,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     sessionStorage.setItem('catavor_portal_tab', portalTab);
   }, [portalTab, registerStep, storeSlug]);
 
+  // Scroll ke atas saat berpindah tab utama / sub-halaman admin (TIDAK saat chat tiket aktif)
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
-  }, [activeTab, adminSubTab, mobileSettingsTab, selectedTicket]);
+  }, [activeTab, adminSubTab, mobileSettingsTab]);
 
   // Reset Auth & Industry-standard session expiration handler
   const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', preserveRedirect = true) => {
@@ -19605,7 +19621,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   
                   {/* VIEW A: TICKET DETAIL & THREAD */}
                   {selectedTicket ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '120px' }}>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.9rem',
+                      paddingBottom: (selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed')
+                        ? (ticketReplyAttachments.length > 0 ? '115px' : '70px')
+                        : '1rem'
+                    }}>
                       {/* Ticket Details Header & Status Bar */}
                       <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.65rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
@@ -19709,6 +19732,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             >
                               <div style={{
                                 maxWidth: '88%',
+                                minWidth: (msg.attachments && msg.attachments.length > 0) ? '250px' : undefined,
                                 boxSizing: 'border-box',
                                 overflowWrap: 'anywhere',
                                 wordBreak: 'break-word',
@@ -19726,15 +19750,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                       ? getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')
                                       : (msg.sender_name || 'Catavor Official Support')}
                                   </strong>
-                                  <span style={{ fontSize: '0.62rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
+                                  <span style={{ fontSize: '0.65rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
                                 </div>
                                 {msg.message ? (
-                                  <p style={{ fontSize: '0.84rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                  <p style={{ fontSize: '0.82rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
                                     {msg.message}
                                   </p>
                                 ) : null}
 
-                                {/* MOBILE ATTACHMENT IMAGES / SCREENSHOTS GALLERY */}
+                                {/* ATTACHMENT IMAGES / SCREENSHOTS GALLERY */}
                                 {msg.attachments && msg.attachments.length > 0 && (
                                   <div style={{ 
                                     marginTop: msg.message ? '0.75rem' : '0.25rem', 
@@ -19751,56 +19775,109 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                           return (
                                             <div
                                               key={idx}
-                                              onClick={() => openDocumentPreview(att)}
                                               role="button"
                                               tabIndex={0}
                                               style={{
                                                 gridColumn: '1 / -1',
                                                 display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                gap: '0.5rem',
-                                                padding: '0.5rem 0.7rem',
-                                                borderRadius: '0.65rem',
-                                                backgroundColor: isUser ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.35)',
-                                                border: isUser ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-light)',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s ease',
-                                                userSelect: 'none'
+                                                flexDirection: 'column',
+                                                gap: '0.55rem',
+                                                padding: '0.7rem 0.8rem',
+                                                borderRadius: '0.8rem',
+                                                backgroundColor: isUser ? 'rgba(255, 255, 255, 0.16)' : 'var(--bg-card-hover, rgba(0, 0, 0, 0.04))',
+                                                border: isUser ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.1))',
+                                                boxShadow: isUser ? 'none' : '0 2px 10px rgba(0, 0, 0, 0.04)',
+                                                color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                minWidth: '230px',
+                                                maxWidth: '100%',
+                                                width: '100%',
+                                                boxSizing: 'border-box',
+                                                transition: 'all 0.15s ease'
                                               }}
-                                              title="Klik untuk pratinjau dokumen di aplikasi"
                                             >
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
-                                                <FileText size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+                                              {/* File Info Header (Clickable for preview) */}
+                                              <div
+                                                onClick={() => openDocumentPreview(att)}
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '0.6rem',
+                                                  cursor: 'pointer',
+                                                  width: '100%'
+                                                }}
+                                                title="Klik untuk pratinjau dokumen di aplikasi"
+                                              >
+                                                <div style={{
+                                                  width: '36px',
+                                                  height: '36px',
+                                                  borderRadius: '0.5rem',
+                                                  backgroundColor: isUser ? 'rgba(255, 255, 255, 0.95)' : 'rgba(239, 68, 68, 0.12)',
+                                                  border: isUser ? 'none' : '1px solid rgba(239, 68, 68, 0.28)',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  flexShrink: 0,
+                                                  boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.15)' : 'none'
+                                                }}>
+                                                  <FileText size={19} color="#ef4444" />
+                                                </div>
                                                 <div style={{ minWidth: 0, flex: 1 }}>
-                                                  <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.74rem', color: isUser ? '#ffffff' : 'var(--text-primary)' }}>
+                                                  <div style={{
+                                                    fontWeight: 700,
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    fontSize: '0.8rem',
+                                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                    lineHeight: 1.3
+                                                  }}>
                                                     {att.file_name || 'Dokumen.pdf'}
                                                   </div>
-                                                  <div style={{ fontSize: '0.62rem', opacity: 0.85, color: isUser ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)' }}>
+                                                  <div style={{
+                                                    fontSize: '0.66rem',
+                                                    color: isUser ? 'rgba(255, 255, 255, 0.88)' : 'var(--text-secondary)',
+                                                    marginTop: '0.12rem',
+                                                    fontWeight: 500,
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                  }}>
                                                     Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
                                                   </div>
                                                 </div>
                                               </div>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+
+                                              {/* Action Buttons Row */}
+                                              <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '1fr 1fr',
+                                                gap: '0.45rem',
+                                                paddingTop: '0.5rem',
+                                                borderTop: isUser ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.08))',
+                                                width: '100%',
+                                                boxSizing: 'border-box'
+                                              }}>
                                                 <button
                                                   type="button"
                                                   onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
                                                   style={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '0.25rem',
-                                                    padding: '0.25rem 0.5rem',
-                                                    borderRadius: '0.4rem',
-                                                    backgroundColor: isUser ? 'rgba(255,255,255,0.25)' : 'rgba(56, 189, 248, 0.2)',
-                                                    color: isUser ? '#ffffff' : '#38bdf8',
-                                                    border: isUser ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(56, 189, 248, 0.4)',
-                                                    fontSize: '0.66rem',
+                                                    justifyContent: 'center',
+                                                    gap: '0.3rem',
+                                                    padding: '0.4rem 0.5rem',
+                                                    borderRadius: '0.45rem',
+                                                    backgroundColor: isUser ? '#ffffff' : 'var(--primary, #0284c7)',
+                                                    color: isUser ? '#0f172a' : '#ffffff',
+                                                    border: 'none',
+                                                    fontSize: '0.72rem',
                                                     fontWeight: 700,
-                                                    cursor: 'pointer'
+                                                    cursor: 'pointer',
+                                                    boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.18)' : '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))'
                                                   }}
                                                   title="Lihat Pratinjau Dokumen"
                                                 >
-                                                  <Eye size={12} /> Preview
+                                                  <Eye size={12} strokeWidth={2.2} /> Preview
                                                 </button>
                                                 <button
                                                   type="button"
@@ -19808,19 +19885,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                                   style={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '0.25rem',
-                                                    padding: '0.25rem 0.5rem',
-                                                    borderRadius: '0.4rem',
-                                                    backgroundColor: isUser ? 'rgba(255,255,255,0.25)' : 'rgba(16, 185, 129, 0.2)',
-                                                    color: isUser ? '#ffffff' : '#10b981',
-                                                    border: isUser ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(16, 185, 129, 0.4)',
-                                                    fontSize: '0.66rem',
-                                                    fontWeight: 700,
+                                                    justifyContent: 'center',
+                                                    gap: '0.3rem',
+                                                    padding: '0.4rem 0.5rem',
+                                                    borderRadius: '0.45rem',
+                                                    backgroundColor: isUser ? 'rgba(255, 255, 255, 0.22)' : 'var(--bg-card, rgba(0, 0, 0, 0.05))',
+                                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                    border: isUser ? '1px solid rgba(255, 255, 255, 0.45)' : '1px solid var(--border-light)',
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 600,
                                                     cursor: 'pointer'
                                                   }}
                                                   title="Unduh Berkas ke Perangkat"
                                                 >
-                                                  <Download size={12} /> Unduh
+                                                  <Download size={12} strokeWidth={2.2} /> Unduh
                                                 </button>
                                               </div>
                                             </div>
@@ -19880,7 +19958,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
                           );
                         })}
-                        <div ref={messagesEndRef} style={{ height: '12px' }} />
+                        <div ref={messagesEndRef} style={{ height: '4px' }} />
                       </div>
 
                       {/* Sticky Mobile App Reply Bar */}

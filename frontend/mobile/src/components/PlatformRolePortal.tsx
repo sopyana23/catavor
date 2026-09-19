@@ -2810,7 +2810,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: selectedTicket.status === 'closed' ? '1rem' : '130px', marginBottom: '-3.8rem' }}>
             {/* Agent Collision Warning Banner (Fase 5) */}
             {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
               <div style={{
@@ -3259,6 +3259,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             <div style={{
                               maxWidth: isInitialInquiry ? '100%' : '90%',
                               width: isInitialInquiry ? '100%' : 'auto',
+                              minWidth: (msg.attachments && msg.attachments.length > 0) ? '250px' : undefined,
                               boxSizing: 'border-box',
                               overflowWrap: 'anywhere',
                               wordBreak: 'break-word',
@@ -3322,77 +3323,138 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                         return (
                                           <div
                                             key={aIdx}
-                                            onClick={() => openDocumentPreview(att)}
+                                            role="button"
+                                            tabIndex={0}
                                             style={{
                                               gridColumn: '1 / -1',
                                               display: 'flex',
-                                              alignItems: 'center',
-                                              gap: '0.45rem',
-                                              padding: '0.45rem 0.65rem',
-                                              borderRadius: '0.55rem',
-                                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                                              border: `1px solid ${theme.border}`,
-                                              textDecoration: 'none',
-                                              color: theme.textPrimary,
-                                              fontSize: '0.72rem',
-                                              cursor: 'pointer',
+                                              flexDirection: 'column',
+                                              gap: '0.55rem',
+                                              padding: '0.65rem 0.75rem',
+                                              borderRadius: '0.8rem',
+                                              backgroundColor: isDark 
+                                                ? (isAgent ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.05)')
+                                                : (isAgent ? '#ffffff' : '#f8fafc'),
+                                              border: isDark
+                                                ? (isAgent ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(255, 255, 255, 0.12)')
+                                                : (isAgent ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #e2e8f0'),
+                                              boxShadow: isDark
+                                                ? '0 2px 10px rgba(0, 0, 0, 0.3)'
+                                                : (isAgent ? '0 2px 10px rgba(2, 132, 199, 0.08)' : '0 2px 8px rgba(15, 23, 42, 0.05)'),
+                                              color: isDark ? '#ffffff' : '#0f172a',
+                                              minWidth: '220px',
+                                              maxWidth: '100%',
+                                              width: '100%',
+                                              boxSizing: 'border-box',
                                               transition: 'all 0.15s ease'
                                             }}
-                                            title="Pratinjau Dokumen PDF"
                                           >
+                                            {/* Tier 1: File Header Info */}
+                                            <div
+                                              onClick={() => openDocumentPreview(att)}
+                                              style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', width: '100%' }}
+                                              title="Klik untuk pratinjau dokumen di aplikasi"
+                                            >
+                                              <div style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '0.5rem',
+                                                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2',
+                                                border: isDark ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid #fca5a5',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0
+                                              }}>
+                                                <FileText size={18} color={isDark ? '#f87171' : '#dc2626'} />
+                                              </div>
+                                              <div style={{ minWidth: 0, flex: 1 }}>
+                                                <div style={{
+                                                  fontWeight: 700,
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis',
+                                                  whiteSpace: 'nowrap',
+                                                  fontSize: '0.78rem',
+                                                  color: isDark ? '#ffffff' : '#0f172a',
+                                                  lineHeight: 1.3
+                                                }}>
+                                                  {att.file_name || 'Dokumen.pdf'}
+                                                </div>
+                                                <div style={{
+                                                  fontSize: '0.65rem',
+                                                  color: isDark ? '#94a3b8' : '#64748b',
+                                                  marginTop: '0.12rem',
+                                                  fontWeight: 600,
+                                                  whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
+                                                  textOverflow: 'ellipsis'
+                                                }}>
+                                                  Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {/* Tier 2: Action Buttons Row */}
                                             <div style={{
-                                              width: '30px',
-                                              height: '30px',
-                                              borderRadius: '0.4rem',
-                                              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'center',
-                                              flexShrink: 0
+                                              display: 'grid',
+                                              gridTemplateColumns: '1fr 1fr',
+                                              gap: '0.45rem',
+                                              paddingTop: '0.5rem',
+                                              borderTop: isDark
+                                                ? (isAgent ? '1px solid rgba(6, 182, 212, 0.25)' : '1px solid rgba(255, 255, 255, 0.1)')
+                                                : (isAgent ? '1px solid rgba(2, 132, 199, 0.15)' : '1px solid #e2e8f0'),
+                                              width: '100%',
+                                              boxSizing: 'border-box'
                                             }}>
-                                              <FileText size={17} color="#ef4444" />
-                                            </div>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                              <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
-                                                {att.file_name || 'Dokumen.pdf'}
-                                              </div>
-                                              <div style={{ fontSize: '0.62rem', color: theme.textMuted }}>
-                                                PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''} • Klik untuk pratinjau
-                                              </div>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  gap: '0.3rem',
+                                                  padding: '0.38rem 0.5rem',
+                                                  borderRadius: '0.45rem',
+                                                  backgroundColor: isDark ? '#0ea5e9' : '#0284c7',
+                                                  color: '#ffffff',
+                                                  border: 'none',
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  boxShadow: isDark ? '0 2px 10px rgba(14, 165, 233, 0.35)' : '0 2px 8px rgba(2, 132, 199, 0.25)'
+                                                }}
+                                                title="Lihat Pratinjau Dokumen"
+                                              >
+                                                <Eye size={12} strokeWidth={2.2} /> Preview
+                                              </button>
                                               <button
                                                 type="button"
                                                 onClick={(e) => handleDownloadDocument(att, e)}
                                                 style={{
-                                                  background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                                                  border: `1px solid ${theme.border}`,
-                                                  borderRadius: '0.35rem',
-                                                  padding: '0.25rem 0.35rem',
-                                                  color: theme.textSecondary,
-                                                  cursor: 'pointer',
-                                                  display: 'flex',
+                                                  display: 'inline-flex',
                                                   alignItems: 'center',
-                                                  justifyContent: 'center'
+                                                  justifyContent: 'center',
+                                                  gap: '0.3rem',
+                                                  padding: '0.38rem 0.5rem',
+                                                  borderRadius: '0.45rem',
+                                                  backgroundColor: isDark 
+                                                    ? 'rgba(255, 255, 255, 0.08)' 
+                                                    : (isAgent ? 'rgba(2, 132, 199, 0.06)' : '#ffffff'),
+                                                  color: isDark 
+                                                    ? '#f8fafc' 
+                                                    : (isAgent ? '#0369a1' : '#334155'),
+                                                  border: isDark 
+                                                    ? '1px solid rgba(255, 255, 255, 0.2)' 
+                                                    : (isAgent ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid #cbd5e1'),
+                                                  fontSize: '0.72rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer'
                                                 }}
-                                                title="Unduh PDF langsung"
+                                                title="Unduh Berkas ke Perangkat"
                                               >
-                                                <Download size={13} />
+                                                <Download size={12} strokeWidth={2.2} /> Unduh
                                               </button>
-                                              <div
-                                                style={{
-                                                  background: 'var(--primary, #0284c7)',
-                                                  borderRadius: '0.35rem',
-                                                  padding: '0.25rem 0.35rem',
-                                                  color: '#ffffff',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center'
-                                                }}
-                                                title="Pratinjau Dokumen"
-                                              >
-                                                <Eye size={13} />
-                                              </div>
                                             </div>
                                           </div>
                                         );
@@ -7729,8 +7791,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           style={{
             position: 'fixed',
             right: '16px',
-            bottom: selectedTicket ? '96px' : '24px',
-            zIndex: 90,
+            bottom: !isSubPage ? '76px' : '24px',
+            zIndex: 9999,
             width: '42px',
             height: '42px',
             borderRadius: '50%',
