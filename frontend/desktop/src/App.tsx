@@ -7340,9 +7340,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return response;
   };
 
-  // Proactive token verification & expired session check
+  // Proactive token verification & expired session check (Throttled 60 detik untuk efisiensi resource)
   useEffect(() => {
-    const checkTokenValidity = async () => {
+    let lastChecked = 0;
+    const THROTTLE_MS = 60000; // Minimal jeda 60 detik antar verifikasi token di background
+
+    const checkTokenValidity = async (force: boolean = false) => {
+      const now = Date.now();
+      if (!force && now - lastChecked < THROTTLE_MS) return;
+
       const currentToken = localStorage.getItem('catavor_token');
       if (!currentToken) return;
 
@@ -7351,6 +7357,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         return;
       }
 
+      lastChecked = now;
       try {
         const res = await fetch(`${API_BASE}/auth/verify`, {
           headers: {
@@ -7372,12 +7379,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     };
 
     if (token) {
-      checkTokenValidity();
+      checkTokenValidity(true);
     }
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible' && localStorage.getItem('catavor_token')) {
-        checkTokenValidity();
+        checkTokenValidity(false);
       }
     };
 
