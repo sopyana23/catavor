@@ -2,8 +2,13 @@ package handlers
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"mime"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -132,8 +137,18 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 
 	// Keyword search
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
-		searchTerm := "%" + strings.ToLower(q) + "%"
-		baseQuery = baseQuery.Where("LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ?", searchTerm, searchTerm)
+		words := strings.Fields(q)
+		for _, w := range words {
+			cleanW := strings.TrimPrefix(w, "#")
+			if cleanW == "" {
+				continue
+			}
+			term := "%" + strings.ToLower(cleanW) + "%"
+			baseQuery = baseQuery.Where(
+				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR id IN (SELECT ticket_id FROM support_messages WHERE LOWER(message) LIKE ?))",
+				term, term, term, term,
+			)
+		}
 	}
 
 	// Time range filtering
@@ -604,6 +619,7 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
 	database.DB.Save(&ticket)
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	// Preload created message
 	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
@@ -689,11 +705,18 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 	}
 
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
-		searchTerm := "%" + strings.ToLower(q) + "%"
-		query = query.Where(
-			"LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR user_id IN (SELECT id FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?) OR store_id IN (SELECT id FROM stores WHERE LOWER(store_title) LIKE ? OR LOWER(name) LIKE ?)",
-			searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
-		)
+		words := strings.Fields(q)
+		for _, w := range words {
+			cleanW := strings.TrimPrefix(w, "#")
+			if cleanW == "" {
+				continue
+			}
+			term := "%" + strings.ToLower(cleanW) + "%"
+			query = query.Where(
+				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR LOWER(priority) LIKE ? OR LOWER(status) LIKE ? OR user_id IN (SELECT id FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?) OR store_id IN (SELECT id FROM stores WHERE LOWER(store_title) LIKE ? OR LOWER(slug) LIKE ?) OR id IN (SELECT ticket_id FROM support_messages WHERE LOWER(message) LIKE ?))",
+				term, term, term, term, term, term, term, term, term, term,
+			)
+		}
 	}
 
 	var filteredCount int64
@@ -955,6 +978,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
 	database.DB.Save(&ticket)
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
@@ -1019,6 +1043,7 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 	ticket.UpdatedAt = now
 
 	database.DB.Save(&ticket)
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	// 🤖 Automated Resolution Notice (When status transitioned to resolved)
 	if ticket.Status == "resolved" && oldStatus != "resolved" {
@@ -1082,6 +1107,7 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 	var req struct {
 		Rating  int    `json:"rating"`
 		Comment string `json:"comment"`
+		AgentID *uint  `json:"agent_id,omitempty"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -1103,7 +1129,19 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 	ticket.RatedAt = &now
 	ticket.UpdatedAt = now
 
+	// Associate rating with targeted agent or last responding agent
+	if req.AgentID != nil && *req.AgentID > 0 {
+		ticket.RatedAgentID = req.AgentID
+	} else {
+		var lastAgentMsg models.SupportMessage
+		if err := database.DB.Where("ticket_id = ? AND sender_type = ? AND is_internal_note = false", ticket.ID, "agent").
+			Order("id DESC").First(&lastAgentMsg).Error; err == nil && lastAgentMsg.SenderID > 0 {
+			ticket.RatedAgentID = &lastAgentMsg.SenderID
+		}
+	}
+
 	database.DB.Save(&ticket)
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1145,16 +1183,24 @@ func (h *SupportHandler) UpdatePresence(c *fiber.Ctx) error {
 	_ = c.BodyParser(&req)
 
 	now := time.Now()
-	presenceMutex.Lock()
-	if ticketPresence[ticketID] == nil {
-		ticketPresence[ticketID] = make(map[uint]AdminPresenceInfo)
-	}
-	ticketPresence[ticketID][user.ID] = AdminPresenceInfo{
+	info := AdminPresenceInfo{
 		AdminID:   user.ID,
 		AdminName: user.Name,
 		LastSeen:  now,
 		IsTyping:  req.IsTyping,
 	}
+
+	if database.IsRedisAvailable() {
+		if b, err := json.Marshal(info); err == nil {
+			database.SetTicketPresence(c.Context(), ticketID, user.ID, string(b), 15*time.Second)
+		}
+	}
+
+	presenceMutex.Lock()
+	if ticketPresence[ticketID] == nil {
+		ticketPresence[ticketID] = make(map[uint]AdminPresenceInfo)
+	}
+	ticketPresence[ticketID][user.ID] = info
 
 	// Purge stale presence entries (> 35 seconds)
 	for aid, p := range ticketPresence[ticketID] {
@@ -1190,17 +1236,29 @@ func (h *SupportHandler) GetPresence(c *fiber.Ctx) error {
 		}
 	}
 
-	now := time.Now()
-	presenceMutex.RLock()
 	otherAdmins := make([]AdminPresenceInfo, 0)
-	if presMap, ok := ticketPresence[ticketID]; ok {
-		for aid, p := range presMap {
-			if aid != user.ID && now.Sub(p.LastSeen) <= 35*time.Second {
-				otherAdmins = append(otherAdmins, p)
+	if database.IsRedisAvailable() {
+		presences := database.GetTicketPresences(c.Context(), ticketID)
+		for aid, raw := range presences {
+			if aid != user.ID {
+				var pInfo AdminPresenceInfo
+				if err := json.Unmarshal([]byte(raw), &pInfo); err == nil {
+					otherAdmins = append(otherAdmins, pInfo)
+				}
 			}
 		}
+	} else {
+		now := time.Now()
+		presenceMutex.RLock()
+		if presMap, ok := ticketPresence[ticketID]; ok {
+			for aid, p := range presMap {
+				if aid != user.ID && now.Sub(p.LastSeen) <= 35*time.Second {
+					otherAdmins = append(otherAdmins, p)
+				}
+			}
+		}
+		presenceMutex.RUnlock()
 	}
-	presenceMutex.RUnlock()
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1748,3 +1806,147 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 		"timestamp":         time.Now().UTC().Unix(),
 	})
 }
+
+// ServeAttachment securely serves a support ticket attachment with strict RBAC authorization.
+func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan untuk mengakses lampiran dokumen.",
+		})
+	}
+
+	idStr := strings.TrimSpace(c.Params("id"))
+	if idStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID lampiran tidak valid.",
+		})
+	}
+
+	var attachment models.SupportAttachment
+	var found bool
+
+	// 1. Try lookup by primary key ID
+	if attID, err := strconv.ParseUint(idStr, 10, 64); err == nil && attID > 0 {
+		if err := database.DB.Preload("Message.Ticket").First(&attachment, attID).Error; err == nil {
+			found = true
+		}
+	}
+
+	// 2. Fallback lookup by storage_key or file_name if query param or path token provided
+	if !found {
+		if err := database.DB.Preload("Message.Ticket").
+			Where("storage_key LIKE ? OR file_url LIKE ?", "%"+idStr+"%", "%"+idStr+"%").
+			First(&attachment).Error; err == nil {
+			found = true
+		}
+	}
+
+	if !found {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Lampiran dokumen tidak ditemukan.",
+		})
+	}
+
+	// 3. Strict RBAC Authorization Check
+	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "admin") ||
+		user.Email == "admin@catavor.com"
+
+	isOwner := false
+	if attachment.Message != nil && attachment.Message.Ticket != nil {
+		ticket := attachment.Message.Ticket
+		if ticket.UserID == user.ID {
+			isOwner = true
+		}
+		if ticket.StoreID != nil && *ticket.StoreID > 0 {
+			if activeStore, ok := c.Locals("store").(*models.Store); ok && activeStore != nil && activeStore.ID == *ticket.StoreID {
+				isOwner = true
+			} else {
+				var count int64
+				database.DB.Model(&models.Store{}).Where("id = ? AND user_id = ?", *ticket.StoreID, user.ID).Count(&count)
+				if count > 0 {
+					isOwner = true
+				}
+			}
+		}
+	}
+
+	if !isStaff && !isOwner {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses ditolak: Anda tidak memiliki izin untuk melihat atau mengunduh dokumen lampiran ini.",
+		})
+	}
+
+	// 4. Resolve Local File Path on Server
+	cleanKey := strings.TrimLeft(filepath.ToSlash(attachment.StorageKey), "/")
+	var filePath string
+	if cleanKey != "" {
+		candidate := filepath.Join(h.cfg.StorageLocalRoot, filepath.FromSlash(cleanKey))
+		if isRegularFile(candidate) {
+			filePath = candidate
+		}
+	}
+
+	// Fallback lookup via FileURL if storage_key is relative or changed
+	if filePath == "" && attachment.FileURL != "" {
+		if u, err := url.Parse(attachment.FileURL); err == nil {
+			urlPath := strings.TrimPrefix(u.Path, "/storage/")
+			urlPath = strings.TrimPrefix(urlPath, "storage/")
+			candidate := filepath.Join(h.cfg.StorageLocalRoot, filepath.FromSlash(urlPath))
+			if isRegularFile(candidate) {
+				filePath = candidate
+			}
+		}
+	}
+
+	if filePath == "" || !isRegularFile(filePath) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "File fisik lampiran tidak ditemukan di penyimpanan server.",
+		})
+	}
+
+	// 5. Response Headers & Content Negotiation
+	fileName := attachment.FileName
+	if fileName == "" {
+		fileName = filepath.Base(filePath)
+	}
+
+	contentType := attachment.FileType
+	if contentType == "" || contentType == "application/octet-stream" {
+		contentType = mime.TypeByExtension(filepath.Ext(filePath))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+	}
+
+	isDownload := c.Query("download") == "1" || strings.EqualFold(c.Query("download"), "true")
+	dispositionType := "inline"
+	if isDownload {
+		dispositionType = "attachment"
+	}
+
+	// Sanitize fileName for Content-Disposition header
+	safeFileName := strings.ReplaceAll(fileName, `"`, `_`)
+	c.Set("Content-Type", contentType)
+	c.Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, dispositionType, safeFileName))
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("Cache-Control", "private, no-transform, max-age=3600")
+
+	return c.SendFile(filePath)
+}
+
+func isRegularFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+

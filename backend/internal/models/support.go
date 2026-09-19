@@ -33,6 +33,7 @@ type SupportTicket struct {
 	Rating        *int       `gorm:"index" json:"rating,omitempty"`
 	RatingComment string     `gorm:"type:text" json:"rating_comment,omitempty"`
 	RatedAt       *time.Time `gorm:"index" json:"rated_at,omitempty"`
+	RatedAgentID  *uint      `gorm:"index" json:"rated_agent_id,omitempty"`
 
 	CreatedAt time.Time      `gorm:"index" json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
@@ -41,6 +42,7 @@ type SupportTicket struct {
 	// Relations
 	User        *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Store       *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
+	RatedAgent  *User            `gorm:"foreignKey:RatedAgentID" json:"rated_agent,omitempty"`
 	Messages    []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
 	UnreadCount int              `gorm:"-" json:"unread_count"`
 }

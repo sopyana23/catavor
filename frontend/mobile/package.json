@@ -12,6 +12,7 @@
   "dependencies": {
     "@rolldown/binding-win32-x64-msvc": "^1.1.5",
     "lucide-react": "^1.24.0",
+    "pdfjs-dist": "^3.11.174",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

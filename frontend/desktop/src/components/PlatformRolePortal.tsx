@@ -1104,6 +1104,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
         }
         const formData = new FormData();
         formData.append('image', file);
+        formData.append('category', 'support');
         const res = await fetch('/api/storage/upload?category=support', {
           method: 'POST',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
