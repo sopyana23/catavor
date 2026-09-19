@@ -5346,8 +5346,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const urlParams = new URLSearchParams(window.location.search);
       const parts = path.split('/').filter(Boolean);
       const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
-      if (['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) || urlParams.get('ticket') || (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2]))) {
+      const hasStoredTicket = Boolean(sessionStorage.getItem('catavor_merchant_active_ticket'));
+      if (
+        ['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) ||
+        urlParams.get('ticket') ||
+        hasStoredTicket ||
+        (parts[0] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[1])) ||
+        (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2]))
+      ) {
         return 'help';
+      }
+      if (parts[0] === 'admin' && parts[1]) {
+        const sub = parts[1];
+        if (['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+          return sub as any;
+        }
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
@@ -5831,8 +5844,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Support Ticket System State (Desktop)
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket');
+        const cached = sessionStorage.getItem('catavor_merchant_active_ticket_data');
+        if (ticketParam && cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && (String(parsed.id) === String(ticketParam) || (parsed.ticket_number && parsed.ticket_number.toLowerCase() === String(ticketParam).toLowerCase()))) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [loadingTickets, setLoadingTickets] = useState<boolean>(false);
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState<string>('');
@@ -6223,20 +6251,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
         setTickets(mappedTickets);
 
+        // Auto-restore selected ticket on initial page reload if not yet selected
+        const pendingTicketId = sessionStorage.getItem('catavor_merchant_active_ticket') || (new URLSearchParams(window.location.search)).get('ticket');
+        if (pendingTicketId && !selectedTicket) {
+          const matched = mappedTickets.find(t => String(t.id) === String(pendingTicketId) || (t.ticket_number && t.ticket_number.toLowerCase() === String(pendingTicketId).toLowerCase()));
+          if (matched) {
+            setSelectedTicket(matched);
+            fetchTicketDetails(matched.id);
+          }
+        }
+
+        // Sinkronisasi status tiket aktif jika status diupdate oleh CS (tanpa menimpa thread pesan lengkap)
         if (selectedTicket) {
           const updatedActive = mappedTickets.find(t => t.id === selectedTicket.id);
-          if (updatedActive && updatedActive.messages.length !== selectedTicket.messages.length) {
-            setSelectedTicket(prev => {
-              if (!prev) return updatedActive;
-              const mergedMsgs = updatedActive.messages.map((m: any) => {
-                const existing = prev.messages?.find((em: any) => em.id === m.id);
-                if (existing?.attachments?.length && (!m.attachments || m.attachments.length === 0)) {
-                  return { ...m, attachments: existing.attachments };
-                }
-                return m;
-              });
-              return { ...prev, ...updatedActive, messages: mergedMsgs };
-            });
+          if (updatedActive && updatedActive.status !== selectedTicket.status) {
+            setSelectedTicket(prev => prev ? { ...prev, status: updatedActive.status } : prev);
           }
         }
       }
@@ -6289,7 +6318,24 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           }))
         };
-        setSelectedTicket(mapped);
+        setSelectedTicket(prev => {
+          if (!prev || prev.id !== mapped.id) return mapped;
+          if (
+            prev.status === mapped.status &&
+            prev.messages.length === mapped.messages.length &&
+            prev.updated_at === mapped.updated_at &&
+            prev.rating === mapped.rating &&
+            prev.rating_comment === mapped.rating_comment
+          ) {
+            return prev;
+          }
+          return mapped;
+        });
+
+        sessionStorage.setItem('catavor_merchant_active_ticket', String(mapped.id));
+        try {
+          sessionStorage.setItem('catavor_merchant_active_ticket_data', JSON.stringify(mapped));
+        } catch {}
 
         // Tandai tiket sebagai dibaca di referensi lokal & panggil API mark-read di backend
         readTicketIdsRef.current.add(t.id);
@@ -6746,8 +6792,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminTab('help');
-            const ticketParam = urlParams.get('ticket');
+            const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id');
             if (ticketParam) {
+              const cachedStr = sessionStorage.getItem('catavor_merchant_active_ticket_data');
+              if (cachedStr) {
+                try {
+                  const cached = JSON.parse(cachedStr);
+                  if (cached && (String(cached.id) === String(ticketParam) || cached.ticket_number === ticketParam)) {
+                    setSelectedTicket(cached);
+                  }
+                } catch {}
+              }
               const savedTickets = (() => {
                 try {
                   const s = localStorage.getItem('catavor_support_tickets');
@@ -6756,20 +6811,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                   return INITIAL_TICKETS;
                 }
               })();
-              const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === ticketParam.toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === ticketParam.toLowerCase()));
+              const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === String(ticketParam).toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === String(ticketParam).toLowerCase()));
               if (found) {
                 setSelectedTicket(found);
               }
-              fetch(`/api/admin/support/tickets/${encodeURIComponent(ticketParam)}`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-              })
-                .then(r => r.json())
-                .then(res => {
-                  if (res && res.ticket) {
-                    setSelectedTicket(res.ticket);
-                  }
-                })
-                .catch(() => {});
+              fetchTicketDetails(ticketParam);
             }
           } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
             setAdminTab('audit_logs');
@@ -7489,8 +7535,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         targetPath += `/admin/subscription`;
       } else if (adminTab === 'help') {
         targetPath += `/admin/help`;
-        if (selectedTicket && selectedTicket.id !== undefined && selectedTicket.id !== null) {
-          params.set('ticket', String(selectedTicket.id));
+        const activeTicketId = selectedTicket?.id ?? sessionStorage.getItem('catavor_merchant_active_ticket_id') ?? new URLSearchParams(window.location.search).get('ticket');
+        if (activeTicketId !== undefined && activeTicketId !== null && activeTicketId !== '') {
+          params.set('ticket', String(activeTicketId));
         }
       } else if (adminTab === 'audit_logs') {
         targetPath += `/admin/audit-logs`;
@@ -17139,7 +17186,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   readTicketIdsRef.current.add(String(ticket.id));
                                   setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id)) ? { ...t, unread_count: 0, has_unread: false, status: t.status === 'waiting_user' ? 'in_progress' : t.status } : t));
                                   setSelectedTicket(ticket);
+                                  try {
+                                    sessionStorage.setItem('catavor_merchant_active_ticket_id', String(ticket.id));
+                                    sessionStorage.setItem('catavor_merchant_active_ticket_data', JSON.stringify(ticket));
+                                  } catch {}
                                   fetchTicketDetails(ticket.id);
+                                  const slug = storeSlug || getStoreSlug();
+                                  if (slug) {
+                                    window.history.pushState({}, '', `/${slug}/admin/help?ticket=${ticket.id}`);
+                                  }
                                 }}
                                 style={{
                                   padding: '0.95rem 1rem',
@@ -17310,9 +17365,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
 
                     {/* RIGHT PANEL: TICKET DETAIL & THREAD */}
-                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '560px' }}>
+                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', minHeight: '520px' }}>
                       {selectedTicket ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', gap: '1.25rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.75rem' }}>
                           
                           {/* Ticket Details Header */}
                           <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
@@ -17357,7 +17412,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           {/* Discussion Thread Messages */}
-                          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.1rem', paddingRight: '0.5rem', maxHeight: '380px' }}>
+                          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '420px' }}>
                             {selectedTicket.messages.map((msg) => {
                               const isUser = msg.sender === 'user';
                               const isSystemBot = msg.sender === 'system';
@@ -17416,6 +17471,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 >
                                   <div style={{
                                     maxWidth: '85%',
+                                    minWidth: (msg.attachments && msg.attachments.length > 0) ? '260px' : undefined,
                                     boxSizing: 'border-box',
                                     overflowWrap: 'anywhere',
                                     wordBreak: 'break-word',
@@ -17458,58 +17514,110 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                               return (
                                                 <div
                                                   key={idx}
-                                                  onClick={() => openDocumentPreview(att)}
                                                   role="button"
                                                   tabIndex={0}
                                                   style={{
                                                     gridColumn: '1 / -1',
                                                     display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between',
-                                                    gap: '0.55rem',
-                                                    padding: '0.55rem 0.85rem',
-                                                    borderRadius: '0.65rem',
-                                                    backgroundColor: isUser ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.3)',
-                                                    border: isUser ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-light)',
+                                                    flexDirection: 'column',
+                                                    gap: '0.6rem',
+                                                    padding: '0.75rem 0.85rem',
+                                                    borderRadius: '0.85rem',
+                                                    backgroundColor: isUser ? 'rgba(255, 255, 255, 0.16)' : 'var(--bg-card-hover, rgba(0, 0, 0, 0.04))',
+                                                    border: isUser ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.1))',
+                                                    boxShadow: isUser ? 'none' : '0 2px 10px rgba(0, 0, 0, 0.04)',
                                                     color: isUser ? '#ffffff' : 'var(--text-primary)',
-                                                    fontSize: '0.78rem',
-                                                    maxWidth: '360px',
-                                                    cursor: 'pointer',
+                                                    minWidth: '240px',
+                                                    maxWidth: '380px',
+                                                    width: '100%',
+                                                    boxSizing: 'border-box',
                                                     transition: 'all 0.15s ease'
                                                   }}
-                                                  title="Klik untuk pratinjau dokumen di aplikasi"
                                                 >
-                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
-                                                    <FileText size={22} color="#ef4444" style={{ flexShrink: 0 }} />
+                                                  {/* File Info Header (Clickable for preview) */}
+                                                  <div
+                                                    onClick={() => openDocumentPreview(att)}
+                                                    style={{
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: '0.65rem',
+                                                      cursor: 'pointer',
+                                                      width: '100%'
+                                                    }}
+                                                    title="Klik untuk pratinjau dokumen di aplikasi"
+                                                  >
+                                                    <div style={{
+                                                      width: '38px',
+                                                      height: '38px',
+                                                      borderRadius: '0.5rem',
+                                                      backgroundColor: isUser ? 'rgba(255, 255, 255, 0.95)' : 'rgba(239, 68, 68, 0.12)',
+                                                      border: isUser ? 'none' : '1px solid rgba(239, 68, 68, 0.28)',
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'center',
+                                                      flexShrink: 0,
+                                                      boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.15)' : 'none'
+                                                    }}>
+                                                      <FileText size={20} color="#ef4444" />
+                                                    </div>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                      <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                      <div style={{
+                                                        fontWeight: 700,
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        fontSize: '0.82rem',
+                                                        color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                        lineHeight: 1.3
+                                                      }}>
                                                         {att.file_name || 'Dokumen.pdf'}
                                                       </div>
-                                                      <div style={{ fontSize: '0.65rem', opacity: 0.8 }}>
+                                                      <div style={{
+                                                        fontSize: '0.68rem',
+                                                        color: isUser ? 'rgba(255, 255, 255, 0.88)' : 'var(--text-secondary)',
+                                                        marginTop: '0.15rem',
+                                                        fontWeight: 500,
+                                                        whiteSpace: 'nowrap',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis'
+                                                      }}>
                                                         Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
                                                       </div>
                                                     </div>
                                                   </div>
-                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+
+                                                  {/* Action Buttons Row */}
+                                                  <div style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1fr 1fr',
+                                                    gap: '0.5rem',
+                                                    paddingTop: '0.55rem',
+                                                    borderTop: isUser ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.08))',
+                                                    width: '100%',
+                                                    boxSizing: 'border-box'
+                                                  }}>
                                                     <button
                                                       type="button"
                                                       onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
                                                       style={{
                                                         display: 'inline-flex',
                                                         alignItems: 'center',
-                                                        gap: '0.25rem',
-                                                        padding: '0.25rem 0.5rem',
-                                                        borderRadius: '0.4rem',
-                                                        backgroundColor: isUser ? 'rgba(255,255,255,0.25)' : 'rgba(56, 189, 248, 0.2)',
-                                                        color: isUser ? '#ffffff' : '#38bdf8',
-                                                        border: isUser ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(56, 189, 248, 0.4)',
-                                                        fontSize: '0.68rem',
+                                                        justifyContent: 'center',
+                                                        gap: '0.35rem',
+                                                        padding: '0.42rem 0.65rem',
+                                                        borderRadius: '0.5rem',
+                                                        backgroundColor: isUser ? '#ffffff' : 'var(--primary, #0284c7)',
+                                                        color: isUser ? '#0f172a' : '#ffffff',
+                                                        border: 'none',
+                                                        fontSize: '0.74rem',
                                                         fontWeight: 700,
-                                                        cursor: 'pointer'
+                                                        cursor: 'pointer',
+                                                        boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.18)' : '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))',
+                                                        transition: 'all 0.15s ease'
                                                       }}
                                                       title="Lihat Pratinjau Dokumen"
                                                     >
-                                                      <Eye size={13} /> Preview
+                                                      <Eye size={13} strokeWidth={2.2} /> Preview
                                                     </button>
                                                     <button
                                                       type="button"
@@ -17517,16 +17625,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                       style={{
                                                         display: 'inline-flex',
                                                         alignItems: 'center',
-                                                        padding: '0.25rem 0.45rem',
-                                                        borderRadius: '0.4rem',
-                                                        backgroundColor: isUser ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)',
-                                                        color: isUser ? '#ffffff' : 'var(--text-secondary)',
-                                                        border: isUser ? '1px solid rgba(255,255,255,0.3)' : '1px solid var(--border-light)',
-                                                        cursor: 'pointer'
+                                                        justifyContent: 'center',
+                                                        gap: '0.35rem',
+                                                        padding: '0.42rem 0.65rem',
+                                                        borderRadius: '0.5rem',
+                                                        backgroundColor: isUser ? 'rgba(255, 255, 255, 0.22)' : 'var(--bg-card, rgba(0, 0, 0, 0.05))',
+                                                        color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                        border: isUser ? '1px solid rgba(255, 255, 255, 0.45)' : '1px solid var(--border-light)',
+                                                        fontSize: '0.74rem',
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s ease'
                                                       }}
                                                       title="Unduh Berkas Langsung"
                                                     >
-                                                      <Download size={13} />
+                                                      <Download size={13} strokeWidth={2.2} /> Unduh
                                                     </button>
                                                   </div>
                                                 </div>
@@ -17591,7 +17704,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                           {/* Reply Input Form with Multi-Image Screenshot Upload */}
                           {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
-                            <div className="glass-panel" style={{ padding: '1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'rgba(0,0,0,0.3)' }}>
+                            <div className="glass-panel" style={{ padding: '0.85rem 1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'rgba(0,0,0,0.3)', marginTop: '0.2rem' }}>
                               
                               {/* Attached Screenshots Preview Chips */}
                               {ticketReplyAttachments.length > 0 && (
