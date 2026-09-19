@@ -301,7 +301,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
   const [loading, setLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [liveTicketToast, setLiveTicketToast] = useState<{ id: number | string; ticket_number: string; subject: string; sender: string; snippet?: string; type: 'new' | 'reply' } | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
@@ -1439,14 +1438,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 `${merchantName}: ${ticket.subject || 'Kendala baru memerlukan tindakan CS'}`
               );
 
-              setLiveTicketToast({
-                id: ticket.id,
-                ticket_number: ticketNum,
-                subject: ticket.subject || 'Tiket Bantuan Baru',
-                sender: merchantName,
-                type: 'new'
-              });
-
               setTicketsMetrics((prev: any) => ({
                 ...prev,
                 total: (prev.total || 0) + 1,
@@ -1454,9 +1445,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 urgent: (ticket.priority === 'urgent' || ticket.priority === 'high') ? (prev.urgent || 0) + 1 : prev.urgent
               }));
 
-              if (activeView === 'support' || activeView === 'dashboard') {
-                fetchTickets(1, false);
-              }
+              fetchTickets(1, false);
             } else if (event === 'ticket_reply_from_user' && ticket) {
               playSupportChime();
               const ticketNum = ticket.ticket_number || `#TCK-${ticket.ticket_id}`;
@@ -1467,34 +1456,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 `${sender}: ${snippet}`
               );
 
-              setLiveTicketToast({
-                id: ticket.ticket_id,
-                ticket_number: ticketNum,
-                subject: ticket.subject || 'Pesan Balasan Baru',
-                sender,
-                snippet,
-                type: 'reply'
-              });
-
               setTicketsMetrics((prev: any) => ({
                 ...prev,
                 action_required: (prev.action_required || 0) + 1
               }));
 
-              if (activeView === 'support' || activeView === 'dashboard') {
-                fetchTickets(1, false);
-                if (selectedTicket && (selectedTicket.id === ticket.ticket_id || selectedTicket.ticket_number === ticket.ticket_number)) {
-                  handleOpenTicketChat({ id: selectedTicket.id, ticket_number: selectedTicket.ticket_number }, false);
-                }
+              fetchTickets(1, false);
+              if (selectedTicket && (selectedTicket.id === ticket.ticket_id || selectedTicket.ticket_number === ticket.ticket_number)) {
+                handleOpenTicketChat({ id: selectedTicket.id, ticket_number: selectedTicket.ticket_number }, false);
               }
             } else if (event === 'ticket_status_updated') {
-              if (activeView === 'support' || activeView === 'dashboard') {
-                fetchTickets(1, false);
-              }
+              fetchTickets(1, false);
             } else if (event === 'notification' && notification) {
               if (notification.type === 'ticket' || notification.link_sub_tab === 'support') {
                 playSupportChime();
                 sendSupportNotification(notification.title, notification.message);
+                fetchTickets(1, false);
               }
             }
           } catch (err) {
@@ -2059,7 +2036,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       id: 'support' as ActiveView,
       label: 'Helpdesk',
       icon: <HelpCircle size={20} />,
-      badge: unreadTicketsCount > 0 ? unreadTicketsCount : (actionRequiredTicketsCount > 0 ? actionRequiredTicketsCount : openTicketsCount),
+      badge: Math.max(ticketsMetrics.action_required || 0, unreadTicketsCount, openTicketsCount),
       visible: canAccessSupport
     },
     {
@@ -2125,108 +2102,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* Floating Actionable Live Ticket Toast for Mobile */}
-      {liveTicketToast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '20px',
-            left: '12px',
-            right: '12px',
-            zIndex: 99999,
-            padding: '0.85rem 1rem',
-            borderRadius: '0.95rem',
-            backgroundColor: 'rgba(15, 23, 42, 0.97)',
-            border: '1.5px solid #0284c7',
-            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.55), 0 0 20px rgba(2, 132, 199, 0.4)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '0.75rem',
-            backdropFilter: 'blur(16px)',
-            animation: 'fadeInDown 0.3s ease-out'
-          }}
-        >
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(2, 132, 199, 0.2)',
-            border: '1px solid rgba(2, 132, 199, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#38bdf8',
-            flexShrink: 0
-          }}>
-            {liveTicketToast.type === 'new' ? <HelpCircle size={19} /> : <MessageSquare size={19} />}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.15rem' }}>
-              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                {liveTicketToast.type === 'new' ? 'Tiket Baru' : 'Balasan Baru'} • {liveTicketToast.ticket_number}
-              </span>
-              <button
-                type="button"
-                onClick={() => setLiveTicketToast(null)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
-              >
-                <X size={15} />
-              </button>
-            </div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {liveTicketToast.subject}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '0.1rem' }}>
-              Dari: <strong style={{ color: '#ffffff' }}>{liveTicketToast.sender}</strong>
-            </div>
-            <div style={{ marginTop: '0.55rem', display: 'flex', gap: '0.45rem' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveView('support');
-                  setSupportSubView('tickets');
-                  setTicketsFilter('all');
-                  setTicketSearchQuery(liveTicketToast.ticket_number);
-                  handleOpenTicketChat({ id: liveTicketToast.id, ticket_number: liveTicketToast.ticket_number }, true);
-                  setLiveTicketToast(null);
-                }}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '0.45rem',
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
-                }}
-              >
-                Buka Chat <ChevronRight size={12} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setLiveTicketToast(null)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '0.45rem',
-                  backgroundColor: 'transparent',
-                  color: '#94a3b8',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* 1. EXECUTIVE MASTER HEADER (When on Dashboard Menu)                       */}
@@ -2791,82 +2666,231 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
           </div>
 
-          {/* Interactive Action Alerts */}
-          {(pendingReportsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0) && (
-            <div style={{
-              padding: '0.95rem 1.1rem',
-              borderRadius: '1.15rem',
-              backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : 'rgba(244, 63, 94, 0.08)',
-              border: isDark ? '1px solid rgba(244, 63, 94, 0.28)' : '1px solid rgba(244, 63, 94, 0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <AlertTriangle size={16} color="#f43f5e" />
-                <strong style={{ fontSize: '0.82rem', color: isDark ? '#fb7185' : '#e11d48' }}>Perlu Tindakan Administrator:</strong>
+          {/* Executive Operational Action Center / Perlu Tindakan Administrator */}
+          <div style={{
+            padding: '1rem 1.1rem',
+            borderRadius: '1.25rem',
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : '#ffffff',
+            border: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
+              ? (isDark ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(239, 68, 68, 0.25)')
+              : `1px solid ${theme.border}`,
+            boxShadow: theme.cardShadow,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.8rem'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
+                    ? 'rgba(239, 68, 68, 0.15)'
+                    : (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)'),
+                  color: (pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0) ? '#ef4444' : '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {(pendingReportsCount > 0 || actionRequiredTicketsCount > 0 || openTicketsCount > 0 || pendingOrdersCount > 0)
+                    ? <AlertTriangle size={17} />
+                    : <CheckCircle2 size={17} />}
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.2 }}>
+                    Perlu Tindakan Administrator
+                  </h4>
+                  <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                    {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0
+                      ? `${pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} antrean tugas aktif`
+                      : 'Semua antrean operasional telah ditangani'}
+                  </span>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {pendingReportsCount > 0 && (
-                  <button
-                    onClick={() => handleSwitchView('reports')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'none',
-                      border: 'none',
-                      padding: '0.2rem 0',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      color: theme.textPrimary
-                    }}
-                  >
-                    <span style={{ fontSize: '0.75rem', color: theme.textSecondary }}>&bull; {pendingReportsCount} laporan pelanggaran baru menunggu review</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f43f5e', textDecoration: 'underline' }}>Periksa</span>
-                  </button>
-                )}
-                {openTicketsCount > 0 && (
-                  <button
-                    onClick={() => handleSwitchView('support')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'none',
-                      border: 'none',
-                      padding: '0.2rem 0',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      color: theme.textPrimary
-                    }}
-                  >
-                    <span style={{ fontSize: '0.75rem', color: theme.textSecondary }}>&bull; {openTicketsCount} tiket helpdesk merchant belum dibalas</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#06b6d4', textDecoration: 'underline' }}>Buka</span>
-                  </button>
-                )}
-                {pendingOrdersCount > 0 && (
-                  <button
-                    onClick={() => handleSwitchView('finance')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'none',
-                      border: 'none',
-                      padding: '0.2rem 0',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      color: theme.textPrimary
-                    }}
-                  >
-                    <span style={{ fontSize: '0.75rem', color: theme.textSecondary }}>&bull; {pendingOrdersCount} pesanan paket Pro menunggu verifikasi bukti</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10b981', textDecoration: 'underline' }}>Verifikasi</span>
-                  </button>
-                )}
-              </div>
+
+              {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0 ? (
+                <span style={{
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '999px',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '0.65rem',
+                  fontWeight: 900,
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                }}>
+                  {pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} Prioritas
+                </span>
+              ) : (
+                <span style={{
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '999px',
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5',
+                  color: isDark ? '#34d399' : '#059669',
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  border: isDark ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid #a7f3d0'
+                }}>
+                  Terkendali
+                </span>
+              )}
             </div>
-          )}
+
+            {/* Action Items List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {(actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
+                <div
+                  onClick={() => handleSwitchView('support')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(2, 132, 199, 0.1)' : '#f0f9ff',
+                    border: isDark ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid #bae6fd',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(2, 132, 199, 0.25)' : '#e0f2fe',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <HelpCircle size={15} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Helpdesk Tiket Merchant
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                        {actionRequiredTicketsCount || openTicketsCount} tiket butuh respon tim CS
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7' }}>Buka</span>
+                    <ChevronRight size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
+                  </div>
+                </div>
+              )}
+
+              {pendingReportsCount > 0 && (
+                <div
+                  onClick={() => handleSwitchView('reports')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(244, 63, 94, 0.1)' : '#fff1f2',
+                    border: isDark ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid #fecdd3',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(244, 63, 94, 0.25)' : '#ffe4e6',
+                      color: isDark ? '#fb7185' : '#e11d48',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <ShieldAlert size={15} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Laporan Pelanggaran
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                        {pendingReportsCount} laporan kepatuhan menunggu review
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#fb7185' : '#e11d48' }}>Tinjau</span>
+                    <ChevronRight size={14} color={isDark ? '#fb7185' : '#e11d48'} />
+                  </div>
+                </div>
+              )}
+
+              {pendingOrdersCount > 0 && (
+                <div
+                  onClick={() => handleSwitchView('finance')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ecfdf5',
+                    border: isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #a7f3d0',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#d1fae5',
+                      color: isDark ? '#34d399' : '#059669',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <CreditCard size={15} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Verifikasi Pembayaran Paket
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
+                        {pendingOrdersCount} bukti transfer menunggu konfirmasi
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#34d399' : '#059669' }}>Proses</span>
+                    <ChevronRight size={14} color={isDark ? '#34d399' : '#059669'} />
+                  </div>
+                </div>
+              )}
+
+              {/* State ketika tidak ada tindakan pending */}
+              {(pendingReportsCount === 0 && (actionRequiredTicketsCount || openTicketsCount) === 0 && pendingOrdersCount === 0) && (
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                  border: `1px dashed ${theme.border}`,
+                  textAlign: 'center',
+                  color: theme.textSecondary,
+                  fontSize: '0.72rem'
+                }}>
+                  Semua tiket dan laporan operasional telah selesai ditangani.
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Section Heading: Platform & System Management */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.15rem' }}>
