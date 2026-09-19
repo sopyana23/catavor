@@ -1336,20 +1336,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         prevTicketMessagesRef.current = counts;
         isFirstTicketLoadRef.current = false;
 
-        // Auto-update thread chat jika tiket yang sedang dibuka menerima balasan baru
+        // Auto-update status dan metadata tiket yang sedang aktif (TIDAK menimpa daftar pesan penuh dengan cuplikan list)
         if (selectedTicket) {
           const activeUpdated = mappedData.find((t: any) => t.id === selectedTicket.id || String(t.id) === String(selectedTicket.id));
-          if (activeUpdated && Array.isArray(activeUpdated.messages) && activeUpdated.messages.length !== (selectedTicket.messages?.length || 0)) {
+          if (activeUpdated) {
             setSelectedTicket((prev: any) => {
               if (!prev) return null;
-              const mergedMsgs = activeUpdated.messages.map((m: any) => {
-                const existing = prev.messages?.find((em: any) => em.id === m.id);
-                if (existing?.attachments?.length && (!m.attachments || m.attachments.length === 0)) {
-                  return { ...m, attachments: existing.attachments };
-                }
-                return m;
-              });
-              return { ...prev, ...activeUpdated, messages: mergedMsgs };
+              return {
+                ...prev,
+                status: activeUpdated.status || prev.status,
+                priority: activeUpdated.priority || prev.priority,
+                first_response_at: activeUpdated.first_response_at || prev.first_response_at,
+                sla_breached: activeUpdated.sla_breached !== undefined ? activeUpdated.sla_breached : prev.sla_breached,
+                rating: activeUpdated.rating !== undefined ? activeUpdated.rating : prev.rating,
+                rating_comment: activeUpdated.rating_comment !== undefined ? activeUpdated.rating_comment : prev.rating_comment,
+                rated_at: activeUpdated.rated_at || prev.rated_at,
+              };
             });
           }
         }
@@ -1459,8 +1461,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           setAuditLogs(Array.isArray(aData.data) ? aData.data : []);
         }
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      showToast('Gagal memuat sebagian data', 'error');
     } finally {
       setLoading(false);
     }
@@ -1468,7 +1470,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   useEffect(() => {
     loadData();
-  }, [token]);
+  }, [token, activeView]);
 
   // Synchronize URL on popstate (browser back/forward)
   useEffect(() => {
@@ -1508,32 +1510,33 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Deep-link direct ticket opener when tickets are loaded or direct URL access
+  // Deep-link direct ticket chat synchronization
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    const ticketParam = urlParams.get('ticket');
+    
+    if (tabParam === 'support' && activeView !== 'support') {
+      setActiveView('support');
+    }
 
     if (ticketParam && !selectedTicket && canAccessSupport && token) {
-      const cleanParam = String(ticketParam).trim().toLowerCase();
-      const foundInList = tickets.find(
-        t => String(t.id).toLowerCase() === cleanParam ||
-             (t.ticket_number && t.ticket_number.toLowerCase() === cleanParam) ||
-             (`#TCK-${t.id}`).toLowerCase() === cleanParam
-      );
-
-      if (foundInList) {
-        handleOpenTicketChat(foundInList, false);
+      const existingInList = tickets.find(t => t.ticket_number === ticketParam || String(t.id) === String(ticketParam));
+      if (existingInList) {
+        handleOpenTicketChat(existingInList, false);
       } else {
         fetch(`/api/admin/support/tickets/${ticketParam}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
           .then(res => res.json())
           .then(d => {
-            if (d.data) {
+            if (d.success && d.data) {
               const ticketObj = d.data.ticket || d.data;
               const messagesList = d.data.messages || ticketObj.messages || [];
               setSelectedTicket({
                 ...ticketObj,
+                unread_count: 0,
+                has_unread: false,
                 messages: messagesList
               });
             }
@@ -1617,24 +1620,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           setSelectedTicket((prev: any) => {
             if (!prev) return null;
             const currentMsgs = prev.messages || [];
-            if (!currentMsgs.some((m: any) => m.id === createdMsg.id)) {
-              return { ...prev, messages: [...currentMsgs, createdMsg] };
-            }
-            return prev;
+            const exists = currentMsgs.some((m: any) => m.id === createdMsg.id);
+            const newMsgs = exists ? currentMsgs : [...currentMsgs, createdMsg];
+            return {
+              ...prev,
+              status: isInternalNote ? prev.status : (prev.status === 'resolved' || prev.status === 'closed' ? prev.status : 'waiting_user'),
+              messages: newMsgs
+            };
           });
         }
 
         if (shouldResolve) {
           await handleUpdateTicketStatus(targetTicketId, 'resolved');
-        } else {
-          // If public reply, optimistically update status to waiting_user (Zendesk / Intercom Best Practice)
-          if (!isInternalNote && selectedTicket?.status !== 'resolved' && selectedTicket?.status !== 'closed') {
-            setSelectedTicket((prev: any) => prev ? { ...prev, status: 'waiting_user' } : null);
-          }
-          // Re-fetch conversation without clearing UI state
-          handleOpenTicketChat(selectedTicket, false);
         }
-        loadData();
+        // Perbarui ringkasan antrean tiket tanpa mereset riwayat chat aktif
+        fetchTickets(1, false);
       } else {
         showToast(data.message || 'Gagal mengirim balasan', 'error');
       }

@@ -1035,11 +1035,23 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
         prevTicketMessagesRef.current = counts;
         isFirstTicketLoadRef.current = false;
 
-        // Auto-update thread chat jika tiket yang sedang dibuka menerima balasan baru
+        // Auto-update status dan metadata tiket yang sedang aktif (TIDAK menimpa daftar pesan penuh)
         if (selectedTicket) {
           const activeUpdated = mappedData.find((t: any) => t.id === selectedTicket.id || String(t.id) === String(selectedTicket.id));
-          if (activeUpdated && Array.isArray(activeUpdated.messages) && activeUpdated.messages.length !== (selectedTicket.messages?.length || 0)) {
-            setSelectedTicket((prev: any) => prev ? ({ ...prev, messages: activeUpdated.messages }) : null);
+          if (activeUpdated) {
+            setSelectedTicket((prev: any) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                status: activeUpdated.status || prev.status,
+                priority: activeUpdated.priority || prev.priority,
+                first_response_at: activeUpdated.first_response_at || prev.first_response_at,
+                sla_breached: activeUpdated.sla_breached !== undefined ? activeUpdated.sla_breached : prev.sla_breached,
+                rating: activeUpdated.rating !== undefined ? activeUpdated.rating : prev.rating,
+                rating_comment: activeUpdated.rating_comment !== undefined ? activeUpdated.rating_comment : prev.rating_comment,
+                rated_at: activeUpdated.rated_at || prev.rated_at,
+              };
+            });
           }
         }
 
@@ -1334,18 +1346,20 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           setSelectedTicket((prev: any) => {
             if (!prev) return null;
             const currentMsgs = prev.messages || [];
-            if (!currentMsgs.some((m: any) => m.id === createdMsg.id)) {
-              return { ...prev, messages: [...currentMsgs, createdMsg] };
-            }
-            return prev;
+            const exists = currentMsgs.some((m: any) => m.id === createdMsg.id);
+            const newMsgs = exists ? currentMsgs : [...currentMsgs, createdMsg];
+            return {
+              ...prev,
+              status: isInternalNote ? prev.status : (prev.status === 'resolved' || prev.status === 'closed' ? prev.status : 'waiting_user'),
+              messages: newMsgs
+            };
           });
         }
         if (shouldResolve) {
           await handleUpdateTicketStatus(targetTicketId, 'resolved');
-        } else {
-          handleOpenTicketChat(selectedTicket, false);
         }
-        fetchDivisionData();
+        // Perbarui ringkasan antrean tiket tanpa mereset riwayat chat aktif
+        fetchTickets(1, false);
       } else {
         showToast(data.message || 'Gagal mengirim balasan tiket', 'error');
       }
