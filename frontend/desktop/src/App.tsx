@@ -4888,7 +4888,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       eventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
-          if (payload && payload.notification) {
+          if (payload && payload.event === 'ticket_reply_from_staff') {
+            setSupportUnreadCount(prev => prev + 1);
+            if (typeof playSupportChime === 'function') {
+              playSupportChime();
+            }
+            showToast('1 pesan masuk', 'info');
+          } else if (payload && payload.event === 'ticket_status_updated') {
+            showToast('Status tiket bantuan telah diperbarui', 'info');
+          } else if (payload && payload.notification) {
             const newNotif = payload.notification;
             setNotifications(prev => {
               const filtered = prev.filter(n => String(n.id) !== String(newNotif.id));
