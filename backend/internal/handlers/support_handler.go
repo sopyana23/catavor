@@ -521,6 +521,9 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	// Preload ticket relations
 	database.DB.Preload("User").Preload("Store").Preload("Messages.Attachments").First(&ticket, ticket.ID)
 
+	// Broadcast real-time ticket event to all Superadmin & Support staff via SSE
+	go services.GetNotificationHub().BroadcastTicketEvent("ticket_created", ticket, 0, "superadmin")
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Tiket bantuan berhasil dibuat.",
@@ -624,6 +627,17 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 
 	// Preload created message
 	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
+
+	// Broadcast real-time ticket reply event to all Superadmin & Support staff via SSE
+	go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_user", map[string]interface{}{
+		"ticket_id":      ticket.ID,
+		"ticket_number":  ticket.TicketNumber,
+		"subject":        ticket.Subject,
+		"status":         ticket.Status,
+		"priority":       ticket.Priority,
+		"sender_name":    user.Name,
+		"message":        msg,
+	}, 0, "superadmin")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -985,6 +999,15 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 
 	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
+	// Broadcast real-time ticket reply event to merchant via SSE
+	go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_staff", map[string]interface{}{
+		"ticket_id":     ticket.ID,
+		"ticket_number": ticket.TicketNumber,
+		"subject":       ticket.Subject,
+		"status":        ticket.Status,
+		"message":       msg,
+	}, ticket.UserID, "")
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Balasan agen CS berhasil dikirim.",
@@ -1067,6 +1090,14 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 		}
 		database.DB.Create(&resolutionMsg)
 	}
+
+	// Broadcast status update event to both merchant and superadmins
+	go services.GetNotificationHub().BroadcastTicketEvent("ticket_status_updated", map[string]interface{}{
+		"ticket_id":     ticket.ID,
+		"ticket_number": ticket.TicketNumber,
+		"status":        ticket.Status,
+		"old_status":    oldStatus,
+	}, ticket.UserID, "superadmin")
 
 	return c.JSON(fiber.Map{
 		"success": true,

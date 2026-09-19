@@ -301,6 +301,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
   const [loading, setLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [liveTicketToast, setLiveTicketToast] = useState<{ id: number | string; ticket_number: string; subject: string; sender: string; snippet?: string; type: 'new' | 'reply' } | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
@@ -1409,6 +1410,123 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     };
   }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
+  // Real-Time Global SSE Stream Subscription (Go Channel Live Broadcast) for Mobile
+  useEffect(() => {
+    if (!token || (!isSuperAdmin && !canAccessSupport)) return;
+
+    let eventSource: EventSource | null = null;
+    let reconnectTimeout: any = null;
+    let isUnmounted = false;
+
+    const connectSSE = () => {
+      if (isUnmounted) return;
+      try {
+        const streamUrl = `/api/v1/notifications/stream?token=${encodeURIComponent(token)}`;
+        eventSource = new EventSource(streamUrl);
+
+        eventSource.onmessage = (e) => {
+          if (!e.data || e.data.trim() === '' || e.data.startsWith(':')) return;
+          try {
+            const payload = JSON.parse(e.data);
+            const { event, ticket, notification } = payload;
+
+            if (event === 'ticket_created' && ticket) {
+              playSupportChime();
+              const ticketNum = ticket.ticket_number || `#TCK-${ticket.id}`;
+              const merchantName = ticket.user?.name || ticket.store?.name || 'Merchant';
+              sendSupportNotification(
+                `🎫 Tiket Bantuan Baru: ${ticketNum}`,
+                `${merchantName}: ${ticket.subject || 'Kendala baru memerlukan tindakan CS'}`
+              );
+
+              setLiveTicketToast({
+                id: ticket.id,
+                ticket_number: ticketNum,
+                subject: ticket.subject || 'Tiket Bantuan Baru',
+                sender: merchantName,
+                type: 'new'
+              });
+
+              setTicketsMetrics((prev: any) => ({
+                ...prev,
+                total: (prev.total || 0) + 1,
+                action_required: (prev.action_required || 0) + 1,
+                urgent: (ticket.priority === 'urgent' || ticket.priority === 'high') ? (prev.urgent || 0) + 1 : prev.urgent
+              }));
+
+              if (activeView === 'support' || activeView === 'dashboard') {
+                fetchTickets(1, false);
+              }
+            } else if (event === 'ticket_reply_from_user' && ticket) {
+              playSupportChime();
+              const ticketNum = ticket.ticket_number || `#TCK-${ticket.ticket_id}`;
+              const sender = ticket.sender_name || 'Merchant';
+              const snippet = ticket.message?.message || '';
+              sendSupportNotification(
+                `💬 Balasan Baru: ${ticketNum}`,
+                `${sender}: ${snippet}`
+              );
+
+              setLiveTicketToast({
+                id: ticket.ticket_id,
+                ticket_number: ticketNum,
+                subject: ticket.subject || 'Pesan Balasan Baru',
+                sender,
+                snippet,
+                type: 'reply'
+              });
+
+              setTicketsMetrics((prev: any) => ({
+                ...prev,
+                action_required: (prev.action_required || 0) + 1
+              }));
+
+              if (activeView === 'support' || activeView === 'dashboard') {
+                fetchTickets(1, false);
+                if (selectedTicket && (selectedTicket.id === ticket.ticket_id || selectedTicket.ticket_number === ticket.ticket_number)) {
+                  handleOpenTicketChat({ id: selectedTicket.id, ticket_number: selectedTicket.ticket_number }, false);
+                }
+              }
+            } else if (event === 'ticket_status_updated') {
+              if (activeView === 'support' || activeView === 'dashboard') {
+                fetchTickets(1, false);
+              }
+            } else if (event === 'notification' && notification) {
+              if (notification.type === 'ticket' || notification.link_sub_tab === 'support') {
+                playSupportChime();
+                sendSupportNotification(notification.title, notification.message);
+              }
+            }
+          } catch (err) {
+            // Non-JSON frame ignored
+          }
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          if (!isUnmounted) {
+            reconnectTimeout = setTimeout(connectSSE, 6000);
+          }
+        };
+      } catch (err) {
+        if (!isUnmounted) {
+          reconnectTimeout = setTimeout(connectSSE, 8000);
+        }
+      }
+    };
+
+    connectSSE();
+
+    return () => {
+      isUnmounted = true;
+      if (eventSource) eventSource.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, [token, isSuperAdmin, canAccessSupport, activeView, selectedTicket?.id]);
+
   const loadData = async () => {
     if (!token) return;
     setLoading(true);
@@ -2004,6 +2122,109 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         }}>
           {toastMsg.type === 'success' ? <CheckCircle2 size={15} /> : toastMsg.type === 'error' ? <AlertTriangle size={15} /> : <AlertCircle size={15} />}
           <span>{toastMsg.text}</span>
+        </div>
+      )}
+
+      {/* Floating Actionable Live Ticket Toast for Mobile */}
+      {liveTicketToast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '12px',
+            right: '12px',
+            zIndex: 99999,
+            padding: '0.85rem 1rem',
+            borderRadius: '0.95rem',
+            backgroundColor: 'rgba(15, 23, 42, 0.97)',
+            border: '1.5px solid #0284c7',
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.55), 0 0 20px rgba(2, 132, 199, 0.4)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.75rem',
+            backdropFilter: 'blur(16px)',
+            animation: 'fadeInDown 0.3s ease-out'
+          }}
+        >
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(2, 132, 199, 0.2)',
+            border: '1px solid rgba(2, 132, 199, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#38bdf8',
+            flexShrink: 0
+          }}>
+            {liveTicketToast.type === 'new' ? <HelpCircle size={19} /> : <MessageSquare size={19} />}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.15rem' }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {liveTicketToast.type === 'new' ? 'Tiket Baru' : 'Balasan Baru'} • {liveTicketToast.ticket_number}
+              </span>
+              <button
+                type="button"
+                onClick={() => setLiveTicketToast(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {liveTicketToast.subject}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '0.1rem' }}>
+              Dari: <strong style={{ color: '#ffffff' }}>{liveTicketToast.sender}</strong>
+            </div>
+            <div style={{ marginTop: '0.55rem', display: 'flex', gap: '0.45rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveView('support');
+                  setSupportSubView('tickets');
+                  setTicketsFilter('all');
+                  setTicketSearchQuery(liveTicketToast.ticket_number);
+                  handleOpenTicketChat({ id: liveTicketToast.id, ticket_number: liveTicketToast.ticket_number }, true);
+                  setLiveTicketToast(null);
+                }}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
+                }}
+              >
+                Buka Chat <ChevronRight size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLiveTicketToast(null)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: 'transparent',
+                  color: '#94a3b8',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

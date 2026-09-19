@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"catavor-backend/internal/models"
@@ -344,6 +345,7 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	var storeID uint
 	var userID uint
 	storePlan := "free"
+	platformRole := ""
 
 	if store != nil {
 		storeID = store.ID
@@ -353,6 +355,10 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	}
 	if user != nil {
 		userID = user.ID
+		platformRole = user.PlatformRole
+		if strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com" {
+			platformRole = "superadmin"
+		}
 	}
 
 	c.Set("Content-Type", "text/event-stream")
@@ -361,7 +367,7 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	c.Set("X-Accel-Buffering", "no")
 	c.Set("Access-Control-Allow-Origin", "*")
 
-	client := services.GetNotificationHub().Register(userID, storeID, storePlan)
+	client := services.GetNotificationHub().Register(userID, storeID, storePlan, platformRole)
 
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 		defer services.GetNotificationHub().Unregister(client)
