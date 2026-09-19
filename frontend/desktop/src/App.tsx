@@ -5886,6 +5886,18 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
   const merchantTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const desktopTicketChatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat stream to bottom when ticket is opened or new messages arrive
+  useEffect(() => {
+    if (selectedTicket && desktopTicketChatContainerRef.current) {
+      setTimeout(() => {
+        if (desktopTicketChatContainerRef.current) {
+          desktopTicketChatContainerRef.current.scrollTop = desktopTicketChatContainerRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [selectedTicket?.id, selectedTicket?.messages?.length]);
 
   // Auto-resize and reset textarea height when ticket reply is typed or sent/cleared
   useEffect(() => {
@@ -17365,12 +17377,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
 
                     {/* RIGHT PANEL: TICKET DETAIL & THREAD */}
-                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', minHeight: '520px' }}>
+                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column' }}>
                       {selectedTicket ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                           
                           {/* Ticket Details Header */}
-                          <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                          <div style={{ paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.75rem', flexWrap: 'wrap' }}>
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.65rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
                                 <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: '0.02em', wordBreak: 'break-all' }}>
@@ -17393,7 +17405,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               </div>
                             </div>
 
-                            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.55rem 0', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, wordBreak: 'break-word' }}>
                               {selectedTicket.subject}
                             </h3>
 
@@ -17412,7 +17424,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           {/* Discussion Thread Messages */}
-                          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '420px' }}>
+                          <div ref={desktopTicketChatContainerRef} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingRight: '0.5rem', maxHeight: '440px' }}>
                             {selectedTicket.messages.map((msg) => {
                               const isUser = msg.sender === 'user';
                               const isSystemBot = msg.sender === 'system';

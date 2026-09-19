@@ -5445,9 +5445,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
-      if (path.includes('/admin')) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
+      if (path.includes('/admin') || rawTabParam === 'admin' || rawTabParam === 'help' || rawTabParam === 'support' || rawTabParam === 'bantuan' || Boolean(urlParams.get('ticket')) || Boolean(sessionStorage.getItem('catavor_merchant_active_ticket_id'))) {
         return 'admin';
       }
+      if (rawTabParam === 'about' || path.includes('/about')) return 'about';
+      if (rawTabParam === 'sightings' || path.includes('/sightings')) return 'sightings';
+      if (rawTabParam === 'articles' || path.includes('/articles')) return 'articles';
     }
     return 'catalog';
   })
@@ -5458,7 +5463,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const urlParams = new URLSearchParams(window.location.search);
       const parts = path.split('/').filter(Boolean);
       const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
-      if (['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) || urlParams.get('ticket') || (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2]))) {
+      const rawSubParam = (urlParams.get('sub') || '').toLowerCase();
+      if (['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) || ['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawSubParam) || urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id') || (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2]))) {
         return 'help';
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
@@ -5466,6 +5472,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
+      }
+      if (rawSubParam && ['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
+        return rawSubParam as any;
       }
     }
     return 'menu';
@@ -6132,7 +6141,22 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Support Ticket System State (Mobile)
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState<boolean>(false);
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id');
+        const cached = sessionStorage.getItem('catavor_merchant_active_ticket_data');
+        if (ticketParam && cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && (String(parsed.id) === String(ticketParam) || (parsed.ticket_number && parsed.ticket_number.toLowerCase() === String(ticketParam).toLowerCase()))) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [isCreatingTicket, setIsCreatingTicket] = useState<boolean>(false);
   const [showCategorySelectModal, setShowCategorySelectModal] = useState<boolean>(false);
   const [showPrioritySelectModal, setShowPrioritySelectModal] = useState<boolean>(false);
@@ -6566,6 +6590,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             attachments: Array.isArray(m.attachments) ? m.attachments : []
           }))
         };
+        try {
+          sessionStorage.setItem('catavor_merchant_active_ticket_id', String(mapped.id));
+          sessionStorage.setItem('catavor_merchant_active_ticket_data', JSON.stringify(mapped));
+        } catch {}
         setSelectedTicket(prev => {
           if (!prev || prev.id !== mapped.id) return mapped;
           if (
@@ -6622,9 +6650,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const slug = getStoreSlug();
 
     if (ticketRef) {
+      try {
+        sessionStorage.setItem('catavor_merchant_active_ticket_id', String(ticketRef));
+      } catch {}
       const found = tickets.find(t => String(t.id) === String(ticketRef) || String(t.ticket_number) === String(ticketRef));
       if (found) {
         setSelectedTicket(found);
+        try {
+          sessionStorage.setItem('catavor_merchant_active_ticket_data', JSON.stringify(found));
+        } catch {}
         fetchTicketDetails(found.id);
       } else {
         fetchTicketDetails(ticketRef);
@@ -6634,6 +6668,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       }
     } else {
       setSelectedTicket(null);
+      try {
+        sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+        sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+      } catch {}
       if (slug) {
         window.history.pushState({}, '', `/${slug}/admin/help`);
       }
@@ -6666,6 +6704,13 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     if (!selectedTicket) {
       lastViewedTicketIdRef.current = null;
       lastMessagesCountRef.current = 0;
+      if (adminSubTab === 'help') {
+        try {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        } catch {
+          window.scrollTo(0, 0);
+        }
+      }
       return;
     }
 
@@ -6679,7 +6724,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         messagesEndRef.current?.scrollIntoView({ behavior: isNewTicket ? 'instant' : 'smooth' });
       }, 100);
     }
-  }, [selectedTicket?.id, selectedTicket?.messages?.length]);
+  }, [selectedTicket?.id, selectedTicket?.messages?.length, adminSubTab]);
 
   // Upload attachment helper for screenshots
   const handleUploadSupportAttachment = async (files: FileList | null, isReply: boolean = false) => {
@@ -7092,7 +7137,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               setSelectedTicket(null);
             } else {
               setIsCreatingTicket(false);
-              const ticketParam = urlParams.get('ticket') || (subSub && subSub !== 'new' && subSub !== 'create' ? subSub : null);
+              const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id') || (subSub && subSub !== 'new' && subSub !== 'create' ? subSub : null);
               if (ticketParam) {
                 const savedTickets = (() => {
                   try {
@@ -7170,7 +7215,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               setSelectedTicket(null);
             } else {
               setIsCreatingTicket(false);
-              const ticketParam = urlParams.get('ticket');
+              const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id');
               if (ticketParam) {
                 const savedTickets = (() => {
                   try {
@@ -7180,7 +7225,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                     return INITIAL_TICKETS;
                   }
                 })();
-                const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
+                const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === ticketParam.toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === ticketParam.toLowerCase()));
                 if (found) setSelectedTicket(found);
                 fetchTicketDetails(ticketParam);
               } else {
@@ -8033,8 +8078,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           targetPath += `/admin/help/new`;
         } else {
           targetPath += `/admin/help`;
-          if (selectedTicket && selectedTicket.id !== undefined && selectedTicket.id !== null) {
-            params.set('ticket', String(selectedTicket.id));
+          const activeTckId = selectedTicket?.id ?? sessionStorage.getItem('catavor_merchant_active_ticket_id') ?? new URLSearchParams(window.location.search).get('ticket');
+          if (activeTckId) {
+            params.set('ticket', String(activeTckId));
           }
         }
       } else if (adminSubTab === 'share') {
@@ -14335,13 +14381,31 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               setTicketNewAttachments([]);
                             } else if (selectedTicket) {
                               setSelectedTicket(null);
+                              try {
+                                sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                              } catch {}
+                              try {
+                                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                              } catch {
+                                window.scrollTo(0, 0);
+                              }
                               if (slug) {
                                 window.history.pushState({}, '', `/${slug}/admin/help`);
                               }
                             } else {
                               setAdminSubTab('menu');
                               setSelectedTicket(null);
+                              try {
+                                sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                              } catch {}
                               setIsCreatingTicket(false);
+                              try {
+                                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                              } catch {
+                                window.scrollTo(0, 0);
+                              }
                               if (slug) {
                                 window.history.pushState({}, '', `/${slug}/admin`);
                               }
@@ -14635,7 +14699,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       )}
       </div>
 
-      <div className="animate-fade-in" style={{ paddingBottom: isBottomNavVisible ? '80px' : '24px' }}>
+      <div className="animate-fade-in" style={{ paddingBottom: isBottomNavVisible ? '80px' : (activeTab === 'admin' && adminSubTab === 'help' && selectedTicket ? '0px' : '24px') }}>
       {/* Tabs Content */}
       <main className="container" style={{ marginTop: '0.65rem' }}>
         {/* Free Plan Branding Banner (Mobile) */}
@@ -19624,10 +19688,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.9rem',
+                      gap: '0.65rem',
                       paddingBottom: (selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed')
-                        ? (ticketReplyAttachments.length > 0 ? '115px' : '70px')
-                        : '1rem'
+                        ? (ticketReplyAttachments.length > 0 ? '112px' : '56px')
+                        : '0.5rem'
                     }}>
                       {/* Ticket Details Header & Status Bar */}
                       <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
@@ -20835,6 +20899,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   readTicketIdsRef.current.add(ticket.id);
                                   readTicketIdsRef.current.add(String(ticket.id));
                                   setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id)) ? { ...t, unread_count: 0, has_unread: false, status: t.status === 'waiting_user' ? 'in_progress' : t.status } : t));
+                                  try {
+                                    sessionStorage.setItem('catavor_merchant_active_ticket_id', String(ticket.id));
+                                    sessionStorage.setItem('catavor_merchant_active_ticket_data', JSON.stringify(ticket));
+                                  } catch {}
                                   setSelectedTicket(ticket);
                                   fetchTicketDetails(ticket.id);
                                   const slug = getStoreSlug();

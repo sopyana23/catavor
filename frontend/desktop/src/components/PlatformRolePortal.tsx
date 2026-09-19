@@ -243,11 +243,21 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     setActiveDivision(division);
     setSelectedTicket(null);
     updatePlatformUrl(division, null);
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
   };
 
   const handleCloseTicketChat = () => {
     setSelectedTicket(null);
     updatePlatformUrl(activeDivision || 'support', null);
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
   };
   const [loading, setLoading] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -477,6 +487,17 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
   const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
+
+  // Auto-scroll chat modal feed to bottom when selected ticket is loaded or updated
+  useEffect(() => {
+    if (selectedTicket && desktopChatFeedRef.current) {
+      setTimeout(() => {
+        if (desktopChatFeedRef.current) {
+          desktopChatFeedRef.current.scrollTop = desktopChatFeedRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [selectedTicket?.id, selectedTicket?.messages?.length]);
 
   // Support Division Sub-Navigation & Master Canned Responses State
   const [supportSubView, setSupportSubView] = useState<'tickets' | 'templates'>(() => {

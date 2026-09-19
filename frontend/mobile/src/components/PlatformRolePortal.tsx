@@ -283,11 +283,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     setActiveView(view);
     setSelectedTicket(null);
     updatePlatformUrl(view, null);
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
   };
 
   const handleCloseTicketChat = () => {
     setSelectedTicket(null);
     updatePlatformUrl(activeView || 'support', null);
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
   };
   const [loading, setLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -1714,6 +1724,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
+    } else {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } catch {
+        window.scrollTo(0, 0);
+      }
     }
   }, [selectedTicket?.id, selectedTicket?.messages?.length]);
 
@@ -1846,7 +1862,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         backgroundColor: theme.bg,
         color: theme.textPrimary,
         padding: (activeView === 'support' && selectedTicket)
-          ? `0.5rem 0.85rem calc(${selectedTicket.status === 'closed' ? '70px' : '160px'} + 1rem + env(safe-area-inset-bottom, 0px)) 0.85rem`
+          ? `0.5rem 0.85rem calc(${selectedTicket.status === 'closed' ? '70px' : (ticketReplyAttachments.length > 0 ? '245px' : '180px')} + env(safe-area-inset-bottom, 0px)) 0.85rem`
           : isSubPage
             ? '0.5rem 0.85rem 2rem 0.85rem'
             : '0.5rem 0.85rem 5.5rem 0.85rem',
@@ -2810,7 +2826,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: selectedTicket.status === 'closed' ? '1rem' : '130px', marginBottom: '-3.8rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: 0 }}>
             {/* Agent Collision Warning Banner (Fase 5) */}
             {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
               <div style={{
