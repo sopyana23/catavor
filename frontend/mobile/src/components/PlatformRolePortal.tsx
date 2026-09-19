@@ -1080,14 +1080,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Agent Collision Detection Presence (Fase 5)
   const [activePresences, setActivePresences] = useState<any[]>([]);
+  const isTypingDebounceTimerRef = useRef<any>(null);
 
+  // Send periodic presence heartbeat (15s interval, respects document.visibilityState)
   useEffect(() => {
     if (!selectedTicket || !token || !canAccessSupport) {
       setActivePresences([]);
       return;
     }
 
-    const sendPresence = async () => {
+    const sendPresence = async (isTyping = false) => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
           method: 'POST',
@@ -1095,7 +1098,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ is_typing: replyText.trim().length > 0 })
+          body: JSON.stringify({ is_typing: isTyping })
         });
       } catch (err) {
         // Ignore network hiccups
@@ -1103,6 +1106,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     };
 
     const fetchPresence = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         const res = await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -1118,15 +1122,56 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
     };
 
-    sendPresence();
+    sendPresence(false);
     fetchPresence();
     const interval = setInterval(() => {
-      sendPresence();
+      sendPresence(false);
       fetchPresence();
-    }, 12000);
+    }, 15000);
 
-    return () => clearInterval(interval);
-  }, [selectedTicket?.id, token, canAccessSupport, replyText]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendPresence(false);
+        fetchPresence();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [selectedTicket?.id, token, canAccessSupport]);
+
+  // Debounced Typing Indicator: only sends typing signal with debounce, not on every keystroke
+  useEffect(() => {
+    if (!selectedTicket?.id || !token || !canAccessSupport) return;
+    if (isTypingDebounceTimerRef.current) {
+      clearTimeout(isTypingDebounceTimerRef.current);
+    }
+    const isTyping = replyText.trim().length > 0;
+    if (!isTyping) return;
+
+    isTypingDebounceTimerRef.current = setTimeout(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: true })
+        });
+      } catch {}
+    }, 1200);
+
+    return () => {
+      if (isTypingDebounceTimerRef.current) {
+        clearTimeout(isTypingDebounceTimerRef.current);
+      }
+    };
+  }, [replyText, selectedTicket?.id, token, canAccessSupport]);
 
   const [showBroadcastSheet, setShowBroadcastSheet] = useState(false);
   const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info', target_role: 'all' });
@@ -1341,13 +1386,25 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [token, canAccessSupport, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
-  // Polling berkala setiap 10 detik di mobile saat tab support aktif
+  // Polling berkala saat tab support aktif (12 detik saat aktif, hemat baterai saat tab hidden)
   useEffect(() => {
     if (!token || !canAccessSupport) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchTickets(1, false);
-    }, activeView === 'support' ? 10000 : 25000);
-    return () => clearInterval(interval);
+    }, activeView === 'support' ? 12000 : 30000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTickets(1, false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   const loadData = async () => {

@@ -830,14 +830,17 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
   // Agent Collision Detection Presence (Fase 5)
   const [activePresences, setActivePresences] = useState<any[]>([]);
+  const isTypingDebounceTimerRef = useRef<any>(null);
 
+  // Send periodic presence heartbeat (15s interval, respects document.visibilityState)
   useEffect(() => {
     if (!selectedTicket || !token || !canAccessSupport) {
       setActivePresences([]);
       return;
     }
 
-    const sendPresence = async () => {
+    const sendPresence = async (isTyping = false) => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
           method: 'POST',
@@ -845,7 +848,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ is_typing: replyMessage.trim().length > 0 })
+          body: JSON.stringify({ is_typing: isTyping })
         });
       } catch (err) {
         // Ignore network hiccups
@@ -853,6 +856,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     };
 
     const fetchPresence = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         const res = await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -868,15 +872,56 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       }
     };
 
-    sendPresence();
+    sendPresence(false);
     fetchPresence();
     const interval = setInterval(() => {
-      sendPresence();
+      sendPresence(false);
       fetchPresence();
-    }, 12000);
+    }, 15000);
 
-    return () => clearInterval(interval);
-  }, [selectedTicket?.id, token, canAccessSupport, replyMessage]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendPresence(false);
+        fetchPresence();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [selectedTicket?.id, token, canAccessSupport]);
+
+  // Debounced Typing Indicator: only sends typing signal with debounce, not on every keystroke
+  useEffect(() => {
+    if (!selectedTicket?.id || !token || !canAccessSupport) return;
+    if (isTypingDebounceTimerRef.current) {
+      clearTimeout(isTypingDebounceTimerRef.current);
+    }
+    const isTyping = replyMessage.trim().length > 0;
+    if (!isTyping) return;
+
+    isTypingDebounceTimerRef.current = setTimeout(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await fetch(`/api/admin/support/tickets/${selectedTicket.id}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: true })
+        });
+      } catch {}
+    }, 1200);
+
+    return () => {
+      if (isTypingDebounceTimerRef.current) {
+        clearTimeout(isTypingDebounceTimerRef.current);
+      }
+    };
+  }, [replyMessage, selectedTicket?.id, token, canAccessSupport]);
 
   // State: Finance
   const [orders, setOrders] = useState<any[]>([]);
@@ -1030,13 +1075,25 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     }
   }, [token, canAccessSupport, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
-  // Polling cerdas setiap 10 detik agar chat masuk terdeteksi secara real-time
+  // Polling cerdas saat tab support aktif (12 detik saat aktif, hemat baterai saat tab hidden)
   useEffect(() => {
     if (!token || !canAccessSupport) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchTickets(1, false);
-    }, activeDivision === 'support' ? 10000 : 25000);
-    return () => clearInterval(interval);
+    }, activeDivision === 'support' ? 12000 : 30000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTickets(1, false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [token, canAccessSupport, activeDivision, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   const fetchDivisionData = async () => {
