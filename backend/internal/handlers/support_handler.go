@@ -18,6 +18,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -973,7 +974,9 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
-		database.DB.Create(&notif)
+		if err := database.DB.Create(&notif).Error; err == nil {
+			services.GetNotificationHub().Broadcast(&notif)
+		}
 	}
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
