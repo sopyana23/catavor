@@ -6726,19 +6726,33 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     fetchSupportTickets(tickets.length > 0, ticketPage);
   }, [adminSubTab, token, debouncedTicketSearch, ticketFilter, ticketPage]);
 
-  // Polling otomatis hemat resource: 10 detik di tab bantuan, 25 detik di tab lain
+  // Polling otomatis hemat resource: 12 detik di tab bantuan, 30 detik di tab lain (berhenti saat tab hidden)
   useEffect(() => {
     if (!token) return;
 
-    const intervalMs = adminSubTab === 'help' ? 10000 : 25000;
+    const intervalMs = adminSubTab === 'help' ? 12000 : 30000;
     const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       if (selectedTicket?.id) {
         fetchTicketDetails(selectedTicket.id);
       }
       fetchSupportTickets(true, ticketPage);
     }, intervalMs);
 
-    return () => clearInterval(timer);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        if (selectedTicket?.id) {
+          fetchTicketDetails(selectedTicket.id);
+        }
+        fetchSupportTickets(true, ticketPage);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter]);
 
   // Auto-scroll ke pesan percakapan terbaru saat tiket baru dibuka atau pesan baru tiba
