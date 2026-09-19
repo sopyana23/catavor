@@ -1379,23 +1379,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     fetchTickets(ticketsPagination.page + 1, true);
   };
 
-  // Re-fetch tickets server-side whenever active filters or debounced search query change
+  // Re-fetch tickets server-side whenever active filters or debounced search query change (HANYA saat tab support aktif)
   useEffect(() => {
-    if (canAccessSupport && token) {
+    if (canAccessSupport && token && activeView === 'support') {
       fetchTickets(1, false);
     }
-  }, [token, canAccessSupport, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Polling berkala saat tab support aktif (12 detik saat aktif, hemat baterai saat tab hidden)
   useEffect(() => {
-    if (!token || !canAccessSupport) return;
+    if (!token || !canAccessSupport || activeView !== 'support') return;
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchTickets(1, false);
-    }, activeView === 'support' ? 12000 : 30000);
+    }, 12000);
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && activeView === 'support') {
         fetchTickets(1, false);
       }
     };
@@ -1423,7 +1423,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           setDormancyMetrics(dormData);
         }
       }
-      if (canAccessSupport) {
+      if (canAccessSupport && activeView === 'support') {
         fetchTickets(1, false);
       }
       if (canAccessFinance) {

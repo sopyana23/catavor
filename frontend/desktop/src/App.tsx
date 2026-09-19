@@ -6451,17 +6451,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
-  // Trigger fetch ketika filter status, kata kunci debounced search, atau halaman paginasi berubah
+  // Trigger fetch ketika filter status, kata kunci debounced search, atau halaman paginasi berubah (HANYA saat tab bantuan aktif)
   useEffect(() => {
-    if (!token) return;
+    if (!token || adminTab !== 'help') return;
     fetchSupportTickets(tickets.length > 0, ticketPage);
   }, [adminTab, token, debouncedTicketSearch, ticketFilter, ticketPage]);
 
-  // Polling otomatis hemat resource: 12 detik di tab bantuan, 30 detik di tab lain (berhenti saat tab hidden)
+  // Polling otomatis hemat resource: HANYA aktif saat adminTab === 'help' dan tab browser aktif
   useEffect(() => {
-    if (!token) return;
+    if (!token || adminTab !== 'help') return;
 
-    const intervalMs = adminTab === 'help' ? 12000 : 30000;
+    const intervalMs = 12000;
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       if (selectedTicket?.id) {
@@ -6471,7 +6471,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }, intervalMs);
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && adminTab === 'help') {
         if (selectedTicket?.id) {
           fetchTicketDetails(selectedTicket.id);
         }
