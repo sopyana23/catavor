@@ -132,6 +132,7 @@ import { AnalyticsPage, type DetailedAnalyticsData } from './components/Analytic
 import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
+import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
@@ -5918,6 +5919,55 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
+  // In-App Document (PDF) Preview & Direct Download States (Desktop)
+  const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
+
+  const openDocumentPreview = (att: any) => {
+    setDocPreview({
+      isOpen: true,
+      id: att.id,
+      url: att.file_url,
+      fileName: att.file_name || 'Dokumen.pdf',
+      fileSize: att.file_size,
+      fileType: att.file_type || 'application/pdf'
+    });
+  };
+
+  const handleDownloadDocument = async (att: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const authToken = token || localStorage.getItem('catavor_token') || '';
+    const fileName = att.file_name || 'Dokumen.pdf';
+
+    try {
+      const targetUrl = att.id ? `/api/support/attachments/${att.id}?download=1` : att.file_url;
+      const res = await fetch(targetUrl, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
+    } catch (err) {
+      console.warn('Direct download blob error, falling back:', err);
+    }
+
+    const link = document.createElement('a');
+    link.href = att.id ? `/api/support/attachments/${att.id}?download=1&token=${authToken}` : att.file_url;
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Support Ticket In-App Lightbox Gallery State (Desktop)
   const [attachmentLightbox, setAttachmentLightbox] = useState<{
     isOpen: boolean;
@@ -6343,6 +6393,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
         const formData = new FormData();
         formData.append('image', file);
+        formData.append('category', 'support');
 
         const res = await fetch(`${API_BASE}/storage/upload?category=support`, {
           method: 'POST',
@@ -17398,12 +17449,94 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         borderTop: msg.message ? (isUser ? '1px dashed rgba(255,255,255,0.35)' : '1px dashed var(--border-light)') : 'none'
                                       }}>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isUser ? 'rgba(255,255,255,0.95)' : 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                          <Paperclip size={13} color={isUser ? '#ffffff' : 'var(--primary)'} /> {msg.attachments.length} Lampiran Screenshot / Bukti Foto:
+                                          <Paperclip size={13} color={isUser ? '#ffffff' : 'var(--primary)'} /> {msg.attachments.length} Lampiran File:
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.6rem' }}>
-                                          {msg.attachments.map((att, idx) => (
+                                          {msg.attachments.map((att: any, idx: number) => {
+                                            const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
+                                            if (isPDF) {
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  onClick={() => openDocumentPreview(att)}
+                                                  role="button"
+                                                  tabIndex={0}
+                                                  style={{
+                                                    gridColumn: '1 / -1',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: '0.55rem',
+                                                    padding: '0.55rem 0.85rem',
+                                                    borderRadius: '0.65rem',
+                                                    backgroundColor: isUser ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.3)',
+                                                    border: isUser ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-light)',
+                                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                    fontSize: '0.78rem',
+                                                    maxWidth: '360px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s ease'
+                                                  }}
+                                                  title="Klik untuk pratinjau dokumen di aplikasi"
+                                                >
+                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+                                                    <FileText size={22} color="#ef4444" style={{ flexShrink: 0 }} />
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                      <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {att.file_name || 'Dokumen.pdf'}
+                                                      </div>
+                                                      <div style={{ fontSize: '0.65rem', opacity: 0.8 }}>
+                                                        Dokumen PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }}
+                                                      style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.25rem',
+                                                        padding: '0.25rem 0.5rem',
+                                                        borderRadius: '0.4rem',
+                                                        backgroundColor: isUser ? 'rgba(255,255,255,0.25)' : 'rgba(56, 189, 248, 0.2)',
+                                                        color: isUser ? '#ffffff' : '#38bdf8',
+                                                        border: isUser ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(56, 189, 248, 0.4)',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer'
+                                                      }}
+                                                      title="Lihat Pratinjau Dokumen"
+                                                    >
+                                                      <Eye size={13} /> Preview
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => handleDownloadDocument(att, e)}
+                                                      style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        padding: '0.25rem 0.45rem',
+                                                        borderRadius: '0.4rem',
+                                                        backgroundColor: isUser ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)',
+                                                        color: isUser ? '#ffffff' : 'var(--text-secondary)',
+                                                        border: isUser ? '1px solid rgba(255,255,255,0.3)' : '1px solid var(--border-light)',
+                                                        cursor: 'pointer'
+                                                      }}
+                                                      title="Unduh Berkas Langsung"
+                                                    >
+                                                      <Download size={13} />
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              );
+                                            }
+                                            return (
                                             <div
                                               key={idx}
+                                              role="button"
+                                              tabIndex={0}
                                               onClick={() => openAttachmentLightbox(msg.attachments, idx)}
                                               style={{
                                                 position: 'relative',
@@ -17446,7 +17579,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                 <ZoomIn size={12} style={{ opacity: 0.85, flexShrink: 0, marginLeft: '4px' }} />
                                               </div>
                                             </div>
-                                          ))}
+                                          );})}
                                         </div>
                                       </div>
                                     )}
@@ -17463,9 +17596,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               {/* Attached Screenshots Preview Chips */}
                               {ticketReplyAttachments.length > 0 && (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.5rem', borderRadius: '0.6rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)' }}>
-                                  {ticketReplyAttachments.map((att, idx) => (
-                                    <div key={idx} style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--primary)' }}>
-                                      <img src={att.file_url} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  {ticketReplyAttachments.map((att, idx) => {
+                                    const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
+                                    return (
+                                    <div key={idx} style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isPDF ? 'rgba(239,68,68,0.1)' : 'transparent' }}>
+                                      {isPDF ? (
+                                        <FileText size={24} color="#ef4444" />
+                                      ) : (
+                                        <img src={att.file_url} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
@@ -17490,9 +17629,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         ✕
                                       </button>
                                     </div>
-                                  ))}
+                                  );})}
                                   <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '0.25rem' }}>
-                                    {ticketReplyAttachments.length} Foto screenshot terlampir
+                                    {ticketReplyAttachments.length} File terlampir
                                   </div>
                                 </div>
                               )}
@@ -17530,7 +17669,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     type="file"
                                     id="desktop-ticket-reply-file"
                                     multiple
-                                    accept="image/png, image/jpeg, image/webp"
+                                    accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
                                     style={{ display: 'none' }}
                                     onChange={(e) => handleUploadSupportAttachment(e.target.files, true)}
                                   />
@@ -17922,14 +18061,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                               <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
                                 <Paperclip size={15} color="var(--primary)" />
-                                <span>Lampirkan Screenshot / Bukti Foto ({ticketNewAttachments.length}/5)</span>
+                                <span>Lampirkan Screenshot / Dokumen PDF ({ticketNewAttachments.length}/5)</span>
                               </label>
 
                               <input
                                 type="file"
                                 id="desktop-ticket-new-file"
                                 multiple
-                                accept="image/png, image/jpeg, image/webp"
+                                accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
                                 style={{ display: 'none' }}
                                 onChange={(e) => handleUploadSupportAttachment(e.target.files, false)}
                               />
@@ -17941,15 +18080,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                               >
                                 {isUploadingAttachment ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
-                                <span>+ Unggah Foto</span>
+                                <span>+ Unggah File</span>
                               </button>
                             </div>
 
                             {ticketNewAttachments.length > 0 ? (
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '0.65rem' }}>
-                                {ticketNewAttachments.map((att, idx) => (
-                                  <div key={idx} style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-                                    <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                {ticketNewAttachments.map((att, idx) => {
+                                  const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
+                                  return (
+                                  <div key={idx} style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isPDF ? 'rgba(239,68,68,0.1)' : 'transparent' }}>
+                                    {isPDF ? (
+                                      <FileText size={32} color="#ef4444" />
+                                    ) : (
+                                      <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => setTicketNewAttachments(prev => prev.filter((_, i) => i !== idx))}
@@ -17974,7 +18119,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       ✕
                                     </button>
                                   </div>
-                                ))}
+                                  );})}
                               </div>
                             ) : (
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
@@ -19878,6 +20023,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         );
       })()}
+      {/* In-App Document (PDF) Preview Modal (Desktop) */}
+      {docPreview && docPreview.isOpen && (
+        <DocumentPreviewModal
+          data={docPreview}
+          onClose={() => setDocPreview(null)}
+          token={token || undefined}
+        />
+      )}
 
       {/* Global Glassmorphism Policy Modal Popup */}
       {activePolicyModal && policies[activePolicyModal] && (

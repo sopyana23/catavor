@@ -71,6 +71,7 @@ import {
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -971,6 +972,43 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // In-App Document Preview Modal State (PDF & Documents)
+  const [docPreview, setDocPreview] = useState<{
+    isOpen: boolean;
+    fileUrl: string;
+    fileName: string;
+    fileSize?: number;
+    fileType?: string;
+    id?: string;
+  } | null>(null);
+
+  const openDocumentPreview = (att: { file_url?: string; file_name?: string; file_size?: number; file_type?: string; id?: string }) => {
+    if (!att || !att.file_url) return;
+    setDocPreview({
+      isOpen: true,
+      fileUrl: att.file_url,
+      fileName: att.file_name || 'Dokumen.pdf',
+      fileSize: att.file_size,
+      fileType: att.file_type || 'application/pdf',
+      id: att.id
+    });
+  };
+
+  const handleDownloadDocument = (att: { file_url?: string; file_name?: string; id?: string }, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const fileName = att.file_name || 'Dokumen.pdf';
+    const link = document.createElement('a');
+    link.href = att.id ? `/api/support/attachments/${att.id}?download=1&token=${token}` : (att.file_url || '#');
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const [selectedProofOrder, setSelectedProofOrder] = useState<any | null>(null);
   const [replyText, setReplyText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -1512,6 +1550,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         }
         const formData = new FormData();
         formData.append('image', file);
+        formData.append('category', 'support');
         const res = await fetch('/api/storage/upload?category=support', {
           method: 'POST',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -3274,55 +3313,137 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                   borderTop: msg.message ? `1px solid ${theme.border}` : 'none' 
                                 }}>
                                   <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Foto:
+                                    <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran File:
                                   </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '0.4rem' }}>
-                                    {msg.attachments.map((att: any, aIdx: number) => (
-                                      <div
-                                        key={aIdx}
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => openAttachmentLightbox(msg.attachments, aIdx)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
-                                            openAttachmentLightbox(msg.attachments, aIdx);
-                                          }
-                                        }}
-                                        style={{
-                                          position: 'relative',
-                                          borderRadius: '0.5rem',
-                                          overflow: 'hidden',
-                                          border: `1px solid ${theme.border}`,
-                                          aspectRatio: '1',
-                                          cursor: 'pointer',
-                                          backgroundColor: '#000000'
-                                        }}
-                                        title="Perbesar gambar"
-                                      >
-                                        <img
-                                          src={att.file_url}
-                                          alt={att.file_name || 'Attachment'}
-                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        />
-                                        <div style={{
-                                          position: 'absolute',
-                                          bottom: 0,
-                                          left: 0,
-                                          right: 0,
-                                          padding: '2px 4px',
-                                          backgroundColor: 'rgba(0,0,0,0.7)',
-                                          fontSize: '0.55rem',
-                                          color: '#ffffff',
-                                          display: 'flex',
-                                          justifyContent: 'space-between',
-                                          alignItems: 'center'
-                                        }}>
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${aIdx+1}`}</span>
-                                          <ZoomIn size={10} />
+                                    {msg.attachments.map((att: any, aIdx: number) => {
+                                      const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
+                                      if (isPDF) {
+                                        return (
+                                          <div
+                                            key={aIdx}
+                                            onClick={() => openDocumentPreview(att)}
+                                            style={{
+                                              gridColumn: '1 / -1',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '0.45rem',
+                                              padding: '0.45rem 0.65rem',
+                                              borderRadius: '0.55rem',
+                                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                                              border: `1px solid ${theme.border}`,
+                                              textDecoration: 'none',
+                                              color: theme.textPrimary,
+                                              fontSize: '0.72rem',
+                                              cursor: 'pointer',
+                                              transition: 'all 0.15s ease'
+                                            }}
+                                            title="Pratinjau Dokumen PDF"
+                                          >
+                                            <div style={{
+                                              width: '30px',
+                                              height: '30px',
+                                              borderRadius: '0.4rem',
+                                              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              flexShrink: 0
+                                            }}>
+                                              <FileText size={17} color="#ef4444" />
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
+                                                {att.file_name || 'Dokumen.pdf'}
+                                              </div>
+                                              <div style={{ fontSize: '0.62rem', color: theme.textMuted }}>
+                                                PDF {att.file_size ? `• ${(att.file_size / 1024).toFixed(0)} KB` : ''} • Klik untuk pratinjau
+                                              </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => handleDownloadDocument(att, e)}
+                                                style={{
+                                                  background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                                                  border: `1px solid ${theme.border}`,
+                                                  borderRadius: '0.35rem',
+                                                  padding: '0.25rem 0.35rem',
+                                                  color: theme.textSecondary,
+                                                  cursor: 'pointer',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                title="Unduh PDF langsung"
+                                              >
+                                                <Download size={13} />
+                                              </button>
+                                              <div
+                                                style={{
+                                                  background: 'var(--primary, #0284c7)',
+                                                  borderRadius: '0.35rem',
+                                                  padding: '0.25rem 0.35rem',
+                                                  color: '#ffffff',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                                title="Pratinjau Dokumen"
+                                              >
+                                                <Eye size={13} />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div
+                                          key={aIdx}
+                                          role="button"
+                                          tabIndex={0}
+                                          onClick={() => openAttachmentLightbox(msg.attachments, aIdx)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              openAttachmentLightbox(msg.attachments, aIdx);
+                                            }
+                                          }}
+                                          style={{
+                                            position: 'relative',
+                                            borderRadius: '0.5rem',
+                                            overflow: 'hidden',
+                                            border: `1px solid ${theme.border}`,
+                                            aspectRatio: '1',
+                                            cursor: 'pointer',
+                                            backgroundColor: '#000000'
+                                          }}
+                                          title="Perbesar gambar"
+                                        >
+                                          <img
+                                            src={att.file_url}
+                                            alt={att.file_name || 'Attachment'}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          />
+                                          <div style={{
+                                            position: 'absolute',
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            padding: '2px 4px',
+                                            backgroundColor: 'rgba(0,0,0,0.7)',
+                                            fontSize: '0.55rem',
+                                            color: '#ffffff',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                          }}>
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.file_name || `Foto ${aIdx+1}`}</span>
+                                            <ZoomIn size={10} />
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
@@ -3459,9 +3580,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       borderRadius: '0.5rem',
                       overflow: 'hidden',
                       border: `1px solid ${theme.borderStrong}`,
-                      flexShrink: 0
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: (att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? 'rgba(239,68,68,0.1)' : 'transparent'
                     }}>
-                      <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {(att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf')) ? (
+                        <FileText size={20} color="#ef4444" />
+                      ) : (
+                        <img src={att.file_url} alt="Attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      )}
                       <button
                         type="button"
                         onClick={() => setTicketReplyAttachments(prev => prev.filter((_, i) => i !== idx))}
@@ -3592,7 +3721,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   type="file"
                   id="admin-ticket-reply-file"
                   multiple
-                  accept="image/png, image/jpeg, image/webp"
+                  accept="image/png, image/jpeg, image/webp, application/pdf, .pdf"
                   style={{ display: 'none' }}
                   onChange={(e) => handleUploadTicketAttachment(e.target.files)}
                 />
@@ -5507,9 +5636,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 5. MODALS & BOTTOM SHEETS                                                 */}
-      {/* ========================================================================= */}
+      {/* DOCUMENT PREVIEW MODAL (PDF / IN-APP VIEWER & DIRECT DOWNLOAD) */}
+      <DocumentPreviewModal
+        data={docPreview}
+        onClose={() => setDocPreview(null)}
+        token={token || localStorage.getItem('catavor_token') || ''}
+      />
 
       {/* SUPPORT TICKET ATTACHMENTS GALLERY LIGHTBOX MODAL (IDENTIK DENGAN ADMIN KATALOG) */}
       {attachmentLightbox?.isOpen && attachmentLightbox.images.length > 0 && (() => {

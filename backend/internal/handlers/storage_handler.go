@@ -39,13 +39,16 @@ func NewStorageHandler(cfg *config.Config, storage storage.StorageService, db *g
 	}
 }
 
-// Upload handles secure, multi-tenant scoped image uploads with magic-byte validation and EXIF sanitization.
+// Upload handles secure, multi-tenant scoped image and support document uploads with magic-byte validation and EXIF sanitization.
 func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	file, err := c.FormFile("image")
 	if err != nil {
+		file, err = c.FormFile("file")
+	}
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "File gambar wajib diunggah.",
+			"message": "File wajib diunggah.",
 		})
 	}
 
@@ -53,7 +56,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	if file.Size > 10*1024*1024 {
 		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
 			"success": false,
-			"message": "Ukuran gambar maksimal 10MB.",
+			"message": "Ukuran file maksimal 10MB.",
 		})
 	}
 
@@ -74,53 +77,11 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Anti-MIME Spoofing Magic Number Validation
-	sampleSize := len(fileBytes)
-	if sampleSize > 512 {
-		sampleSize = 512
+	// Determine category
+	category := strings.ToLower(strings.TrimSpace(c.Query("category", "")))
+	if category == "" {
+		category = strings.ToLower(strings.TrimSpace(c.FormValue("category", "products")))
 	}
-	mimeType := http.DetectContentType(fileBytes[:sampleSize])
-	if !strings.HasPrefix(mimeType, "image/") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Format file tidak valid. Hanya file gambar asli (JPG, PNG, WEBP, GIF) yang diperbolehkan.",
-		})
-	}
-
-	// 3. EXIF Payload Stripping & Memory Image Decoding
-	img, _, err := image.Decode(bytes.NewReader(fileBytes))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal mendekode gambar. Pastikan integritas file gambar valid.",
-		})
-	}
-
-	// 4. Auto-Resize to max 1920x1920 maintaining aspect ratio
-	bounds := img.Bounds()
-	if bounds.Dx() > 1920 || bounds.Dy() > 1920 {
-		img = imaging.Fit(img, 1920, 1920, imaging.Lanczos)
-	}
-
-	// 5. Re-encode Image cleanly without any EXIF/webshell metadata
-	buf := new(bytes.Buffer)
-	contentType := "image/jpeg"
-	ext := ".jpg"
-
-	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 85}); err != nil {
-		buf.Reset()
-		if err := png.Encode(buf, img); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"success": false,
-				"message": "Gagal memproses dan mengompresi gambar.",
-			})
-		}
-		contentType = "image/png"
-		ext = ".png"
-	}
-
-	// 6. Multi-Tenant Scoped Object Key Generation
-	category := strings.ToLower(strings.TrimSpace(c.Query("category", c.FormValue("category", "products"))))
 	switch category {
 	case "branding", "logo", "banner":
 		category = "branding"
@@ -128,8 +89,78 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		category = "articles"
 	case "support", "tickets", "ticket", "screenshots", "screenshot":
 		category = "support"
+	case "billing", "subscription", "payment", "proof":
+		category = "billing"
 	default:
 		category = "products"
+	}
+
+	// 2. Anti-MIME Spoofing Magic Number Validation & Processing
+	sampleSize := len(fileBytes)
+	if sampleSize > 512 {
+		sampleSize = 512
+	}
+	mimeType := http.DetectContentType(fileBytes[:sampleSize])
+
+	buf := new(bytes.Buffer)
+	contentType := "image/jpeg"
+	ext := ".jpg"
+
+	// Special handling: PDF documents are allowed for support tickets, billing/payment proofs, digital products, or any valid PDF upload
+	isPDF := bytes.HasPrefix(fileBytes, []byte("%PDF-")) || strings.EqualFold(filepath.Ext(file.Filename), ".pdf")
+	if isPDF {
+		// Strict verification: must start with PDF magic bytes
+		if !bytes.HasPrefix(fileBytes, []byte("%PDF-")) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "File PDF tidak valid atau rusak (header signature tidak cocok).",
+			})
+		}
+		contentType = "application/pdf"
+		ext = ".pdf"
+		buf = bytes.NewBuffer(fileBytes)
+	} else {
+		// Image processing
+		if !strings.HasPrefix(mimeType, "image/") {
+			if category == "support" {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"success": false,
+					"message": "Format file tidak valid. Untuk tiket bantuan hanya format gambar (JPG, PNG, WEBP) atau dokumen PDF yang diperbolehkan.",
+				})
+			}
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format file tidak valid. Hanya file gambar asli (JPG, PNG, WEBP, GIF) atau dokumen PDF yang diperbolehkan.",
+			})
+		}
+
+		// 3. EXIF Payload Stripping & Memory Image Decoding
+		img, _, err := image.Decode(bytes.NewReader(fileBytes))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal mendekode gambar. Pastikan integritas file gambar valid.",
+			})
+		}
+
+		// 4. Auto-Resize to max 1920x1920 maintaining aspect ratio
+		bounds := img.Bounds()
+		if bounds.Dx() > 1920 || bounds.Dy() > 1920 {
+			img = imaging.Fit(img, 1920, 1920, imaging.Lanczos)
+		}
+
+		// 5. Re-encode Image cleanly without any EXIF/webshell metadata
+		if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 85}); err != nil {
+			buf.Reset()
+			if err := png.Encode(buf, img); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal memproses dan mengompresi gambar.",
+				})
+			}
+			contentType = "image/png"
+			ext = ".png"
+		}
 	}
 
 	now := time.Now().UTC()

@@ -36,6 +36,9 @@ func main() {
 		log.Fatal().Err(err).Msg("Fatal: Database initialization failed")
 	}
 
+	// 3.0 Initialize Redis Connection (with Graceful Fallback)
+	database.InitRedis()
+
 	// 3.1 Seed Default Subscription Plans
 	if err := services.SeedSubscriptionPlans(database.DB); err != nil {
 		log.Warn().Err(err).Msg("Failed to seed default subscription plans")
@@ -229,6 +232,7 @@ func main() {
 		guarded.Post("/support/tickets/:id/mark-read", supportHandler.MarkTicketAsRead)
 		guarded.Post("/support/tickets/:id/rating", supportHandler.RateTicket)
 		guarded.Get("/support/tickets-ping", supportHandler.GetSupportTicketsPing)
+		guarded.Get("/support/attachments/:id", supportHandler.ServeAttachment)
 
 		// Admin Support Moderation, Quick Reply Canned Responses & Collision Detection
 		guarded.Get("/admin/support/tickets", supportHandler.ListAllTickets)
