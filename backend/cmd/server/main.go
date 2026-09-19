@@ -300,6 +300,8 @@ func main() {
 		guarded.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
 		guarded.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
 		guarded.Get("/notifications/stream", notificationHandler.Stream)
+		guarded.Get("/v1/notifications/stream", notificationHandler.Stream)
+		guarded.Get("/v1/notifications", notificationHandler.GetNotifications)
 
 		// Superadmin Broadcast Notifications (Backward Compatibility Alias)
 		guarded.Get("/admin/notifications", notificationHandler.SuperadminIndex)

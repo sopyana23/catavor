@@ -1421,7 +1421,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const connectSSE = () => {
       if (isUnmounted) return;
       try {
-        const streamUrl = `/api/v1/notifications/stream?token=${encodeURIComponent(token)}`;
+        const streamUrl = `/api/notifications/stream?token=${encodeURIComponent(token)}`;
         eventSource = new EventSource(streamUrl);
 
         eventSource.onmessage = (e) => {
