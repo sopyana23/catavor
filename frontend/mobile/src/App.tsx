@@ -20622,30 +20622,29 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             flexDirection: 'column',
                             gap: '0.85rem'
                           }}>
-                            {/* Header row: Title on left, badge on right */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                <Paperclip size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
-                                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
-                                  LAMPIRAN FILE (GAMBAR / PDF)
-                                </span>
-                              </div>
+                            {/* Header row: Title on left, counter badge on right */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.01em' }}>
+                                Lampiran Berkas (Opsional)
+                              </span>
                               <span style={{
                                 fontSize: '0.68rem',
-                                fontWeight: 700,
-                                padding: '0.15rem 0.5rem',
+                                fontWeight: 600,
+                                padding: '0.18rem 0.55rem',
                                 borderRadius: '999px',
                                 backgroundColor: ticketNewAttachments.length > 0 ? 'var(--primary-glow)' : 'rgba(255,255,255,0.06)',
-                                color: ticketNewAttachments.length > 0 ? 'var(--primary)' : 'var(--text-muted)',
-                                border: '1px solid var(--border-light)'
+                                color: ticketNewAttachments.length > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+                                border: '1px solid var(--border-light)',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0
                               }}>
-                                {ticketNewAttachments.length}/5 File
+                                {ticketNewAttachments.length}/5 berkas
                               </span>
                             </div>
 
                             {/* Subtitle description */}
-                            <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                              Lampirkan tangkapan layar atau dokumen PDF untuk mempermudah investigasi kendala (opsional).
+                            <p style={{ margin: 0, fontSize: '0.73rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              Unggah tangkapan layar atau dokumen PDF untuk mempermudah investigasi kendala.
                             </p>
 
                             <input

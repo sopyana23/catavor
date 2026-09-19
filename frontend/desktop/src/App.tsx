@@ -18236,9 +18236,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           {/* SCREENSHOT ATTACHMENTS SECTION */}
                           <div className="form-group" style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                              <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}>
-                                <Paperclip size={15} color="var(--primary)" />
-                                <span>Lampirkan Screenshot / Dokumen PDF ({ticketNewAttachments.length}/5)</span>
+                              <label className="form-label" style={{ margin: 0, fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                Lampiran Berkas (Opsional)
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginLeft: '0.45rem' }}>
+                                  ({ticketNewAttachments.length}/5 berkas)
+                                </span>
                               </label>
 
                               <input
