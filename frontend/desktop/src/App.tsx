@@ -4896,7 +4896,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             });
             setNotifUnreadCount(prev => prev + 1);
             setNotifTotal(prev => prev + 1);
-            showToast(`Notifikasi Baru: ${newNotif.title}`);
+
+            const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+            if (isTicketNotif) {
+              setSupportUnreadCount(prev => prev + 1);
+              if (typeof playSupportChime === 'function') {
+                playSupportChime();
+              }
+              showToast('1 pesan masuk', 'info');
+            } else {
+              showToast(`Notifikasi Baru: ${newNotif.title}`);
+            }
           }
         } catch {}
       };
@@ -6559,9 +6569,38 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return tickets;
   }, [tickets]);
 
+  const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
+
+  // Sync tickets ping for lightweight global unread badge on merchant dashboard & menu
+  useEffect(() => {
+    if (!token) return;
+    const fetchTicketsPing = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/support/tickets-ping`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.success && typeof d.unread_count === 'number') {
+            setSupportUnreadCount(d.unread_count);
+          }
+        }
+      } catch {}
+    };
+
+    fetchTicketsPing();
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      fetchTicketsPing();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [token]);
+
   const unreadTicketsCount = useMemo(() => {
-    return tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
-  }, [tickets, selectedTicket?.id]);
+    const listCount = tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
+    return Math.max(listCount, supportUnreadCount);
+  }, [tickets, supportUnreadCount, selectedTicket?.id]);
 
   const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
   const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')

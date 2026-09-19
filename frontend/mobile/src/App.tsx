@@ -4886,7 +4886,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             });
             setNotifUnreadCount(prev => prev + 1);
             setNotifTotal(prev => prev + 1);
-            showToast(`Notifikasi Baru: ${newNotif.title}`);
+
+            const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+            if (isTicketNotif) {
+              setSupportUnreadCount(prev => prev + 1);
+              if (typeof playSupportChime === 'function') {
+                playSupportChime();
+              }
+              showToast('1 pesan masuk', 'info');
+            } else {
+              showToast(`Notifikasi Baru: ${newNotif.title}`);
+            }
           }
         } catch {}
       };
@@ -6855,9 +6865,38 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return tickets;
   }, [tickets]);
 
+  const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
+
+  // Sync tickets ping for lightweight global unread badge on merchant dashboard & menu
+  useEffect(() => {
+    if (!token) return;
+    const fetchTicketsPing = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/support/tickets-ping`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.success && typeof d.unread_count === 'number') {
+            setSupportUnreadCount(d.unread_count);
+          }
+        }
+      } catch {}
+    };
+
+    fetchTicketsPing();
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      fetchTicketsPing();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [token]);
+
   const unreadTicketsCount = useMemo(() => {
-    return tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
-  }, [tickets, selectedTicket?.id]);
+    const listCount = tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
+    return Math.max(listCount, supportUnreadCount);
+  }, [tickets, supportUnreadCount, selectedTicket?.id]);
 
   const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
   const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')
@@ -19275,77 +19314,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                       </div>
 
-                      {/* Banner Balasan CS Unread (Standard Industri Intercom/Zendesk) */}
-                      {unreadTicketsCount > 0 && (
-                        <div 
-                          onClick={() => {
-                            setAdminSubTab('help');
-                            setIsCreatingTicket(false);
-                            const unreadTicket = tickets.find(t => t.has_unread || (t.unread_count || 0) > 0) || tickets[0];
-                            const slug = getStoreSlug();
-                            if (unreadTicket) {
-                              setSelectedTicket(unreadTicket);
-                              fetchTicketDetails(unreadTicket.id);
-                              if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${unreadTicket.ticket_number || unreadTicket.id}`);
-                            } else {
-                              setSelectedTicket(null);
-                              if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
-                            }
-                          }}
-                          className="glass-panel"
-                          style={{
-                            padding: '0.85rem 1rem',
-                            borderRadius: '0.85rem',
-                            border: '1.5px solid #0284c7',
-                            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.16) 0%, var(--card-bg-gradient) 100%)',
-                            boxShadow: '0 4px 18px rgba(2, 132, 199, 0.22)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '0.75rem',
-                            cursor: 'pointer',
-                            marginBottom: '0.5rem',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute',
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: '4px',
-                            backgroundColor: '#0284c7',
-                            boxShadow: '0 0 10px #0284c7'
-                          }} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                            <div style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '50%',
-                              backgroundColor: '#0284c7',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#ffffff',
-                              flexShrink: 0,
-                              boxShadow: '0 0 12px rgba(2, 132, 199, 0.6)'
-                            }}>
-                              <MessageSquare size={18} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                {unreadTicketsCount} Balasan Baru dari CS Support
-                              </span>
-                              <span style={{ fontSize: '0.71rem', color: '#38bdf8', fontWeight: 600 }}>
-                                Ketuk untuk membuka ruang percakapan tiket bantuan
-                              </span>
-                            </div>
-                          </div>
-                          <ChevronRight size={18} style={{ color: '#38bdf8', flexShrink: 0 }} />
-                        </div>
-                      )}
-
                       {/* Notifications List */}
                       {notifInitialLoading && notifications.length === 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -21403,7 +21371,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 className={`nav-item ${adminSubTab === 'menu' ? 'active' : ''}`}
                 onClick={() => setAdminSubTab('menu')}
               >
-                <LayoutDashboard size={20} />
+                <div style={{ position: 'relative', display: 'inline-flex' }}>
+                  <LayoutDashboard size={20} />
+                  {unreadTicketsCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-2px',
+                      right: '-3px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ef4444',
+                      border: '1.5px solid var(--bg-surface, #1e293b)',
+                      boxShadow: '0 0 6px rgba(239, 68, 68, 0.8)'
+                    }} />
+                  )}
+                </div>
                 <span>Menu</span>
               </button>
               <button 
@@ -21472,7 +21455,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     window.history.pushState({}, '', `/${storeSlug}/admin`);
                   }}
                 >
-                  <LayoutDashboard size={20} />
+                  <div style={{ position: 'relative', display: 'inline-flex' }}>
+                    <LayoutDashboard size={20} />
+                    {unreadTicketsCount > 0 && (
+                      <span style={{
+                        position: 'absolute',
+                        top: '-2px',
+                        right: '-3px',
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ef4444',
+                        border: '1.5px solid var(--bg-surface, #1e293b)',
+                        boxShadow: '0 0 6px rgba(239, 68, 68, 0.8)'
+                      }} />
+                    )}
+                  </div>
                   <span>Admin</span>
                 </button>
               )}
