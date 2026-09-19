@@ -6015,12 +6015,54 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     currentIndex: number;
   } | null>(null);
 
-  const openAttachmentLightbox = (images?: { file_url: string; file_name?: string }[], index: number = 0) => {
+  const openAttachmentLightbox = (
+    images?: { file_url: string; file_name?: string; file_type?: string }[],
+    indexOrTarget: number | string | { file_url: string } = 0
+  ) => {
     if (!images || images.length === 0) return;
+    // Filter strictly to actual image attachments (exclude PDF, docs, and broken files)
+    const imageList = images.filter(att => {
+      if (!att || !att.file_url) return false;
+      const fileType = (att.file_type || '').toLowerCase().trim();
+      const name = (att.file_name || '').toLowerCase().trim();
+      const url = (att.file_url || '').toLowerCase().trim();
+
+      if (fileType.includes('pdf') || name.endsWith('.pdf') || url.endsWith('.pdf') || name.includes('.pdf') || url.includes('.pdf')) {
+        return false;
+      }
+      if (fileType.includes('document') || fileType.includes('sheet') || fileType.includes('zip') || fileType.includes('octet-stream')) {
+        return false;
+      }
+      if (fileType.startsWith('image/')) {
+        return true;
+      }
+      if (/\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(name) || /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(url)) {
+        return true;
+      }
+      return false;
+    });
+
+    if (imageList.length === 0) return;
+
+    let targetIdx = 0;
+    if (typeof indexOrTarget === 'number') {
+      const selectedItem = images[indexOrTarget];
+      if (selectedItem) {
+        const found = imageList.findIndex(img => img.file_url === selectedItem.file_url);
+        targetIdx = found !== -1 ? found : 0;
+      }
+    } else if (typeof indexOrTarget === 'string') {
+      const found = imageList.findIndex(img => img.file_url === indexOrTarget);
+      targetIdx = found !== -1 ? found : 0;
+    } else if (indexOrTarget && typeof indexOrTarget === 'object' && indexOrTarget.file_url) {
+      const found = imageList.findIndex(img => img.file_url === indexOrTarget.file_url);
+      targetIdx = found !== -1 ? found : 0;
+    }
+
     setAttachmentLightbox({
       isOpen: true,
-      images,
-      currentIndex: Math.max(0, Math.min(index, images.length - 1))
+      images: imageList,
+      currentIndex: Math.max(0, Math.min(targetIdx, imageList.length - 1))
     });
     setZoomScale(1);
     setPanPosition({ x: 0, y: 0 });
@@ -6460,12 +6502,22 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          const lowerName = (file.name || '').toLowerCase();
+          let detectedType = file.type || '';
+          if (!detectedType) {
+            if (lowerName.endsWith('.pdf')) detectedType = 'application/pdf';
+            else if (lowerName.endsWith('.png')) detectedType = 'image/png';
+            else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) detectedType = 'image/jpeg';
+            else if (lowerName.endsWith('.webp')) detectedType = 'image/webp';
+            else if (lowerName.endsWith('.gif')) detectedType = 'image/gif';
+            else detectedType = 'application/octet-stream';
+          }
           uploaded.push({
             file_url: data.url,
             storage_key: data.storage_key || '',
             file_name: file.name,
             file_size: file.size,
-            file_type: file.type || 'image/jpeg'
+            file_type: detectedType
           });
         } else {
           showToast(data.message || `Gagal mengunggah ${file.name}`, 'error');
