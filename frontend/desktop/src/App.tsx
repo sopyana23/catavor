@@ -17483,10 +17483,25 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     </div>
 
                                     {ticket.store && (
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '0.12rem 0.45rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)' }}>
-                                        <Store size={10} color="#38bdf8" />
-                                        <span style={{ fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'rgba(14, 165, 233, 0.08)', padding: '0.12rem 0.45rem', borderRadius: '0.4rem', border: '1px solid rgba(14, 165, 233, 0.2)' }}>
+                                        <Store size={10} color="#0284c7" />
+                                        <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                           {ticket.store.name}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '0.55rem',
+                                          padding: '0.04rem 0.32rem',
+                                          borderRadius: '3px',
+                                          background: ticket.store.plan === 'enterprise' 
+                                            ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
+                                            : ticket.store.plan === 'pro' 
+                                              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                                              : 'rgba(148, 163, 184, 0.2)',
+                                          color: ticket.store.plan === 'enterprise' || ticket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                          fontWeight: 800,
+                                          letterSpacing: '0.03em'
+                                        }}>
+                                          {String(ticket.store.plan || 'FREE').toUpperCase()}
                                         </span>
                                       </div>
                                     )}
@@ -17658,12 +17673,50 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               {selectedTicket.store && (
                                 <>
                                   <span style={{ fontSize: '0.72rem', color: 'var(--border-light)' }}>&bull;</span>
-                                  <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.25)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <Store size={11} />
-                                    {selectedTicket.store.name}
-                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '3px', backgroundColor: selectedTicket.store.plan === 'enterprise' ? 'rgba(168, 85, 247, 0.25)' : selectedTicket.store.plan === 'pro' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.15)', color: selectedTicket.store.plan === 'enterprise' ? '#c084fc' : selectedTicket.store.plan === 'pro' ? '#fbbf24' : 'var(--text-secondary)' }}>
-                                      {String(selectedTicket.store.plan || 'FREE').toUpperCase()}
+                                  <span style={{ 
+                                    fontSize: '0.72rem', 
+                                    fontWeight: 700, 
+                                    padding: '0.2rem 0.55rem', 
+                                    borderRadius: '6px', 
+                                    backgroundColor: 'rgba(14, 165, 233, 0.1)', 
+                                    color: '#0284c7', 
+                                    border: '1px solid rgba(14, 165, 233, 0.25)', 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.35rem' 
+                                  }}>
+                                    <Store size={12} color="#0284c7" />
+                                    <span>{selectedTicket.store.name}</span>
+                                    <span style={{ 
+                                      fontSize: '0.58rem', 
+                                      padding: '0.08rem 0.42rem', 
+                                      borderRadius: '4px', 
+                                      background: selectedTicket.store.plan === 'enterprise' 
+                                        ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
+                                        : selectedTicket.store.plan === 'pro' 
+                                          ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                                          : 'rgba(148, 163, 184, 0.2)', 
+                                      color: selectedTicket.store.plan === 'enterprise' || selectedTicket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                      fontWeight: 800,
+                                      letterSpacing: '0.04em',
+                                      boxShadow: selectedTicket.store.plan === 'enterprise' 
+                                        ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
+                                        : selectedTicket.store.plan === 'pro' 
+                                          ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                                          : 'none'
+                                    }}>
+                                       {String(selectedTicket.store.plan || 'FREE').toUpperCase()}
                                     </span>
+                                  </span>
+                                </>
+                              )}
+                              {adminUser && (
+                                <>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--border-light)' }}>&bull;</span>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <User size={11} style={{ color: 'var(--text-muted)' }} />
+                                    {adminUser.name || 'Pengelola'}
+                                    {adminUser.email && <span style={{ opacity: 0.75, fontSize: '0.66rem' }}>({adminUser.email})</span>}
                                   </span>
                                 </>
                               )}
@@ -17752,7 +17805,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       <strong style={{ fontSize: '0.82rem', color: isUser ? '#ffffff' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
                                         {!isUser && <ShieldCheck size={16} color="var(--primary)" />}
                                         {isUser
-                                          ? getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')
+                                          ? (selectedTicket.store?.name ? `${selectedTicket.store.name} (${getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')})` : getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola'))
                                           : (msg.sender_name || 'Catavor Official Support')}
                                       </strong>
                                       <span style={{ fontSize: '0.68rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
