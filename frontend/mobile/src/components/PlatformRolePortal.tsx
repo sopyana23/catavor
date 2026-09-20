@@ -699,7 +699,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     content = content.replace(/\{\{ticket_number\}\}/gi, ticketNum);
     content = content.replace(/\{\{agent_name\}\}/gi, agentName);
 
-    setReplyText(prev => (prev ? `${prev}\n${content}` : content));
+    setReplyText(content);
     setShowTemplateModal(false);
     showToast(`Template "${tmpl.title}" disisipkan!`, 'success');
   };
@@ -4700,23 +4700,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               {t.ticket_number || `#TCK-${t.id}`}
                             </span>
                           </div>
-
-                          {/* SLA Breached Alert (Only shown if critical/breached to prevent clutter) */}
-                          {t.sla_breached && (
-                            <span style={{ 
-                              fontSize: '0.58rem', 
-                              fontWeight: 800, 
-                              padding: '0.1rem 0.35rem', 
-                              borderRadius: '0.3rem', 
-                              backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                              color: '#ef4444', 
-                              border: '1px solid rgba(239, 68, 68, 0.35)',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0
-                            }}>
-                              ⚠️ SLA Lewat
-                            </span>
-                          )}
                         </div>
 
                         {/* Status Pill with live indicator dot (Pinned Top-Right, No wrap) */}
@@ -4752,8 +4735,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           {t.subject || 'Pertanyaan Layanan Toko'}
                         </h4>
 
-                        {/* Streamlined Meta Info (Category, Priority, Time) */}
-                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.45rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.66rem' }}>
+                        {/* Streamlined Meta Info (Category, Priority, SLA, CSAT, Time) */}
+                        <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.66rem' }}>
                           <span style={{ 
                             fontWeight: 700, 
                             padding: '0.12rem 0.38rem', 
@@ -4786,6 +4769,71 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             </span>
                           )}
 
+                          {/* SLA Breached or Active Countdown Badge with Premium Lucide SVG Icon */}
+                          {t.sla_breached ? (
+                            <span style={{ 
+                              fontSize: '0.62rem', 
+                              fontWeight: 800, 
+                              padding: '0.12rem 0.42rem', 
+                              borderRadius: '4px', 
+                              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)', 
+                              color: '#ef4444', 
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              whiteSpace: 'nowrap',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <AlertTriangle size={11} strokeWidth={2.4} />
+                              <span>SLA Lewat</span>
+                            </span>
+                          ) : (t.status === 'open' && t.sla_due_at) ? (
+                            (() => {
+                              const diffMin = Math.round((new Date(t.sla_due_at).getTime() - Date.now()) / (1000 * 60));
+                              if (diffMin <= 0) {
+                                return (
+                                  <span style={{ 
+                                    fontSize: '0.62rem', 
+                                    fontWeight: 800, 
+                                    padding: '0.12rem 0.42rem', 
+                                    borderRadius: '4px', 
+                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)', 
+                                    color: '#ef4444', 
+                                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                                    whiteSpace: 'nowrap',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}>
+                                    <AlertTriangle size={11} strokeWidth={2.4} />
+                                    <span>SLA Lewat</span>
+                                  </span>
+                                );
+                              }
+                              const hours = Math.floor(diffMin / 60);
+                              const mins = diffMin % 60;
+                              const isClose = diffMin < 30;
+                              return (
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '0.12rem 0.42rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: isClose ? (isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(245, 158, 11, 0.12)') : (isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)'),
+                                  color: isClose ? '#f59e0b' : '#10b981',
+                                  border: `1px solid ${isClose ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  <Clock size={11} strokeWidth={2.2} />
+                                  <span>SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m</span>
+                                </span>
+                              );
+                            })()
+                          ) : null}
+
                           {/* CSAT Rating if present */}
                           {t.rating && (
                             <span style={{ 
@@ -4800,12 +4848,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               <span>{t.rating}/5</span>
                             </span>
                           )}
-
-                          {/* Time */}
-                          <span style={{ fontSize: '0.63rem', color: isUnread ? theme.textPrimary : theme.textMuted, fontWeight: isUnread ? 700 : 400, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginLeft: 'auto' }}>
-                            <Clock size={10} />
-                            {formatSupportDateTime(t.last_message_at || t.created_at)}
-                          </span>
                         </div>
 
                         {/* Snippet message */}
@@ -4844,7 +4886,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         ))}
                       </div>
 
-                      {/* Card Footer: Merchant Identity & Plan Badge on Left | Messages Count on Right */}
+                      {/* Card Footer: Merchant Identity & Plan Badge on Left | Time & Messages Count on Right */}
                       <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -4882,18 +4924,39 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <div style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.3rem',
-                          padding: '0.22rem 0.55rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)',
-                          border: '1px solid rgba(6, 182, 212, 0.25)',
-                          color: '#06b6d4',
-                          fontSize: '0.7rem',
-                          fontWeight: 800
+                          gap: '0.5rem',
+                          flexShrink: 0
                         }}>
-                          <MessageSquare size={11} />
-                          <span>{messageCount} Pesan</span>
-                          <ChevronRight size={12} />
+                          {/* Timestamp with Clock Icon */}
+                          <span style={{
+                            fontSize: '0.64rem',
+                            color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
+                            fontWeight: isUnread ? 700 : 500,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.22rem',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <Clock size={11} strokeWidth={2} style={{ opacity: 0.85 }} />
+                            {formatSupportDateTime(t.last_message_at || t.created_at)}
+                          </span>
+
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)',
+                            border: '1px solid rgba(6, 182, 212, 0.25)',
+                            color: '#06b6d4',
+                            fontSize: '0.68rem',
+                            fontWeight: 800
+                          }}>
+                            <MessageSquare size={11} />
+                            <span>{messageCount} Pesan</span>
+                            <ChevronRight size={11} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -7960,11 +8023,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {/* Form */}
             <form onSubmit={handleSaveTemplate} style={{ padding: '1rem 1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', overflowY: 'auto' }}>
               <div>
-                <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary, display: 'block', marginBottom: '0.3rem' }}>
-                  Judul Template <span style={{ color: '#ef4444' }}>*</span>
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                  <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary }}>
+                    Judul Template <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                    {templateForm.title.length}/60
+                  </span>
+                </div>
                 <input
                   type="text"
+                  maxLength={60}
                   value={templateForm.title}
                   onChange={e => setTemplateForm({ ...templateForm, title: e.target.value })}
                   placeholder="Contoh: Salam & Permintaan Screenshot Bukti"

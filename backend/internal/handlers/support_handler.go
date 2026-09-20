@@ -386,11 +386,17 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	subject := security.SanitizePlainText(req.Subject, 255)
+	subject := security.SanitizePlainText(req.Subject, 80)
 	if subject == "" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Subjek kendala wajib diisi.",
+		})
+	}
+	if len([]rune(strings.TrimSpace(req.Subject))) > 80 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Judul subjek tiket maksimal 80 karakter. Tuliskan rincian kendala pada kolom isi pesan.",
 		})
 	}
 
@@ -1475,7 +1481,14 @@ func (h *SupportHandler) CreateCannedResponse(c *fiber.Ctx) error {
 		})
 	}
 
-	title := security.SanitizePlainText(req.Title, 150)
+	if len([]rune(strings.TrimSpace(req.Title))) > 60 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Judul template maksimal 60 karakter.",
+		})
+	}
+
+	title := security.SanitizePlainText(req.Title, 60)
 	content := security.SanitizePlainText(req.Content, 5000)
 	if title == "" || content == "" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -1558,7 +1571,13 @@ func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
 	}
 
 	if req.Title != nil {
-		t := security.SanitizePlainText(*req.Title, 150)
+		if len([]rune(strings.TrimSpace(*req.Title))) > 60 {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Judul template maksimal 60 karakter.",
+			})
+		}
+		t := security.SanitizePlainText(*req.Title, 60)
 		if t != "" {
 			tmpl.Title = t
 		}

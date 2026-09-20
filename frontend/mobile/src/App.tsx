@@ -26,6 +26,7 @@ import {
   CheckCircle,
   X,
   Eye,
+  Tag,
   ArrowLeft,
   Home,
   Sun,
@@ -6156,6 +6157,96 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return found ? found.label : 'Sedang';
   };
 
+  const getTicketPriorityMeta = (priority?: string) => {
+    const p = (priority || 'medium').toLowerCase();
+    switch (p) {
+      case 'urgent':
+        return {
+          label: 'Mendesak',
+          color: '#ef4444',
+          bg: 'rgba(239, 68, 68, 0.12)',
+          border: 'rgba(239, 68, 68, 0.28)'
+        };
+      case 'high':
+        return {
+          label: 'Tinggi',
+          color: '#ea580c',
+          bg: 'rgba(249, 115, 22, 0.12)',
+          border: 'rgba(249, 115, 22, 0.28)'
+        };
+      case 'low':
+        return {
+          label: 'Rendah',
+          color: '#64748b',
+          bg: 'rgba(100, 116, 139, 0.1)',
+          border: 'rgba(100, 116, 139, 0.22)'
+        };
+      case 'medium':
+      default:
+        return {
+          label: 'Sedang',
+          color: '#0284c7',
+          bg: 'rgba(2, 132, 199, 0.1)',
+          border: 'rgba(2, 132, 199, 0.22)'
+        };
+    }
+  };
+
+  const getTicketStatusBadge = (status?: string) => {
+    const s = (status || 'open').toLowerCase();
+    switch (s) {
+      case 'resolved':
+        return {
+          label: 'Selesai',
+          icon: '✓',
+          color: '#10b981',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          border: 'rgba(16, 185, 129, 0.28)'
+        };
+      case 'in_progress':
+        return {
+          label: 'Sedang Diproses',
+          icon: '⚡',
+          color: '#f59e0b',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          border: 'rgba(245, 158, 11, 0.28)'
+        };
+      case 'waiting_agent':
+        return {
+          label: 'Menunggu CS',
+          icon: '●',
+          color: '#8b5cf6',
+          bg: 'rgba(139, 92, 246, 0.12)',
+          border: 'rgba(139, 92, 246, 0.28)'
+        };
+      case 'waiting_user':
+        return {
+          label: 'Menunggu Balasan',
+          icon: '💬',
+          color: '#06b6d4',
+          bg: 'rgba(6, 182, 212, 0.12)',
+          border: 'rgba(6, 182, 212, 0.28)'
+        };
+      case 'closed':
+        return {
+          label: 'Ditutup',
+          icon: '✕',
+          color: '#64748b',
+          bg: 'rgba(100, 116, 139, 0.12)',
+          border: 'rgba(100, 116, 139, 0.28)'
+        };
+      case 'open':
+      default:
+        return {
+          label: 'Tiket Baru',
+          icon: '●',
+          color: '#3b82f6',
+          bg: 'rgba(59, 130, 246, 0.12)',
+          border: 'rgba(59, 130, 246, 0.28)'
+        };
+    }
+  };
+
   // Support Ticket System State (Mobile)
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState<boolean>(false);
@@ -6789,14 +6880,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
 
     const isNewTicket = selectedTicket.id !== lastViewedTicketIdRef.current;
-    const isNewMessageAdded = selectedTicket.messages.length > lastMessagesCountRef.current;
+    const isNewMessageAdded = (selectedTicket.messages?.length || 0) > lastMessagesCountRef.current;
 
     if (isNewTicket || isNewMessageAdded) {
       lastViewedTicketIdRef.current = selectedTicket.id;
-      lastMessagesCountRef.current = selectedTicket.messages.length;
+      lastMessagesCountRef.current = selectedTicket.messages?.length || 0;
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: isNewTicket ? 'instant' : 'smooth' });
-      }, 100);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 120);
     }
   }, [selectedTicket?.id, selectedTicket?.messages?.length, adminSubTab]);
 
@@ -19743,44 +19834,120 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         : '0.5rem'
                     }}>
                       {/* Ticket Details Header & Status Bar */}
-                      <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.65rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.55rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: '0.02em', wordBreak: 'break-all' }}>
+                      <div className="glass-panel" style={{
+                        padding: '0.95rem 1rem',
+                        borderRadius: '0.9rem',
+                        border: '1px solid var(--border-light)',
+                        background: 'var(--bg-card)',
+                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.65rem'
+                      }}>
+                        {/* Top Line: Ticket Number + Badges */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            backgroundColor: 'var(--primary-glow)',
+                            padding: '0.22rem 0.6rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--primary-glow-strong, var(--border-light))'
+                          }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: '0.03em' }}>
                               {selectedTicket.ticket_number || `TCK-#${selectedTicket.id}`}
                             </span>
                           </div>
 
-                          <span style={{
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                            padding: '0.22rem 0.65rem',
-                            borderRadius: '999px',
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            backgroundColor: selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' : selectedTicket.status === 'waiting_agent' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                            color: selectedTicket.status === 'resolved' ? '#10b981' : selectedTicket.status === 'in_progress' ? '#f59e0b' : selectedTicket.status === 'waiting_agent' ? '#a855f7' : '#3b82f6',
-                            border: `1px solid ${selectedTicket.status === 'resolved' ? 'rgba(16, 185, 129, 0.3)' : selectedTicket.status === 'in_progress' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
-                          }}>
-                            {selectedTicket.status === 'resolved' ? '✓ Selesai' : selectedTicket.status === 'in_progress' ? '● Proses' : selectedTicket.status === 'waiting_agent' ? '● Menunggu CS' : '● Open'}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {/* Priority Badge */}
+                            {(() => {
+                              const pMeta = getTicketPriorityMeta(selectedTicket.priority);
+                              return (
+                                <span style={{
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700,
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: pMeta.bg,
+                                  color: pMeta.color,
+                                  border: `1px solid ${pMeta.border}`,
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}>
+                                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: pMeta.color }}></span>
+                                  {pMeta.label}
+                                </span>
+                              );
+                            })()}
+
+                            {/* Status Badge */}
+                            {(() => {
+                              const sMeta = getTicketStatusBadge(selectedTicket.status);
+                              return (
+                                <span style={{
+                                  fontSize: '0.66rem',
+                                  fontWeight: 800,
+                                  padding: '0.2rem 0.6rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: sMeta.bg,
+                                  color: sMeta.color,
+                                  border: `1px solid ${sMeta.border}`,
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}>
+                                  <span>{sMeta.icon}</span>
+                                  {sMeta.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
 
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.55rem 0', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                        {/* Middle Line: Subject */}
+                        <h3 style={{
+                          fontSize: '1rem',
+                          fontWeight: 800,
+                          color: 'var(--text-primary)',
+                          margin: 0,
+                          lineHeight: 1.35,
+                          wordBreak: 'break-word'
+                        }}>
                           {selectedTicket.subject}
                         </h3>
 
-                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                            Dibuat: {selectedTicket.created_at}
-                          </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--border-light)' }}>&bull;</span>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                        {/* Bottom Line: Metadata Chips */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          flexWrap: 'wrap',
+                          paddingTop: '0.45rem',
+                          borderTop: '1px solid var(--border-light)',
+                          fontSize: '0.68rem'
+                        }}>
+                          <span style={{
+                            fontWeight: 600,
+                            padding: '0.18rem 0.55rem',
+                            borderRadius: '0.4rem',
+                            backgroundColor: 'var(--bg-card-hover, rgba(0,0,0,0.03))',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}>
+                            <Tag size={10} color="var(--text-secondary)" />
                             {getTicketCategoryLabel(selectedTicket.category)}
                           </span>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)', color: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? '#ef4444' : 'var(--text-secondary)' }}>
-                            Urgensi: {String(selectedTicket.priority).toUpperCase()}
+
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+                            Dibuat: {selectedTicket.created_at}
                           </span>
                         </div>
                       </div>
@@ -20479,11 +20646,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
                           <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', marginBottom: '0.45rem', display: 'block' }}>
-                              JUDUL KENDALA / SUBJEK *
-                            </label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                              <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', margin: 0 }}>
+                                JUDUL KENDALA / SUBJEK *
+                              </label>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                {newTicketForm.subject.length}/80
+                              </span>
+                            </div>
                             <input
                               type="text"
+                              maxLength={80}
                               className="form-input"
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
                               value={newTicketForm.subject}
