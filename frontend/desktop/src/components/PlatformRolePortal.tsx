@@ -1207,44 +1207,36 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     if (!token) return;
     setLoading(true);
     try {
-      if (activeDivision === 'compliance' || activeDivision === 'overview') {
-        if (canAccessCompliance) {
-          const repRes = await fetch('/api/admin/reports', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
-          if (repRes.ok) {
-            const rData = await repRes.json();
-            setReports(Array.isArray(rData) ? rData : rData.data || []);
-          }
-          const dormRes = await fetch('/api/admin/dormancy/metrics', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
-          if (dormRes.ok) {
-            const dData = await dormRes.json();
-            setDormancyMetrics(dData);
-          }
+      if (canAccessCompliance) {
+        const repRes = await fetch('/api/admin/reports', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
+        if (repRes.ok) {
+          const rData = await repRes.json();
+          setReports(Array.isArray(rData) ? rData : rData.data || []);
+        }
+        const dormRes = await fetch('/api/admin/dormancy/metrics', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
+        if (dormRes.ok) {
+          const dData = await dormRes.json();
+          setDormancyMetrics(dData);
         }
       }
 
-      if (activeDivision === 'support' || activeDivision === 'overview') {
-        if (canAccessSupport) {
-          fetchTickets(1, false);
+      if (canAccessSupport) {
+        fetchTickets(1, false);
+      }
+
+      if (canAccessFinance) {
+        const res = await fetch('/api/admin/subscription/orders', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          setOrders(Array.isArray(data) ? data : data.data || data.orders || []);
         }
       }
 
-      if (activeDivision === 'finance' || activeDivision === 'overview') {
-        if (canAccessFinance) {
-          const res = await fetch('/api/admin/subscription/orders', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
-          if (res.ok) {
-            const data = await res.json();
-            setOrders(Array.isArray(data) ? data : data.data || data.orders || []);
-          }
-        }
-      }
-
-      if (activeDivision === 'content' || activeDivision === 'overview') {
-        if (canAccessContent) {
-          const broadRes = await fetch('/api/admin/notifications', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
-          if (broadRes.ok) {
-            const bData = await broadRes.json();
-            setBroadcasts(Array.isArray(bData) ? bData : bData.data || []);
-          }
+      if (canAccessContent) {
+        const broadRes = await fetch('/api/admin/notifications', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
+        if (broadRes.ok) {
+          const bData = await broadRes.json();
+          setBroadcasts(Array.isArray(bData) ? bData : bData.data || []);
         }
       }
     } catch (err) {
@@ -2543,7 +2535,9 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       {/* 3. CUSTOMER SUPPORT DIVISION                                              */}
       {/* ========================================================================= */}
       {activeDivision === 'support' && (() => {
-        const actionRequiredCount = ticketsMetrics.action_required ?? tickets.filter(t => t.status === 'open' || t.status === 'waiting_agent').length;
+        const actionRequiredCount = (ticketsMetrics && typeof ticketsMetrics.action_required === 'number' && ticketsMetrics.action_required > 0)
+          ? ticketsMetrics.action_required
+          : tickets.filter(t => t.status === 'open' || t.status === 'waiting_agent').length;
         const inProgressCount = ticketsMetrics.in_progress ?? tickets.filter(t => t.status === 'in_progress').length;
         const waitingUserCount = ticketsMetrics.waiting_user ?? tickets.filter(t => t.status === 'waiting_user').length;
         const urgentCount = ticketsMetrics.urgent ?? tickets.filter(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'resolved' && t.status !== 'closed').length;
