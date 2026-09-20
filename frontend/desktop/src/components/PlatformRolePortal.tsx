@@ -121,17 +121,32 @@ const getFirstName = (name?: string): string => {
   return first.charAt(0).toUpperCase() + first.slice(1);
 };
 
-const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
+const getStoreDisplayName = (ticket: any) => {
+  if (ticket?.store?.name) return ticket.store.name;
+  if (ticket?.store_name) return ticket.store_name;
+  if (ticket?.store?.slug) return ticket.store.slug;
+  if (ticket?.store_slug) return ticket.store_slug;
+  return 'Katalog Toko';
+};
+
+const getStorePlanBadge = (ticket: any) => {
+  const plan = ticket?.store?.plan || ticket?.store_plan || 'free';
+  return plan.toUpperCase();
+};
+
+const getUserRequesterName = (ticket: any, msgSender?: any) => {
   if (msgSender?.name && !msgSender.name.includes('@')) return getFirstName(msgSender.name);
   if (ticket?.user?.name && !ticket.user.name.includes('@')) return getFirstName(ticket.user.name);
-  if (ticket?.store?.name) return getFirstName(ticket.store.name);
-  if (ticket?.store_name) return getFirstName(ticket.store_name);
-  const rawEmail = ticket?.user_email || ticket?.user?.email || msgSender?.email || '';
+  const rawEmail = ticket?.user?.email || ticket?.user_email || msgSender?.email || '';
   if (rawEmail) {
     const prefix = rawEmail.split('@')[0];
     if (prefix) return getFirstName(prefix);
   }
   return 'Merchant';
+};
+
+const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
+  return getStoreDisplayName(ticket);
 };
 
 export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
@@ -3200,17 +3215,44 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                   {storeDisplayName}
                                 </strong>
                                 {storePlan === 'enterprise' && (
-                                  <span style={{ fontSize: '0.62rem', fontWeight: 900, padding: '0.1rem 0.4rem', borderRadius: '0.3rem', backgroundColor: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.42rem',
+                                    borderRadius: '4px',
+                                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                                    color: '#ffffff',
+                                    letterSpacing: '0.03em',
+                                    boxShadow: '0 1px 3px rgba(124, 58, 237, 0.3)'
+                                  }}>
                                     ENTERPRISE
                                   </span>
                                 )}
                                 {storePlan === 'pro' && (
-                                  <span style={{ fontSize: '0.62rem', fontWeight: 900, padding: '0.1rem 0.4rem', borderRadius: '0.3rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.42rem',
+                                    borderRadius: '4px',
+                                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                    color: '#ffffff',
+                                    letterSpacing: '0.04em',
+                                    boxShadow: '0 1px 3px rgba(217, 119, 6, 0.35)'
+                                  }}>
                                     PRO
                                   </span>
                                 )}
                                 {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
-                                  <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '0.3rem', backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 700,
+                                    padding: '0.1rem 0.42rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                    color: 'var(--text-muted)',
+                                    border: '1px solid var(--border-light)',
+                                    letterSpacing: '0.03em'
+                                  }}>
                                     FREE
                                   </span>
                                 )}
@@ -3483,7 +3525,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   </h3>
                 </div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'block' }}>
-                  Dari: <strong style={{ color: 'var(--text-primary)' }}>{getMerchantDisplayName(selectedTicket)}</strong> &bull; Email: <span style={{ color: 'var(--text-muted)' }}>{selectedTicket.user?.email || selectedTicket.user_email || '-'}</span> &bull; Toko: {selectedTicket.store?.name || selectedTicket.store_slug || '-'} &bull; Dibuat: {formatSupportDateTime(selectedTicket.created_at)}
+                  Toko: <strong style={{ color: '#0ea5e9' }}>{getStoreDisplayName(selectedTicket)} [{getStorePlanBadge(selectedTicket)}]</strong> &bull; Pelapor: <strong style={{ color: 'var(--text-primary)' }}>{getUserRequesterName(selectedTicket)}</strong> &bull; Email: <span style={{ color: 'var(--text-muted)' }}>{selectedTicket.user?.email || selectedTicket.user_email || '-'}</span> &bull; Dibuat: {formatSupportDateTime(selectedTicket.created_at)}
                 </span>
               </div>
               <button onClick={handleCloseTicketChat} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} title="Tutup Chat &amp; Kembali ke Daftar Tiket">
@@ -3669,8 +3711,33 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                       <strong style={{ color: '#0ea5e9' }}>{selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--text-muted)' }}>Pengirim: </span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{getMerchantDisplayName(selectedTicket)}</strong>
+                      <span style={{ color: 'var(--text-muted)' }}>Profil Toko: </span>
+                      <strong style={{ color: '#0ea5e9' }}>{getStoreDisplayName(selectedTicket)}</strong>
+                      <span style={{
+                        marginLeft: '0.35rem',
+                        fontSize: '0.62rem',
+                        padding: '0.1rem 0.42rem',
+                        borderRadius: '4px',
+                        background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
+                          ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
+                          : getStorePlanBadge(selectedTicket) === 'PRO' 
+                            ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                            : 'rgba(255, 255, 255, 0.15)',
+                        color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : 'var(--text-secondary)',
+                        fontWeight: 800,
+                        letterSpacing: '0.03em',
+                        boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
+                          ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
+                          : getStorePlanBadge(selectedTicket) === 'PRO' 
+                            ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                            : 'none'
+                      }}>
+                        {getStorePlanBadge(selectedTicket)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Pelapor: </span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{getUserRequesterName(selectedTicket)}</strong>
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-muted)' }}>Email Akun: </span>
@@ -3960,15 +4027,20 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                     : (isDark ? '0 2px 10px rgba(0, 0, 0, 0.25)' : '0 2px 8px rgba(15, 23, 42, 0.05)')
                                 }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.45rem', fontSize: '0.75rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                                       {isAgent ? (
                                         <ShieldCheck size={14} color="#0ea5e9" />
                                       ) : (
                                         <Store size={14} color={isDark ? '#38bdf8' : '#0284c7'} />
                                       )}
                                       <strong style={{ color: isAgent ? '#0ea5e9' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
-                                        {isAgent ? (m.sender?.name || 'Staf CS Catavor') : getFirstName(merchantName)}
+                                        {isAgent ? (m.sender?.name || 'Staf CS Catavor') : getStoreDisplayName(selectedTicket)}
                                       </strong>
+                                      {!isAgent && (
+                                        <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.68rem', fontWeight: 600 }}>
+                                          ({getUserRequesterName(selectedTicket, m.sender)})
+                                        </span>
+                                      )}
                                     </div>
                                     <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.7rem', fontWeight: 600, flexShrink: 0 }}>
                                       {formatSupportDateTime(m.created_at)}

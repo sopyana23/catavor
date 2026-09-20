@@ -19974,15 +19974,69 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.5rem',
+                          gap: '0.45rem',
                           flexWrap: 'wrap',
                           paddingTop: '0.45rem',
                           borderTop: '1px solid var(--border-light)',
                           fontSize: '0.68rem'
                         }}>
+                          {selectedTicket.store && (
+                            <span style={{
+                              fontWeight: 700,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                              color: '#0284c7',
+                              border: '1px solid rgba(14, 165, 233, 0.25)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}>
+                              <Store size={11} color="#0284c7" />
+                              <span>{selectedTicket.store.name}</span>
+                              <span style={{
+                                fontSize: '0.55rem',
+                                padding: '0.06rem 0.35rem',
+                                borderRadius: '3px',
+                                background: selectedTicket.store.plan === 'enterprise' 
+                                  ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
+                                  : selectedTicket.store.plan === 'pro' 
+                                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                                    : 'rgba(148, 163, 184, 0.2)',
+                                color: selectedTicket.store.plan === 'enterprise' || selectedTicket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                fontWeight: 800,
+                                letterSpacing: '0.03em',
+                                boxShadow: selectedTicket.store.plan === 'enterprise' 
+                                  ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
+                                  : selectedTicket.store.plan === 'pro' 
+                                    ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                                    : 'none'
+                              }}>
+                                {String(selectedTicket.store.plan || 'FREE').toUpperCase()}
+                              </span>
+                            </span>
+                          )}
+
+                          {adminUser && (
+                            <span style={{
+                              fontWeight: 600,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: 'var(--bg-card-hover, rgba(0,0,0,0.03))',
+                              color: 'var(--text-secondary)',
+                              border: '1px solid var(--border-light)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <User size={10} style={{ color: 'var(--text-muted)' }} />
+                              {adminUser.name || 'Pengelola'}
+                            </span>
+                          )}
+
                           <span style={{
                             fontWeight: 600,
-                            padding: '0.18rem 0.55rem',
+                            padding: '0.15rem 0.5rem',
                             borderRadius: '0.4rem',
                             backgroundColor: 'var(--bg-card-hover, rgba(0,0,0,0.03))',
                             color: 'var(--text-secondary)',
@@ -19995,8 +20049,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             {getTicketCategoryLabel(selectedTicket.category)}
                           </span>
 
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
-                            Dibuat: {selectedTicket.created_at}
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.64rem' }}>
+                            {selectedTicket.created_at}
                           </span>
                         </div>
                       </div>
@@ -20076,7 +20130,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   <strong style={{ fontSize: '0.78rem', color: isUser ? '#ffffff' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 800 }}>
                                     {!isUser && <ShieldCheck size={14} color="var(--primary)" />}
                                     {isUser
-                                      ? getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')
+                                      ? (selectedTicket.store?.name ? `${selectedTicket.store.name} (${getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')})` : getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola'))
                                       : (msg.sender_name || 'Catavor Official Support')}
                                   </strong>
                                   <span style={{ fontSize: '0.65rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
@@ -21338,16 +21392,32 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                       <span style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '0.2rem',
+                                        gap: '0.25rem',
                                         fontSize: '0.64rem',
-                                        fontWeight: 600,
+                                        fontWeight: 700,
                                         padding: '0.12rem 0.4rem',
                                         borderRadius: '4px',
-                                        backgroundColor: ticket.store.plan === 'enterprise' ? 'rgba(168, 85, 247, 0.15)' : ticket.store.plan === 'pro' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255, 255, 255, 0.06)',
-                                        color: ticket.store.plan === 'enterprise' ? '#c084fc' : ticket.store.plan === 'pro' ? '#facc15' : 'var(--text-muted)',
-                                        border: `1px solid ${ticket.store.plan === 'enterprise' ? 'rgba(168, 85, 247, 0.3)' : ticket.store.plan === 'pro' ? 'rgba(234, 179, 8, 0.3)' : 'var(--border-light)'}`
+                                        backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                                        color: '#0284c7',
+                                        border: '1px solid rgba(14, 165, 233, 0.2)'
                                       }}>
-                                        {ticket.store.name} ({ticket.store.plan?.toUpperCase() || 'FREE'})
+                                        <Store size={10} color="#0284c7" />
+                                        <span>{ticket.store.name}</span>
+                                        <span style={{
+                                          fontSize: '0.52rem',
+                                          padding: '0.04rem 0.28rem',
+                                          borderRadius: '3px',
+                                          background: ticket.store.plan === 'enterprise' 
+                                            ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
+                                            : ticket.store.plan === 'pro' 
+                                              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                                              : 'rgba(148, 163, 184, 0.2)',
+                                          color: ticket.store.plan === 'enterprise' || ticket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                          fontWeight: 800,
+                                          letterSpacing: '0.03em'
+                                        }}>
+                                          {String(ticket.store.plan || 'FREE').toUpperCase()}
+                                        </span>
                                       </span>
                                     )}
                                   </div>

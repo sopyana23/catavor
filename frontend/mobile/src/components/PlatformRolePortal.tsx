@@ -16,6 +16,7 @@ import {
   Sparkles,
   TrendingUp,
   Users,
+  User,
   Search,
   Filter,
   Eye,
@@ -149,17 +150,32 @@ const getFirstName = (name?: string): string => {
   return first.charAt(0).toUpperCase() + first.slice(1);
 };
 
-const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
+const getStoreDisplayName = (ticket: any) => {
+  if (ticket?.store?.name) return ticket.store.name;
+  if (ticket?.store_name) return ticket.store_name;
+  if (ticket?.store?.slug) return ticket.store.slug;
+  if (ticket?.store_slug) return ticket.store_slug;
+  return 'Katalog Toko';
+};
+
+const getStorePlanBadge = (ticket: any) => {
+  const plan = ticket?.store?.plan || ticket?.store_plan || 'free';
+  return plan.toUpperCase();
+};
+
+const getUserRequesterName = (ticket: any, msgSender?: any) => {
   if (msgSender?.name && !msgSender.name.includes('@')) return getFirstName(msgSender.name);
   if (ticket?.user?.name && !ticket.user.name.includes('@')) return getFirstName(ticket.user.name);
-  if (ticket?.store?.name) return getFirstName(ticket.store.name);
-  if (ticket?.store_name) return getFirstName(ticket.store_name);
-  const rawEmail = ticket?.user_email || ticket?.user?.email || msgSender?.email || '';
+  const rawEmail = ticket?.user?.email || ticket?.user_email || msgSender?.email || '';
   if (rawEmail) {
     const prefix = rawEmail.split('@')[0];
     if (prefix) return getFirstName(prefix);
   }
   return 'Merchant';
+};
+
+const getMerchantDisplayName = (ticket: any, msgSender?: any) => {
+  return getStoreDisplayName(ticket);
 };
 
 export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
@@ -2398,7 +2414,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 fontWeight: 600
               }}>
                 {activeView === 'support' && selectedTicket
-                  ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • ${getMerchantDisplayName(selectedTicket)}`
+                  ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • 🏪 ${getStoreDisplayName(selectedTicket)}`
                   : subStatusText}
               </span>
             </div>
@@ -3256,23 +3272,60 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
               {/* Merchant Identity & Meta Chips */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
-                {/* Merchant Identity Chip */}
+                {/* Store Profile Identity Chip */}
                 <div style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  padding: '0.2rem 0.55rem',
+                  padding: '0.22rem 0.6rem',
                   borderRadius: '0.5rem',
-                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
                   color: isDark ? '#38bdf8' : '#0284c7',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
-                  fontSize: '0.67rem',
-                  fontWeight: 700
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  fontSize: '0.68rem',
+                  fontWeight: 800
                 }}>
                   <Store size={12} />
-                  <span>{getMerchantDisplayName(selectedTicket)}</span>
+                  <span>{getStoreDisplayName(selectedTicket)}</span>
+                  <span style={{
+                    fontSize: '0.55rem',
+                    padding: '0.06rem 0.35rem',
+                    borderRadius: '4px',
+                    background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
+                      ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
+                      : getStorePlanBadge(selectedTicket) === 'PRO' 
+                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                        : (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(100, 116, 139, 0.15)'),
+                    color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
+                    fontWeight: 800,
+                    letterSpacing: '0.03em',
+                    boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
+                      ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
+                      : getStorePlanBadge(selectedTicket) === 'PRO' 
+                        ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                        : 'none'
+                  }}>
+                    {getStorePlanBadge(selectedTicket)}
+                  </span>
+                </div>
+
+                {/* Requester / Account Identity Chip */}
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.22rem 0.55rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.border}`,
+                  fontSize: '0.67rem',
+                  fontWeight: 600
+                }}>
+                  <User size={11} style={{ color: theme.textMuted }} />
+                  <span style={{ color: theme.textPrimary, fontWeight: 700 }}>{getUserRequesterName(selectedTicket)}</span>
                   {(selectedTicket.user?.email || selectedTicket.user_email) && (
-                    <span style={{ opacity: 0.75, fontWeight: 500, fontSize: '0.62rem' }}>
+                    <span style={{ opacity: 0.8, fontSize: '0.62rem' }}>
                       ({selectedTicket.user?.email || selectedTicket.user_email})
                     </span>
                   )}
@@ -3674,15 +3727,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             }}>
                               {/* Bubble Sender Label & Time */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.38rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
                                   {isAgent ? (
                                     <ShieldCheck size={13} color="#06b6d4" />
                                   ) : (
                                     <Store size={13} color={isDark ? '#38bdf8' : '#0284c7'} />
                                   )}
                                   <strong style={{ fontSize: '0.74rem', color: isAgent ? '#06b6d4' : (isDark ? '#38bdf8' : '#0284c7'), fontWeight: 800 }}>
-                                    {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : getFirstName(merchantName)}
+                                    {isAgent ? (msg.sender?.name || 'Catavor Support (Staf)') : getStoreDisplayName(selectedTicket)}
                                   </strong>
+                                  {!isAgent && (
+                                    <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
+                                      ({getUserRequesterName(selectedTicket, msg.sender)})
+                                    </span>
+                                  )}
                                 </div>
                                 <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, flexShrink: 0 }}>
                                   {formatSupportDateTime(msg.created_at)}
@@ -4910,17 +4968,47 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                           {/* Store Tier Badge (Contextually placed next to Store Name) */}
                           {storePlan === 'enterprise' && (
-                            <span style={{ fontSize: '0.58rem', fontWeight: 900, padding: '0.08rem 0.35rem', borderRadius: '0.3rem', backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: '0.56rem',
+                              fontWeight: 800,
+                              padding: '0.08rem 0.38rem',
+                              borderRadius: '4px',
+                              background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                              color: '#ffffff',
+                              letterSpacing: '0.03em',
+                              boxShadow: '0 1px 3px rgba(124, 58, 237, 0.3)',
+                              flexShrink: 0
+                            }}>
                               ENTERPRISE
                             </span>
                           )}
                           {storePlan === 'pro' && (
-                            <span style={{ fontSize: '0.58rem', fontWeight: 900, padding: '0.08rem 0.35rem', borderRadius: '0.3rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: '0.56rem',
+                              fontWeight: 800,
+                              padding: '0.08rem 0.38rem',
+                              borderRadius: '4px',
+                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                              color: '#ffffff',
+                              letterSpacing: '0.04em',
+                              boxShadow: '0 1px 3px rgba(217, 119, 6, 0.35)',
+                              flexShrink: 0
+                            }}>
                               PRO
                             </span>
                           )}
                           {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
-                            <span style={{ fontSize: '0.58rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '0.3rem', backgroundColor: 'rgba(255, 255, 255, 0.08)', color: theme.textMuted, border: `1px solid ${theme.border}`, flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: '0.56rem',
+                              fontWeight: 700,
+                              padding: '0.08rem 0.38rem',
+                              borderRadius: '4px',
+                              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(100, 116, 139, 0.12)',
+                              color: isDark ? '#94a3b8' : '#475569',
+                              border: `1px solid ${theme.border}`,
+                              letterSpacing: '0.03em',
+                              flexShrink: 0
+                            }}>
                               FREE
                             </span>
                           )}
