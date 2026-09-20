@@ -324,11 +324,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         return {
           id: 'open',
           label: 'Open (Baru)',
-          shortLabel: 'Open',
+          shortLabel: 'Baru',
           color: '#06b6d4',
           bg: isDark ? 'rgba(6, 182, 212, 0.16)' : 'rgba(6, 182, 212, 0.1)',
           border: isDark ? 'rgba(6, 182, 212, 0.35)' : 'rgba(6, 182, 212, 0.25)',
           desc: 'Tiket baru, menunggu respons pertama CS'
+        };
+      case 'waiting_agent':
+        return {
+          id: 'waiting_agent',
+          label: 'Butuh Respon CS',
+          shortLabel: 'Respon CS',
+          color: isDark ? '#38bdf8' : '#0284c7',
+          bg: isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(2, 132, 199, 0.1)',
+          border: isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(2, 132, 199, 0.25)',
+          desc: 'Merchant telah membalas, menunggu respons tim CS'
         };
       case 'in_progress':
         return {
@@ -370,16 +380,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           border: isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.25)',
           desc: 'Tiket ditutup permanen (arsip)'
         };
-      default:
+      default: {
+        const cleanStr = (status || 'Open').replace(/_/g, ' ');
+        const capStr = cleanStr.charAt(0).toUpperCase() + cleanStr.slice(1);
         return {
           id: status || 'open',
-          label: status || 'Open',
-          shortLabel: status || 'Open',
+          label: capStr,
+          shortLabel: capStr,
           color: '#38bdf8',
           bg: isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(56, 189, 248, 0.1)',
           border: isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.25)',
-          desc: ''
+          desc: 'Status tiket bantuan'
         };
+      }
     }
   };
 
@@ -4066,8 +4079,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.15rem 0.15rem 0.35rem',
-                gap: '0.6rem'
+                padding: '0.15rem 0.1rem 0.35rem',
+                gap: '0.45rem',
+                width: '100%',
+                boxSizing: 'border-box'
               }}>
                 {/* Left: Premium Interactive Ticket Status Pill */}
                 {(() => {
@@ -4077,36 +4092,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       type="button"
                       onClick={() => setShowFooterStatusMenu(true)}
                       style={{
-                        height: '36px',
+                        height: '32px',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.45rem',
-                        padding: '0 0.85rem',
+                        gap: '0.35rem',
+                        padding: '0 0.65rem',
                         borderRadius: '999px',
                         backgroundColor: statusMeta.bg,
                         color: statusMeta.color,
                         border: `1.5px solid ${statusMeta.border}`,
-                        fontSize: '0.75rem',
-                        fontWeight: 800,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
                         cursor: 'pointer',
                         boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
-                        transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
+                        transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                        minWidth: 0,
+                        flexShrink: 1
                       }}
                       title="Ubah Status Pengerjaan Tiket"
                     >
                       <span style={{
-                        width: '8px',
-                        height: '8px',
+                        width: '7px',
+                        height: '7px',
                         borderRadius: '50%',
                         backgroundColor: statusMeta.color,
                         display: 'inline-block',
                         boxShadow: `0 0 6px ${statusMeta.color}88`,
                         flexShrink: 0
                       }} />
-                      <span style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
                         Status: <span style={{ textDecoration: 'underline', textUnderlineOffset: '2px' }}>{statusMeta.shortLabel}</span>
                       </span>
-                      <ChevronDown size={13} strokeWidth={2.5} style={{ opacity: 0.8 }} />
+                      <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.8, flexShrink: 0 }} />
                     </button>
                   );
                 })()}
@@ -4119,24 +4140,25 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     setShowTemplateModal(true);
                   }}
                   style={{
-                    height: '36px',
+                    height: '32px',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0 0.85rem',
+                    gap: '0.35rem',
+                    padding: '0 0.65rem',
                     borderRadius: '999px',
                     backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
                     color: isDark ? '#38bdf8' : '#0284c7',
                     border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.22)'}`,
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
                     cursor: 'pointer',
                     boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.05)',
-                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
+                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                    flexShrink: 0
                   }}
                   title="Gunakan Template Balasan Cepat (Canned Responses)"
                 >
-                  <Zap size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                  <Zap size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
                   <span style={{ whiteSpace: 'nowrap' }}>Template Balasan</span>
                 </button>
               </div>
@@ -7457,6 +7479,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <div style={{ padding: '1rem 1.15rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', overflowY: 'auto' }}>
               {[
                 { id: 'open', label: 'Open (Baru)', desc: 'Tiket baru masuk dari merchant, menunggu respons pertama tim CS.', color: '#06b6d4' },
+                { id: 'waiting_agent', label: 'Butuh Respon CS', desc: 'Merchant telah membalas, menunggu tanggapan staf CS.', color: isDark ? '#38bdf8' : '#0284c7' },
                 { id: 'in_progress', label: 'Proses (In Progress)', desc: 'Sedang dalam penanganan / investigasi aktif oleh staf CS.', color: isDark ? '#fbbf24' : '#d97706' },
                 { id: 'waiting_user', label: 'Tunggu User (Pending)', desc: 'CS telah membalas, menunggu tanggapan merchant (Otomatis saat membalas).', color: isDark ? '#c084fc' : '#9333ea' },
                 { id: 'resolved', label: 'Selesai (Resolved)', desc: 'Kendala tuntas diselesaikan. Tiket masuk masa sanggah 7 hari sebelum ditutup.', color: isDark ? '#34d399' : '#059669' },

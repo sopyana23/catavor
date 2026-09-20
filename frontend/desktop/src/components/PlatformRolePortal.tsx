@@ -3503,6 +3503,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     {[
                       { id: 'open', label: 'Open (Baru)', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.15)' },
+                      { id: 'waiting_agent', label: 'Butuh Respons CS', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.15)' },
                       { id: 'in_progress', label: 'Sedang Diproses', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
                       { id: 'waiting_user', label: 'Menunggu Merchant', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.15)' },
                       { id: 'resolved', label: 'Terselesaikan', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
