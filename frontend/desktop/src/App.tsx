@@ -18229,7 +18229,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             });
                             const data = await res.json();
                             if (res.ok && data.success && data.data) {
-                              showToast(`Tiket #${data.data.ticket_number || data.data.id} berhasil dibuat!`);
+                              showToast('Tiket berhasil dibuat!');
                               setShowCreateTicketModal(false);
                               setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
                               setTicketNewAttachments([]);
