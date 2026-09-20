@@ -4919,6 +4919,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               PRO
                             </span>
                           )}
+                          {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
+                            <span style={{ fontSize: '0.58rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '0.3rem', backgroundColor: 'rgba(255, 255, 255, 0.08)', color: theme.textMuted, border: `1px solid ${theme.border}`, flexShrink: 0 }}>
+                              FREE
+                            </span>
+                          )}
                         </div>
 
                         <div style={{

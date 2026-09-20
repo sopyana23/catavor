@@ -460,6 +460,14 @@ interface TicketMessage {
 interface SupportTicket {
   id: string | number;
   ticket_number?: string;
+  store_id?: number | null;
+  store_slug?: string | null;
+  store?: {
+    id: number;
+    name: string;
+    slug: string;
+    plan?: string;
+  } | null;
   subject: string;
   category: string;
   priority: string;
@@ -6270,6 +6278,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [showCategorySelectModal, setShowCategorySelectModal] = useState<boolean>(false);
   const [showPrioritySelectModal, setShowPrioritySelectModal] = useState<boolean>(false);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
+  const [ticketStoreScope, setTicketStoreScope] = useState<'store' | 'all'>('store');
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState<string>('');
   const [ticketPage, setTicketPage] = useState<number>(1);
@@ -6547,6 +6556,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (debouncedTicketSearch.trim()) {
         queryParams.set('q', debouncedTicketSearch.trim());
       }
+      if (ticketStoreScope === 'store' && getStoreSlug()) {
+        queryParams.set('store_slug', getStoreSlug()!);
+      } else {
+        queryParams.set('scope', 'all');
+      }
 
       const res = await fetch(`${API_BASE}/support/tickets?${queryParams.toString()}`, {
         headers: getAuthHeaders()
@@ -6587,6 +6601,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           return {
             id: t.id,
             ticket_number: t.ticket_number,
+            store_id: t.store_id,
+            store_slug: t.store?.slug || (typeof t.store_slug === 'string' ? t.store_slug : undefined),
+            store: t.store,
             subject: t.subject,
             category: t.category,
             priority: t.priority,
@@ -6713,6 +6730,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         const mapped: SupportTicket = {
           id: t.id,
           ticket_number: t.ticket_number,
+          store_id: t.store_id,
+          store_slug: t.store?.slug || (typeof t.store_slug === 'string' ? t.store_slug : undefined),
+          store: t.store,
           subject: t.subject,
           category: t.category,
           priority: t.priority,
@@ -6833,7 +6853,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   useEffect(() => {
     if (!token || adminSubTab !== 'help') return;
     fetchSupportTickets(tickets.length > 0, ticketPage);
-  }, [adminSubTab, token, debouncedTicketSearch, ticketFilter, ticketPage]);
+  }, [adminSubTab, token, debouncedTicketSearch, ticketFilter, ticketStoreScope, ticketPage]);
 
   // Polling otomatis hemat resource: HANYA aktif saat adminSubTab === 'help' dan tab browser aktif
   useEffect(() => {
@@ -6862,7 +6882,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter]);
+  }, [adminSubTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter, ticketStoreScope]);
 
   // Auto-scroll ke pesan percakapan terbaru saat tiket baru dibuka atau pesan baru tiba
   useEffect(() => {
@@ -20620,6 +20640,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               method: 'POST',
                               headers: getAuthHeaders(),
                               body: JSON.stringify({
+                                store_slug: getStoreSlug() || undefined,
                                 subject: newTicketForm.subject.trim(),
                                 category: newTicketForm.category,
                                 priority: newTicketForm.priority,
@@ -20991,6 +21012,64 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                           </div>
 
+                          {/* Store Scope Switcher Filter (Mobile) */}
+                          {getStoreSlug() && (
+                            <div style={{ display: 'flex', width: '100%', background: 'rgba(0,0,0,0.25)', padding: '0.2rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', boxSizing: 'border-box' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTicketStoreScope('store');
+                                  setTicketPage(1);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  padding: '0.35rem 0.5rem',
+                                  borderRadius: '0.45rem',
+                                  border: 'none',
+                                  fontSize: '0.72rem',
+                                  fontWeight: ticketStoreScope === 'store' ? 700 : 500,
+                                  backgroundColor: ticketStoreScope === 'store' ? 'var(--primary)' : 'transparent',
+                                  color: ticketStoreScope === 'store' ? '#ffffff' : 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <span>Toko Ini ({getStoreSlug()})</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTicketStoreScope('all');
+                                  setTicketPage(1);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  padding: '0.35rem 0.5rem',
+                                  borderRadius: '0.45rem',
+                                  border: 'none',
+                                  fontSize: '0.72rem',
+                                  fontWeight: ticketStoreScope === 'all' ? 700 : 500,
+                                  backgroundColor: ticketStoreScope === 'all' ? 'var(--primary)' : 'transparent',
+                                  color: ticketStoreScope === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  textAlign: 'center',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <span>Semua Toko</span>
+                              </button>
+                            </div>
+                          )}
+
                           <div style={{ display: 'flex', width: '100%', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', boxSizing: 'border-box' }}>
                             {(() => {
                               const allCount = ticketMetrics.total > 0 ? ticketMetrics.total : tickets.length;
@@ -21222,9 +21301,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 )}
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.45rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.68rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                  <span style={{ fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                                    {getTicketCategoryLabel(ticket.category)}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                    <span style={{ fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                      {getTicketCategoryLabel(ticket.category)}
+                                    </span>
+                                    {ticket.store && (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.2rem',
+                                        fontSize: '0.64rem',
+                                        fontWeight: 600,
+                                        padding: '0.12rem 0.4rem',
+                                        borderRadius: '4px',
+                                        backgroundColor: ticket.store.plan === 'enterprise' ? 'rgba(168, 85, 247, 0.15)' : ticket.store.plan === 'pro' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                                        color: ticket.store.plan === 'enterprise' ? '#c084fc' : ticket.store.plan === 'pro' ? '#facc15' : 'var(--text-muted)',
+                                        border: `1px solid ${ticket.store.plan === 'enterprise' ? 'rgba(168, 85, 247, 0.3)' : ticket.store.plan === 'pro' ? 'rgba(234, 179, 8, 0.3)' : 'var(--border-light)'}`
+                                      }}>
+                                        {ticket.store.name} ({ticket.store.plan?.toUpperCase() || 'FREE'})
+                                      </span>
+                                    )}
+                                  </div>
                                   <span style={{ fontWeight: isUnread ? 700 : 400, color: isUnread ? '#38bdf8' : 'var(--text-muted)' }}>
                                     {msgs.length} Pesan &bull; {ticket.updated_at}
                                   </span>
