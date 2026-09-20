@@ -1156,7 +1156,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const interval = setInterval(() => {
       sendPresence(false);
       fetchPresence();
-    }, 15000);
+    }, 30000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -1417,13 +1417,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
-  // Polling berkala saat tab support aktif (12 detik saat aktif, hemat baterai saat tab hidden)
+  // Polling santai fallback (45 detik saat aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
     if (!token || !canAccessSupport || activeView !== 'support') return;
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchTickets(1, false);
-    }, 12000);
+    }, 45000);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && activeView === 'support') {
