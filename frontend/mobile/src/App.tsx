@@ -6179,6 +6179,55 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return found ? found.label : (val === 'payment' ? 'Pembayaran & Paket Pro' : 'Kendala Teknis & Fitur');
   };
 
+  const getTicketCategoryMeta = (val?: string) => {
+    const c = (val || 'general').toLowerCase();
+    switch (c) {
+      case 'billing':
+      case 'payment':
+        return {
+          label: 'Pembayaran & Paket Pro',
+          shortLabel: 'Pembayaran',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          color: '#059669',
+          border: '1px solid rgba(16, 185, 129, 0.3)'
+        };
+      case 'technical':
+        return {
+          label: 'Kendala Teknis & Fitur',
+          shortLabel: 'Teknis & Fitur',
+          bg: 'rgba(99, 102, 241, 0.12)',
+          color: '#4f46e5',
+          border: '1px solid rgba(99, 102, 241, 0.3)'
+        };
+      case 'catalog_help':
+      case 'catalog':
+        return {
+          label: 'Bantuan Pengelolaan Katalog',
+          shortLabel: 'Bantuan Katalog',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          color: '#d97706',
+          border: '1px solid rgba(245, 158, 11, 0.3)'
+        };
+      case 'account':
+        return {
+          label: 'Kendala Akun & Profil',
+          shortLabel: 'Akun & Profil',
+          bg: 'rgba(236, 72, 153, 0.12)',
+          color: '#db2777',
+          border: '1px solid rgba(236, 72, 153, 0.3)'
+        };
+      case 'general':
+      default:
+        return {
+          label: 'Pertanyaan Umum',
+          shortLabel: 'Umum',
+          bg: 'rgba(14, 165, 233, 0.12)',
+          color: '#0284c7',
+          border: '1px solid rgba(14, 165, 233, 0.3)'
+        };
+    }
+  };
+
   const getTicketPriorityLabel = (val: string) => {
     const found = TICKET_PRIORITIES.find(p => p.value === val);
     return found ? found.label : 'Sedang';
@@ -20034,20 +20083,25 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </span>
                           )}
 
-                          <span style={{
-                            fontWeight: 600,
-                            padding: '0.15rem 0.5rem',
-                            borderRadius: '0.4rem',
-                            backgroundColor: 'var(--bg-card-hover, rgba(0,0,0,0.03))',
-                            color: 'var(--text-secondary)',
-                            border: '1px solid var(--border-light)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}>
-                            <Tag size={10} color="var(--text-secondary)" />
-                            {getTicketCategoryLabel(selectedTicket.category)}
-                          </span>
+                          {(() => {
+                            const catMeta = getTicketCategoryMeta(selectedTicket.category);
+                            return (
+                              <span style={{
+                                fontWeight: 700,
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: catMeta.bg,
+                                color: catMeta.color,
+                                border: catMeta.border,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                <Tag size={10} style={{ color: catMeta.color }} />
+                                <span>{catMeta.label}</span>
+                              </span>
+                            );
+                          })()}
 
                           <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.64rem' }}>
                             {selectedTicket.created_at}
@@ -21095,64 +21149,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                           </div>
 
-                          {/* Store Scope Switcher Filter (Mobile) */}
-                          {getStoreSlug() && (
-                            <div style={{ display: 'flex', width: '100%', background: 'rgba(0,0,0,0.25)', padding: '0.2rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', boxSizing: 'border-box' }}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTicketStoreScope('store');
-                                  setTicketPage(1);
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: '0.35rem 0.5rem',
-                                  borderRadius: '0.45rem',
-                                  border: 'none',
-                                  fontSize: '0.72rem',
-                                  fontWeight: ticketStoreScope === 'store' ? 700 : 500,
-                                  backgroundColor: ticketStoreScope === 'store' ? 'var(--primary)' : 'transparent',
-                                  color: ticketStoreScope === 'store' ? '#ffffff' : 'var(--text-secondary)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease',
-                                  textAlign: 'center',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '0.3rem'
-                                }}
-                              >
-                                <span>Toko Ini ({getStoreSlug()})</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTicketStoreScope('all');
-                                  setTicketPage(1);
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: '0.35rem 0.5rem',
-                                  borderRadius: '0.45rem',
-                                  border: 'none',
-                                  fontSize: '0.72rem',
-                                  fontWeight: ticketStoreScope === 'all' ? 700 : 500,
-                                  backgroundColor: ticketStoreScope === 'all' ? 'var(--primary)' : 'transparent',
-                                  color: ticketStoreScope === 'all' ? '#ffffff' : 'var(--text-secondary)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease',
-                                  textAlign: 'center',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '0.3rem'
-                                }}
-                              >
-                                <span>Semua Toko</span>
-                              </button>
-                            </div>
-                          )}
-
                           <div style={{ display: 'flex', width: '100%', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', boxSizing: 'border-box' }}>
                             {(() => {
                               const allCount = ticketMetrics.total > 0 ? ticketMetrics.total : tickets.length;
@@ -21385,9 +21381,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.45rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.68rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.35rem' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                    <span style={{ fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                                      {getTicketCategoryLabel(ticket.category)}
-                                    </span>
+                                    {(() => {
+                                      const catMeta = getTicketCategoryMeta(ticket.category);
+                                      return (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.25rem',
+                                          fontSize: '0.64rem',
+                                          fontWeight: 700,
+                                          padding: '0.12rem 0.45rem',
+                                          borderRadius: '4px',
+                                          backgroundColor: catMeta.bg,
+                                          color: catMeta.color,
+                                          border: catMeta.border,
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          <Tag size={10} style={{ color: catMeta.color, flexShrink: 0 }} />
+                                          <span>{catMeta.label}</span>
+                                        </span>
+                                      );
+                                    })()}
                                     {ticket.store && (
                                       <span style={{
                                         display: 'inline-flex',

@@ -6187,6 +6187,55 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     message: ''
   });
 
+  const getTicketCategoryMeta = (val?: string) => {
+    const c = (val || 'general').toLowerCase();
+    switch (c) {
+      case 'billing':
+      case 'payment':
+        return {
+          label: 'Pembayaran & Paket Pro',
+          shortLabel: 'Pembayaran',
+          bg: 'rgba(16, 185, 129, 0.12)',
+          color: '#059669',
+          border: '1px solid rgba(16, 185, 129, 0.3)'
+        };
+      case 'technical':
+        return {
+          label: 'Kendala Teknis & Fitur',
+          shortLabel: 'Teknis & Fitur',
+          bg: 'rgba(99, 102, 241, 0.12)',
+          color: '#4f46e5',
+          border: '1px solid rgba(99, 102, 241, 0.3)'
+        };
+      case 'catalog_help':
+      case 'catalog':
+        return {
+          label: 'Bantuan Pengelolaan Katalog',
+          shortLabel: 'Bantuan Katalog',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          color: '#d97706',
+          border: '1px solid rgba(245, 158, 11, 0.3)'
+        };
+      case 'account':
+        return {
+          label: 'Kendala Akun & Profil',
+          shortLabel: 'Akun & Profil',
+          bg: 'rgba(236, 72, 153, 0.12)',
+          color: '#db2777',
+          border: '1px solid rgba(236, 72, 153, 0.3)'
+        };
+      case 'general':
+      default:
+        return {
+          label: 'Pertanyaan Umum',
+          shortLabel: 'Umum',
+          bg: 'rgba(14, 165, 233, 0.12)',
+          color: '#0284c7',
+          border: '1px solid rgba(14, 165, 233, 0.3)'
+        };
+    }
+  };
+
   const prevTicketMessagesRef = useRef<Record<string, number>>({});
   const isFirstTicketLoadRef = useRef<boolean>(true);
   const readTicketIdsRef = useRef<Set<string | number>>(new Set());
@@ -17292,56 +17341,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         </div>
 
-                        {/* Scope Toggle: Toko Ini vs Semua Toko */}
-                        <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.25)', padding: '0.2rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
-                          <button
-                            type="button"
-                            onClick={() => setTicketStoreScope('store')}
-                            style={{
-                              flex: 1,
-                              padding: '0.32rem 0.5rem',
-                              borderRadius: '0.45rem',
-                              border: ticketStoreScope === 'store' ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
-                              fontSize: '0.74rem',
-                              fontWeight: ticketStoreScope === 'store' ? 800 : 600,
-                              backgroundColor: ticketStoreScope === 'store' ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
-                              color: ticketStoreScope === 'store' ? '#38bdf8' : 'var(--text-secondary)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Store size={13} />
-                            <span>Toko Ini</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setTicketStoreScope('all')}
-                            style={{
-                              flex: 1,
-                              padding: '0.32rem 0.5rem',
-                              borderRadius: '0.45rem',
-                              border: ticketStoreScope === 'all' ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
-                              fontSize: '0.74rem',
-                              fontWeight: ticketStoreScope === 'all' ? 800 : 600,
-                              backgroundColor: ticketStoreScope === 'all' ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
-                              color: ticketStoreScope === 'all' ? '#38bdf8' : 'var(--text-secondary)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Layers size={13} />
-                            <span>Semua Toko</span>
-                          </button>
-                        </div>
-
                         <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
                           {(() => {
                             const allCount = ticketMetrics.total > 0 ? ticketMetrics.total : tickets.length;
@@ -17557,9 +17556,25 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 )}
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                  <span style={{ fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                                    {ticket.category === 'billing' || ticket.category === 'payment' ? 'Pembayaran' : ticket.category === 'technical' ? 'Teknis' : ticket.category === 'catalog_help' ? 'Katalog' : ticket.category === 'account' ? 'Akun' : 'Umum'}
-                                  </span>
+                                  {(() => {
+                                    const catMeta = getTicketCategoryMeta(ticket.category);
+                                    return (
+                                      <span style={{
+                                        fontWeight: 700,
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '4px',
+                                        backgroundColor: catMeta.bg,
+                                        color: catMeta.color,
+                                        border: catMeta.border,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem'
+                                      }}>
+                                        <Tag size={10} style={{ color: catMeta.color }} />
+                                        <span>{catMeta.label}</span>
+                                      </span>
+                                    );
+                                  })()}
                                   <span style={{ fontWeight: isUnread ? 700 : 400, color: isUnread ? '#38bdf8' : 'var(--text-muted)' }}>
                                     {msgs.length} Pesan &bull; {ticket.updated_at}
                                   </span>
@@ -17721,9 +17736,26 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 </>
                               )}
                               <span style={{ fontSize: '0.72rem', color: 'var(--border-light)' }}>&bull;</span>
-                              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                                Kategori: {selectedTicket.category === 'payment' || selectedTicket.category === 'billing' ? 'Pembayaran & Paket' : selectedTicket.category === 'technical' ? 'Kendala Teknis' : selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog' : selectedTicket.category === 'account' ? 'Akun & Profil' : 'Umum'}
-                              </span>
+                              {(() => {
+                                const catMeta = getTicketCategoryMeta(selectedTicket.category);
+                                return (
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '4px',
+                                    backgroundColor: catMeta.bg,
+                                    color: catMeta.color,
+                                    border: catMeta.border,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}>
+                                    <Tag size={10} style={{ color: catMeta.color }} />
+                                    <span>{catMeta.label}</span>
+                                  </span>
+                                );
+                              })()}
                               <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '4px', backgroundColor: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)', color: selectedTicket.priority === 'urgent' || selectedTicket.priority === 'high' ? '#ef4444' : 'var(--text-secondary)' }}>
                                 Urgensi: {String(selectedTicket.priority).toUpperCase()}
                               </span>
