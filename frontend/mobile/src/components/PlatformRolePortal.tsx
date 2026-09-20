@@ -1520,7 +1520,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           setDormancyMetrics(dormData);
         }
       }
-      if (canAccessSupport && activeView === 'support') {
+      if (canAccessSupport) {
         fetchTickets(1, false);
       }
       if (canAccessFinance) {
@@ -1911,7 +1911,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const pendingReportsCount = reports.filter(r => r.status === 'pending').length;
-  const actionRequiredTicketsCount = ticketsMetrics.action_required ?? tickets.filter(t => (t.status === 'open' || t.status === 'waiting_agent')).length;
+  const actionRequiredTicketsCount = (ticketsMetrics && typeof ticketsMetrics.action_required === 'number' && ticketsMetrics.action_required > 0)
+    ? ticketsMetrics.action_required
+    : tickets.filter(t => (t.status === 'open' || t.status === 'waiting_agent')).length;
   const openTicketsCount = tickets.filter(t => t.status === 'open').length;
   const unreadTicketsCount = tickets.filter(t => t.has_unread || (t.unread_count && t.unread_count > 0)).length;
   const inProgressTicketsCount = ticketsMetrics.in_progress ?? tickets.filter(t => t.status === 'in_progress').length;
@@ -2036,7 +2038,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       id: 'support' as ActiveView,
       label: 'Helpdesk',
       icon: <HelpCircle size={20} />,
-      badge: Math.max(ticketsMetrics.action_required || 0, unreadTicketsCount, openTicketsCount),
+      badge: Math.max(
+        actionRequiredTicketsCount,
+        unreadTicketsCount,
+        openTicketsCount,
+        (ticketsMetrics && typeof ticketsMetrics.action_required === 'number') ? ticketsMetrics.action_required : 0
+      ),
       visible: canAccessSupport
     },
     {
