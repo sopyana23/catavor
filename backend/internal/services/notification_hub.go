@@ -123,8 +123,8 @@ func (h *NotificationHub) Broadcast(notif *models.Notification) {
 }
 
 // BroadcastTicketEvent sends a real-time ticket event (created, replied, status change)
-// to either a specific user or a platform role (e.g. "superadmin", "support").
-func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData interface{}, targetUserID uint, targetRole string) {
+// to either a specific user and store, or a platform role (e.g. "superadmin", "support").
+func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData interface{}, targetUserID uint, targetStoreID uint, targetRole string) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -148,9 +148,16 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 	for client := range h.clients {
 		shouldSend := false
 
-		// 1. Target by User ID
+		// 1. Target by User ID & Store ID (Store-Scoped Isolation for Merchants)
 		if targetUserID > 0 && client.UserID == targetUserID {
-			shouldSend = true
+			if targetStoreID > 0 {
+				// If merchant client is scoped to a store, it MUST match targetStoreID, or client.StoreID == 0 (account level)
+				if client.StoreID == 0 || client.StoreID == targetStoreID {
+					shouldSend = true
+				}
+			} else {
+				shouldSend = true
+			}
 		}
 
 		// 2. Target by Role (e.g. "superadmin", "support")
@@ -182,6 +189,7 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 	log.Info().
 		Str("event", eventType).
 		Uint("target_user", targetUserID).
+		Uint("target_store", targetStoreID).
 		Str("target_role", targetRoleClean).
 		Int("sent_count", sentCount).
 		Msg("Realtime ticket broadcast delivered")
