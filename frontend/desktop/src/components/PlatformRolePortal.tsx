@@ -3209,6 +3209,11 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                     PRO
                                   </span>
                                 )}
+                                {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
+                                  <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '0.3rem', backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
+                                    FREE
+                                  </span>
+                                )}
                               </div>
                               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                 {t.user?.email || t.user_email || t.email || 'merchant@catavor.com'}

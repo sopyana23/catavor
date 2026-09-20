@@ -64,6 +64,8 @@ type CreateTicketRequest struct {
 	Category    string              `json:"category"` // billing | technical | catalog_help | account | general
 	Priority    string              `json:"priority"` // low | medium | high | urgent
 	Message     string              `json:"message"`
+	StoreSlug   string              `json:"store_slug"`
+	StoreID     *uint               `json:"store_id"`
 	Attachments []AttachmentPayload `json:"attachments"`
 }
 
@@ -73,7 +75,7 @@ type ReplyTicketRequest struct {
 	Attachments    []AttachmentPayload `json:"attachments"`
 }
 
-// ListMyTickets returns all tickets opened by the authenticated user with server-side filtering and pagination.
+// ListMyTickets returns all tickets opened by the authenticated user with server-side filtering, store-scoping, and pagination.
 func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	user, ok := c.Locals("user").(*models.User)
 	if !ok || user == nil {
@@ -103,7 +105,26 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		baseQuery = baseQuery.Where("user_id = ?", user.ID)
 	}
 
-	// Realtime summary metrics across all tickets for this user
+	// Store scoping filter (Best Practice: Contextual Store filter with fallback to all stores)
+	storeSlug := strings.TrimSpace(c.Query("store_slug"))
+	scope := strings.ToLower(strings.TrimSpace(c.Query("scope"))) // "store" | "all"
+	var scopedStoreID *uint
+
+	if storeSlug != "" && scope != "all" {
+		var targetStore models.Store
+		if err := database.DB.Where("slug = ?", storeSlug).First(&targetStore).Error; err == nil && targetStore.ID != 0 {
+			scopedStoreID = &targetStore.ID
+			baseQuery = baseQuery.Where("store_id = ?", targetStore.ID)
+		}
+	} else if storeIDParam := c.Query("store_id"); storeIDParam != "" && scope != "all" {
+		if sID, err := strconv.ParseUint(storeIDParam, 10, 32); err == nil && sID > 0 {
+			uID := uint(sID)
+			scopedStoreID = &uID
+			baseQuery = baseQuery.Where("store_id = ?", uID)
+		}
+	}
+
+	// Realtime summary metrics across relevant tickets for this user
 	var metricTotal, metricActive, metricResolved int64
 	type statusGroup struct {
 		Status string
@@ -113,6 +134,9 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	metricQuery := database.DB.Model(&models.SupportTicket{})
 	if !isStaff {
 		metricQuery = metricQuery.Where("user_id = ?", user.ID)
+	}
+	if scopedStoreID != nil {
+		metricQuery = metricQuery.Where("store_id = ?", *scopedStoreID)
 	}
 	metricQuery.Select("status, COUNT(*) as count").Group("status").Scan(&sgs)
 	for _, sg := range sgs {
@@ -418,21 +442,44 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Fetch primary store if user is a merchant
+	isStaff := strings.EqualFold(user.PlatformRole, "superadmin") || 
+		strings.EqualFold(user.PlatformRole, "support") || 
+		user.Email == "admin@catavor.com"
+
+	// Resolve targeted store context (Store-Scoped Best Practice)
 	var store models.Store
 	var storeID *uint
-	if err := database.DB.Where("user_id = ?", user.ID).First(&store).Error; err == nil && store.ID != 0 {
-		storeID = &store.ID
+	targetSlug := strings.TrimSpace(req.StoreSlug)
+
+	if targetSlug != "" {
+		if err := database.DB.Where("slug = ?", targetSlug).First(&store).Error; err == nil && store.ID != 0 {
+			if store.UserID == user.ID || isStaff {
+				storeID = &store.ID
+			}
+		}
+	} else if req.StoreID != nil && *req.StoreID != 0 {
+		if err := database.DB.Where("id = ?", *req.StoreID).First(&store).Error; err == nil && store.ID != 0 {
+			if store.UserID == user.ID || isStaff {
+				storeID = &store.ID
+			}
+		}
+	}
+
+	// Fallback to user's first store only if no specific store was specified but user owns a store
+	if storeID == nil {
+		if err := database.DB.Where("user_id = ?", user.ID).First(&store).Error; err == nil && store.ID != 0 {
+			storeID = &store.ID
+		}
 	}
 
 	now := time.Now().UTC()
 
-	// Compute Multi-Tier SLA based on merchant store tier
+	// Compute Multi-Tier SLA based on the targeted store plan
 	var slaDuration time.Duration
 	storePlan := strings.ToLower(string(store.Plan))
-	if storePlan == "enterprise" {
+	if storeID != nil && storePlan == "enterprise" {
 		slaDuration = 30 * time.Minute
-	} else if storePlan == "pro" {
+	} else if storeID != nil && storePlan == "pro" {
 		slaDuration = 2 * time.Hour
 	} else {
 		slaDuration = 8 * time.Hour
