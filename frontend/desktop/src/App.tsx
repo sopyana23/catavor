@@ -4882,6 +4882,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     } catch {}
   }, []);
 
+  const desktopActiveTicketRef = useRef<string | number | null>(null);
+  const desktopFetchTicketDetailsRef = useRef<((id: string | number) => void) | null>(null);
+  const desktopFetchSupportTicketsRef = useRef<((silent?: boolean, page?: number) => void) | null>(null);
+  const desktopFetchTicketsPingRef = useRef<(() => void) | null>(null);
+
   // Hook for initial load and SSE real-time stream subscription (Desktop)
   useEffect(() => {
     fetchNotificationsFromBackend(1, false, 'all');
@@ -4900,41 +4905,56 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           const payload = JSON.parse(e.data);
           const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
 
-          if (payload && payload.event === 'ticket_reply_from_staff') {
+          if (payload && (payload.event === 'ticket_reply_from_staff' || payload.event === 'ticket_reply_from_user')) {
             const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
             // If the reply belongs to another store, do NOT alert or increment unread badge on this store's screen
             if (eventSlug && currentSlug && eventSlug !== currentSlug) {
               return;
             }
 
-            setSupportUnreadCount(prev => prev + 1);
-            if (typeof playSupportChime === 'function') {
-              playSupportChime();
+            const incomingTicketId = payload.ticket?.ticket_id || payload.ticket?.id;
+            const isViewingThisTicket = desktopActiveTicketRef.current && (
+              String(desktopActiveTicketRef.current) === String(incomingTicketId)
+            );
+
+            // Alert user only if not actively viewing this exact ticket thread
+            if (!isViewingThisTicket) {
+              if (typeof playSupportChime === 'function') {
+                playSupportChime();
+              }
+              showToast('1 pesan masuk', 'info');
             }
-            showToast('1 pesan masuk', 'info');
+
+            // Event-Driven Instant Reactivity: Refresh active ticket chat & list immediately & sync canonical ping count
+            if (desktopActiveTicketRef.current && desktopFetchTicketDetailsRef.current) {
+              desktopFetchTicketDetailsRef.current(desktopActiveTicketRef.current);
+            }
+            if (desktopFetchSupportTicketsRef.current) {
+              desktopFetchSupportTicketsRef.current(true);
+            }
+            if (desktopFetchTicketsPingRef.current) {
+              desktopFetchTicketsPingRef.current();
+            }
           } else if (payload && payload.event === 'ticket_status_updated') {
             const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
             if (eventSlug && currentSlug && eventSlug !== currentSlug) {
               return;
             }
             showToast('Status tiket bantuan telah diperbarui', 'info');
+            if (desktopActiveTicketRef.current && desktopFetchTicketDetailsRef.current) {
+              desktopFetchTicketDetailsRef.current(desktopActiveTicketRef.current);
+            }
+            if (desktopFetchSupportTicketsRef.current) {
+              desktopFetchSupportTicketsRef.current(true);
+            }
+            if (desktopFetchTicketsPingRef.current) {
+              desktopFetchTicketsPingRef.current();
+            }
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
             const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
 
-            if (isTicketNotif) {
-              const actionUrl = (newNotif.actionUrl || newNotif.action_url || '').toLowerCase();
-              if (actionUrl && currentSlug) {
-                if (!actionUrl.startsWith(`/${currentSlug}/`) && !actionUrl.startsWith('/admin/help')) {
-                  return; // Not for this store
-                }
-              }
-              setSupportUnreadCount(prev => prev + 1);
-              if (typeof playSupportChime === 'function') {
-                playSupportChime();
-              }
-              showToast('1 pesan masuk', 'info');
-            } else {
+            if (!isTicketNotif) {
               showToast(`Notifikasi Baru: ${newNotif.title}`);
             }
 
@@ -6517,9 +6537,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         readTicketIdsRef.current.add(ticketId);
         readTicketIdsRef.current.add(String(ticketId));
 
+        setSupportUnreadCount(prev => Math.max(0, prev - 1));
+
         fetch(`${API_BASE}/support/tickets/${ticketId}/mark-read`, {
           method: 'POST',
           headers: getAuthHeaders()
+        }).then(() => {
+          if (desktopFetchTicketsPingRef.current) {
+            desktopFetchTicketsPingRef.current();
+          }
         }).catch(() => {});
 
         // Hapus efek belum dibaca di UI tiket lokal
@@ -6529,6 +6555,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       console.error("Gagal memuat detail tiket:", e);
     }
   };
+
+  desktopActiveTicketRef.current = selectedTicket?.id || null;
+  desktopFetchTicketDetailsRef.current = fetchTicketDetails;
+  desktopFetchSupportTicketsRef.current = fetchSupportTickets;
 
   // Helper: Ekstrak nomor atau ID tiket dari item notifikasi untuk Contextual Deep Linking (Desktop)
   const extractTicketFromNotif = (item: any): string | null => {
@@ -6577,11 +6607,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     fetchSupportTickets(tickets.length > 0, ticketPage);
   }, [adminTab, token, debouncedTicketSearch, ticketFilter, ticketStoreScope, storeSlug, ticketPage]);
 
-  // Polling otomatis hemat resource: HANYA aktif saat adminTab === 'help' dan tab browser aktif
+  // Polling santai fallback (45 detik saat tab bantuan aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
     if (!token || adminTab !== 'help') return;
 
-    const intervalMs = 12000;
+    const intervalMs = 45000;
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       if (selectedTicket?.id) {
@@ -6681,36 +6711,38 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
 
+  const fetchTicketsPing = useCallback(async () => {
+    if (!token) return;
+    try {
+      const slug = storeSlug || getStoreSlug() || '';
+      const queryParams = new URLSearchParams();
+      if (slug) {
+        queryParams.set('store_slug', slug);
+      }
+      const res = await fetch(`${API_BASE}/support/tickets-ping?${queryParams.toString()}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success && typeof d.unread_count === 'number') {
+          setSupportUnreadCount(d.unread_count);
+        }
+      }
+    } catch {}
+  }, [token, storeSlug]);
+
+  desktopFetchTicketsPingRef.current = fetchTicketsPing;
+
   // Sync tickets ping for lightweight global unread badge on merchant dashboard & menu (Store-Scoped)
   useEffect(() => {
-    if (!token) return;
-    const fetchTicketsPing = async () => {
-      try {
-        const slug = storeSlug || getStoreSlug() || '';
-        const queryParams = new URLSearchParams();
-        if (slug) {
-          queryParams.set('store_slug', slug);
-        }
-        const res = await fetch(`${API_BASE}/support/tickets-ping?${queryParams.toString()}`, {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          const d = await res.json();
-          if (d.success && typeof d.unread_count === 'number') {
-            setSupportUnreadCount(d.unread_count);
-          }
-        }
-      } catch {}
-    };
-
     fetchTicketsPing();
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchTicketsPing();
-    }, 30000);
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, [token, storeSlug]);
+  }, [fetchTicketsPing]);
 
   const unreadTicketsCount = useMemo(() => {
     const activeSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
@@ -17339,6 +17371,62 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             style={{ paddingLeft: '2.25rem', height: '38px', fontSize: '0.8rem', borderRadius: '0.6rem' }}
                           />
                           <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        </div>
+
+                        {/* Store Scope Switcher (Best Practice: Toko Ini vs Semua Toko) */}
+                        <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.2)', padding: '0.2rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTicketStoreScope('store');
+                              setTicketPage(1);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.32rem 0.5rem',
+                              borderRadius: '0.45rem',
+                              border: 'none',
+                              fontSize: '0.73rem',
+                              fontWeight: 700,
+                              backgroundColor: ticketStoreScope === 'store' ? 'var(--primary)' : 'transparent',
+                              color: ticketStoreScope === 'store' ? '#ffffff' : 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Store size={13} />
+                            <span>Toko Ini</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTicketStoreScope('all');
+                              setTicketPage(1);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.32rem 0.5rem',
+                              borderRadius: '0.45rem',
+                              border: 'none',
+                              fontSize: '0.73rem',
+                              fontWeight: 700,
+                              backgroundColor: ticketStoreScope === 'all' ? 'var(--primary)' : 'transparent',
+                              color: ticketStoreScope === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Globe size={13} />
+                            <span>Semua Toko</span>
+                          </button>
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
