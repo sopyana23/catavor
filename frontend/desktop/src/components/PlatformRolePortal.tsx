@@ -692,7 +692,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     content = content.replace(/\{\{ticket_number\}\}/gi, ticketNum);
     content = content.replace(/\{\{agent_name\}\}/gi, agentName);
 
-    setReplyMessage((prev: string) => (prev ? `${prev}\n${content}` : content));
+    setReplyMessage(content);
     setShowTemplateModal(false);
     showToast(`Template "${tmpl.title}" disisipkan!`, 'success');
   };
@@ -3242,16 +3242,18 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
                               {/* Multi-Tier SLA Countdown Pill */}
                               {t.sla_breached ? (
-                                <span style={{ fontSize: '0.64rem', fontWeight: 900, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
-                                  ⚠️ SLA Terlewat
+                                <span style={{ fontSize: '0.64rem', fontWeight: 800, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.16)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
+                                  <AlertTriangle size={11} strokeWidth={2.4} />
+                                  <span>SLA Lewat</span>
                                 </span>
                               ) : (t.status === 'open' && t.sla_due_at) ? (
                                 (() => {
                                   const diffMin = Math.round((new Date(t.sla_due_at).getTime() - Date.now()) / (1000 * 60));
                                   if (diffMin <= 0) {
                                     return (
-                                      <span style={{ fontSize: '0.64rem', fontWeight: 900, padding: '0.1rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
-                                        ⚠️ SLA Terlewat
+                                      <span style={{ fontSize: '0.64rem', fontWeight: 800, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.16)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
+                                        <AlertTriangle size={11} strokeWidth={2.4} />
+                                        <span>SLA Lewat</span>
                                       </span>
                                     );
                                   }
@@ -3262,7 +3264,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                     <span style={{
                                       fontSize: '0.64rem',
                                       fontWeight: 800,
-                                      padding: '0.1rem 0.45rem',
+                                      padding: '0.12rem 0.45rem',
                                       borderRadius: '4px',
                                       backgroundColor: isClose ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
                                       color: isClose ? '#f59e0b' : '#10b981',
@@ -3272,7 +3274,8 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                                       gap: '0.25rem',
                                       width: 'fit-content'
                                     }}>
-                                      ⏱️ SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m
+                                      <Clock size={11} strokeWidth={2.2} />
+                                      <span>SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m</span>
                                     </span>
                                   );
                                 })()
@@ -5830,11 +5833,17 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
             <form onSubmit={handleSaveTemplate} style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '80vh', overflowY: 'auto' }}>
               <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
-                  Judul Template <span style={{ color: '#ef4444' }}>*</span>
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    Judul Template <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    {templateForm.title.length}/60
+                  </span>
+                </div>
                 <input
                   type="text"
+                  maxLength={60}
                   value={templateForm.title}
                   onChange={e => setTemplateForm({ ...templateForm, title: e.target.value })}
                   placeholder="Contoh: Salam & Permintaan Screenshot Bukti"

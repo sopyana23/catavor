@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Tag,
   ArrowLeft,
   Home,
   Sun,
@@ -5905,15 +5906,25 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
   const merchantTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
   const desktopTicketChatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat stream to bottom when ticket is opened or new messages arrive
+  // Auto-scroll chat stream to bottom with smooth animation when ticket is opened or new messages arrive
   useEffect(() => {
-    if (selectedTicket && desktopTicketChatContainerRef.current) {
+    if (selectedTicket) {
       setTimeout(() => {
-        if (desktopTicketChatContainerRef.current) {
-          desktopTicketChatContainerRef.current.scrollTop = desktopTicketChatContainerRef.current.scrollHeight;
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        } else if (desktopTicketChatContainerRef.current) {
+          try {
+            desktopTicketChatContainerRef.current.scrollTo({
+              top: desktopTicketChatContainerRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          } catch {
+            desktopTicketChatContainerRef.current.scrollTop = desktopTicketChatContainerRef.current.scrollHeight;
+          }
         }
-      }, 100);
+      }, 120);
     }
   }, [selectedTicket?.id, selectedTicket?.messages?.length]);
 
@@ -17832,6 +17843,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 </div>
                               );
                             })}
+                            <div ref={messagesEndRef} style={{ height: '4px' }} />
                           </div>
 
                           {/* Reply Input Form with Multi-Image Screenshot Upload */}
@@ -18246,9 +18258,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                           <div className="form-group">
-                            <label className="form-label">Judul Kendala / Subjek *</label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                              <label className="form-label" style={{ margin: 0 }}>Judul Kendala / Subjek *</label>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                {newTicketForm.subject.length}/80
+                              </span>
+                            </div>
                             <input
                               type="text"
+                              maxLength={80}
                               className="form-input"
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
                               value={newTicketForm.subject}
