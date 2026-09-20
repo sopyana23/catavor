@@ -4898,25 +4898,37 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       eventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
+          const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
+
           if (payload && payload.event === 'ticket_reply_from_staff') {
+            const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
+            // If the reply belongs to another store, do NOT alert or increment unread badge on this store's screen
+            if (eventSlug && currentSlug && eventSlug !== currentSlug) {
+              return;
+            }
+
             setSupportUnreadCount(prev => prev + 1);
             if (typeof playSupportChime === 'function') {
               playSupportChime();
             }
             showToast('1 pesan masuk', 'info');
           } else if (payload && payload.event === 'ticket_status_updated') {
+            const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
+            if (eventSlug && currentSlug && eventSlug !== currentSlug) {
+              return;
+            }
             showToast('Status tiket bantuan telah diperbarui', 'info');
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
-            setNotifications(prev => {
-              const filtered = prev.filter(n => String(n.id) !== String(newNotif.id));
-              return [newNotif, ...filtered];
-            });
-            setNotifUnreadCount(prev => prev + 1);
-            setNotifTotal(prev => prev + 1);
-
             const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+
             if (isTicketNotif) {
+              const actionUrl = (newNotif.actionUrl || newNotif.action_url || '').toLowerCase();
+              if (actionUrl && currentSlug) {
+                if (!actionUrl.startsWith(`/${currentSlug}/`) && !actionUrl.startsWith('/admin/help')) {
+                  return; // Not for this store
+                }
+              }
               setSupportUnreadCount(prev => prev + 1);
               if (typeof playSupportChime === 'function') {
                 playSupportChime();
@@ -4925,6 +4937,13 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             } else {
               showToast(`Notifikasi Baru: ${newNotif.title}`);
             }
+
+            setNotifications(prev => {
+              const filtered = prev.filter(n => String(n.id) !== String(newNotif.id));
+              return [newNotif, ...filtered];
+            });
+            setNotifUnreadCount(prev => prev + 1);
+            setNotifTotal(prev => prev + 1);
           }
         } catch {}
       };
@@ -6613,12 +6632,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
 
-  // Sync tickets ping for lightweight global unread badge on merchant dashboard & menu
+  // Sync tickets ping for lightweight global unread badge on merchant dashboard & menu (Store-Scoped)
   useEffect(() => {
     if (!token) return;
     const fetchTicketsPing = async () => {
       try {
-        const res = await fetch(`${API_BASE}/support/tickets-ping`, {
+        const slug = storeSlug || getStoreSlug() || '';
+        const queryParams = new URLSearchParams();
+        if (slug) {
+          queryParams.set('store_slug', slug);
+        }
+        const res = await fetch(`${API_BASE}/support/tickets-ping?${queryParams.toString()}`, {
           headers: getAuthHeaders()
         });
         if (res.ok) {
@@ -6637,12 +6661,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, storeSlug]);
 
   const unreadTicketsCount = useMemo(() => {
-    const listCount = tickets.filter(t => !readTicketIdsRef.current.has(t.id) && !readTicketIdsRef.current.has(String(t.id)) && (t.has_unread || (t.unread_count && t.unread_count > 0))).length;
+    const activeSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
+    const listCount = tickets.filter(t => {
+      if (readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id))) return false;
+      if (activeSlug && t.store?.slug && t.store.slug.toLowerCase() !== activeSlug) return false;
+      return Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
+    }).length;
     return Math.max(listCount, supportUnreadCount);
-  }, [tickets, supportUnreadCount, selectedTicket?.id]);
+  }, [tickets, supportUnreadCount, selectedTicket?.id, storeSlug]);
 
   const [masterCategories, setMasterCategories] = useState<Record<ItemCategoryType, string[]>>(DEFAULT_MASTER_CATEGORIES)
   const [masterCategoryContextTab, setMasterCategoryContextTab] = useState<ItemCategoryType>('physical')

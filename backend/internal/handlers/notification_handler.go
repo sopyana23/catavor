@@ -43,6 +43,21 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		userID = user.ID
 	}
 
+	// Resolve exact store from query or header for strict store-scoped notifications
+	requestedSlug := strings.TrimSpace(c.Query("slug"))
+	if requestedSlug == "" {
+		requestedSlug = strings.TrimSpace(c.Get("X-Store-Slug"))
+	}
+	if requestedSlug != "" && user != nil {
+		var matchedStore models.Store
+		if err := h.DB.Where("slug = ? AND user_id = ?", requestedSlug, user.ID).First(&matchedStore).Error; err == nil {
+			storeID = matchedStore.ID
+			if matchedStore.Plan != "" {
+				storePlan = matchedStore.Plan
+			}
+		}
+	}
+
 	// 1. Seed initial standard guide notifications if store has none
 	if storeID > 0 {
 		h.ensureStoreInitialNotifications(storeID, userID)
@@ -358,6 +373,21 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 		platformRole = user.PlatformRole
 		if strings.EqualFold(user.PlatformRole, "superadmin") || user.Email == "admin@catavor.com" {
 			platformRole = "superadmin"
+		}
+	}
+
+	// Resolve exact store from query or header for strict store-scoped SSE connection
+	requestedSlug := strings.TrimSpace(c.Query("slug"))
+	if requestedSlug == "" {
+		requestedSlug = strings.TrimSpace(c.Get("X-Store-Slug"))
+	}
+	if requestedSlug != "" && user != nil {
+		var matchedStore models.Store
+		if err := h.DB.Where("slug = ? AND user_id = ?", requestedSlug, user.ID).First(&matchedStore).Error; err == nil {
+			storeID = matchedStore.ID
+			if matchedStore.Plan != "" {
+				storePlan = matchedStore.Plan
+			}
 		}
 	}
 

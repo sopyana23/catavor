@@ -574,8 +574,13 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	// Preload ticket relations
 	database.DB.Preload("User").Preload("Store").Preload("Messages.Attachments").First(&ticket, ticket.ID)
 
+	targetStoreID := uint(0)
+	if ticket.StoreID != nil {
+		targetStoreID = *ticket.StoreID
+	}
+
 	// Broadcast real-time ticket event to all Superadmin & Support staff via SSE
-	go services.GetNotificationHub().BroadcastTicketEvent("ticket_created", ticket, 0, "superadmin")
+	go services.GetNotificationHub().BroadcastTicketEvent("ticket_created", ticket, 0, targetStoreID, "superadmin")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -681,16 +686,32 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	// Preload created message
 	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
+	targetStoreID := uint(0)
+	if ticket.StoreID != nil {
+		targetStoreID = *ticket.StoreID
+	}
+	var ticketStoreSlug string
+	if ticket.Store != nil && ticket.Store.Slug != "" {
+		ticketStoreSlug = ticket.Store.Slug
+	} else if targetStoreID > 0 {
+		var st models.Store
+		if err := database.DB.Select("slug").Where("id = ?", targetStoreID).First(&st).Error; err == nil {
+			ticketStoreSlug = st.Slug
+		}
+	}
+
 	// Broadcast real-time ticket reply event to all Superadmin & Support staff via SSE
 	go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_user", map[string]interface{}{
 		"ticket_id":      ticket.ID,
 		"ticket_number":  ticket.TicketNumber,
+		"store_id":       ticket.StoreID,
+		"store_slug":     ticketStoreSlug,
 		"subject":        ticket.Subject,
 		"status":         ticket.Status,
 		"priority":       ticket.Priority,
 		"sender_name":    user.Name,
 		"message":        msg,
-	}, 0, "superadmin")
+	}, 0, targetStoreID, "superadmin")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -1025,11 +1046,25 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			}
 		}
 
-		// Multi-Channel Outbound Alert: Create In-App Notification for merchant
+		// Multi-Channel Outbound Alert: Create In-App Notification for merchant (Store-Scoped)
+		notifTargetType := "single_user"
+		notifTargetID := ticket.UserID
+		actionURL := fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber)
+
+		if ticket.StoreID != nil && *ticket.StoreID > 0 {
+			notifTargetType = "single_store"
+			notifTargetID = *ticket.StoreID
+
+			var st models.Store
+			if err := database.DB.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil && st.Slug != "" {
+				actionURL = fmt.Sprintf("/%s/admin/help?ticket=%s", st.Slug, ticket.TicketNumber)
+			}
+		}
+
 		notif := models.Notification{
 			ID:          fmt.Sprintf("notif-supp-%d-%d", ticket.ID, now.UnixNano()),
-			TargetType:  "single_user",
-			TargetID:    ticket.UserID,
+			TargetType:  notifTargetType,
+			TargetID:    notifTargetID,
 			Title:       "Balasan Baru dari CS Catavor",
 			Message:     fmt.Sprintf("Tim Customer Support Catavor telah menjawab tiket kendala Anda #%s: \"%s\".", ticket.TicketNumber, ticket.Subject),
 			Category:    "SISTEM",
@@ -1037,7 +1072,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			ActionType:  "navigate",
 			LinkSubTab:  "help",
 			ActionLabel: "Buka Tiket Bantuan →",
-			ActionURL:   fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber),
+			ActionURL:   actionURL,
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
@@ -1052,14 +1087,26 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 
 	database.DB.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
-	// Broadcast real-time ticket reply event to merchant via SSE
+	targetStoreID := uint(0)
+	var ticketStoreSlug string
+	if ticket.StoreID != nil && *ticket.StoreID > 0 {
+		targetStoreID = *ticket.StoreID
+		var st models.Store
+		if err := database.DB.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
+			ticketStoreSlug = st.Slug
+		}
+	}
+
+	// Broadcast real-time ticket reply event to merchant via SSE (Store-Scoped Isolation)
 	go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_staff", map[string]interface{}{
 		"ticket_id":     ticket.ID,
 		"ticket_number": ticket.TicketNumber,
+		"store_id":      ticket.StoreID,
+		"store_slug":    ticketStoreSlug,
 		"subject":       ticket.Subject,
 		"status":        ticket.Status,
 		"message":       msg,
-	}, ticket.UserID, "")
+	}, ticket.UserID, targetStoreID, "")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -1144,13 +1191,25 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 		database.DB.Create(&resolutionMsg)
 	}
 
-	// Broadcast status update event to both merchant and superadmins
+	targetStoreID := uint(0)
+	var ticketStoreSlug string
+	if ticket.StoreID != nil && *ticket.StoreID > 0 {
+		targetStoreID = *ticket.StoreID
+		var st models.Store
+		if err := database.DB.Select("slug").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
+			ticketStoreSlug = st.Slug
+		}
+	}
+
+	// Broadcast status update event to both merchant (store-scoped) and superadmins
 	go services.GetNotificationHub().BroadcastTicketEvent("ticket_status_updated", map[string]interface{}{
 		"ticket_id":     ticket.ID,
 		"ticket_number": ticket.TicketNumber,
+		"store_id":      ticket.StoreID,
+		"store_slug":    ticketStoreSlug,
 		"status":        ticket.Status,
 		"old_status":    oldStatus,
-	}, ticket.UserID, "superadmin")
+	}, ticket.UserID, targetStoreID, "superadmin")
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1886,10 +1945,34 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 			Where("status IN (?)", []string{"open", "waiting_agent"}).
 			Count(&unreadTicketsCount)
 	} else {
-		database.DB.Model(&models.SupportMessage{}).
-			Where("ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ?) AND sender_type = ? AND read_at IS NULL AND is_internal_note = false", user.ID, "agent").
-			Select("COUNT(DISTINCT ticket_id)").
-			Scan(&unreadTicketsCount)
+		// Scoped by store context if provided
+		storeSlug := strings.TrimSpace(c.Query("store_slug"))
+		if storeSlug == "" {
+			storeSlug = strings.TrimSpace(c.Query("slug"))
+		}
+		if storeSlug == "" {
+			storeSlug = strings.TrimSpace(c.Get("X-Store-Slug"))
+		}
+		scope := strings.ToLower(strings.TrimSpace(c.Query("scope")))
+
+		var scopedStoreID uint
+		if storeSlug != "" && scope != "all" {
+			var st models.Store
+			if err := database.DB.Where("slug = ? AND user_id = ?", storeSlug, user.ID).First(&st).Error; err == nil {
+				scopedStoreID = st.ID
+			}
+		}
+
+		q := database.DB.Model(&models.SupportMessage{}).
+			Where("sender_type = ? AND read_at IS NULL AND is_internal_note = false", "agent")
+
+		if scopedStoreID > 0 {
+			q = q.Where("ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ? AND store_id = ?)", user.ID, scopedStoreID)
+		} else {
+			q = q.Where("ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ?)", user.ID)
+		}
+
+		q.Select("COUNT(DISTINCT ticket_id)").Scan(&unreadTicketsCount)
 	}
 
 	var latestTime time.Time
