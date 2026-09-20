@@ -20462,7 +20462,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             });
                             const data = await res.json();
                             if (res.ok && data.success && data.data) {
-                              showToast(`Tiket #${data.data.ticket_number || data.data.id} berhasil dibuat!`);
+                              showToast('Tiket berhasil dibuat!');
                               setIsCreatingTicket(false);
                               setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
                               setTicketNewAttachments([]);
