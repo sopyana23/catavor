@@ -71,7 +71,8 @@ import {
   Play,
   Volume2,
   VolumeX,
-  ArrowUp
+  ArrowUp,
+  Database
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -103,7 +104,8 @@ type ActiveView =
   | 'broadcast' 
   | 'automation'
   | 'audit'
-  | 'safe_domains';
+  | 'safe_domains'
+  | 'master_data';
 
 const formatSupportDateTime = (dateStr?: string | Date) => {
   if (!dateStr) return '-';
@@ -245,6 +247,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
+  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
     view: string, 
@@ -306,7 +309,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketParam) return 'support';
       if (broadcastId) return 'broadcast';
 
-      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'safe_domains'].includes(tabParam)) {
+      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'safe_domains', 'master_data'].includes(tabParam)) {
+        if (tabParam === 'safe_domains') return 'master_data';
         return tabParam as ActiveView;
       }
       if (['overview', 'home'].includes(tabParam)) return 'dashboard';
@@ -316,7 +320,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
       if (['siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['bot', 'bots', 'otomatisasi', 'automation', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
-      if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(tabParam)) return 'safe_domains';
+      if (['domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'master_data', 'master-data', 'templates', 'canned'].includes(tabParam)) return 'master_data';
     } catch {
       // fallback
     }
@@ -331,14 +335,24 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const [activeView, setActiveView] = useState<ActiveView>(getDefaultView());
 
-  const handleSwitchView = (view: ActiveView) => {
-    setActiveView(view);
+  const handleSwitchView = (view: ActiveView, subView?: string) => {
+    const targetView = (view === 'safe_domains') ? 'master_data' : view;
+    setActiveView(targetView);
     setSelectedTicket(null);
-    if (view !== 'broadcast') {
+    if (targetView !== 'broadcast') {
       setBroadcastSubView('list');
       setSelectedBroadcastDetail(null);
     }
-    updatePlatformUrl(view, null);
+    if (targetView === 'master_data') {
+      const sub = (subView === 'templates' || subView === 'domains') ? subView : (view === 'safe_domains' ? 'domains' : masterSubView);
+      setMasterSubView(sub);
+      updatePlatformUrl(targetView, null, sub);
+      if (sub === 'templates') {
+        fetchCannedTemplates(true);
+      }
+    } else {
+      updatePlatformUrl(targetView, null, subView || null);
+    }
     try {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     } catch {
@@ -405,14 +419,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [isScrolled, setIsScrolled] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
-  // Support Division Sub-Navigation & Master Canned Responses State
-  const [supportSubView, setSupportSubView] = useState<'tickets' | 'templates'>(() => {
+  // Support Division & Master Data Sub-Navigation State
+  const [supportSubView, setSupportSubView] = useState<'tickets'>('tickets');
+  const [masterSubView, setMasterSubView] = useState<'domains' | 'templates'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const sub = (params.get('subtab') || params.get('subview') || '').toLowerCase();
-      if (sub === 'templates' || sub === 'template' || sub === 'canned') return 'templates';
+      const sub = (params.get('subtab') || params.get('subview') || params.get('sub') || '').toLowerCase();
+      const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
+      if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
     } catch {}
-    return 'tickets';
+    return 'domains';
   });
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -501,9 +518,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     setShowTemplateModal(false);
     setTemplateSheetDragY(0);
     setSelectedTicket(null); // CRITICAL: Exits ticket conversation detail view so user immediately lands on Master Template page!
-    setActiveView('support');
-    setSupportSubView('templates');
-    updatePlatformUrl('support', null, 'templates');
+    setActiveView('master_data');
+    setMasterSubView('templates');
+    updatePlatformUrl('master_data', null, 'templates');
     fetchCannedTemplates(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -2684,6 +2701,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcasts.length} Siaran Aktif` },
     automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 9} Bot & Background Workers` },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
+    master_data: { 
+      title: 'Data Master Platform', 
+      subtitle: masterSubView === 'domains' 
+        ? 'Whitelist URL & Navigasi Ekosistem' 
+        : `${cannedTemplates.length} Template Pesan Cepat CS` 
+    },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
   };
 
@@ -2745,15 +2768,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       visible: canAccessAutomation
     },
     {
-      id: 'safe_domains' as ActiveView,
-      title: 'Master Domain Aman',
-      subtitle: 'Whitelist URL Ekosistem & Mitra',
-      icon: <Globe size={20} />,
+      id: 'master_data' as ActiveView,
+      title: 'Data Master Platform',
+      subtitle: 'Domain Whitelist & Template CS',
+      icon: <Database size={20} />,
       color: '#38bdf8',
       bg: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(56, 189, 248, 0.1)',
       border: isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(56, 189, 248, 0.25)',
       badge: 0,
-      visible: canAccessMonetization || isSuperAdmin(currentUser)
+      visible: canAccessMasterData
     },
     {
       id: 'audit' as ActiveView,
@@ -3347,11 +3370,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981' }}>Segarkan</span>
               </button>
 
-              {/* 3. Master Domain Aman (Whitelist) */}
-              {(canAccessMonetization || isSuperAdmin(currentUser)) && (
+              {/* 3. Data Master Platform (Domain Whitelist & Template CS) */}
+              {canAccessMasterData && (
                 <button
                   onClick={() => {
-                    handleSwitchView('safe_domains');
+                    handleSwitchView('master_data', 'domains');
                     setShowOptionsMenu(false);
                   }}
                   style={{
@@ -3378,12 +3401,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}>
-                      <Globe size={19} />
+                      <Database size={19} />
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Master Domain Aman</div>
+                      <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Data Master Platform</div>
                       <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                        Kelola whitelist URL ekosistem & mitra
+                        Whitelist Domain Ekosistem & Template CS
                       </div>
                     </div>
                   </div>
@@ -5088,86 +5111,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       ) : (
           /* ----------------------------------------------------------------------- */
-          /* 4B. SUPPORT SUB-VIEWS: TICKET QUEUE LIST & MASTER CANNED RESPONSES       */
+          /* 4B. SUPPORT TICKET QUEUE LIST                                            */
           /* ----------------------------------------------------------------------- */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {/* Top Sub-Navigation Pill Switcher */}
-            <div style={{
-              display: 'flex',
-              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-              padding: '0.25rem',
-              borderRadius: '0.85rem',
-              border: `1px solid ${theme.border}`,
-              gap: '0.3rem'
-            }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setSupportSubView('tickets');
-                  updatePlatformUrl('support', null, null);
-                }}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem 0.6rem',
-                  borderRadius: '0.65rem',
-                  border: 'none',
-                  fontSize: '0.78rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  backgroundColor: supportSubView === 'tickets' ? 'var(--primary, #10b981)' : 'transparent',
-                  color: supportSubView === 'tickets' ? '#ffffff' : theme.textSecondary,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <MessageSquare size={13} />
-                <span>Antrean Tiket</span>
-                <span style={{
-                  fontSize: '0.62rem',
-                  padding: '0.05rem 0.35rem',
-                  borderRadius: '999px',
-                  backgroundColor: supportSubView === 'tickets' ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
-                  color: supportSubView === 'tickets' ? '#ffffff' : theme.textMuted
-                }}>
-                  {ticketsMetrics.total || tickets.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSupportSubView('templates');
-                  updatePlatformUrl('support', null, 'templates');
-                  fetchCannedTemplates(true);
-                }}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem 0.6rem',
-                  borderRadius: '0.65rem',
-                  border: 'none',
-                  fontSize: '0.78rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  backgroundColor: supportSubView === 'templates' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
-                  color: supportSubView === 'templates' ? '#ffffff' : theme.textSecondary,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Zap size={13} />
-                <span>Master Template</span>
-              </button>
-            </div>
-
-            {/* VIEW 1: TICKETS QUEUE */}
-            {supportSubView === 'tickets' && (
-              <>
             {/* 1. Instant Search Bar */}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
@@ -5862,339 +5808,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </>
             )}
-          </>
-        )}
-
-        {/* VIEW 2: MASTER CANNED RESPONSES (PENGELOLAAN TEMPLATE) */}
-        {supportSubView === 'templates' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {/* Search Bar & Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
-                  value={templateSearchQuery}
-                  onChange={(e) => setTemplateSearchQuery(e.target.value)}
-                  placeholder="Cari judul, shortcut (/salam), atau isi..."
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem 2.2rem 0.65rem 2.5rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                    border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                    fontSize: '0.82rem',
-                    fontWeight: 500,
-                    outline: 'none',
-                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
-                    boxSizing: 'border-box'
-                  }}
-                />
-                {templateSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setTemplateSearchQuery('')}
-                    style={{
-                      position: 'absolute',
-                      right: '0.75rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: isDark ? '#94a3b8' : '#64748b',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem',
-                      padding: '0.2rem'
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Action Buttons Row & Category Pills */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-                  {[
-                    { id: 'all', label: 'Semua' },
-                    { id: 'general', label: 'Umum' },
-                    { id: 'billing', label: 'Keuangan' },
-                    { id: 'technical', label: 'Teknis' },
-                    { id: 'closing', label: 'Penutupan' },
-                    { id: 'account', label: 'Akun' }
-                  ].map(cat => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setTemplateCategoryFilter(cat.id)}
-                      style={{
-                        padding: '0.3rem 0.65rem',
-                        borderRadius: '999px',
-                        fontSize: '0.7rem',
-                        fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
-                        backgroundColor: templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.chipInactiveBg,
-                        color: templateCategoryFilter === cat.id ? '#ffffff' : theme.chipInactiveText,
-                        border: `1px solid ${templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.border}`,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={handleResetDefaultTemplates}
-                    style={{
-                      padding: '0.4rem 0.6rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.cardAlt,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textSecondary,
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem'
-                    }}
-                    title="Reset ke bawaan"
-                  >
-                    <RefreshCw size={12} />
-                    <span>Reset</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateTemplate}
-                    style={{
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: isDark ? '#38bdf8' : '#0284c7',
-                      border: 'none',
-                      color: '#ffffff',
-                      fontSize: '0.74rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
-                    }}
-                  >
-                    <Plus size={13} />
-                    <span>Tambah</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Template Cards List */}
-            {loadingTemplates ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: theme.textSecondary }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: isDark ? '#38bdf8' : '#0284c7' }} />
-                <span style={{ fontSize: '0.8rem' }}>Memuat master template...</span>
-              </div>
-            ) : cannedTemplates.filter(t => {
-              if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
-              if (templateSearchQuery.trim()) {
-                const q = templateSearchQuery.toLowerCase();
-                return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
-              }
-              return true;
-            }).length === 0 ? (
-              <div style={{
-                padding: '2.5rem 1rem',
-                textAlign: 'center',
-                backgroundColor: theme.surface,
-                borderRadius: '1rem',
-                border: `1px dashed ${theme.border}`,
-                color: theme.textMuted
-              }}>
-                <Zap size={32} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.3 }} />
-                <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: '0.25rem', color: theme.textPrimary }}>
-                  Tidak Ada Template
-                </strong>
-                <p style={{ fontSize: '0.76rem', margin: '0 0 0.85rem', color: theme.textSecondary }}>
-                  Belum ada template pada kategori atau kata kunci ini.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleOpenCreateTemplate}
-                  style={{
-                    padding: '0.45rem 0.9rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: isDark ? '#38bdf8' : '#0284c7',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Tambah Template
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {cannedTemplates
-                  .filter(t => {
-                    if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
-                    if (templateSearchQuery.trim()) {
-                      const q = templateSearchQuery.toLowerCase();
-                      return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
-                    }
-                    return true;
-                  })
-                  .map(tmpl => {
-                    const catColors: Record<string, { bg: string; text: string; label: string }> = {
-                      general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
-                      billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
-                      technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
-                      closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
-                      account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
-                    };
-                    const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
-
-                    return (
-                      <div
-                        key={tmpl.id}
-                        style={{
-                          backgroundColor: theme.surface,
-                          border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
-                          borderRadius: '0.95rem',
-                          padding: '0.95rem',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.65rem',
-                          opacity: tmpl.is_active !== false ? 1 : 0.65,
-                          boxShadow: theme.cardShadow
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              <span style={{
-                                fontSize: '0.62rem',
-                                fontWeight: 800,
-                                padding: '0.1rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: catInfo.bg,
-                                color: catInfo.text
-                              }}>
-                                {catInfo.label}
-                              </span>
-
-                              {tmpl.shortcut && (
-                                <span style={{
-                                  fontSize: '0.62rem',
-                                  fontWeight: 800,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '0.35rem',
-                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                                  color: isDark ? '#38bdf8' : '#0284c7'
-                                }}>
-                                  /{tmpl.shortcut}
-                                </span>
-                              )}
-
-                              <span style={{
-                                fontSize: '0.58rem',
-                                fontWeight: 700,
-                                padding: '0.08rem 0.35rem',
-                                borderRadius: '0.3rem',
-                                backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
-                              }}>
-                                {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
-                              </span>
-                            </div>
-
-                            <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
-                              {tmpl.title}
-                            </strong>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleTemplateActive(tmpl)}
-                              style={{
-                                padding: '0.35rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
-                                cursor: 'pointer'
-                              }}
-                              title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
-                            >
-                              {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditTemplate(tmpl)}
-                              style={{
-                                padding: '0.35rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: isDark ? '#38bdf8' : '#0284c7',
-                                cursor: 'pointer'
-                              }}
-                              title="Edit Template"
-                            >
-                              <Sliders size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
-                              style={{
-                                padding: '0.35rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.25)',
-                                color: '#ef4444',
-                                cursor: 'pointer'
-                              }}
-                              title="Hapus Template"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Template Content Box */}
-                        <div style={{
-                          padding: '0.65rem 0.75rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: theme.cardAlt,
-                          border: `1px solid ${theme.border}`,
-                          fontSize: '0.78rem',
-                          color: theme.textSecondary,
-                          lineHeight: 1.45,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          maxHeight: '120px',
-                          overflowY: 'auto'
-                        }}>
-                          {tmpl.content}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-            )}
           </div>
-        )}
-      </div>
-    )
-  )}
+        )
+      )}
 
       {/* ========================================================================= */}
       {/* 4. MODULE 5: KEUANGAN & ORDER LANGGANAN                                   */}
@@ -9827,14 +9443,421 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. MODULE: MASTER DOMAIN AMAN (WHITELIST)                                 */}
+      {/* 4. MODULE: DATA MASTER PLATFORM (WHITELIST DOMAIN & TEMPLATE CS)          */}
       {/* ========================================================================= */}
-      {activeView === 'safe_domains' && (canAccessMonetization || isSuperAdmin(currentUser)) && (
-        <AdminSafeDomainsManagement
-          token={token}
-          themeMode={themeMode}
-          onClose={() => handleSwitchView('dashboard')}
-        />
+      {activeView === 'master_data' && canAccessMasterData && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {/* Top Sub-Navigation Pill Switcher */}
+          <div style={{
+            display: 'flex',
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+            padding: '0.25rem',
+            borderRadius: '0.85rem',
+            border: `1px solid ${theme.border}`,
+            gap: '0.3rem'
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setMasterSubView('domains');
+                updatePlatformUrl('master_data', null, 'domains');
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                padding: '0.5rem 0.6rem',
+                borderRadius: '0.65rem',
+                border: 'none',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                backgroundColor: masterSubView === 'domains' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
+                color: masterSubView === 'domains' ? '#ffffff' : theme.textSecondary,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Globe size={13} />
+              <span>Whitelist URL Aman</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMasterSubView('templates');
+                updatePlatformUrl('master_data', null, 'templates');
+                fetchCannedTemplates(true);
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                padding: '0.5rem 0.6rem',
+                borderRadius: '0.65rem',
+                border: 'none',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                backgroundColor: masterSubView === 'templates' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
+                color: masterSubView === 'templates' ? '#ffffff' : theme.textSecondary,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Zap size={13} />
+              <span>Template Pesan CS</span>
+              <span style={{
+                fontSize: '0.62rem',
+                padding: '0.05rem 0.35rem',
+                borderRadius: '999px',
+                backgroundColor: masterSubView === 'templates' ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
+                color: masterSubView === 'templates' ? '#ffffff' : theme.textMuted
+              }}>
+                {cannedTemplates.length}
+              </span>
+            </button>
+          </div>
+
+          {/* SUB-VIEW 1: MASTER DOMAIN AMAN (WHITELIST) */}
+          {masterSubView === 'domains' && (
+            <AdminSafeDomainsManagement
+              token={token}
+              themeMode={themeMode}
+              onClose={() => handleSwitchView('dashboard')}
+            />
+          )}
+
+          {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATES) */}
+          {masterSubView === 'templates' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Search Bar & Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
+                    value={templateSearchQuery}
+                    onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                    placeholder="Cari judul, shortcut (/salam), atau isi..."
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 2.2rem 0.65rem 2.5rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+                      color: isDark ? '#f8fafc' : '#0f172a',
+                      fontSize: '0.82rem',
+                      fontWeight: 500,
+                      outline: 'none',
+                      boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {templateSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTemplateSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: isDark ? '#94a3b8' : '#64748b',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        padding: '0.2rem'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Action Buttons Row & Category Pills */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                    {[
+                      { id: 'all', label: 'Semua' },
+                      { id: 'general', label: 'Umum' },
+                      { id: 'billing', label: 'Keuangan' },
+                      { id: 'technical', label: 'Teknis' },
+                      { id: 'closing', label: 'Penutupan' },
+                      { id: 'account', label: 'Akun' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setTemplateCategoryFilter(cat.id)}
+                        style={{
+                          padding: '0.3rem 0.65rem',
+                          borderRadius: '999px',
+                          fontSize: '0.7rem',
+                          fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
+                          backgroundColor: templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.chipInactiveBg,
+                          color: templateCategoryFilter === cat.id ? '#ffffff' : theme.chipInactiveText,
+                          border: `1px solid ${templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.border}`,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={handleResetDefaultTemplates}
+                      style={{
+                        padding: '0.4rem 0.6rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textSecondary,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                      title="Reset ke bawaan"
+                    >
+                      <RefreshCw size={12} />
+                      <span>Reset</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenCreateTemplate}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Template Cards List */}
+              {loadingTemplates ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: theme.textSecondary }}>
+                  <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: isDark ? '#38bdf8' : '#0284c7' }} />
+                  <span style={{ fontSize: '0.8rem' }}>Memuat master template...</span>
+                </div>
+              ) : cannedTemplates.filter(t => {
+                if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                if (templateSearchQuery.trim()) {
+                  const q = templateSearchQuery.toLowerCase();
+                  return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                }
+                return true;
+              }).length === 0 ? (
+                <div style={{
+                  padding: '2.5rem 1rem',
+                  textAlign: 'center',
+                  backgroundColor: theme.surface,
+                  borderRadius: '1rem',
+                  border: `1px dashed ${theme.border}`,
+                  color: theme.textMuted
+                }}>
+                  <Zap size={32} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.3 }} />
+                  <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: '0.25rem', color: theme.textPrimary }}>
+                    Tidak Ada Template
+                  </strong>
+                  <p style={{ fontSize: '0.76rem', margin: '0 0 0.85rem', color: theme.textSecondary }}>
+                    Belum ada template pada kategori atau kata kunci ini.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateTemplate}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    + Tambah Template
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {cannedTemplates
+                    .filter(t => {
+                      if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                      if (templateSearchQuery.trim()) {
+                        const q = templateSearchQuery.toLowerCase();
+                        return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                      }
+                      return true;
+                    })
+                    .map(tmpl => {
+                      const catColors: Record<string, { bg: string; text: string; label: string }> = {
+                        general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
+                        billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
+                        technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
+                        closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
+                        account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
+                      };
+                      const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
+
+                      return (
+                        <div
+                          key={tmpl.id}
+                          style={{
+                            backgroundColor: theme.surface,
+                            border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
+                            borderRadius: '0.95rem',
+                            padding: '0.95rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem',
+                            opacity: tmpl.is_active !== false ? 1 : 0.65,
+                            boxShadow: theme.cardShadow
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: catInfo.bg,
+                                  color: catInfo.text
+                                }}>
+                                  {catInfo.label}
+                                </span>
+
+                                {tmpl.shortcut && (
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                                    color: isDark ? '#38bdf8' : '#0284c7'
+                                  }}>
+                                    /{tmpl.shortcut}
+                                  </span>
+                                )}
+
+                                <span style={{
+                                  fontSize: '0.58rem',
+                                  fontWeight: 700,
+                                  padding: '0.08rem 0.35rem',
+                                  borderRadius: '0.3rem',
+                                  backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                  color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
+                                }}>
+                                  {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                                </span>
+                              </div>
+
+                              <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
+                                {tmpl.title}
+                              </strong>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTemplateActive(tmpl)}
+                                style={{
+                                  padding: '0.35rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
+                                  cursor: 'pointer'
+                                }}
+                                title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
+                              >
+                                {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditTemplate(tmpl)}
+                                style={{
+                                  padding: '0.35rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: isDark ? '#38bdf8' : '#0284c7',
+                                  cursor: 'pointer'
+                                }}
+                                title="Edit Template"
+                              >
+                                <Sliders size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
+                                style={{
+                                  padding: '0.35rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                                  color: '#ef4444',
+                                  cursor: 'pointer'
+                                }}
+                                title="Hapus Template"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Template Content Box */}
+                          <div style={{
+                            padding: '0.65rem 0.75rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            fontSize: '0.78rem',
+                            color: theme.textSecondary,
+                            lineHeight: 1.45,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            maxHeight: '120px',
+                            overflowY: 'auto'
+                          }}>
+                            {tmpl.content}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* DOCUMENT PREVIEW MODAL (PDF / IN-APP VIEWER & DIRECT DOWNLOAD) */}
