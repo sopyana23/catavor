@@ -137,7 +137,8 @@ import { DocumentPreviewModal, type DocumentPreviewData } from './components/Doc
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
-import { FormattedText } from './components/RichTextarea'
+import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
+import { checkUrlSecurity } from './utils/urlSecurity'
 
 export interface UserStoreSummary {
   id: number;
@@ -4464,6 +4465,28 @@ function App() {
   const [paymentProofNote, setPaymentProofNote] = useState<string>('');
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
   const [copiedAccountToast, setCopiedAccountToast] = useState<boolean>(false);
+  const [externalUrlWarning, setExternalUrlWarning] = useState<string | null>(null);
+
+  const handleSafeExternalRedirect = (rawUrl?: string) => {
+    if (!rawUrl) return;
+    const fullUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
+      ? rawUrl
+      : `https://${rawUrl}`;
+
+    const sec = checkUrlSecurity(fullUrl);
+    if (!sec.isSafe || sec.sanitizedUrl === '#') {
+      showToast('Tautan tidak valid atau diblokir');
+      return;
+    }
+
+    if (sec.requiresWarning) {
+      setExternalUrlWarning(sec.sanitizedUrl);
+    } else {
+      const newWin = window.open(sec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+      if (newWin) newWin.opener = null;
+    }
+  };
+
   const [notifications, setNotifications] = useState<any[]>([
     {
       id: 'notif_about_guide',
@@ -14476,8 +14499,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 } else if (isDetail) {
                                   setSelectedNotificationDetail(n);
                                 } else if (isExternal && actionUrl) {
-                                  const url = actionUrl;
-                                  window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                  handleSafeExternalRedirect(actionUrl);
                                 } else {
                                   showToast('Notifikasi ditandai dibaca');
                                 }
@@ -17181,9 +17203,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   type="button"
                                   className="btn-primary"
                                   onClick={() => {
-                                    const url = norm.actionUrl;
-                                    if (url) {
-                                      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                    if (norm.actionUrl) {
+                                      handleSafeExternalRedirect(norm.actionUrl);
                                     }
                                   }}
                                   style={{
@@ -17425,8 +17446,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     const slug = storeSlug || getStoreSlug();
                                     if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
                                   } else if (norm.isExternal && norm.actionUrl) {
-                                    const url = norm.actionUrl;
-                                    window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                    handleSafeExternalRedirect(norm.actionUrl);
                                   } else {
                                     showToast('Notifikasi ditandai dibaca');
                                   }
@@ -19389,7 +19409,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <PlatformRolePortal
                     token={token || ''}
                     currentUser={adminUser}
-                    onNavigateToTab={(tab) => {
+                    onNavigateToTab={(tab: any) => {
                       setAdminTab(tab as any);
                       const slug = getStoreSlug();
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/${tab}`);

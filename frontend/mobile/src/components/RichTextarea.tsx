@@ -15,211 +15,11 @@ import {
   Globe,
   Copy
 } from 'lucide-react';
-import { sanitizeUrl, safeOpenUrl } from '../utils/urlSecurity';
+import { sanitizeUrl, safeOpenUrl, checkUrlSecurity } from '../utils/urlSecurity';
+import { ExternalLinkWarningModal, type ExternalLinkWarningModalProps } from './ExternalLinkWarningModal';
 
-/**
- * External Link Safety Confirmation Modal
- * Protects users from phishing and reverse tabnabbing when navigating away from platform.
- */
-export const ExternalLinkWarningModal: React.FC<{
-  url: string | null;
-  onClose: () => void;
-  theme?: any;
-  isDark?: boolean;
-}> = ({ url, onClose, theme, isDark = true }) => {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!url) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [url, onClose]);
-
-  if (!url) return null;
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleProceed = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const newWin = window.open(url, '_blank', 'noopener,noreferrer');
-    if (newWin) newWin.opener = null;
-    onClose();
-  };
-
-  const bgModal = theme?.modalBg || (isDark ? '#0f172a' : '#ffffff');
-  const borderCol = theme?.borderStrong || (isDark ? '#334155' : '#cbd5e1');
-  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
-  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
-
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.72)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 9999999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem'
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClose();
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          maxWidth: '440px',
-          width: '100%',
-          backgroundColor: bgModal,
-          borderRadius: '1.25rem',
-          border: `1px solid ${borderCol}`,
-          boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
-          padding: '1.35rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          animation: 'fadeIn 0.2s ease-out'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '0.75rem',
-            backgroundColor: 'rgba(59, 130, 246, 0.15)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#3b82f6',
-            flexShrink: 0
-          }}>
-            <Globe size={20} />
-          </div>
-          <div>
-            <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: textPrimary }}>
-              Konfirmasi Pengalihan Tautan
-            </h4>
-            <span style={{ fontSize: '0.7rem', color: textSecondary }}>
-              Menuju Halaman Eksternal
-            </span>
-          </div>
-        </div>
-
-        <p style={{ margin: 0, fontSize: '0.78rem', color: textSecondary, lineHeight: 1.5 }}>
-          Anda akan diarahkan ke situs eksternal di luar ekosistem platform Catavor. Pastikan Anda melanjutkan ke situs yang aman dan tepercaya.
-        </p>
-
-        {/* URL Box with copy button */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          padding: '0.65rem 0.85rem',
-          borderRadius: '0.75rem',
-          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9',
-          border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`,
-          overflow: 'hidden'
-        }}>
-          <div style={{
-            fontSize: '0.76rem',
-            color: '#38bdf8',
-            fontWeight: 700,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            fontFamily: 'monospace'
-          }}>
-            {url}
-          </div>
-          <button
-            type="button"
-            onClick={handleCopy}
-            title="Salin Link"
-            style={{
-              padding: '0.3rem 0.5rem',
-              borderRadius: '0.45rem',
-              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-              border: 'none',
-              color: textPrimary,
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem',
-              flexShrink: 0
-            }}
-          >
-            {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-            <span>{copied ? 'Tersalin' : 'Salin'}</span>
-          </button>
-        </div>
-
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.55rem', marginTop: '0.25rem' }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: '0.55rem 1rem',
-              borderRadius: '0.65rem',
-              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-              border: `1px solid ${borderCol}`,
-              color: textPrimary,
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            Batalkan
-          </button>
-
-          <button
-            type="button"
-            onClick={handleProceed}
-            style={{
-              padding: '0.55rem 1.15rem',
-              borderRadius: '0.65rem',
-              backgroundColor: '#3b82f6',
-              border: 'none',
-              color: '#ffffff',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              boxShadow: '0 2px 10px rgba(59, 130, 246, 0.35)'
-            }}
-          >
-            <span>Lanjutkan ke Situs</span>
-            <ExternalLink size={13} />
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
+export { ExternalLinkWarningModal };
+export type { ExternalLinkWarningModalProps };
 
 export interface FormattedTextProps {
   text?: string;
@@ -234,7 +34,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
   style,
   className,
   onNavigate,
-  showExternalWarning = false
+  showExternalWarning = true
 }) => {
   const [externalUrlToPrompt, setExternalUrlToPrompt] = useState<string | null>(null);
 
@@ -250,26 +50,26 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       e.preventDefault();
       e.stopPropagation();
     }
-    const { isSafe, sanitizedUrl, isExternal, isTrustedDomain: trusted } = sanitizeUrl(rawUrl);
-    if (!isSafe || sanitizedUrl === '#') return;
+    const sec = checkUrlSecurity(rawUrl);
+    if (!sec.isSafe || sec.sanitizedUrl === '#') return;
 
-    if (isExternal) {
-      if (showExternalWarning && !trusted) {
-        setExternalUrlToPrompt(sanitizedUrl);
+    if (sec.isExternal) {
+      if (showExternalWarning && sec.requiresWarning) {
+        setExternalUrlToPrompt(sec.sanitizedUrl);
       } else {
-        const newWin = window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
+        const newWin = window.open(sec.sanitizedUrl, '_blank', 'noopener,noreferrer');
         if (newWin) newWin.opener = null;
       }
     } else {
       if (onNavigate) {
-        onNavigate(sanitizedUrl);
+        onNavigate(sec.sanitizedUrl);
       } else {
         // Safe internal push / location change
-        if (sanitizedUrl.startsWith('/')) {
-          window.history.pushState({}, '', sanitizedUrl);
+        if (sec.sanitizedUrl.startsWith('/')) {
+          window.history.pushState({}, '', sec.sanitizedUrl);
           window.dispatchEvent(new PopStateEvent('popstate'));
         } else {
-          window.location.href = sanitizedUrl;
+          window.location.href = sec.sanitizedUrl;
         }
       }
     }
