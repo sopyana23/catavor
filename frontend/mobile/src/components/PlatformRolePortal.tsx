@@ -78,6 +78,7 @@ import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
+import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -7699,6 +7700,71 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             boxSizing: 'border-box'
                           }}
                         />
+
+                        {/* Live Domain Whitelist Validation Feedback */}
+                        {broadcastForm.action_url.trim() && (() => {
+                          const sec = checkUrlSecurity(broadcastForm.action_url);
+                          const host = sec.domain || cleanDomainString(broadcastForm.action_url);
+                          const isWhitelisted = sec.isMasterTrusted;
+
+                          return (
+                            <div style={{
+                              marginTop: '0.55rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: isWhitelisted
+                                ? (isDark ? 'rgba(16, 185, 129, 0.1)' : '#ecfdf5')
+                                : (isDark ? 'rgba(245, 158, 11, 0.1)' : '#fffbeb'),
+                              border: isWhitelisted
+                                ? (isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #a7f3d0')
+                                : (isDark ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid #fde68a'),
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.35rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                                  {isWhitelisted ? (
+                                    <CheckCircle2 size={15} color="#10b981" />
+                                  ) : (
+                                    <AlertTriangle size={15} color="#f59e0b" />
+                                  )}
+                                  <span style={{
+                                    fontSize: '0.76rem',
+                                    fontWeight: 800,
+                                    color: isWhitelisted ? (isDark ? '#34d399' : '#047857') : (isDark ? '#fbbf24' : '#b45309'),
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {isWhitelisted ? `Domain Terdaftar di Whitelist (${host})` : `Domain Belum di Whitelist (${host})`}
+                                  </span>
+                                </div>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '0.12rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: isWhitelisted ? '#10b981' : '#f59e0b',
+                                  color: '#ffffff',
+                                  flexShrink: 0
+                                }}>
+                                  {isWhitelisted ? 'WHITELIST' : 'POP-UP WARNING'}
+                                </span>
+                              </div>
+
+                              <div style={{
+                                fontSize: '0.7rem',
+                                color: isWhitelisted ? (isDark ? '#a7f3d0' : '#065f46') : (isDark ? '#fde68a' : '#92400e'),
+                                lineHeight: 1.35
+                              }}>
+                                {isWhitelisted
+                                  ? 'Tautan ini aman dan akan langsung dibuka bagi pengguna tanpa dialog peringatan.'
+                                  : 'Pengguna akan melihat dialog konfirmasi keamanan sebelum dialihkan ke situs ini.'}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

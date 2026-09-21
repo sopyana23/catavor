@@ -1,7 +1,7 @@
 /**
  * URL Security & Sanitization Utilities
  * Provides strict protocol whitelisting, dynamic master domain whitelist verifications,
- * and protection against XSS and Reverse Tabnabbing.
+ * user-level trusted domain preferences, and protection against XSS and Reverse Tabnabbing.
  */
 
 // Whitelist of allowed protocols
@@ -127,20 +127,56 @@ if (typeof window !== 'undefined') {
   }, 100);
 }
 
-export interface SanitizedUrlResult {
-  isSafe: boolean;
-  sanitizedUrl: string;
-  isExternal: boolean;
-  isTrustedDomain: boolean;
-  protocol: string;
-  hostname: string;
+/**
+ * User-level trusted domains persistence in localStorage (when user clicks "Jangan ingatkan saya lagi untuk domain ini").
+ */
+const USER_TRUSTED_STORAGE_KEY = 'catavor_user_trusted_domains';
+
+export function getUserTrustedDomains(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(USER_TRUSTED_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addUserTrustedDomain(domain: string): void {
+  if (typeof window === 'undefined' || !domain) return;
+  const clean = cleanDomainString(domain);
+  if (!clean) return;
+
+  try {
+    const current = getUserTrustedDomains();
+    if (!current.includes(clean)) {
+      const updated = [...current, clean];
+      localStorage.setItem(USER_TRUSTED_STORAGE_KEY, JSON.stringify(updated));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function removeUserTrustedDomain(domain: string): void {
+  if (typeof window === 'undefined' || !domain) return;
+  const clean = cleanDomainString(domain);
+  try {
+    const current = getUserTrustedDomains();
+    const updated = current.filter(d => d !== clean);
+    localStorage.setItem(USER_TRUSTED_STORAGE_KEY, JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
 }
 
 /**
- * Checks if a given hostname or URL matches the Master Safe Domains whitelist (Static + Dynamic).
+ * Extracts and cleans hostname / domain from URL or string.
  */
-export function isTrustedDomain(urlOrHostname: string): boolean {
-  if (!urlOrHostname) return false;
+export function cleanDomainString(urlOrHostname: string): string {
+  if (!urlOrHostname) return '';
   let host = urlOrHostname.trim().toLowerCase();
 
   try {
@@ -155,16 +191,64 @@ export function isTrustedDomain(urlOrHostname: string): boolean {
 
   // Remove port if present (e.g. localhost:8000 -> localhost)
   host = host.split(':')[0];
+  // Remove www. prefix for consistent comparison
+  if (host.startsWith('www.')) {
+    host = host.substring(4);
+  }
+  return host;
+}
+
+/**
+ * Checks if a given hostname or URL matches the Master Safe Domains whitelist (Static + Dynamic).
+ */
+export function isMasterSafeDomain(urlOrHostname: string): boolean {
+  if (!urlOrHostname) return false;
+  const host = cleanDomainString(urlOrHostname);
+  if (!host) return false;
 
   const allDomains = Array.from(new Set([...MASTER_SAFE_DOMAINS, ...dynamicSafeDomainsCache]));
 
   return allDomains.some(trusted => {
-    const cleanTrusted = trusted.toLowerCase().trim();
+    const cleanTrusted = cleanDomainString(trusted);
     if (!cleanTrusted) return false;
     if (host === cleanTrusted) return true;
     if (host.endsWith('.' + cleanTrusted)) return true;
     return false;
   });
+}
+
+/**
+ * Checks if domain is trusted by the user (remembered preference).
+ */
+export function isUserTrustedDomain(urlOrHostname: string): boolean {
+  if (!urlOrHostname) return false;
+  const host = cleanDomainString(urlOrHostname);
+  if (!host) return false;
+
+  const userDomains = getUserTrustedDomains();
+  return userDomains.some(trusted => {
+    const cleanTrusted = cleanDomainString(trusted);
+    if (!cleanTrusted) return false;
+    if (host === cleanTrusted) return true;
+    if (host.endsWith('.' + cleanTrusted)) return true;
+    return false;
+  });
+}
+
+/**
+ * Returns true if domain is either in Master Whitelist or in User-Trusted list.
+ */
+export function isTrustedDomain(urlOrHostname: string): boolean {
+  return isMasterSafeDomain(urlOrHostname) || isUserTrustedDomain(urlOrHostname);
+}
+
+export interface SanitizedUrlResult {
+  isSafe: boolean;
+  sanitizedUrl: string;
+  isExternal: boolean;
+  isTrustedDomain: boolean;
+  protocol: string;
+  hostname: string;
 }
 
 /**
@@ -198,7 +282,7 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
 
   // 2. Absolute URLs with protocols
   try {
-    const parsed = new URL(trimmed, window.location.origin);
+    const parsed = new URL(trimmed, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
     const protocol = parsed.protocol.toLowerCase();
 
     // Block dangerous protocols explicitly
@@ -217,7 +301,7 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
       return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol, hostname: parsed.hostname };
     }
 
-    const currentHost = window.location.host.toLowerCase();
+    const currentHost = typeof window !== 'undefined' ? window.location.host.toLowerCase() : '';
     const targetHost = parsed.host.toLowerCase();
     const isExternal = targetHost !== currentHost && targetHost !== '';
     const trusted = isTrustedDomain(parsed.hostname);
@@ -236,7 +320,7 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
       const fixedUrl = 'https://' + trimmed;
       try {
         const parsed = new URL(fixedUrl);
-        const currentHost = window.location.host.toLowerCase();
+        const currentHost = typeof window !== 'undefined' ? window.location.host.toLowerCase() : '';
         const targetHost = parsed.host.toLowerCase();
         const isExternal = targetHost !== currentHost;
         const trusted = isTrustedDomain(parsed.hostname);
@@ -258,31 +342,79 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
   }
 }
 
+export interface UrlSecurityCheckResult {
+  isSafe: boolean;
+  sanitizedUrl: string;
+  isExternal: boolean;
+  domain: string;
+  isMasterTrusted: boolean;
+  isUserTrusted: boolean;
+  isTrusted: boolean;
+  requiresWarning: boolean;
+}
+
+/**
+ * Full security analysis for opening external links.
+ */
+export function checkUrlSecurity(url: string): UrlSecurityCheckResult {
+  const { isSafe, sanitizedUrl, isExternal, hostname } = sanitizeUrl(url);
+  if (!isSafe || sanitizedUrl === '#' || !isExternal) {
+    return {
+      isSafe,
+      sanitizedUrl,
+      isExternal: false,
+      domain: '',
+      isMasterTrusted: true,
+      isUserTrusted: false,
+      isTrusted: true,
+      requiresWarning: false
+    };
+  }
+
+  const domain = cleanDomainString(hostname || sanitizedUrl);
+  const isMasterTrusted = isMasterSafeDomain(domain);
+  const isUserTrusted = isUserTrustedDomain(domain);
+  const isTrusted = isMasterTrusted || isUserTrusted;
+  const requiresWarning = isExternal && !isTrusted;
+
+  return {
+    isSafe: true,
+    sanitizedUrl,
+    isExternal: true,
+    domain,
+    isMasterTrusted,
+    isUserTrusted,
+    isTrusted,
+    requiresWarning
+  };
+}
+
 /**
  * Safely opens a URL.
- * If external, opens in a new tab with noopener & noreferrer.
- * If internal, executes client router callback or navigation.
+ * If external & untrusted, triggers confirmation prompt.
+ * If external & trusted, opens directly in new tab.
+ * If internal, executes client router callback.
  */
 export function safeOpenUrl(
   url: string,
   onInternalNavigate?: (path: string) => void,
   onExternalConfirmPrompt?: (url: string) => void
 ) {
-  const { isSafe, sanitizedUrl, isExternal, isTrustedDomain: trusted } = sanitizeUrl(url);
-  if (!isSafe || sanitizedUrl === '#') return;
+  const security = checkUrlSecurity(url);
+  if (!security.isSafe || security.sanitizedUrl === '#') return;
 
-  if (isExternal) {
-    if (onExternalConfirmPrompt && !trusted) {
-      onExternalConfirmPrompt(sanitizedUrl);
+  if (security.isExternal) {
+    if (security.requiresWarning && onExternalConfirmPrompt) {
+      onExternalConfirmPrompt(security.sanitizedUrl);
     } else {
-      const newWin = window.open(sanitizedUrl, '_blank', 'noopener,noreferrer');
+      const newWin = window.open(security.sanitizedUrl, '_blank', 'noopener,noreferrer');
       if (newWin) newWin.opener = null;
     }
   } else {
     if (onInternalNavigate) {
-      onInternalNavigate(sanitizedUrl);
-    } else {
-      window.location.href = sanitizedUrl;
+      onInternalNavigate(security.sanitizedUrl);
+    } else if (typeof window !== 'undefined') {
+      window.location.href = security.sanitizedUrl;
     }
   }
 }

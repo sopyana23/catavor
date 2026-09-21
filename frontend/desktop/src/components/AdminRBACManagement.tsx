@@ -27,6 +27,7 @@ interface AdminRBACManagementProps {
   token: string;
   currentUserEmail?: string;
   onClose?: () => void;
+  themeMode?: 'dark' | 'light';
 }
 
 export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({

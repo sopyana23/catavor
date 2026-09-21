@@ -135,7 +135,8 @@ import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
-import { FormattedText } from './components/RichTextarea'
+import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
+import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './utils/urlSecurity'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
@@ -4487,6 +4488,28 @@ function App() {
   const [paymentProofNote, setPaymentProofNote] = useState<string>('');
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
   const [copiedAccountToast, setCopiedAccountToast] = useState<boolean>(false);
+  const [externalUrlWarning, setExternalUrlWarning] = useState<string | null>(null);
+
+  const handleSafeExternalRedirect = (rawUrl?: string) => {
+    if (!rawUrl) return;
+    const fullUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
+      ? rawUrl
+      : `https://${rawUrl}`;
+
+    const sec = checkUrlSecurity(fullUrl);
+    if (!sec.isSafe || sec.sanitizedUrl === '#') {
+      showToast('Tautan tidak valid atau diblokir');
+      return;
+    }
+
+    if (sec.requiresWarning) {
+      setExternalUrlWarning(sec.sanitizedUrl);
+    } else {
+      const newWin = window.open(sec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+      if (newWin) newWin.opener = null;
+    }
+  };
+
   const [notifications, setNotifications] = useState<Array<{
     id: number | string;
     title: string;
@@ -19925,7 +19948,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   onClick={() => {
                                     const url = norm.actionUrl;
                                     if (url) {
-                                      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                      handleSafeExternalRedirect(url);
                                     }
                                   }}
                                   style={{
@@ -20204,8 +20227,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                       window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
                                     }
                                   } else if (norm.isExternal && norm.actionUrl) {
-                                    const url = norm.actionUrl;
-                                    window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                    handleSafeExternalRedirect(norm.actionUrl);
                                   } else {
                                     // action_type === 'none': simple short message feedback
                                     showToast('Notifikasi ditandai dibaca');
@@ -25542,6 +25564,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
           </div>
         </div>
+      )}
+
+      {/* External Link Safety Prompt Modal (Mobile) */}
+      {externalUrlWarning && (
+        <ExternalLinkWarningModal
+          url={externalUrlWarning}
+          onClose={() => setExternalUrlWarning(null)}
+        />
       )}
     </>
   )
