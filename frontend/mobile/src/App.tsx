@@ -2457,41 +2457,41 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', width: '100%', ...style }}>
       {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
       
-      {/* Inline Formatting Helper Toolbar */}
+      {/* Inline Formatting Helper Toolbar: Single Row Bar */}
       <div className="rich-toolbar-wrapper">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Teks Tebal (Bold)"
-            onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
-          >
-            <strong>B</strong>
-          </button>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Teks Miring (Italic)"
-            onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
-          >
-            <em>I</em>
-          </button>
-          <HeadingDropdown
-            onSelect={(level) => {
-              if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
-              else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
-              else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
-            }}
-            btnClassName="rich-btn-format"
-          />
-          <ListDropdown
-            onSelect={(type) => {
-              if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
-              else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
-            }}
-            btnClassName="rich-btn-format"
-          />
-        </div>
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Teks Tebal (Bold)"
+          onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
+          style={{ flexShrink: 0 }}
+        >
+          <strong>B</strong>
+        </button>
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Teks Miring (Italic)"
+          onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
+          style={{ flexShrink: 0 }}
+        >
+          <em>I</em>
+        </button>
+        <HeadingDropdown
+          onSelect={(level) => {
+            if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
+            else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
+            else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
+          }}
+          btnClassName="rich-btn-format"
+        />
+        <ListDropdown
+          onSelect={(type) => {
+            if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
+            else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
+          }}
+          btnClassName="rich-btn-format"
+        />
 
         {/* Fullscreen Button */}
         <button
@@ -2499,6 +2499,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           className="rich-btn-fullscreen"
           title="Buka Layar Penuh (Fullscreen Zen Mode)"
           onClick={() => setIsFullscreen(true)}
+          style={{ flexShrink: 0, marginLeft: 'auto' }}
         >
           <Maximize2 size={12} /> Fullscreen
         </button>
@@ -2536,10 +2537,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         <div className="zen-fullscreen-overlay">
           {/* Mobile App Bar Header: Minimalist & Clean Bar */}
           <div className="zen-fullscreen-header-mobile">
-            {/* Left: Title with Word Count Subtitle */}
+            {/* Left: Title */}
             <div className="zen-mobile-title-col">
               <span className="zen-mobile-title">{label || 'Editor Teks'}</span>
-              <span className="zen-mobile-subtitle">{wordCount} kata · {charCount} karakter</span>
             </div>
 
             {/* Right: Tab Switcher (Edit / Preview) */}
@@ -2648,9 +2648,36 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
           {/* Mobile Footer Action Bar */}
           <div className="zen-mobile-footer-bar">
-            <span className="zen-mobile-tip-text">
-              💡 <strong>Tips:</strong> Enter lanjut list, Enter 2x keluar mode list.
-            </span>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              fontSize: '0.74rem',
+              color: 'var(--text-muted)'
+            }}>
+              <span style={{
+                padding: '0.2rem 0.55rem',
+                borderRadius: '0.375rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-secondary)',
+                fontWeight: 700
+              }}>
+                {wordCount} kata
+              </span>
+              <span>•</span>
+              <span style={{
+                padding: '0.2rem 0.55rem',
+                borderRadius: '0.375rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-secondary)',
+                fontWeight: 700
+              }}>
+                {charCount} karakter
+              </span>
+            </div>
+
             <button
               type="button"
               className="zen-mobile-done-btn"

@@ -1624,147 +1624,158 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         </label>
       )}
       
-      {/* Inline Formatting Helper Toolbar */}
+      {/* Inline Formatting Helper Toolbar: Single Row Bar (Side-by-Side Tools) */}
       <div className="rich-toolbar-wrapper" style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         padding: '0.35rem 0.5rem',
         backgroundColor: bgSurface,
         border: `1px solid ${borderDefault}`,
         borderBottom: 'none',
         borderTopLeftRadius: '0.75rem',
         borderTopRightRadius: '0.75rem',
-        flexWrap: 'wrap',
-        gap: '0.35rem'
+        gap: '0.3rem',
+        flexWrap: 'nowrap',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+        WebkitOverflowScrolling: 'touch'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Teks Tebal (Bold)"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              applyFormatToRef(textareaRef, '**', '**', 'teks tebal');
-            }}
-            style={{
-              padding: '0.25rem 0.55rem',
-              borderRadius: '0.35rem',
-              backgroundColor: btnBg,
-              border: `1px solid ${btnBorder}`,
-              color: textPrimary,
-              fontSize: '0.78rem',
-              cursor: 'pointer'
-            }}
-          >
-            <strong>B</strong>
-          </button>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Teks Miring (Italic)"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              applyFormatToRef(textareaRef, '*', '*', 'teks miring');
-            }}
-            style={{
-              padding: '0.25rem 0.55rem',
-              borderRadius: '0.35rem',
-              backgroundColor: btnBg,
-              border: `1px solid ${btnBorder}`,
-              color: textPrimary,
-              fontSize: '0.78rem',
-              cursor: 'pointer'
-            }}
-          >
-            <em>I</em>
-          </button>
-          <HeadingDropdown
-            onSelect={(level) => {
-              if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
-              else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
-              else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
-            }}
-            btnClassName="rich-btn-format"
-            theme={theme}
-            isDark={isDark}
-          />
-          <ListDropdown
-            onSelect={(type) => {
-              if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
-              else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
-            }}
-            btnClassName="rich-btn-format"
-            theme={theme}
-            isDark={isDark}
-          />
+        {/* Bold Button */}
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Teks Tebal (Bold)"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            applyFormatToRef(textareaRef, '**', '**', 'teks tebal');
+          }}
+          style={{
+            padding: '0.25rem 0.5rem',
+            borderRadius: '0.35rem',
+            backgroundColor: btnBg,
+            border: `1px solid ${btnBorder}`,
+            color: textPrimary,
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <strong>B</strong>
+        </button>
 
-          {/* Hyperlink Button */}
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Sisipkan Tautan (Link)"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setActiveTargetRef(textareaRef);
-              const el = textareaRef.current;
-              const selected = el ? el.value.substring(el.selectionStart, el.selectionEnd) : '';
-              setModalInitialText(selected);
-              setShowLinkModal(true);
-            }}
-            style={{
-              padding: '0.25rem 0.55rem',
-              borderRadius: '0.35rem',
-              backgroundColor: btnBg,
-              border: `1px solid ${btnBorder}`,
-              color: '#38bdf8',
-              fontSize: '0.78rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem'
-            }}
-          >
-            <Link size={12} />
-            <span style={{ fontWeight: 700 }}>Link</span>
-          </button>
+        {/* Italic Button */}
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Teks Miring (Italic)"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            applyFormatToRef(textareaRef, '*', '*', 'teks miring');
+          }}
+          style={{
+            padding: '0.25rem 0.5rem',
+            borderRadius: '0.35rem',
+            backgroundColor: btnBg,
+            border: `1px solid ${btnBorder}`,
+            color: textPrimary,
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <em>I</em>
+        </button>
 
-          {/* CTA Button Inserter */}
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Sisipkan Tombol Aksi (CTA Button)"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setActiveTargetRef(textareaRef);
-              const el = textareaRef.current;
-              const selected = el ? el.value.substring(el.selectionStart, el.selectionEnd) : '';
-              setModalInitialText(selected);
-              setShowButtonModal(true);
-            }}
-            style={{
-              padding: '0.25rem 0.55rem',
-              borderRadius: '0.35rem',
-              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
-              color: '#f59e0b',
-              fontSize: '0.78rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem'
-            }}
-          >
-            <Sparkles size={12} />
-            <span style={{ fontWeight: 800 }}>Tombol</span>
-          </button>
-        </div>
+        {/* Heading Dropdown */}
+        <HeadingDropdown
+          onSelect={(level) => {
+            if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
+            else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
+            else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
+          }}
+          btnClassName="rich-btn-format"
+          theme={theme}
+          isDark={isDark}
+        />
 
-        {/* Fullscreen Button */}
+        {/* List Dropdown */}
+        <ListDropdown
+          onSelect={(type) => {
+            if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
+            else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
+          }}
+          btnClassName="rich-btn-format"
+          theme={theme}
+          isDark={isDark}
+        />
+
+        {/* Hyperlink Button */}
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Sisipkan Tautan (Link)"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setActiveTargetRef(textareaRef);
+            const el = textareaRef.current;
+            const selected = el ? el.value.substring(el.selectionStart, el.selectionEnd) : '';
+            setModalInitialText(selected);
+            setShowLinkModal(true);
+          }}
+          style={{
+            padding: '0.25rem 0.5rem',
+            borderRadius: '0.35rem',
+            backgroundColor: btnBg,
+            border: `1px solid ${btnBorder}`,
+            color: isDark ? '#38bdf8' : '#0284c7',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            flexShrink: 0
+          }}
+        >
+          <Link size={12} />
+          <span style={{ fontWeight: 700 }}>Link</span>
+        </button>
+
+        {/* CTA Button Inserter */}
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Sisipkan Tombol Aksi (CTA Button)"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setActiveTargetRef(textareaRef);
+            const el = textareaRef.current;
+            const selected = el ? el.value.substring(el.selectionStart, el.selectionEnd) : '';
+            setModalInitialText(selected);
+            setShowButtonModal(true);
+          }}
+          style={{
+            padding: '0.25rem 0.55rem',
+            borderRadius: '0.35rem',
+            backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            color: '#f59e0b',
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            flexShrink: 0
+          }}
+        >
+          <Sparkles size={12} />
+          <span style={{ fontWeight: 800 }}>Tombol</span>
+        </button>
+
+        {/* Fullscreen Button - Placed side-by-side in the same row! */}
         {showZenFullscreen && (
           <button
             type="button"
@@ -1787,11 +1798,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               color: isDark ? '#38bdf8' : '#0284c7',
               fontSize: '0.74rem',
               fontWeight: 700,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              flexShrink: 0,
+              marginLeft: 'auto'
             }}
           >
             <Maximize2 size={12} />
-            <span>Zen Fullscreen</span>
+            <span style={{ whiteSpace: 'nowrap' }}>Zen Fullscreen</span>
           </button>
         )}
       </div>
@@ -1824,10 +1837,31 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         }}
       />
 
-      {/* Helper Footer under standard textarea */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.2rem', fontSize: '0.66rem', color: textMuted }}>
-        <span>💡 Format: <code>**tebal**</code>, <code>*miring*</code>, <code>[teks](link)</code>, <code>[button:Label|url|primary]</code></span>
-        <span>{wordCount} kata • {charCount} kar</span>
+      {/* Helper Footer under standard textarea: 1-line balanced stats */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '0.2rem 0.35rem 0 0.35rem',
+        fontSize: '0.68rem',
+        color: textMuted,
+        gap: '0.5rem'
+      }}>
+        <span style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          minWidth: 0
+        }}>
+          💡 Format: <code>**tebal**</code>, <code>*miring*</code>, <code>[link]</code>, <code>[button]</code>
+        </span>
+        <span style={{
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+          fontWeight: 600
+        }}>
+          {wordCount} kata • {charCount} kar
+        </span>
       </div>
 
       {/* ========================================================================= */}
@@ -1858,23 +1892,24 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             flexDirection: 'column',
             overflow: 'hidden'
           }}>
-            {/* Zen Header */}
+            {/* Zen Header: Clean Single Row Bar (Icon + Title, Edit/Preview Tabs) */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0.75rem 1.15rem',
+              padding: '0.8rem 1.15rem',
               backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
-              borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')}`,
+              borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
               gap: '0.75rem',
-              flexWrap: 'wrap'
+              flexWrap: 'nowrap',
+              flexShrink: 0
             }}>
-              {/* Left: Concise Title & Word Accumulation Count */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+              {/* Left: Icon + Title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
                 <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.65rem',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '0.7rem',
                   backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1884,75 +1919,81 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 }}>
                   <Edit3 size={16} />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <span style={{ fontSize: '0.88rem', fontWeight: 800, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {label || 'Isi Detail Pengumuman'}
-                  </span>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: textMuted }}>
-                    {wordCount} kata • {charCount} karakter
-                  </span>
-                </div>
+                <span style={{
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  color: textPrimary,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {label || 'Detail Artikel'}
+                </span>
               </div>
 
               {/* Right: Segmented Edit/Preview Tabs */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <div style={{
-                  display: 'flex',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-                  borderRadius: '0.6rem',
-                  padding: '0.2rem',
-                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`
-                }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMobileTab('editor');
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '0.45rem',
-                      border: 'none',
-                      backgroundColor: mobileTab === 'editor' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
-                      color: mobileTab === 'editor' ? '#000000' : textSecondary,
-                      fontSize: '0.74rem',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit</span>
-                  </button>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                borderRadius: '0.65rem',
+                padding: '0.2rem',
+                border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                flexShrink: 0
+              }}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setMobileTab('editor');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    background: mobileTab === 'editor' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+                    color: mobileTab === 'editor' ? '#ffffff' : textSecondary,
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: mobileTab === 'editor' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Edit3 size={13} color={mobileTab === 'editor' ? '#ffffff' : textSecondary} />
+                  <span>Edit</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMobileTab('preview');
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '0.45rem',
-                      border: 'none',
-                      backgroundColor: mobileTab === 'preview' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
-                      color: mobileTab === 'preview' ? '#000000' : textSecondary,
-                      fontSize: '0.74rem',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Eye size={13} />
-                    <span>Pratinjau</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setMobileTab('preview');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    background: mobileTab === 'preview' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
+                    color: mobileTab === 'preview' ? '#ffffff' : textSecondary,
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: mobileTab === 'preview' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Eye size={13} color={mobileTab === 'preview' ? '#ffffff' : textSecondary} />
+                  <span>Pratinjau</span>
+                </button>
               </div>
             </div>
 
@@ -1965,7 +2006,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 padding: '0.45rem 1.1rem',
                 backgroundColor: theme?.cardAlt || (isDark ? '#090d16' : '#f8fafc'),
                 borderBottom: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
-                overflowX: 'auto'
+                overflowX: 'auto',
+                flexShrink: 0
               }}>
                 <button
                   type="button"
@@ -2045,7 +2087,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                     borderRadius: '0.4rem',
                     backgroundColor: btnBg,
                     border: `1px solid ${btnBorder}`,
-                    color: '#38bdf8',
+                    color: isDark ? '#38bdf8' : '#0284c7',
                     fontSize: '0.78rem',
                     cursor: 'pointer',
                     display: 'flex',
@@ -2134,21 +2176,50 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               )}
             </div>
 
-            {/* Zen Footer */}
+            {/* Zen Footer: Word Accumulation Badges & Primary Selesai Button */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '0.75rem 1.15rem',
+              padding: '0.8rem 1.15rem',
               backgroundColor: theme?.surface || (isDark ? '#111827' : '#ffffff'),
-              borderTop: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')}`,
-              gap: '0.75rem',
-              flexWrap: 'wrap'
+              borderTop: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+              gap: '0.85rem',
+              flexShrink: 0
             }}>
-              <div style={{ fontSize: '0.72rem', color: textMuted, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span>💡 Gunakan format teks, tautan, atau tombol CTA untuk memperkaya artikel pengumuman siaran.</span>
+              {/* Left: Word and Character Counts */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                fontSize: '0.74rem',
+                fontWeight: 600,
+                color: textMuted
+              }}>
+                <span style={{
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                  color: textSecondary,
+                  fontWeight: 700
+                }}>
+                  {wordCount} kata
+                </span>
+                <span>•</span>
+                <span style={{
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                  color: textSecondary,
+                  fontWeight: 700
+                }}>
+                  {charCount} karakter
+                </span>
               </div>
 
+              {/* Right: Selesai Button */}
               <button
                 type="button"
                 onClick={(e) => {
@@ -2159,19 +2230,21 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: '0.7rem',
-                  backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                  gap: '0.4rem',
+                  padding: '0.55rem 1.35rem',
+                  borderRadius: '0.65rem',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                   border: 'none',
-                  color: '#000000',
-                  fontSize: '0.8rem',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
                   fontWeight: 800,
                   cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(56, 189, 248, 0.25)'
+                  boxShadow: '0 2px 10px rgba(2, 132, 199, 0.35)',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease'
                 }}
               >
-                <Check size={14} strokeWidth={2.5} />
+                <Check size={15} strokeWidth={2.5} color="#ffffff" />
                 <span>Selesai</span>
               </button>
             </div>
