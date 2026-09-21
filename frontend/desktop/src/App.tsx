@@ -4489,7 +4489,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       action_type: 'none'
     }
   ]);
-  const [selectedNotificationDetail, setSelectedNotificationDetail] = useState<any | null>(null);
+  const [selectedNotificationDetail, setSelectedNotificationDetail] = useState<any | null>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlId = urlParams.get('id');
+        const path = window.location.pathname.toLowerCase();
+        if (urlId || path.includes('/admin/notifications')) {
+          const savedId = sessionStorage.getItem('catavor_active_desktop_notification_id');
+          const savedData = sessionStorage.getItem('catavor_active_desktop_notification_data');
+          if (savedData && (!urlId || savedId === urlId)) {
+            return JSON.parse(savedData);
+          }
+        }
+      }
+    } catch {}
+    return null;
+  });
 
   // Notifications Pagination & Infinite Scroll State (Desktop)
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
@@ -5266,6 +5282,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       ) {
         return 'help';
       }
+      if (
+        path.includes('/admin/notifications') ||
+        ['notifications', 'notifikasi'].includes(rawTabParam) ||
+        urlParams.get('id') ||
+        sessionStorage.getItem('catavor_active_desktop_notification_id')
+      ) {
+        return 'notifications';
+      }
       if (parts[0] === 'admin' && parts[1]) {
         const sub = parts[1];
         if (['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
@@ -5279,7 +5303,6 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         }
       }
       if (['analytics', 'analisis'].includes(rawTabParam)) return 'analytics';
-      if (['notifications', 'notifikasi'].includes(rawTabParam)) return 'notifications';
       if (['settings', 'pengaturan'].includes(rawTabParam)) return 'settings';
       if (['profile', 'profil'].includes(rawTabParam)) return 'profile';
       if (['policies', 'kebijakan'].includes(rawTabParam)) return 'policies';
@@ -5289,6 +5312,83 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
     return 'items';
   });
+
+  // Persist selectedNotificationDetail state to sessionStorage for 0ms restoration across page reloads (Desktop)
+  useEffect(() => {
+    try {
+      if (selectedNotificationDetail) {
+        sessionStorage.setItem('catavor_active_desktop_notification_id', String(selectedNotificationDetail.id));
+        sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(selectedNotificationDetail));
+      } else {
+        sessionStorage.removeItem('catavor_active_desktop_notification_id');
+        sessionStorage.removeItem('catavor_active_desktop_notification_data');
+      }
+    } catch {}
+  }, [selectedNotificationDetail]);
+
+  // Sync selectedNotificationDetail with URL ?id=... across hard page refreshes & direct URL access (Desktop)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const notifId = urlParams.get('id') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_desktop_notification_id') : null);
+    const path = window.location.pathname.toLowerCase();
+
+    if ((path.includes('/admin/notifications') || adminTab === 'notifications') && notifId) {
+      if (!selectedNotificationDetail || String(selectedNotificationDetail.id) !== String(notifId)) {
+        const found = notifications.find(n => String(n.id) === String(notifId));
+        if (found) {
+          setSelectedNotificationDetail(found);
+        } else {
+          // If not in first batch of state, attempt to fetch directly from backend API
+          const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+          const slug = storeSlug || getStoreSlug() || '';
+          fetch(`/api/notifications/${encodeURIComponent(notifId)}`, {
+            headers: {
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+              ...(slug ? { 'X-Store-Slug': slug } : {})
+            }
+          })
+            .then(res => res.ok ? res.json() : null)
+            .then(resData => {
+              if (resData && (resData.data || resData.notification)) {
+                setSelectedNotificationDetail(resData.data || resData.notification);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    }
+  }, [adminTab, notifications, storeSlug]);
+
+  // Handle browser Back/Forward navigation for notification details (Desktop)
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase();
+      const urlParams = new URLSearchParams(window.location.search);
+      const notifId = urlParams.get('id');
+
+      if (path.includes('/admin/notifications')) {
+        if (!notifId) {
+          setSelectedNotificationDetail(null);
+        } else if (notifId) {
+          const found = notifications.find(n => String(n.id) === String(notifId));
+          if (found) {
+            setSelectedNotificationDetail(found);
+          } else {
+            const savedData = sessionStorage.getItem('catavor_active_desktop_notification_data');
+            const savedId = sessionStorage.getItem('catavor_active_desktop_notification_id');
+            if (savedData && savedId === notifId) {
+              try {
+                setSelectedNotificationDetail(JSON.parse(savedData));
+              } catch {}
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [notifications]);
 
   const unreadCount = useMemo(() => notifUnreadCount, [notifUnreadCount]);
   const filteredNotifications = useMemo(() => {
@@ -7648,6 +7748,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         targetPath += `/admin/policies`;
       } else if (adminTab === 'notifications') {
         targetPath += `/admin/notifications`;
+        const activeNotifId = selectedNotificationDetail?.id ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null) ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_desktop_notification_id') : null);
+        if (selectedNotificationDetail && activeNotifId) {
+          params.set('id', String(activeNotifId));
+        }
       } else if (adminTab === 'analytics') {
         targetPath += `/admin/analytics`;
       } else if (adminTab === 'subscription') {
@@ -7688,19 +7792,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (isPopStateRef.current) {
         isPopStateRef.current = false;
         window.history.replaceState(
-          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id },
+          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotificationDetail?.id },
           '',
           fullTarget
         );
       } else {
         window.history.pushState(
-          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id },
+          { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotificationDetail?.id },
           '',
           fullTarget
         );
       }
     }
-  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, selectedFauna, selectedTicket, storeSlug, error]);
+  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
@@ -16563,7 +16667,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <button
                           type="button"
                           className="btn-secondary"
-                          onClick={() => setSelectedNotificationDetail(null)}
+                          onClick={() => {
+                            setSelectedNotificationDetail(null);
+                            try {
+                              sessionStorage.removeItem('catavor_active_desktop_notification_id');
+                              sessionStorage.removeItem('catavor_active_desktop_notification_data');
+                            } catch {}
+                            const slug = storeSlug || getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                          }}
                           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
                         >
                           <ChevronLeft size={16} />
@@ -16591,20 +16703,36 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
 
                       {/* Detail Body Container */}
-                      <div style={{
-                        padding: '1.75rem',
-                        borderRadius: '0.9rem',
-                        backgroundColor: 'var(--bg-deep)',
+                      <div className="glass-panel" style={{
+                        padding: '2rem',
+                        borderRadius: '1rem',
                         border: '1px solid var(--border-light)',
+                        background: 'var(--card-bg-gradient)',
+                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '1.25rem'
+                        gap: '1.5rem'
                       }}>
                         <div>
-                          <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 0.85rem 0', color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                          <h2 style={{
+                            fontSize: '1.45rem',
+                            fontWeight: 800,
+                            margin: '0 0 1rem 0',
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.35,
+                            letterSpacing: '-0.01em',
+                            borderBottom: '1px solid var(--border-light)',
+                            paddingBottom: '1rem'
+                          }}>
                             {selectedNotificationDetail.title}
-                          </h3>
-                          <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.75 }}>
+                          </h2>
+                          <div style={{
+                            fontSize: '0.94rem',
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.8,
+                            wordBreak: 'break-word',
+                            letterSpacing: '0.01em'
+                          }}>
                             <FormattedText text={selectedNotificationDetail.detail_content || selectedNotificationDetail.message} />
                           </div>
                         </div>
@@ -16984,6 +17112,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
                                   } else if (norm.isDetail) {
                                     setSelectedNotificationDetail(item);
+                                    try {
+                                      sessionStorage.setItem('catavor_active_desktop_notification_id', String(item.id));
+                                      sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(item));
+                                    } catch {}
+                                    const slug = storeSlug || getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
                                   } else if (norm.isExternal && norm.actionUrl) {
                                     const url = norm.actionUrl;
                                     window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');

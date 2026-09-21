@@ -4553,7 +4553,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     action_url?: string;
     actionUrl?: string;
     [key: string]: any;
-  } | null>(null);
+  } | null>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlId = urlParams.get('id');
+        const path = window.location.pathname.toLowerCase();
+        if (urlId || path.includes('/admin/notifications')) {
+          const savedId = sessionStorage.getItem('catavor_active_notification_id');
+          const savedData = sessionStorage.getItem('catavor_active_notification_data');
+          if (savedData && (!urlId || savedId === urlId)) {
+            return JSON.parse(savedData);
+          }
+        }
+      }
+    } catch {}
+    return null;
+  });
 
   // Notifications Pagination & Infinite Scroll State (Mobile)
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
@@ -5377,7 +5393,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const path = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
       const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
-      if (path.includes('/admin') || rawTabParam === 'admin' || rawTabParam === 'help' || rawTabParam === 'support' || rawTabParam === 'bantuan' || Boolean(urlParams.get('ticket')) || Boolean(sessionStorage.getItem('catavor_merchant_active_ticket_id'))) {
+      if (
+        path.includes('/admin') ||
+        rawTabParam === 'admin' ||
+        rawTabParam === 'help' ||
+        rawTabParam === 'support' ||
+        rawTabParam === 'bantuan' ||
+        rawTabParam === 'notifications' ||
+        rawTabParam === 'notifikasi' ||
+        rawTabParam === 'articles' ||
+        rawTabParam === 'artikel' ||
+        rawTabParam === 'settings' ||
+        rawTabParam === 'analytics' ||
+        Boolean(urlParams.get('ticket')) ||
+        Boolean(urlParams.get('id')) ||
+        Boolean(sessionStorage.getItem('catavor_merchant_active_ticket_id')) ||
+        Boolean(sessionStorage.getItem('catavor_active_notification_id'))
+      ) {
         return 'admin';
       }
       if (rawTabParam === 'about' || path.includes('/about')) return 'about';
@@ -5394,11 +5426,60 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const parts = path.split('/').filter(Boolean);
       const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
       const rawSubParam = (urlParams.get('sub') || '').toLowerCase();
-      if (['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) || ['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawSubParam) || urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id') || (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2]))) {
+      if (
+        ['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawTabParam) ||
+        ['help', 'bantuan', 'support', 'tickets', 'chat'].includes(rawSubParam) ||
+        urlParams.get('ticket') ||
+        sessionStorage.getItem('catavor_merchant_active_ticket_id') ||
+        (parts.length >= 3 && parts[1] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[2])) ||
+        (parts.length === 2 && parts[0] === 'admin' && ['help', 'bantuan', 'support'].includes(parts[1]))
+      ) {
         return 'help';
+      }
+      if (
+        path.includes('/admin/notifications') ||
+        ['notifications', 'notifikasi'].includes(rawTabParam) ||
+        ['notifications', 'notifikasi'].includes(rawSubParam) ||
+        Boolean(urlParams.get('id')) ||
+        Boolean(sessionStorage.getItem('catavor_active_notification_id'))
+      ) {
+        return 'notifications';
+      }
+      if (path.includes('/admin/settings') || ['settings', 'pengaturan'].includes(rawTabParam) || ['settings', 'pengaturan'].includes(rawSubParam)) {
+        return 'settings';
+      }
+      if (path.includes('/admin/analytics') || ['analytics', 'analitik', 'analisis'].includes(rawTabParam) || ['analytics', 'analitik', 'analisis'].includes(rawSubParam)) {
+        return 'analytics';
+      }
+      if (path.includes('/admin/articles') || ['articles', 'artikel'].includes(rawTabParam) || ['articles', 'artikel'].includes(rawSubParam)) {
+        return 'articles';
+      }
+      if (path.includes('/admin/profile') || ['profile', 'profil'].includes(rawTabParam) || ['profile', 'profil'].includes(rawSubParam)) {
+        return 'profile';
+      }
+      if (path.includes('/admin/policies') || ['policies', 'kebijakan'].includes(rawTabParam) || ['policies', 'kebijakan'].includes(rawSubParam)) {
+        return 'policies';
+      }
+      if (path.includes('/admin/subscription') || ['subscription', 'langganan', 'paket'].includes(rawTabParam) || ['subscription', 'langganan', 'paket'].includes(rawSubParam)) {
+        return 'subscription';
+      }
+      if (path.includes('/admin/audit-logs') || ['audit_logs', 'audit'].includes(rawTabParam) || ['audit_logs', 'audit'].includes(rawSubParam)) {
+        return 'audit_logs';
+      }
+      if (path.includes('/admin/rbac') || ['rbac', 'akses'].includes(rawTabParam) || ['rbac', 'akses'].includes(rawSubParam)) {
+        return 'rbac';
+      }
+      if (path.includes('/admin/items') || ['items', 'produk', 'katalog'].includes(rawTabParam) || ['items', 'produk', 'katalog'].includes(rawSubParam)) {
+        return 'items';
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
+        if (['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+          return sub as any;
+        }
+      }
+      if (parts.length === 2 && parts[0] === 'admin') {
+        const sub = parts[1];
         if (['items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
@@ -5409,6 +5490,83 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
     return 'menu';
   })
+
+  // Persist selectedNotification state to sessionStorage for 0ms restoration across page reloads
+  useEffect(() => {
+    try {
+      if (selectedNotification) {
+        sessionStorage.setItem('catavor_active_notification_id', String(selectedNotification.id));
+        sessionStorage.setItem('catavor_active_notification_data', JSON.stringify(selectedNotification));
+      } else {
+        sessionStorage.removeItem('catavor_active_notification_id');
+        sessionStorage.removeItem('catavor_active_notification_data');
+      }
+    } catch {}
+  }, [selectedNotification]);
+
+  // Sync selectedNotification with URL ?id=... across hard page refreshes & direct URL access
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const notifId = urlParams.get('id') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_notification_id') : null);
+    const path = window.location.pathname.toLowerCase();
+
+    if ((path.includes('/admin/notifications') || adminSubTab === 'notifications') && notifId) {
+      if (!selectedNotification || String(selectedNotification.id) !== String(notifId)) {
+        const found = notifications.find(n => String(n.id) === String(notifId));
+        if (found) {
+          setSelectedNotification(found);
+        } else {
+          // If not in first batch of state, attempt to fetch directly from backend API
+          const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+          const slug = storeSlug || getStoreSlug() || '';
+          fetch(`/api/notifications/${encodeURIComponent(notifId)}`, {
+            headers: {
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+              ...(slug ? { 'X-Store-Slug': slug } : {})
+            }
+          })
+            .then(res => res.ok ? res.json() : null)
+            .then(resData => {
+              if (resData && (resData.data || resData.notification)) {
+                setSelectedNotification(resData.data || resData.notification);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    }
+  }, [adminSubTab, notifications, storeSlug]);
+
+  // Handle browser Back/Forward navigation for notification details
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase();
+      const urlParams = new URLSearchParams(window.location.search);
+      const notifId = urlParams.get('id');
+
+      if (path.includes('/admin/notifications')) {
+        if (!notifId) {
+          setSelectedNotification(null);
+        } else if (notifId) {
+          const found = notifications.find(n => String(n.id) === String(notifId));
+          if (found) {
+            setSelectedNotification(found);
+          } else {
+            const savedData = sessionStorage.getItem('catavor_active_notification_data');
+            const savedId = sessionStorage.getItem('catavor_active_notification_id');
+            if (savedData && savedId === notifId) {
+              try {
+                setSelectedNotification(JSON.parse(savedData));
+              } catch {}
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [notifications]);
 
   // Smart default tab: Saat membuka notifikasi, prioritaskan 'unread' jika ada yang belum dibaca
   useEffect(() => {
@@ -8276,6 +8434,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         targetPath += `/admin/policies`;
       } else if (adminSubTab === 'notifications') {
         targetPath += `/admin/notifications`;
+        const activeNotifId = selectedNotification?.id ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null) ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_active_notification_id') : null);
+        if (selectedNotification && activeNotifId) {
+          params.set('id', String(activeNotifId));
+        }
+      } else if (adminSubTab === 'articles') {
+        targetPath += `/admin/articles`;
       } else if (adminSubTab === 'subscription') {
         targetPath += `/admin/subscription`;
       } else if (adminSubTab === 'help') {
@@ -8303,6 +8467,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       } else {
         targetPath += `/about`;
       }
+    } else if (activeTab === 'articles') {
+      targetPath += `/articles`;
+      if (selectedArticle && selectedArticle.id) {
+        params.set('article', String(selectedArticle.id));
+      }
     } else if (activeTab === 'sightings') {
       targetPath += `/sightings`;
     }
@@ -8318,19 +8487,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (isPopStateRef.current) {
         isPopStateRef.current = false;
         window.history.replaceState(
-          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id },
+          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id, articleId: selectedArticle?.id },
           '',
           fullTarget
         );
       } else {
         window.history.pushState(
-          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id },
+          { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id, articleId: selectedArticle?.id },
           '',
           fullTarget
         );
       }
     }
-  }, [activeTab, aboutSubView, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, selectedFauna, selectedTicket, storeSlug, error]);
+  }, [activeTab, aboutSubView, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
@@ -19191,33 +19360,33 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                        ========================================================== */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2.5rem' }}>
                       <div className="glass-panel" style={{
-                        padding: '1.35rem',
+                        padding: '1.25rem 1.15rem',
                         borderRadius: '1rem',
                         border: '1px solid var(--border-light)',
                         background: 'var(--card-bg-gradient)',
                         boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '1rem'
+                        gap: '1.15rem'
                       }}>
                         {/* Category & Status Header */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                             <span style={{
                               fontSize: '0.68rem',
                               fontWeight: 800,
                               textTransform: 'uppercase',
                               letterSpacing: '0.04em',
-                              padding: '0.15rem 0.55rem',
-                              borderRadius: '0.4rem',
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '0.45rem',
                               color: selectedNotification.type === 'warning' ? '#d97706' : selectedNotification.type === 'success' ? '#059669' : selectedNotification.type === 'order' ? '#2563eb' : 'var(--primary)',
                               backgroundColor: selectedNotification.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : selectedNotification.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : selectedNotification.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
                               border: '1px solid currentColor'
                             }}>
                               {selectedNotification.category || (selectedNotification.type === 'warning' ? 'PANDUAN' : selectedNotification.type === 'success' ? 'PROMOSI' : selectedNotification.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
                             </span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                              {selectedNotification.timestamp || selectedNotification.time || 'Baru saja'}
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              • {selectedNotification.timestamp || selectedNotification.time || 'Baru saja'}
                             </span>
                           </div>
 
@@ -19235,20 +19404,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
 
                         {/* Full Title (Large, clear, no emojis, never truncated) */}
-                        <h3 style={{ fontSize: '1.18rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35 }}>
+                        <h2 style={{
+                          fontSize: '1.22rem',
+                          fontWeight: 800,
+                          color: 'var(--text-primary)',
+                          margin: 0,
+                          lineHeight: 1.38,
+                          letterSpacing: '-0.01em',
+                          borderBottom: '1px solid var(--border-light)',
+                          paddingBottom: '0.9rem'
+                        }}>
                           {selectedNotification.title}
-                        </h3>
+                        </h2>
 
-                        {/* Formatted Content Card */}
+                        {/* Editorial Body Content Canvas (Full Width & Spacious Typography) */}
                         <div style={{
-                          fontSize: '0.86rem',
-                          color: 'var(--text-secondary)',
-                          lineHeight: 1.7,
-                          backgroundColor: 'var(--bg-deep)',
-                          padding: '1.25rem',
-                          borderRadius: '0.85rem',
-                          border: '1px solid var(--border-light)',
-                          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.06)'
+                          fontSize: '0.92rem',
+                          color: 'var(--text-primary)',
+                          lineHeight: 1.75,
+                          width: '100%',
+                          wordBreak: 'break-word',
+                          letterSpacing: '0.01em'
                         }}>
                           <FormattedText 
                             text={selectedNotification.detail_content || selectedNotification.message}
@@ -19281,7 +19457,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           />
                         </div>
 
-                        {/* Action CTA Buttons */}
+                        {/* Action Section & Dedicated Bottom Footer */}
                         {(() => {
                           const norm = (() => {
                             const ticketRef = extractTicketFromNotif(selectedNotification);
@@ -19365,7 +19541,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           })();
 
                           return (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.65rem' }}>
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.75rem',
+                              marginTop: '0.5rem',
+                              paddingTop: '1.15rem',
+                              borderTop: '1px solid var(--border-light)'
+                            }}>
                               {norm.isDirectNav && (
                                 <button
                                   type="button"
@@ -19384,16 +19567,16 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     }
                                   }}
                                   style={{
-                                    padding: '0.85rem 1rem',
+                                    padding: '0.85rem 1.25rem',
                                     borderRadius: '0.75rem',
-                                    fontSize: '0.88rem',
+                                    fontSize: '0.9rem',
                                     fontWeight: 800,
                                     cursor: 'pointer',
                                     boxShadow: '0 4px 14px var(--primary-glow)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: '0.4rem',
+                                    gap: '0.45rem',
                                     width: '100%'
                                   }}
                                 >
@@ -19412,16 +19595,16 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     }
                                   }}
                                   style={{
-                                    padding: '0.85rem 1rem',
+                                    padding: '0.85rem 1.25rem',
                                     borderRadius: '0.75rem',
-                                    fontSize: '0.88rem',
+                                    fontSize: '0.9rem',
                                     fontWeight: 800,
                                     cursor: 'pointer',
                                     boxShadow: '0 4px 14px var(--primary-glow)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: '0.4rem',
+                                    gap: '0.45rem',
                                     width: '100%'
                                   }}
                                 >
@@ -19438,13 +19621,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
                                 }}
                                 style={{
-                                  padding: '0.75rem 1rem',
+                                  padding: '0.7rem 1rem',
                                   borderRadius: '0.75rem',
                                   fontSize: '0.84rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   width: '100%',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.04)'
                                 }}
                               >
                                 ← Kembali ke Daftar Notifikasi
@@ -19460,13 +19645,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                        ========================================================== */
                     <>
                       {/* Action Bar / High-Contrast Filter Tabs */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
                           <button
                             type="button"
                             onClick={() => handleNotifFilterChange('all')}
                             style={{
-                              padding: '0.42rem 0.85rem',
+                              padding: '0.38rem 0.8rem',
                               borderRadius: '9999px',
                               fontSize: '0.74rem',
                               fontWeight: 800,
@@ -19485,7 +19670,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             type="button"
                             onClick={() => handleNotifFilterChange('unread')}
                             style={{
-                              padding: '0.42rem 0.85rem',
+                              padding: '0.38rem 0.8rem',
                               borderRadius: '9999px',
                               fontSize: '0.74rem',
                               fontWeight: 800,
@@ -19502,7 +19687,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           </button>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0, marginLeft: 'auto' }}>
                           {unreadCount > 0 && (
                             <button
                               type="button"
