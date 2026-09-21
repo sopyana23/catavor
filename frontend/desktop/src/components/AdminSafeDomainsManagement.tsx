@@ -190,14 +190,11 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   useEffect(() => {
     const onOpenAdd = () => handleOpenAdd();
     const onRefresh = () => fetchDomains();
-    const onResetDefaults = () => handleResetDefaults();
     window.addEventListener('catavor:open-add-domain', onOpenAdd);
     window.addEventListener('catavor:refresh-domains', onRefresh);
-    window.addEventListener('catavor:reset-default-domains', onResetDefaults);
     return () => {
       window.removeEventListener('catavor:open-add-domain', onOpenAdd);
       window.removeEventListener('catavor:refresh-domains', onRefresh);
-      window.removeEventListener('catavor:reset-default-domains', onResetDefaults);
     };
   }, [fetchDomains]);
 
@@ -249,27 +246,6 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       showToast(`Domain ${item.domain} berhasil dihapus`);
     } catch (err: any) {
       showToast(err.message || 'Gagal menghapus domain', 'error');
-    }
-  };
-
-  const handleResetDefaults = async () => {
-    if (!window.confirm('Sinkronkan dan lengkapi domain standar ekosistem bawaan?')) return;
-    try {
-      setLoading(true);
-      const res = await fetch('/api/admin/safe-domains/reset-defaults', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error('Gagal menyinkronkan default');
-      await fetchDomains();
-      loadDynamicSafeDomains(true);
-      showToast('Master whitelist domain berhasil disinkronkan dengan default');
-    } catch (err: any) {
-      showToast(err.message || 'Gagal sinkronisasi', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 

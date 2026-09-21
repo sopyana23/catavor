@@ -327,38 +327,9 @@ func (h *SafeDomainHandler) DeleteSafeDomain(c *fiber.Ctx) error {
 func (h *SafeDomainHandler) ResetDefaultSafeDomains(c *fiber.Ctx) error {
 	// Re-insert missing default domains
 	defaults := []models.SafeDomain{
-		{Domain: "google.com", Category: "Google", Description: "Layanan Pencarian & Ekosistem Google", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "gemini.google.com", Category: "Google", Description: "Google Gemini AI Assistant", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "docs.google.com", Category: "Google", Description: "Google Docs & Spreadsheet", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "drive.google.com", Category: "Google", Description: "Google Drive Cloud Storage", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "mail.google.com", Category: "Google", Description: "Layanan Email Gmail", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "youtube.com", Category: "Media", Description: "Platform Video YouTube", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "youtu.be", Category: "Media", Description: "Tautan Pendek Video YouTube", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "maps.google.com", Category: "Google", Description: "Google Maps & Navigasi Lokasi", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "play.google.com", Category: "Google", Description: "Google Play Store", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "wa.me", Category: "Komunikasi", Description: "WhatsApp Direct Chat & Kontak CS", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "whatsapp.com", Category: "Komunikasi", Description: "Aplikasi WhatsApp Resmi", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "api.whatsapp.com", Category: "Komunikasi", Description: "WhatsApp Business API", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "telegram.org", Category: "Komunikasi", Description: "Aplikasi Telegram Messenger", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "t.me", Category: "Komunikasi", Description: "Tautan Langsung Channel & Kontak Telegram", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "instagram.com", Category: "Media Sosial", Description: "Instagram Official & Katalog Visual", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "facebook.com", Category: "Media Sosial", Description: "Facebook Page & Komunitas", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "fb.me", Category: "Media Sosial", Description: "Tautan Pendek Facebook", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "tiktok.com", Category: "Media Sosial", Description: "TikTok Official & Video Produk", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "x.com", Category: "Media Sosial", Description: "X (Twitter) Official Platform", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "twitter.com", Category: "Media Sosial", Description: "Twitter Platform", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "threads.net", Category: "Media Sosial", Description: "Meta Threads Official", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "linkedin.com", Category: "Media Sosial", Description: "LinkedIn Business Network", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "catavor.com", Category: "Platform", Description: "Platform Utama Catavor", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "catavor.id", Category: "Platform", Description: "Domain Ekosistem Catavor Indonesia", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "localhost", Category: "Platform", Description: "Localhost Development Server", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "canva.com", Category: "Produktivitas", Description: "Layanan Desain Grafis Canva", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "zoom.us", Category: "Komunikasi", Description: "Layanan Video Meeting Zoom", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "github.com", Category: "Produktivitas", Description: "Developer Platform GitHub", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "apple.com", Category: "Mitra", Description: "Situs Resmi Apple", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "apps.apple.com", Category: "Mitra", Description: "Apple App Store", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "midtrans.com", Category: "Finansial", Description: "Payment Gateway Midtrans", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "xendit.co", Category: "Finansial", Description: "Payment Gateway Xendit", IsActive: true, IsSystem: true, CreatedBy: "System"},
 	}
 
 	for _, d := range defaults {

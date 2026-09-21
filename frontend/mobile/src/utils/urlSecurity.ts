@@ -11,59 +11,11 @@ const ALLOWED_PROTOCOLS = ['https:', 'http:', 'mailto:', 'tel:'];
  * Master Baseline Whitelist of trusted domains / ecosystem partners (Fallback when offline).
  */
 export const MASTER_SAFE_DOMAINS: string[] = [
-  // Catavor platform ecosystem
+  // Catavor platform ecosystem & internal scope
   'catavor.com',
   'catavor.id',
   'localhost',
-  '127.0.0.1',
-  
-  // Google & Workspace ecosystem
-  'google.com',
-  'gemini.google.com',
-  'docs.google.com',
-  'drive.google.com',
-  'mail.google.com',
-  'meet.google.com',
-  'maps.google.com',
-  'play.google.com',
-  'youtube.com',
-  'youtu.be',
-  'support.google.com',
-
-  // Messaging & Customer Service Channels
-  'wa.me',
-  'whatsapp.com',
-  'api.whatsapp.com',
-  'chat.whatsapp.com',
-  'telegram.org',
-  't.me',
-
-  // Social Media & Marketing Channels
-  'instagram.com',
-  'facebook.com',
-  'fb.me',
-  'tiktok.com',
-  'twitter.com',
-  'x.com',
-  'linkedin.com',
-  'threads.net',
-  'pinterest.com',
-
-  // Productivity, Media & Developer Tools
-  'canva.com',
-  'zoom.us',
-  'github.com',
-  'gitlab.com',
-  'apple.com',
-  'apps.apple.com',
-  
-  // Payment Gateways & Banking
-  'midtrans.com',
-  'xendit.co',
-  'bca.co.id',
-  'mandiri.co.id',
-  'bri.co.id',
-  'bni.co.id'
+  '127.0.0.1'
 ];
 
 // Dynamic runtime cache
