@@ -784,7 +784,7 @@ func seedDefaultSafeDomains(db *gorm.DB) {
 		{Domain: "threads.net", Category: "Media Sosial", Description: "Meta Threads Official", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "linkedin.com", Category: "Media Sosial", Description: "LinkedIn Business Network", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "catavor.com", Category: "Platform", Description: "Platform Utama Catavor", IsActive: true, IsSystem: true, CreatedBy: "System"},
-		{Domain: "dfauna.com", Category: "Platform", Description: "Ekosistem Domain Catavor / DFauna", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "catavor.id", Category: "Platform", Description: "Domain Ekosistem Catavor Indonesia", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "localhost", Category: "Platform", Description: "Localhost Development Server", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "canva.com", Category: "Produktivitas", Description: "Layanan Desain Grafis Canva", IsActive: true, IsSystem: true, CreatedBy: "System"},
 		{Domain: "zoom.us", Category: "Komunikasi", Description: "Layanan Video Meeting Zoom", IsActive: true, IsSystem: true, CreatedBy: "System"},

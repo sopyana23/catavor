@@ -320,14 +320,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	reservedWords := []string{"admin", "api", "sanctum", "desktop", "mobile", "assets", "login", "register", "terms", "privacy", "acceptable-use", "settings"}
-	for _, r := range reservedWords {
-		if slug == r {
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"success": false,
-				"message": "Nama pengguna / slug toko ini telah digunakan oleh sistem.",
-			})
-		}
+	if IsReservedSlug(slug) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Nama pengguna / slug toko '%s' adalah kata kunci sistem yang dicadangkan dan tidak dapat digunakan sebagai nama toko.", slug),
+		})
 	}
 
 	// Check store slug uniqueness

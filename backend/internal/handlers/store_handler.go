@@ -24,12 +24,110 @@ func NewStoreHandler() *StoreHandler {
 	return &StoreHandler{}
 }
 
+var ReservedSystemSlugs = map[string]bool{
+	"catavor":              true,
+	"catafor":              true,
+	"katavor":              true,
+	"katafor":              true,
+	"catabor":              true,
+	"katabor":              true,
+	"admin":                true,
+	"platform":             true,
+	"system":               true,
+	"ops":                  true,
+	"api":                  true,
+	"sanctum":              true,
+	"desktop":              true,
+	"mobile":               true,
+	"assets":               true,
+	"login":                true,
+	"register":             true,
+	"dashboard":            true,
+	"support":              true,
+	"help":                 true,
+	"bantuan":              true,
+	"terms":                true,
+	"privacy":              true,
+	"acceptable-use":       true,
+	"acceptable_use":       true,
+	"syarat-ketentuan":     true,
+	"kebijakan-privasi":    true,
+	"ketentuan-penggunaan": true,
+	"explore":              true,
+	"directory":            true,
+	"internal":             true,
+	"staff":                true,
+	"settings":             true,
+	"pengaturan":           true,
+	"notifications":        true,
+	"notifikasi":           true,
+	"articles":             true,
+	"artikel":              true,
+	"subscription":         true,
+	"langganan":            true,
+	"superadmin":           true,
+	"compliance":           true,
+	"finance":              true,
+	"billing":              true,
+	"official":             true,
+	"catavor-official":     true,
+	"catavor-admin":        true,
+	"catavor-store":        true,
+	"official-catavor":     true,
+}
+
+func IsReservedSlug(slug string) bool {
+	clean := strings.ToLower(strings.TrimSpace(slug))
+	if clean == "" {
+		return true
+	}
+	if ReservedSystemSlugs[clean] {
+		return true
+	}
+
+	// 1. Check normalized leetspeak, punctuation removal, and character replacements
+	replacer := strings.NewReplacer(
+		"-", "", "_", "", ".", "", " ", "", "/", "",
+		"0", "o", "1", "i", "3", "e", "4", "a", "5", "s", "8", "b", "@", "a", "$", "s",
+	)
+	normalized := replacer.Replace(clean)
+
+	// Direct similarity checks with platform brand variations
+	brandVariations := []string{
+		"catavor", "catafor", "katavor", "katafor",
+		"catabor", "katabor", "cataphor", "kataphor",
+		"catavr", "katafr", "catafr", "katavr",
+	}
+
+	for _, b := range brandVariations {
+		if strings.Contains(normalized, b) {
+			return true
+		}
+	}
+
+	// 2. Pattern match: check if clean slug starts or ends with brand keywords
+	for _, b := range brandVariations {
+		if strings.HasPrefix(clean, b) || strings.HasSuffix(clean, b) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
 	if slug == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Slug toko tidak valid.",
+		})
+	}
+
+	if IsReservedSlug(slug) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
 		})
 	}
 
@@ -54,6 +152,12 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 
 func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
+	if IsReservedSlug(slug) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
 	var store models.Store
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -188,6 +292,12 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 // IndexProducts returns normalized catalog products with preloaded Category, Images, and Variants.
 func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
+	if IsReservedSlug(slug) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
 	var store models.Store
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -345,14 +455,11 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 		})
 	}
 
-	reservedWords := []string{"admin", "api", "sanctum", "desktop", "mobile", "assets", "login", "register", "terms", "privacy", "acceptable-use", "settings"}
-	for _, r := range reservedWords {
-		if slug == r {
-			return c.JSON(fiber.Map{
-				"available": false,
-				"message":   "Nama pengguna ini telah digunakan oleh sistem.",
-			})
-		}
+	if IsReservedSlug(slug) {
+		return c.JSON(fiber.Map{
+			"available": false,
+			"message":   "Nama pengguna ini adalah kata kunci sistem yang dicadangkan.",
+		})
 	}
 
 	var count int64
@@ -1004,14 +1111,11 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		})
 	}
 
-	reservedWords := []string{"admin", "api", "sanctum", "desktop", "mobile", "assets", "login", "register", "terms", "privacy", "acceptable-use", "settings"}
-	for _, r := range reservedWords {
-		if req.StoreSlug == r {
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"success": false,
-				"message": "Link username ini telah digunakan oleh sistem.",
-			})
-		}
+	if IsReservedSlug(req.StoreSlug) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Link username / slug '%s' adalah nama merek sistem Catavor yang dilindungi atau kata kunci yang dicadangkan.", req.StoreSlug),
+		})
 	}
 
 	// Check slug uniqueness
