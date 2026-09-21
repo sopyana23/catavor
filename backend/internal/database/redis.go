@@ -176,3 +176,72 @@ func InvalidateBroadcastCache(ctx context.Context) {
 		_ = RedisClient.Del(ctx, keys...).Err()
 	}
 }
+
+// GetSafeDomainsCache fetches cached serialized safe domains data.
+func GetSafeDomainsCache(ctx context.Context, key string) (string, bool) {
+	if !IsRedisAvailable() || key == "" {
+		return "", false
+	}
+	val, err := RedisClient.Get(ctx, "safe_domains:"+key).Result()
+	if err != nil {
+		return "", false
+	}
+	return val, true
+}
+
+// SetSafeDomainsCache caches serialized safe domains data with TTL.
+func SetSafeDomainsCache(ctx context.Context, key string, data string, ttl time.Duration) {
+	if !IsRedisAvailable() || key == "" {
+		return
+	}
+	if ttl <= 0 {
+		ttl = 15 * time.Minute
+	}
+	_ = RedisClient.Set(ctx, "safe_domains:"+key, data, ttl).Err()
+}
+
+// InvalidateSafeDomainsCache purges all cached safe domains entries.
+func InvalidateSafeDomainsCache(ctx context.Context) {
+	if !IsRedisAvailable() {
+		return
+	}
+	keys, err := RedisClient.Keys(ctx, "safe_domains:*").Result()
+	if err == nil && len(keys) > 0 {
+		_ = RedisClient.Del(ctx, keys...).Err()
+	}
+}
+
+// GetSupportTemplatesCache fetches cached canned responses data.
+func GetSupportTemplatesCache(ctx context.Context, key string) (string, bool) {
+	if !IsRedisAvailable() || key == "" {
+		return "", false
+	}
+	val, err := RedisClient.Get(ctx, "support_templates:"+key).Result()
+	if err != nil {
+		return "", false
+	}
+	return val, true
+}
+
+// SetSupportTemplatesCache caches canned responses data with TTL.
+func SetSupportTemplatesCache(ctx context.Context, key string, data string, ttl time.Duration) {
+	if !IsRedisAvailable() || key == "" {
+		return
+	}
+	if ttl <= 0 {
+		ttl = 15 * time.Minute
+	}
+	_ = RedisClient.Set(ctx, "support_templates:"+key, data, ttl).Err()
+}
+
+// InvalidateSupportTemplatesCache purges all cached canned responses entries.
+func InvalidateSupportTemplatesCache(ctx context.Context) {
+	if !IsRedisAvailable() {
+		return
+	}
+	keys, err := RedisClient.Keys(ctx, "support_templates:*").Result()
+	if err == nil && len(keys) > 0 {
+		_ = RedisClient.Del(ctx, keys...).Err()
+	}
+}
+

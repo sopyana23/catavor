@@ -1550,49 +1550,106 @@ func (h *SupportHandler) runLifecycleTasks() {
 	}
 }
 
-// ListCannedResponses returns all canned response templates grouped or filtered.
+// ListCannedResponses returns canned response templates with Redis caching, server-side filtering, and pagination.
 func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
-	var templates []models.SupportCannedResponse
-	q := database.DB.Model(&models.SupportCannedResponse{}).Order("sort_order asc, id asc")
-
+	category := strings.TrimSpace(c.Query("category"))
+	search := strings.TrimSpace(c.Query("search"))
+	if search == "" {
+		search = strings.TrimSpace(c.Query("q"))
+	}
 	includeInactive := c.Query("include_inactive") == "true"
+	isAll := c.Query("all") == "true" || c.Query("paginate") == "false"
+
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	if limit < 1 {
+		limit = 10
+	} else if limit > 100 {
+		limit = 100
+	}
+
+	cacheKey := fmt.Sprintf("cat=%s:q=%s:inact=%t:all=%t:p=%d:l=%d", category, search, includeInactive, isAll, page, limit)
+	if cachedData, ok := database.GetSupportTemplatesCache(c.Context(), cacheKey); ok {
+		c.Set("X-Cache", "HIT-REDIS")
+		c.Set("Content-Type", "application/json")
+		return c.SendString(cachedData)
+	}
+
+	q := database.DB.Model(&models.SupportCannedResponse{})
+
 	if !includeInactive {
 		q = q.Where("is_active = true")
 	}
 
-	category := strings.TrimSpace(c.Query("category"))
 	if category != "" && category != "all" {
 		q = q.Where("category = ?", category)
 	}
 
-	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
 		term := "%" + strings.ToLower(search) + "%"
 		q = q.Where("LOWER(title) LIKE ? OR LOWER(shortcut) LIKE ? OR LOWER(content) LIKE ?", term, term, term)
 	}
 
-	if err := q.Find(&templates).Error; err != nil {
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal memuat template balasan.",
+			"message": "Gagal menghitung template balasan.",
 		})
 	}
 
-	// Auto-seed default canned responses if empty
-	if len(templates) == 0 && category == "" && search == "" {
+	// Auto-seed default canned responses if table is empty
+	if total == 0 && category == "" && search == "" {
 		SeedDefaultCannedResponses(database.DB)
-		if includeInactive {
-			database.DB.Order("sort_order asc, id asc").Find(&templates)
-		} else {
-			database.DB.Where("is_active = true").Order("sort_order asc, id asc").Find(&templates)
+		_ = q.Count(&total).Error
+	}
+
+	var templates []models.SupportCannedResponse
+	orderQuery := q.Order("sort_order asc, id asc")
+
+	if isAll {
+		if err := orderQuery.Find(&templates).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal memuat template balasan.",
+			})
+		}
+	} else {
+		offset := (page - 1) * limit
+		if err := orderQuery.Offset(offset).Limit(limit).Find(&templates).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal memuat template balasan.",
+			})
 		}
 	}
 
-	return c.JSON(fiber.Map{
+	totalPages := 1
+	if !isAll && limit > 0 && total > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
+
+	respMap := fiber.Map{
 		"success": true,
 		"count":   len(templates),
 		"data":    templates,
-	})
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	}
+
+	if jsonBytes, err := json.Marshal(respMap); err == nil {
+		database.SetSupportTemplatesCache(c.Context(), cacheKey, string(jsonBytes), 15*time.Minute)
+	}
+
+	c.Set("X-Cache", "MISS")
+	return c.JSON(respMap)
 }
 
 // CreateCannedResponse adds a new quick reply template.
@@ -1667,6 +1724,9 @@ func (h *SupportHandler) CreateCannedResponse(c *fiber.Ctx) error {
 			"message": "Gagal menyimpan template balasan.",
 		})
 	}
+
+	// Purge Redis cache
+	database.InvalidateSupportTemplatesCache(c.Context())
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -1752,6 +1812,9 @@ func (h *SupportHandler) UpdateCannedResponse(c *fiber.Ctx) error {
 		})
 	}
 
+	// Purge Redis cache
+	database.InvalidateSupportTemplatesCache(c.Context())
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Template balasan berhasil diperbarui.",
@@ -1764,6 +1827,8 @@ func (h *SupportHandler) DeleteCannedResponse(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if tmplID, err := strconv.ParseUint(id, 10, 32); err == nil {
 		database.DB.Where("id = ?", uint(tmplID)).Delete(&models.SupportCannedResponse{})
+		// Purge Redis cache
+		database.InvalidateSupportTemplatesCache(c.Context())
 		return c.JSON(fiber.Map{
 			"success": true,
 			"message": "Template balasan berhasil dihapus.",
@@ -1781,6 +1846,9 @@ func (h *SupportHandler) ResetDefaultCannedResponses(c *fiber.Ctx) error {
 	// Remove existing default or deleted
 	database.DB.Unscoped().Where("1 = 1").Delete(&models.SupportCannedResponse{})
 	SeedDefaultCannedResponses(database.DB)
+
+	// Purge Redis cache
+	database.InvalidateSupportTemplatesCache(c.Context())
 
 	var templates []models.SupportCannedResponse
 	database.DB.Order("sort_order asc, id asc").Find(&templates)
