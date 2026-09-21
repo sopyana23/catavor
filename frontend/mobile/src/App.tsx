@@ -175,7 +175,7 @@ function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support'];
   
   if (parts.length === 0) return null;
   if (reservedPortal.includes(parts[0])) return null;
@@ -743,7 +743,7 @@ export const LANDING_INDUSTRIES = [
         reviews: 62,
         description: 'Karakter jinak total, kontras putih tinggi, makan rakus diet buah & serangga, aman kirim ke seluruh kota bergaransi.',
         image: 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=600&auto=format&fit=crop&q=80',
-        merchant: 'DFauna Exotic Pet',
+        merchant: 'Exotic Fauna & Flora',
         location: 'Jakarta Barat'
       },
       {
@@ -4301,15 +4301,54 @@ export function OperationalHoursBuilder({
 
 function App() {
 
+  const isReservedStoreSlug = (slug: string): boolean => {
+    if (!slug) return true;
+    const clean = slug.toLowerCase().trim();
+    const reserved = [
+      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+      'catavor', 'catafor', 'katavor', 'katafor', 'catabor', 'katabor',
+      'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
+      'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
+      'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
+      'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan',
+      'help', 'bantuan', 'support', 'superadmin', 'compliance', 'finance', 'billing', 'official'
+    ];
+    if (reserved.includes(clean)) return true;
+
+    // Leetspeak & normalized similarity checks
+    const normalized = clean
+      .replace(/[-_.\s/]/g, '')
+      .replace(/0/g, 'o')
+      .replace(/1/g, 'i')
+      .replace(/3/g, 'e')
+      .replace(/4/g, 'a')
+      .replace(/5/g, 's')
+      .replace(/8/g, 'b')
+      .replace(/@/g, 'a')
+      .replace(/\$/g, 's');
+
+    const brandVariations = [
+      'catavor', 'catafor', 'katavor', 'katafor',
+      'catabor', 'katabor', 'cataphor', 'kataphor',
+      'catavr', 'katafr'
+    ];
+
+    for (const b of brandVariations) {
+      if (normalized.includes(b) || clean.startsWith(b) || clean.endsWith(b)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   // Parse path for store slug: /u/{slug}
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
-    
     if (parts.length === 0) return null;
     
-    if (!reserved.includes(parts[0])) {
+    if (!isReservedStoreSlug(parts[0])) {
       return parts[0];
     }
     return null;
@@ -7367,7 +7406,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Multi-Tenant Store Theme Syncing Engine (Strictly scoped to Unique Store Routes)
   useEffect(() => {
-    const currentActiveSlug = storeSlug || getStoreSlug() || adminUser?.store_slug;
+    const currentActiveSlug = getStoreSlug() || (window.location.pathname.toLowerCase().includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : null);
     if (currentActiveSlug) {
       const activeTheme = (settings as any)?.store_theme || (settingsForm as any)?.store_theme || adminUser?.store_theme || 'navy';
       document.documentElement.setAttribute('data-theme', activeTheme);
@@ -7396,7 +7435,16 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Detect & parse URL path on mount (Mobile)
   useEffect(() => {
     const path = window.location.pathname.toLowerCase();
-    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+
+    // Canonical redirect: /catavor or /catavor/ always routes cleanly to platform landing page (/)
+    if (path === '/catavor' || path === '/catavor/') {
+      window.history.replaceState({}, '', '/');
+      setStoreSlug(null);
+      setPortalTab('home');
+      return;
+    }
+
+    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/');
 
     if (isPlatformAdminPath) {
       if (token && isPlatformAdmin(adminUser)) {
@@ -7420,7 +7468,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             setActiveTab('admin');
             setStoreSlug(null);
             if (path === '/' || path === '') {
-              window.history.replaceState({}, '', `/catavor/admin?${urlParams.toString()}`);
+              window.history.replaceState({}, '', `/admin?${urlParams.toString()}`);
             }
             return;
           } else if (u.store_slug) {
@@ -8063,7 +8111,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Get headers helper
   const getAuthHeaders = () => {
-    const slug = storeSlug || getStoreSlug() || adminUser?.store_slug;
+    const slug = getStoreSlug() || (window.location.pathname.toLowerCase().includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : null);
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -8122,7 +8170,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     if (!headers.has('Accept')) {
       headers.set('Accept', 'application/json');
     }
-    const slug = storeSlug || getStoreSlug() || adminUser?.store_slug;
+    const slug = getStoreSlug() || (window.location.pathname.toLowerCase().includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : null);
     if (slug && !headers.has('X-Store-Slug')) {
       headers.set('X-Store-Slug', slug);
     }
@@ -8143,9 +8191,36 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       } catch {
         handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
       }
+      throw new Error('UNAUTHORIZED');
     }
 
     return response;
+  };
+
+  const isStorePublicRouteValid = () => {
+    const path = window.location.pathname.toLowerCase();
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length <= 1) return true;
+    
+    const reservedPortal = [
+      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+      'catavor', 'catafor', 'katavor', 'katafor', 'catabor', 'katabor',
+      'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
+      'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
+      'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
+      'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan',
+      'help', 'bantuan', 'support'
+    ];
+    
+    if (!reservedPortal.includes(parts[0])) {
+      const storeSub = parts[1];
+      const validStoreSubs = ['admin', 'about', 'sightings', 'articles'];
+      if (validStoreSubs.includes(storeSub)) {
+        return false;
+      }
+    }
+    
+    return true;
   };
 
   // Proactive token verification & expired session check (Throttled 60 detik untuk efisiensi resource)
@@ -8220,11 +8295,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
-    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) {
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) {
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -8244,7 +8319,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Load Data
   const loadData = async (overrideSlug?: string) => {
     const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/');
     if (isPlatformAdminPath && isPlatformAdmin(adminUser)) {
       setLoading(false);
       setIsAppInitializing(false);
@@ -8253,8 +8328,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
     setLoading(true);
     setError(null);
-
-    const slug = overrideSlug || getStoreSlug() || storeSlug || adminUser?.store_slug;
+    const slug = overrideSlug || getStoreSlug() || (path.includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : null);
     
     try {
       if (slug) {
@@ -9201,14 +9275,22 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             setActiveTab('admin');
             window.history.pushState({}, '', '/admin');
           } else {
-            const targetSlug = data.user?.store_slug || data.active_store?.slug || (data.stores && data.stores[0]?.slug) || 'catavor';
-            setStoreSlug(targetSlug);
-            setPortalTab('home');
-            setView('tabs');
-            setActiveTab('admin');
-            setAdminSubTab('menu');
-            window.history.pushState({}, '', `/${targetSlug}/admin`);
-            loadData(targetSlug);
+            const targetSlug = data.user?.store_slug || data.active_store?.slug || (data.stores && data.stores[0]?.slug) || '';
+            if (targetSlug) {
+              setStoreSlug(targetSlug);
+              setPortalTab('home');
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              window.history.pushState({}, '', `/${targetSlug}/admin`);
+              loadData(targetSlug);
+            } else {
+              setStoreSlug(null);
+              setPortalTab('home');
+              setView('tabs');
+              setActiveTab('admin');
+              window.history.pushState({}, '', '/dashboard');
+            }
           }
         }
       } else {
@@ -10609,7 +10691,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Render Dedicated Platform Administration Console for Platform Admins (Mobile)
   const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-  const isPlatformAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/') || currentPath === '/catavor/admin' || currentPath.startsWith('/catavor/admin/');
+  const isPlatformAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/') || currentPath === '/catavor/admin' || currentPath.startsWith('/catavor/admin/') || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
   if (token && isPlatformAdmin(adminUser) && (activeTab === 'admin' || isPlatformAdminPath)) {
     return (
       <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', padding: 0, margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box', overflowX: 'clip' }}>
@@ -10622,8 +10704,200 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     );
   }
 
+  // Dedicated Platform Staff Login Screen for Unauthenticated Platform Routes (Mobile)
+  if (isPlatformAdminPath && (!token || !isPlatformAdmin(adminUser))) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        width: '100%',
+        maxWidth: '100vw',
+        backgroundColor: '#0b0f19',
+        color: '#f8fafc',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.25rem',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '400px',
+          background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)',
+          border: '1px solid rgba(148, 163, 184, 0.15)',
+          borderRadius: '1.25rem',
+          padding: '1.75rem 1.5rem',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(12px)',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '0.85rem',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 8px 20px rgba(37, 99, 235, 0.3)',
+              marginBottom: '0.85rem'
+            }}>
+              <ShieldCheck size={26} />
+            </div>
+            <div>
+              <span style={{
+                display: 'inline-block',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '999px',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                color: '#60a5fa',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                marginBottom: '0.5rem'
+              }}>
+                Portal Staf Pengelola
+              </span>
+            </div>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#f8fafc', margin: 0 }}>
+              Catavor Enterprise
+            </h1>
+            <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '0.3rem', lineHeight: 1.4 }}>
+              Konsol operasional &amp; tata kelola platform Catavor
+            </p>
+          </div>
+
+          {loginError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#fca5a5',
+              padding: '0.7rem 0.85rem',
+              borderRadius: '0.65rem',
+              fontSize: '0.76rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                Email Akun Pengelola
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="staf@catavor.com"
+                value={loginForm.email}
+                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.7rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                Kata Sandi
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.7rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              style={{
+                width: '100%',
+                marginTop: '0.45rem',
+                padding: '0.78rem',
+                borderRadius: '0.65rem',
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: loginLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)'
+              }}
+            >
+              {loginLoading ? <Sparkles size={16} /> : <Lock size={16} />}
+              <span>{loginLoading ? 'Mengautentikasi...' : 'Masuk Konsol Pengelola'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLoginError(null);
+                window.location.href = '/';
+              }}
+              style={{
+                width: '100%',
+                padding: '0.65rem',
+                borderRadius: '0.65rem',
+                background: 'transparent',
+                color: '#94a3b8',
+                border: '1px solid rgba(148, 163, 184, 0.15)',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginTop: '0.2rem'
+              }}
+            >
+              ← Kembali ke Beranda Catavor
+            </button>
+          </form>
+
+          <div style={{ marginTop: '1.25rem', textAlign: 'center', borderTop: '1px solid rgba(148, 163, 184, 0.1)', paddingTop: '0.85rem' }}>
+            <span style={{ fontSize: '0.66rem', color: '#64748b' }}>
+              🔒 Akses terbatas untuk personel pengelola resmi Catavor.
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Render Landing Portal Page (Mobile Responsive Layout - strictly guarded so admin routes NEVER render landing page)
-  const isAnyAdminPath = currentPath.includes('/admin');
+  const isAnyAdminPath = currentPath.includes('/admin') || currentPath.includes('/platform') || currentPath.includes('/ops');
   if (!storeSlug && !error && !isAnyAdminPath) {
     const activeIndustryData = LANDING_INDUSTRIES.find(ind => ind.id === landingCategory) || LANDING_INDUSTRIES[0];
     const filteredStores = featuredStores.filter(st => {
@@ -10732,18 +11006,51 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    {token ? (
-                      <button className="btn-portal-primary" onClick={() => {
-                        const user = JSON.parse(localStorage.getItem('catavor_user') || '{}');
-                        if (user.store_slug) {
-                          setStoreSlug(user.store_slug);
-                          setActiveTab('admin');
-                        }
-                      }} style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem' }}>
-                        <span>Dashboard</span>
-                        <ArrowRight size={13} />
-                      </button>
-                    ) : (
+                    {token ? (() => {
+                      const user = adminUser || (() => {
+                        try { return JSON.parse(localStorage.getItem('catavor_user') || '{}'); } catch { return {}; }
+                      })();
+                      const isStaff = isPlatformAdmin(user);
+
+                      return (
+                        <button
+                          className="btn-portal-primary"
+                          onClick={() => {
+                            if (isStaff) {
+                              setActiveTab('admin');
+                              setStoreSlug(null);
+                              window.history.pushState({}, '', '/admin');
+                            } else {
+                              const targetSlug = user?.store_slug || userStores[0]?.slug;
+                              if (targetSlug) {
+                                setStoreSlug(targetSlug);
+                                setActiveTab('admin');
+                                setAdminSubTab('menu');
+                                window.history.pushState({}, '', `/${targetSlug}/admin`);
+                                loadData(targetSlug);
+                              } else {
+                                window.history.pushState({}, '', '/dashboard');
+                              }
+                            }
+                          }}
+                          style={{
+                            padding: '0.38rem 0.8rem',
+                            fontSize: '0.74rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.38rem',
+                            borderRadius: '0.55rem',
+                            fontWeight: 700,
+                            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.22)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isStaff ? <ShieldCheck size={14} /> : <Store size={14} />}
+                          <span>{isStaff ? 'Konsol Pengelola' : 'Kelola Toko'}</span>
+                          <ArrowRight size={13} />
+                        </button>
+                      );
+                    })() : (
                       <>
                         <button 
                           type="button"

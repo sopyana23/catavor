@@ -13,7 +13,7 @@ const ALLOWED_PROTOCOLS = ['https:', 'http:', 'mailto:', 'tel:'];
 export const MASTER_SAFE_DOMAINS: string[] = [
   // Catavor platform ecosystem
   'catavor.com',
-  'dfauna.com',
+  'catavor.id',
   'localhost',
   '127.0.0.1',
   
