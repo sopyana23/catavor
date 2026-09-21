@@ -2971,17 +2971,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 window.dispatchEvent(new CustomEvent('catavor:refresh-domains'));
                 showToast('Data whitelist domain diperbarui', 'success');
               }
-            },
-            {
-              id: 'reset_default_domains',
-              label: 'Pulihkan Domain Bawaan Sistem',
-              description: 'Lengkapi & reset domain resmi ekosistem',
-              icon: <RotateCcw size={18} />,
-              iconBg: 'rgba(245, 158, 11, 0.15)',
-              iconColor: '#f59e0b',
-              onClick: () => {
-                window.dispatchEvent(new CustomEvent('catavor:reset-default-domains'));
-              }
             }
           ],
           includeGlobalUtilities: true
@@ -10586,30 +10575,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         {cat.label}
                       </button>
                     ))}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
-                    <button
-                      type="button"
-                      onClick={handleResetDefaultTemplates}
-                      style={{
-                        padding: '0.4rem 0.6rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: theme.cardAlt,
-                        border: `1px solid ${theme.border}`,
-                        color: theme.textSecondary,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                      title="Reset ke bawaan"
-                    >
-                      <RefreshCw size={12} />
-                      <span>Reset</span>
-                    </button>
                   </div>
                 </div>
               </div>
