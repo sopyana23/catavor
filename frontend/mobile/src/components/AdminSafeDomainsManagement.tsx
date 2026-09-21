@@ -187,6 +187,20 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     setShowFormModal(true);
   };
 
+  useEffect(() => {
+    const onOpenAdd = () => handleOpenAdd();
+    const onRefresh = () => fetchDomains();
+    const onResetDefaults = () => handleResetDefaults();
+    window.addEventListener('catavor:open-add-domain', onOpenAdd);
+    window.addEventListener('catavor:refresh-domains', onRefresh);
+    window.addEventListener('catavor:reset-default-domains', onResetDefaults);
+    return () => {
+      window.removeEventListener('catavor:open-add-domain', onOpenAdd);
+      window.removeEventListener('catavor:refresh-domains', onRefresh);
+      window.removeEventListener('catavor:reset-default-domains', onResetDefaults);
+    };
+  }, [fetchDomains]);
+
   const handleOpenEdit = (item: SafeDomainItem) => {
     setEditingDomain(item);
     setFormData({
@@ -372,53 +386,6 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
               </p>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={handleResetDefaults}
-              title="Sinkronkan domain bawaan"
-              style={{
-                padding: '0.55rem 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9',
-                border: `1px solid ${theme.border}`,
-                color: theme.textSecondary,
-                fontSize: '0.74rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-              <span>Sinkron Default</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              style={{
-                padding: '0.55rem 1rem',
-                borderRadius: '0.65rem',
-                backgroundColor: isDark ? '#38bdf8' : '#0284c7',
-                border: 'none',
-                color: '#ffffff',
-                fontSize: '0.76rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                boxShadow: '0 2px 10px rgba(56, 189, 248, 0.3)'
-              }}
-            >
-              <Plus size={15} strokeWidth={2.5} />
-              <span>Tambah Domain</span>
-            </button>
-          </div>
         </div>
 
         {/* Metric Badges */}
@@ -545,8 +512,31 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
               Tidak ada domain yang sesuai
             </p>
             <span style={{ fontSize: '0.74rem' }}>
-              Coba kata kunci pencarian lain atau klik Tambah Domain.
+              Coba kata kunci pencarian lain atau tambahkan domain baru ke whitelist.
             </span>
+            <div style={{ marginTop: '0.85rem' }}>
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.76rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: '0 2px 10px rgba(56, 189, 248, 0.3)'
+                }}
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                <span>Tambah Domain</span>
+              </button>
+            </div>
           </div>
         ) : (
           domains.map(item => {
