@@ -344,9 +344,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setSelectedBroadcastDetail(null);
     }
     if (targetView === 'master_data') {
-      const sub = (subView === 'templates' || subView === 'domains') ? subView : (view === 'safe_domains' ? 'domains' : masterSubView);
+      const sub = (subView === 'templates' || subView === 'domains') 
+        ? subView 
+        : (view === 'safe_domains' ? 'domains' : (subView === 'menu' ? 'menu' : (subView ? (subView as any) : 'menu')));
       setMasterSubView(sub);
-      updatePlatformUrl(targetView, null, sub);
+      updatePlatformUrl(targetView, null, sub === 'menu' ? null : sub);
       if (sub === 'templates') {
         fetchCannedTemplates(true);
       }
@@ -421,7 +423,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Support Division & Master Data Sub-Navigation State
   const [supportSubView, setSupportSubView] = useState<'tickets'>('tickets');
-  const [masterSubView, setMasterSubView] = useState<'domains' | 'templates'>(() => {
+  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const sub = (params.get('subtab') || params.get('subview') || params.get('sub') || '').toLowerCase();
@@ -429,7 +431,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
       if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
     } catch {}
-    return 'domains';
+    return 'menu';
   });
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -2705,7 +2707,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       title: 'Data Master Platform', 
       subtitle: masterSubView === 'domains' 
         ? 'Whitelist URL & Navigasi Ekosistem' 
-        : `${cannedTemplates.length} Template Pesan Cepat CS` 
+        : (masterSubView === 'templates' ? `${cannedTemplates.length} Template Pesan Cepat CS` : 'Pusat Konfigurasi Master Data')
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
   };
@@ -3113,6 +3115,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     handleCloseCreateBroadcast();
                   } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
                     handleCloseBroadcastDetail();
+                  } else if (activeView === 'master_data' && masterSubView !== 'menu') {
+                    setMasterSubView('menu');
+                    updatePlatformUrl('master_data', null, null);
                   } else {
                     handleSwitchView('dashboard');
                   }
@@ -3122,7 +3127,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     ? "Kembali ke Daftar Tiket" 
                     : (activeView === 'broadcast' && broadcastSubView !== 'list')
                       ? "Kembali ke Riwayat Siaran"
-                      : "Kembali ke Dashboard"
+                      : (activeView === 'master_data' && masterSubView !== 'menu')
+                        ? "Kembali ke Menu Master"
+                        : "Kembali ke Dashboard"
                 }
                 style={{
                   width: '34px',
@@ -3165,7 +3172,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     ? 'Buat Siaran Baru'
                     : (activeView === 'broadcast' && broadcastSubView === 'detail')
                       ? (selectedBroadcastDetail?.title || 'Rincian Siaran')
-                      : (currentItem?.title || 'Panel Modul')}
+                      : (activeView === 'master_data' && masterSubView === 'domains')
+                        ? 'Master Domain Aman'
+                        : (activeView === 'master_data' && masterSubView === 'templates')
+                          ? 'Template Pesan Cepat CS'
+                          : (currentItem?.title || 'Panel Modul')}
               </h3>
               <span style={{
                 fontSize: '0.67rem',
@@ -3181,7 +3192,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     ? 'Segmentasi & Pengumuman Platform'
                     : (activeView === 'broadcast' && broadcastSubView === 'detail')
                       ? `${selectedBroadcastDetail?.category || 'PENGUMUMAN'} • ${selectedBroadcastDetail?.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}`
-                      : subStatusText}
+                      : (activeView === 'master_data' && masterSubView === 'domains')
+                        ? 'Whitelist URL & Proteksi Ekosistem'
+                        : (activeView === 'master_data' && masterSubView === 'templates')
+                          ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
+                          : (activeView === 'master_data' && masterSubView === 'menu')
+                            ? 'Pusat Entitas & Konfigurasi Master'
+                            : subStatusText}
               </span>
             </div>
 
@@ -3374,7 +3391,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {canAccessMasterData && (
                 <button
                   onClick={() => {
-                    handleSwitchView('master_data', 'domains');
+                    handleSwitchView('master_data', 'menu');
                     setShowOptionsMenu(false);
                   }}
                   style={{
@@ -9447,92 +9464,434 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {activeView === 'master_data' && canAccessMasterData && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {/* Top Sub-Navigation Pill Switcher */}
-          <div style={{
-            display: 'flex',
-            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-            padding: '0.25rem',
-            borderRadius: '0.85rem',
-            border: `1px solid ${theme.border}`,
-            gap: '0.3rem'
-          }}>
-            <button
-              type="button"
-              onClick={() => {
-                setMasterSubView('domains');
-                updatePlatformUrl('master_data', null, 'domains');
-              }}
-              style={{
-                flex: 1,
+          {/* 1. MASTER HUB: MENU PILIHAN MASTER PLATFORM */}
+          {masterSubView === 'menu' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Header Hero Banner */}
+              <div style={{
+                padding: '1.1rem',
+                borderRadius: '1rem',
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%)'
+                  : 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
+                border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(2, 132, 199, 0.2)'}`,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.35rem',
-                padding: '0.5rem 0.6rem',
-                borderRadius: '0.65rem',
-                border: 'none',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                backgroundColor: masterSubView === 'domains' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
-                color: masterSubView === 'domains' ? '#ffffff' : theme.textSecondary,
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Globe size={13} />
-              <span>Whitelist URL Aman</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMasterSubView('templates');
-                updatePlatformUrl('master_data', null, 'templates');
-                fetchCannedTemplates(true);
-              }}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.35rem',
-                padding: '0.5rem 0.6rem',
-                borderRadius: '0.65rem',
-                border: 'none',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                backgroundColor: masterSubView === 'templates' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
-                color: masterSubView === 'templates' ? '#ffffff' : theme.textSecondary,
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Zap size={13} />
-              <span>Template Pesan CS</span>
-              <span style={{
-                fontSize: '0.62rem',
-                padding: '0.05rem 0.35rem',
-                borderRadius: '999px',
-                backgroundColor: masterSubView === 'templates' ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
-                color: masterSubView === 'templates' ? '#ffffff' : theme.textMuted
+                gap: '0.95rem',
+                boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.25)' : '0 2px 10px rgba(0,0,0,0.03)'
               }}>
-                {cannedTemplates.length}
-              </span>
-            </button>
-          </div>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '0.9rem',
+                  background: isDark
+                    ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                    : 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                  flexShrink: 0
+                }}>
+                  <Database size={23} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: '0.96rem',
+                      fontWeight: 800,
+                      color: theme.textPrimary,
+                      letterSpacing: '-0.01em'
+                    }}>
+                      Pusat Data Master Platform
+                    </h4>
+                    <span style={{
+                      fontSize: '0.64rem',
+                      padding: '0.1rem 0.5rem',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`
+                    }}>
+                      Pilihan Master
+                    </span>
+                  </div>
+                  <p style={{
+                    margin: '0.25rem 0 0 0',
+                    fontSize: '0.75rem',
+                    color: theme.textSecondary,
+                    lineHeight: 1.35
+                  }}>
+                    Pilih entitas data acuan atau konfigurasi master di bawah ini untuk dikelola.
+                  </p>
+                </div>
+              </div>
+
+              {/* Grid of Master Cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: '0.85rem'
+              }}>
+                {/* Master Option 1: Master Domain Aman */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMasterSubView('domains');
+                    updatePlatformUrl('master_data', null, 'domains');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setMasterSubView('domains');
+                      updatePlatformUrl('master_data', null, 'domains');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '1.1rem',
+                    borderRadius: '1rem',
+                    backgroundColor: theme.card,
+                    border: `1.5px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#10b981';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.1)',
+                        border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)'}`,
+                        color: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Globe size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Master Domain Aman
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700 }}>
+                          Whitelist URL & Ekosistem
+                        </span>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      Proteksi Keamanan
+                    </span>
+                  </div>
+
+                  <p style={{
+                    margin: '0 0 0.95rem 0',
+                    fontSize: '0.76rem',
+                    color: theme.textSecondary,
+                    lineHeight: 1.45
+                  }}>
+                    Kelola daftar whitelist URL domain mitra resmi, verifikasi akses keluar bebas hambatan, dan proteksi phishing ekosistem.
+                  </p>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '0.7rem',
+                    borderTop: `1px solid ${theme.border}`,
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: '#10b981'
+                  }}>
+                    <span>Buka Master Domain</span>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <ChevronRight size={15} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Master Option 2: Template Pesan Cepat CS */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMasterSubView('templates');
+                    updatePlatformUrl('master_data', null, 'templates');
+                    fetchCannedTemplates(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setMasterSubView('templates');
+                      updatePlatformUrl('master_data', null, 'templates');
+                      fetchCannedTemplates(true);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '1.1rem',
+                    borderRadius: '1rem',
+                    backgroundColor: theme.card,
+                    border: `1.5px solid ${isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? '#38bdf8' : '#0284c7';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(2, 132, 199, 0.1)',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(2, 132, 199, 0.25)'}`,
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Zap size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Template Pesan Cepat CS
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 700 }}>
+                          Canned Responses & Makro Tiket
+                        </span>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.1)',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`,
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {cannedTemplates.length} Template
+                    </span>
+                  </div>
+
+                  <p style={{
+                    margin: '0 0 0.95rem 0',
+                    fontSize: '0.76rem',
+                    color: theme.textSecondary,
+                    lineHeight: 1.45
+                  }}>
+                    Kumpulan template jawaban live chat, makro penanganan masalah, dan standarisasi respon operasional staf CS platform.
+                  </p>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '0.7rem',
+                    borderTop: `1px solid ${theme.border}`,
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: isDark ? '#38bdf8' : '#0284c7'
+                  }}>
+                    <span>Buka Template CS</span>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <ChevronRight size={15} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Extensibility & Scalability Information Card */}
+              <div style={{
+                padding: '0.85rem 1rem',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+                border: `1px dashed ${theme.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
+                <Layers size={18} style={{ color: theme.textMuted, flexShrink: 0 }} />
+                <div style={{ fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.4 }}>
+                  <span style={{ fontWeight: 700, color: theme.textPrimary }}>Arsitektur Master Modular: </span>
+                  Data master baru seperti Master Kategori, Alasan Laporan, dan Pengaturan Sistem dapat ditambahkan langsung ke menu ini tanpa merombak navigasi tab.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* SUB-VIEW 1: MASTER DOMAIN AMAN (WHITELIST) */}
           {masterSubView === 'domains' && (
-            <AdminSafeDomainsManagement
-              token={token}
-              themeMode={themeMode}
-              onClose={() => handleSwitchView('dashboard')}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {/* Back to Master Menu Bar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.45rem 0.65rem',
+                borderRadius: '0.8rem',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+                border: `1px solid ${theme.border}`
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterSubView('menu');
+                    updatePlatformUrl('master_data', null, null);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: 'none',
+                    border: 'none',
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    padding: '0.2rem 0.3rem'
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  <span>Menu Master</span>
+                </button>
+                <span style={{
+                  fontSize: '0.7rem',
+                  color: theme.textSecondary,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}>
+                  <Globe size={13} style={{ color: '#10b981' }} />
+                  Master Domain Aman
+                </span>
+              </div>
+
+              <AdminSafeDomainsManagement
+                token={token}
+                themeMode={themeMode}
+                onClose={() => {
+                  setMasterSubView('menu');
+                  updatePlatformUrl('master_data', null, null);
+                }}
+              />
+            </div>
           )}
 
           {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATES) */}
           {masterSubView === 'templates' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Back to Master Menu Bar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.45rem 0.65rem',
+                borderRadius: '0.8rem',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+                border: `1px solid ${theme.border}`
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterSubView('menu');
+                    updatePlatformUrl('master_data', null, null);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: 'none',
+                    border: 'none',
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    padding: '0.2rem 0.3rem'
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  <span>Menu Master</span>
+                </button>
+                <span style={{
+                  fontSize: '0.7rem',
+                  color: theme.textSecondary,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}>
+                  <Zap size={13} style={{ color: '#38bdf8' }} />
+                  Template Pesan Cepat CS
+                </span>
+              </div>
               {/* Search Bar & Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
