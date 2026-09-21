@@ -8335,6 +8335,49 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* 4C. BROADCAST LIST VIEW (CLEAN & DEDICATED)                           */
           /* ===================================================================== */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {/* Header Action Bar: Title & Dynamic Single "Buat Siaran Baru" button (shown only when data exists) */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0 0.1rem'
+            }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Megaphone size={16} color="#f59e0b" />
+                  <span>Siaran Pengumuman</span>
+                </h4>
+                <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: theme.textSecondary }}>
+                  Kirim pengumuman massal &amp; notifikasi merchant
+                </p>
+              </div>
+
+              {broadcasts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleOpenCreateBroadcast}
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '0.7rem',
+                    backgroundColor: '#f59e0b',
+                    color: '#000000',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)',
+                    flexShrink: 0
+                  }}
+                >
+                  <Plus size={14} />
+                  <span>Buat Siaran</span>
+                </button>
+              )}
+            </div>
+
             {/* Quick Metrics Bar */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.55rem' }}>
               <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
@@ -8449,28 +8492,58 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 border: `1px solid ${theme.border}`,
                 boxShadow: theme.cardShadow
               }}>
-                <Megaphone size={36} color="#94a3b8" style={{ margin: '0 auto 0.65rem', opacity: 0.6 }} />
-                <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Belum Ada Siaran Notifikasi
+                <Megaphone size={38} color="#f59e0b" style={{ margin: '0 auto 0.75rem', opacity: 0.85 }} />
+                <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                  {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? 'Siaran Tidak Ditemukan' : 'Belum Ada Siaran Notifikasi'}
                 </h4>
-                <p style={{ margin: '0 0 1rem 0', fontSize: '0.74rem', color: theme.textSecondary }}>
-                  Buat siaran pengumuman pertama Anda untuk seluruh merchant atau pengguna spesifik.
+                <p style={{ margin: '0 0 1.15rem 0', fontSize: '0.76rem', color: theme.textSecondary, maxWidth: '280px', marginInline: 'auto' }}>
+                  {broadcastSearchQuery || broadcastStatusFilter !== 'all'
+                    ? 'Tidak ada siaran yang cocok dengan kata kunci atau filter saat ini.'
+                    : 'Kirim pengumuman penting atau notifikasi massal ke semua atau grup merchant tertentu sekarang.'}
                 </p>
-                <button
-                  onClick={handleOpenCreateBroadcast}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.7rem',
-                    backgroundColor: '#f59e0b',
-                    color: '#000000',
-                    fontWeight: 800,
-                    fontSize: '0.78rem',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Buat Siaran Baru
-                </button>
+                {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBroadcastSearchQuery('');
+                      setBroadcastStatusFilter('all');
+                    }}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.7rem',
+                      backgroundColor: theme.surface,
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      fontWeight: 700,
+                      fontSize: '0.76rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Reset Filter
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateBroadcast}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: '#f59e0b',
+                      color: '#000000',
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)'
+                    }}
+                  >
+                    <Plus size={15} />
+                    <span>+ Buat Siaran Baru</span>
+                  </button>
+                )}
               </div>
             ) : (
               broadcasts.map(b => {
