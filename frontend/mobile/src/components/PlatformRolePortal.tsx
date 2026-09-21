@@ -24,6 +24,7 @@ import {
   Trash2,
   Plus,
   RefreshCw,
+  RotateCcw,
   Loader2,
   ExternalLink,
   ChevronRight,
@@ -89,6 +90,33 @@ interface MobilePlatformRolePortalProps {
   onBack?: () => void;
   onOpenRBAC?: () => void;
   onLogout?: () => void;
+}
+
+export interface ContextualMenuItem {
+  id: string;
+  label: string;
+  description?: string;
+  icon: React.ReactNode;
+  iconBg?: string;
+  iconColor?: string;
+  isDestructive?: boolean;
+  variant?: 'normal' | 'danger';
+  badge?: string;
+  onClick: () => void;
+  visible?: boolean;
+}
+
+export interface ContextualHeaderConfig {
+  showMenu: boolean;
+  title?: string;
+  subtitle?: string;
+  primaryAction?: {
+    icon: React.ReactNode;
+    title: string;
+    onClick: () => void;
+  };
+  items: ContextualMenuItem[];
+  includeGlobalUtilities?: boolean;
 }
 
 type ActiveView = 
@@ -2893,6 +2921,604 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     (activeView === 'support' && Boolean(selectedTicket)) ||
     (activeView === 'finance' && Boolean(selectedProofOrder));
 
+  // =========================================================================
+  // DYNAMIC CONTEXTUAL HEADER CONFIGURATION (Industry Standard Best Practice)
+  // =========================================================================
+  const headerConfig = useMemo<ContextualHeaderConfig>(() => {
+    // 1. DASHBOARD OVERVIEW
+    if (activeView === 'dashboard') {
+      return {
+        showMenu: true,
+        title: 'Ringkasan Platform',
+        subtitle: 'Pusat kendali & metrik ekosistem Catavor',
+        items: [
+          {
+            id: 'refresh',
+            label: 'Segarkan Data Platform',
+            description: 'Sinkronisasi metrik, tiket & pesanan',
+            icon: <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Data platform berhasil diperbarui', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 2. MASTER DATA VIEW
+    if (activeView === 'master_data') {
+      if (masterSubView === 'domains') {
+        return {
+          showMenu: true,
+          title: 'Master Domain Aman',
+          subtitle: 'Whitelist & proteksi URL ekosistem',
+          primaryAction: {
+            icon: <Plus size={17} />,
+            title: 'Tambah Domain',
+            onClick: () => window.dispatchEvent(new CustomEvent('catavor:open-add-domain'))
+          },
+          items: [
+            {
+              id: 'refresh_domains',
+              label: 'Segarkan Data Whitelist',
+              description: 'Muat ulang daftar domain dari server',
+              icon: <RefreshCw size={18} />,
+              iconBg: 'rgba(56, 189, 248, 0.15)',
+              iconColor: '#38bdf8',
+              onClick: () => {
+                window.dispatchEvent(new CustomEvent('catavor:refresh-domains'));
+                showToast('Data whitelist domain diperbarui', 'success');
+              }
+            },
+            {
+              id: 'reset_default_domains',
+              label: 'Pulihkan Domain Bawaan Sistem',
+              description: 'Lengkapi & reset domain resmi ekosistem',
+              icon: <RotateCcw size={18} />,
+              iconBg: 'rgba(245, 158, 11, 0.15)',
+              iconColor: '#f59e0b',
+              onClick: () => {
+                window.dispatchEvent(new CustomEvent('catavor:reset-default-domains'));
+              }
+            }
+          ],
+          includeGlobalUtilities: true
+        };
+      }
+
+      if (masterSubView === 'templates') {
+        return {
+          showMenu: true,
+          title: 'Template Pesan Cepat CS',
+          subtitle: 'Katalog respon cepat helpdesk',
+          primaryAction: cannedTemplates.length > 0 ? {
+            icon: <Plus size={17} />,
+            title: 'Tambah Template',
+            onClick: () => handleOpenCreateTemplate()
+          } : undefined,
+          items: [
+            {
+              id: 'refresh_templates',
+              label: 'Segarkan Template CS',
+              description: 'Sinkronisasi template dari server',
+              icon: <RefreshCw size={18} />,
+              iconBg: 'rgba(16, 185, 129, 0.15)',
+              iconColor: '#10b981',
+              onClick: () => {
+                loadData();
+                showToast('Daftar template CS diperbarui', 'success');
+              }
+            }
+          ],
+          includeGlobalUtilities: true
+        };
+      }
+
+      // Default: masterSubView === 'menu'
+      return {
+        showMenu: true,
+        title: 'Pusat Master Data',
+        subtitle: 'Konfigurasi & standarisasi platform',
+        items: [
+          {
+            id: 'refresh_master',
+            label: 'Segarkan Data Master',
+            description: 'Perbarui status entitas master',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Data master berhasil disegarkan', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 3. SUPPORT HELPDESK VIEW
+    if (activeView === 'support') {
+      if (selectedTicket) {
+        return {
+          showMenu: true,
+          title: `Tiket #${selectedTicket.ticket_number || ('TCK-' + selectedTicket.id)}`,
+          subtitle: `${getStoreDisplayName(selectedTicket)} • Status: ${String(selectedTicket.status || 'open').toUpperCase()}`,
+          items: [
+            ...(selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? [{
+              id: 'resolve_ticket',
+              label: 'Tandai Tiket Selesai',
+              description: 'Ubah status ke Resolved (Teratasi)',
+              icon: <CheckCircle2 size={18} />,
+              iconBg: 'rgba(16, 185, 129, 0.15)',
+              iconColor: '#10b981',
+              onClick: () => handleUpdateTicketStatus(selectedTicket.id, 'resolved')
+            }] : []),
+            ...(selectedTicket.status !== 'closed' ? [{
+              id: 'close_ticket',
+              label: 'Tutup Tiket Permanen',
+              description: 'Kunci tiket dan akhiri percakapan',
+              icon: <XCircle size={18} />,
+              iconBg: 'rgba(239, 68, 68, 0.15)',
+              iconColor: '#ef4444',
+              onClick: () => handleUpdateTicketStatus(selectedTicket.id, 'closed')
+            }] : []),
+            {
+              id: 'copy_ticket_info',
+              label: 'Salin Nomor & Info Tiket',
+              description: 'Salin nomor tiket ke papan klip',
+              icon: <Copy size={18} />,
+              iconBg: 'rgba(56, 189, 248, 0.15)',
+              iconColor: '#38bdf8',
+              onClick: () => {
+                const text = `Tiket #${selectedTicket.ticket_number || selectedTicket.id} - ${getStoreDisplayName(selectedTicket)}: ${selectedTicket.subject || ''}`;
+                navigator.clipboard.writeText(text);
+                showToast('Info tiket disalin ke clipboard', 'success');
+              }
+            },
+            {
+              id: 'manage_templates',
+              label: 'Kelola Template Pesan CS',
+              description: 'Atur shortcut pesan tanggapan cepat',
+              icon: <Zap size={18} />,
+              iconBg: 'rgba(245, 158, 11, 0.15)',
+              iconColor: '#f59e0b',
+              onClick: () => handleSwitchView('master_data', null, 'templates')
+            },
+            {
+              id: 'close_chat',
+              label: 'Tutup Obrolan (Kembali)',
+              description: 'Kembali ke daftar tiket helpdesk',
+              icon: <ArrowLeft size={18} />,
+              iconBg: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.06)',
+              iconColor: theme.textPrimary,
+              onClick: () => handleCloseTicketChat()
+            }
+          ],
+          includeGlobalUtilities: false
+        };
+      }
+
+      return {
+        showMenu: true,
+        title: 'Opsi Helpdesk Tiket',
+        subtitle: 'Layanan dukungan & penanganan merchant',
+        items: [
+          {
+            id: 'refresh_tickets',
+            label: 'Segarkan Daftar Tiket',
+            description: 'Periksa pembaruan tiket merchant',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Daftar tiket helpdesk diperbarui', 'success');
+            }
+          },
+          {
+            id: 'canned_templates',
+            label: 'Katalog Template Cepat CS',
+            description: 'Kelola balasan cepat respon tiket',
+            icon: <Zap size={18} />,
+            iconBg: 'rgba(245, 158, 11, 0.15)',
+            iconColor: '#f59e0b',
+            onClick: () => handleSwitchView('master_data', null, 'templates')
+          },
+          {
+            id: 'copy_stats',
+            label: 'Salin Ringkasan Helpdesk',
+            description: 'Salin rekap jumlah tiket aktif & respon',
+            icon: <Copy size={18} />,
+            iconBg: 'rgba(16, 185, 129, 0.15)',
+            iconColor: '#10b981',
+            onClick: () => {
+              const summary = `Ringkasan Helpdesk: ${tickets.length} total tiket, ${urgentTicketsCount} tiket prioritas tinggi.`;
+              navigator.clipboard.writeText(summary);
+              showToast('Ringkasan disalin', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 4. FINANCE VIEW
+    if (activeView === 'finance') {
+      if (selectedProofOrder) {
+        return {
+          showMenu: true,
+          title: `Pesanan #${selectedProofOrder.id}`,
+          subtitle: `${selectedProofOrder.store_name || 'Toko'} • Rp ${(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}`,
+          items: [
+            ...(selectedProofOrder.status === 'pending' ? [
+              {
+                id: 'approve_payment',
+                label: 'Setujui & Aktifkan Paket',
+                description: 'Verifikasi transfer & aktifkan langganan toko',
+                icon: <CheckCircle2 size={18} />,
+                iconBg: 'rgba(16, 185, 129, 0.15)',
+                iconColor: '#10b981',
+                onClick: () => handleUpdateOrderStatus(selectedProofOrder.id, 'active')
+              },
+              {
+                id: 'reject_payment',
+                label: 'Tolak Bukti Pembayaran',
+                description: 'Batalkan bukti transfer tidak valid',
+                icon: <AlertTriangle size={18} />,
+                iconBg: 'rgba(239, 68, 68, 0.15)',
+                iconColor: '#ef4444',
+                isDestructive: true,
+                onClick: () => handleUpdateOrderStatus(selectedProofOrder.id, 'rejected')
+              }
+            ] : []),
+            {
+              id: 'copy_order_info',
+              label: 'Salin Detail Pesanan',
+              description: 'Salin rincian nominal & nomor rekening',
+              icon: <Copy size={18} />,
+              iconBg: 'rgba(56, 189, 248, 0.15)',
+              iconColor: '#38bdf8',
+              onClick: () => {
+                const text = `Order #${selectedProofOrder.id} - ${selectedProofOrder.store_name}: Rp ${(selectedProofOrder.amount || 99000).toLocaleString('id-ID')}`;
+                navigator.clipboard.writeText(text);
+                showToast('Detail pesanan disalin', 'success');
+              }
+            },
+            {
+              id: 'close_proof',
+              label: 'Tutup Detail Verifikasi',
+              description: 'Kembali ke daftar antrean keuangan',
+              icon: <ArrowLeft size={18} />,
+              iconBg: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.06)',
+              iconColor: theme.textPrimary,
+              onClick: () => setSelectedProofOrder(null)
+            }
+          ],
+          includeGlobalUtilities: false
+        };
+      }
+
+      return {
+        showMenu: true,
+        title: 'Opsi Keuangan Platform',
+        subtitle: 'Pesanan langganan & verifikasi transfer',
+        items: [
+          {
+            id: 'refresh_finance',
+            label: 'Segarkan Data Keuangan',
+            description: 'Sinkronkan transaksi dan bukti transfer',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Data keuangan berhasil diperbarui', 'success');
+            }
+          },
+          {
+            id: 'copy_finance_summary',
+            label: 'Salin Ringkasan Order',
+            description: 'Salin metrik pesanan dan order pending',
+            icon: <Copy size={18} />,
+            iconBg: 'rgba(16, 185, 129, 0.15)',
+            iconColor: '#10b981',
+            onClick: () => {
+              const summary = `Keuangan: ${pendingOrdersCount} order pending butuh verifikasi.`;
+              navigator.clipboard.writeText(summary);
+              showToast('Ringkasan disalin', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 5. BROADCAST VIEW
+    if (activeView === 'broadcast') {
+      // Subview create: FORM ENTRY (Clean & Focused, NO 3-dots button!)
+      if (broadcastSubView === 'create') {
+        return {
+          showMenu: false,
+          items: []
+        };
+      }
+
+      // Subview detail
+      if (broadcastSubView === 'detail') {
+        return {
+          showMenu: true,
+          title: 'Opsi Siaran Terkirim',
+          subtitle: selectedBroadcastDetail?.title || 'Rincian pengumuman',
+          items: [
+            {
+              id: 'copy_broadcast',
+              label: 'Salin Isi Pengumuman',
+              description: 'Salin judul dan konten siaran ini',
+              icon: <Copy size={18} />,
+              iconBg: 'rgba(56, 189, 248, 0.15)',
+              iconColor: '#38bdf8',
+              onClick: () => {
+                const text = `${selectedBroadcastDetail?.title || ''}\n\n${selectedBroadcastDetail?.message || ''}`;
+                navigator.clipboard.writeText(text);
+                showToast('Konten siaran disalin ke clipboard', 'success');
+              }
+            },
+            {
+              id: 'back_broadcast_list',
+              label: 'Kembali ke Riwayat Siaran',
+              description: 'Lihat daftar semua siaran platform',
+              icon: <ArrowLeft size={18} />,
+              iconBg: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.06)',
+              iconColor: theme.textPrimary,
+              onClick: () => handleCloseBroadcastDetail()
+            }
+          ],
+          includeGlobalUtilities: true
+        };
+      }
+
+      // Default: broadcastSubView === 'list'
+      return {
+        showMenu: true,
+        title: 'Siaran Platform',
+        subtitle: 'Pengumuman serentak untuk merchant',
+        primaryAction: broadcasts.length > 0 ? {
+          icon: <Plus size={17} />,
+          title: 'Buat Siaran',
+          onClick: () => handleOpenCreateBroadcast()
+        } : undefined,
+        items: [
+          {
+            id: 'refresh_broadcast',
+            label: 'Segarkan Riwayat Siaran',
+            description: 'Muat data keterbacaan siaran terbaru',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Riwayat siaran diperbarui', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 6. STORES VIEW
+    if (activeView === 'stores') {
+      return {
+        showMenu: true,
+        title: 'Tata Kelola Toko',
+        subtitle: 'Kepatuhan & direktori merchant',
+        items: [
+          {
+            id: 'refresh_stores',
+            label: 'Segarkan Data Toko',
+            description: 'Perbarui data merchant dan dormansi',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Data direktori toko diperbarui', 'success');
+            }
+          },
+          {
+            id: 'copy_stores_summary',
+            label: 'Salin Ringkasan Toko',
+            description: 'Rekap toko aktif dan status dorman',
+            icon: <Copy size={18} />,
+            iconBg: 'rgba(16, 185, 129, 0.15)',
+            iconColor: '#10b981',
+            onClick: () => {
+              const summary = `Ringkasan Toko: ${dormancyMetrics?.active_stores || 1} aktif, ${dormancyMetrics?.dormant_stores || 0} dorman.`;
+              navigator.clipboard.writeText(summary);
+              showToast('Ringkasan toko disalin', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 7. REPORTS VIEW
+    if (activeView === 'reports') {
+      return {
+        showMenu: true,
+        title: 'Moderasi & Pengaduan',
+        subtitle: 'Penanganan laporan pelanggaran konten',
+        items: [
+          {
+            id: 'refresh_reports',
+            label: 'Segarkan Laporan Masuk',
+            description: 'Periksa antrean laporan pengaduan baru',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Antrean laporan pengaduan diperbarui', 'success');
+            }
+          },
+          {
+            id: 'copy_reports_summary',
+            label: 'Salin Ringkasan Laporan',
+            description: 'Rekap laporan yang memerlukan tindakan',
+            icon: <Copy size={18} />,
+            iconBg: 'rgba(239, 68, 68, 0.15)',
+            iconColor: '#ef4444',
+            onClick: () => {
+              const summary = `Laporan: ${pendingReportsCount} laporan pending butuh investigasi.`;
+              navigator.clipboard.writeText(summary);
+              showToast('Ringkasan laporan disalin', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 8. RBAC VIEW
+    if (activeView === 'rbac') {
+      return {
+        showMenu: true,
+        title: 'Kelola Staf & Hak Akses',
+        subtitle: 'Matriks izin & keamanan tim pengelola',
+        items: [
+          {
+            id: 'refresh_rbac',
+            label: 'Segarkan Matriks Izin Staf',
+            description: 'Sinkronisasi daftar staf dan role',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Matriks izin staf diperbarui', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 9. MONETIZATION VIEW
+    if (activeView === 'monetization') {
+      return {
+        showMenu: true,
+        title: 'Opsi Monetisasi Platform',
+        subtitle: 'Konfigurasi Google AdSense & GA4',
+        items: [
+          {
+            id: 'refresh_monetization',
+            label: 'Segarkan Konfigurasi Iklan',
+            description: 'Muat ulang script dan status penempatan',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Pengaturan monetisasi disegarkan', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 10. AUTOMATION VIEW
+    if (activeView === 'automation') {
+      return {
+        showMenu: true,
+        title: 'Automasi Platform',
+        subtitle: 'Bot pemeliharaan & cron jobs',
+        items: [
+          {
+            id: 'refresh_automation',
+            label: 'Segarkan Status Bot & Pekerja',
+            description: 'Muat log automasi background terbaru',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Status automasi diperbarui', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // 11. AUDIT TRAIL VIEW
+    if (activeView === 'audit') {
+      return {
+        showMenu: true,
+        title: 'Log Audit Sistem',
+        subtitle: 'Catatan aktivitas keamanan & riwayat admin',
+        items: [
+          {
+            id: 'refresh_audit',
+            label: 'Segarkan Log Audit Terbaru',
+            description: 'Sinkronisasi aktivitas admin teranyar',
+            icon: <RefreshCw size={18} />,
+            iconBg: 'rgba(56, 189, 248, 0.15)',
+            iconColor: '#38bdf8',
+            onClick: () => {
+              loadData();
+              showToast('Log audit berhasil diperbarui', 'success');
+            }
+          }
+        ],
+        includeGlobalUtilities: true
+      };
+    }
+
+    // Fallback for any other subpage
+    return {
+      showMenu: true,
+      title: 'Opsi Modul',
+      subtitle: 'Pengaturan & tindakan modul',
+      items: [
+        {
+          id: 'refresh_generic',
+          label: 'Segarkan Data Modul',
+          description: 'Sinkronkan data dengan server',
+          icon: <RefreshCw size={18} />,
+          iconBg: 'rgba(56, 189, 248, 0.15)',
+          iconColor: '#38bdf8',
+          onClick: () => {
+            loadData();
+            showToast('Data modul berhasil diperbarui', 'success');
+          }
+        }
+      ],
+      includeGlobalUtilities: true
+    };
+  }, [
+    activeView,
+    masterSubView,
+    broadcastSubView,
+    selectedTicket,
+    selectedProofOrder,
+    selectedBroadcastDetail,
+    isDark,
+    loading,
+    tickets,
+    urgentTicketsCount,
+    pendingOrdersCount,
+    pendingReportsCount,
+    dormancyMetrics,
+    canAccessMasterData,
+    onLogout
+  ]);
+
   return (
     <div
       className={`catavor-platform-portal ${isDark ? 'portal-dark' : 'portal-light'}`}
@@ -3059,29 +3685,53 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
             </div>
 
-            {/* Right Side: Options Menu Button [ ⋮ ] */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => setShowOptionsMenu(true)}
-                title="Menu Opsi Eksekutif"
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <MoreVertical size={17} />
-              </button>
-            </div>
+            {/* Right Side: Contextual Options Menu & Primary Action */}
+            {headerConfig.showMenu && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                {headerConfig.primaryAction && (
+                  <button
+                    type="button"
+                    onClick={headerConfig.primaryAction.onClick}
+                    title={headerConfig.primaryAction.title}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {headerConfig.primaryAction.icon}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowOptionsMenu(true)}
+                  title={headerConfig.title || "Menu Opsi"}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                    border: `1px solid ${theme.border}`,
+                    color: theme.textPrimary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <MoreVertical size={17} />
+                </button>
+              </div>
+            )}
           </div>
           {/* Header Spacer for Fixed Float & Ideal Content Separation */}
           <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
@@ -3258,29 +3908,54 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             {/* Right: Contextual Quick Actions + Options Menu Button */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-              {/* Options Menu Button [ ⋮ ] */}
-              <button
-                type="button"
-                onClick={() => setShowOptionsMenu(true)}
-                title="Menu Opsi Eksekutif"
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <MoreVertical size={17} />
-              </button>
-            </div>
+            {(headerConfig.primaryAction || headerConfig.showMenu) ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                {headerConfig.primaryAction && (
+                  <button
+                    type="button"
+                    onClick={headerConfig.primaryAction.onClick}
+                    title={headerConfig.primaryAction.title}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {headerConfig.primaryAction.icon}
+                  </button>
+                )}
+                {headerConfig.showMenu && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionsMenu(true)}
+                    title={headerConfig.title || "Menu Opsi"}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <MoreVertical size={17} />
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
           {/* Header Spacer for Fixed Float & Ideal Content Separation */}
           <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
@@ -3355,182 +4030,184 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }} />
             </div>
 
+            {/* Header Sheet Title & Subtitle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.45rem', borderBottom: `1px solid ${theme.border}` }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                  {headerConfig.title || 'Opsi Modul'}
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary }}>
+                  {headerConfig.subtitle || 'Aksi dan utilitas modul'}
+                </p>
+              </div>
+            </div>
+
             {/* Menu Options List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {/* 1. Toggle Theme Mode */}
-              <button
-                onClick={() => {
-                  toggleTheme();
-                  setShowOptionsMenu(false);
-                  showToast(`Tema dialihkan ke mode ${isDark ? 'terang' : 'gelap'}`, 'info');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: isDark ? 'rgba(250, 204, 21, 0.15)' : 'rgba(250, 204, 21, 0.1)',
-                    color: isDark ? '#facc15' : '#d97706',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    {isDark ? <Sun size={20} /> : <Moon size={20} />}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>
-                      {isDark ? 'Mode Terang (Light Mode)' : 'Mode Gelap (Dark Mode)'}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                      Ubah tampilan visual panel admin
-                    </div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8' }}>Ganti</span>
-              </button>
-
-              {/* 2. Refresh Data Platform */}
-              <button
-                onClick={() => {
-                  loadData();
-                  setShowOptionsMenu(false);
-                  showToast('Data platform berhasil diperbarui', 'success');
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.85rem 1rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  color: theme.textPrimary,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                    color: '#38bdf8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <RefreshCw size={19} className={loading ? 'animate-spin' : ''} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Segarkan Data Platform</div>
-                    <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                      Sinkronisasi data metrik, tiket & pesanan
-                    </div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981' }}>Segarkan</span>
-              </button>
-
-              {/* 3. Data Master Platform */}
-              {canAccessMasterData && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', maxHeight: '70vh', overflowY: 'auto' }}>
+              {/* Contextual Action Items */}
+              {headerConfig.items.map((item) => (
                 <button
+                  key={item.id}
+                  type="button"
                   onClick={() => {
-                    handleSwitchView('master_data', null, 'menu');
                     setShowOptionsMenu(false);
+                    item.onClick();
                   }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '0.95rem',
-                    backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textPrimary,
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: '0.9rem',
+                    backgroundColor: item.variant === 'danger' 
+                      ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)')
+                      : theme.cardAlt,
+                    border: item.variant === 'danger'
+                      ? (isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)')
+                      : `1px solid ${theme.border}`,
+                    color: item.variant === 'danger' ? '#ef4444' : theme.textPrimary,
                     cursor: 'pointer',
-                    textAlign: 'left'
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                     <div style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '0.75rem',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(56, 189, 248, 0.1)',
-                      color: '#38bdf8',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '0.7rem',
+                      backgroundColor: item.iconBg || (isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(56, 189, 248, 0.1)'),
+                      color: item.iconColor || (isDark ? '#38bdf8' : '#0284c7'),
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      flexShrink: 0
                     }}>
-                      <Database size={19} />
+                      {item.icon}
                     </div>
-                    <div>
-                      <div style={{ fontSize: '0.86rem', fontWeight: 800 }}>Data Master Platform</div>
-                      <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                        Menu entitas konfigurasi & standarisasi
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.label}
                       </div>
+                      {item.description && (
+                        <div style={{ fontSize: '0.68rem', color: item.variant === 'danger' ? '#ef4444' : theme.textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.description}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8' }}>Buka</span>
+                  {item.badge && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '999px', backgroundColor: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', flexShrink: 0 }}>
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
-              )}
+              ))}
 
-              {/* 4. Logout Action */}
-              {onLogout && (
-                <button
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    onLogout();
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '0.95rem',
-                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
-                    border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)',
-                    color: '#ef4444',
-                    cursor: 'pointer',
-                    textAlign: 'left'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '0.75rem',
-                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                      color: '#ef4444',
+              {/* Global Utilities Divider & Items */}
+              {headerConfig.includeGlobalUtilities !== false && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.4rem 0 0.1rem 0' }}>
+                    <div style={{ height: '1px', flex: 1, backgroundColor: theme.border }} />
+                    <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.05em', color: theme.textMuted, textTransform: 'uppercase' }}>
+                      Utilitas Eksekutif
+                    </span>
+                    <div style={{ height: '1px', flex: 1, backgroundColor: theme.border }} />
+                  </div>
+
+                  {/* Toggle Theme Mode */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleTheme();
+                      setShowOptionsMenu(false);
+                      showToast(`Tema dialihkan ke mode ${isDark ? 'terang' : 'gelap'}`, 'info');
+                    }}
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <LogOut size={19} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#ef4444' }}>Keluar Akun Admin</div>
-                      <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                        Akhiri sesi pengelolaan platform
+                      justifyContent: 'space-between',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '0.9rem',
+                      backgroundColor: theme.cardAlt,
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '0.7rem',
+                        backgroundColor: isDark ? 'rgba(250, 204, 21, 0.15)' : 'rgba(250, 204, 21, 0.1)',
+                        color: isDark ? '#facc15' : '#d97706',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 800 }}>
+                          {isDark ? 'Mode Terang (Light Mode)' : 'Mode Gelap (Dark Mode)'}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
+                          Ubah tampilan visual panel admin
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#ef4444' }}>Keluar</span>
-                </button>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#38bdf8' }}>Ganti</span>
+                  </button>
+
+                  {/* Logout Action */}
+                  {onLogout && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        onLogout();
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '0.9rem',
+                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
+                        border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '0.7rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          color: '#ef4444',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <LogOut size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ef4444' }}>Keluar Akun Admin</div>
+                          <div style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                            Akhiri sesi pengelolaan platform
+                          </div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#ef4444' }}>Keluar</span>
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -7882,31 +8559,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   Kirim pengumuman massal &amp; notifikasi merchant
                 </p>
               </div>
-
-              {broadcasts.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleOpenCreateBroadcast}
-                  style={{
-                    padding: '0.45rem 0.85rem',
-                    borderRadius: '0.7rem',
-                    backgroundColor: '#f59e0b',
-                    color: '#000000',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)',
-                    flexShrink: 0
-                  }}
-                >
-                  <Plus size={14} />
-                  <span>Buat Siaran</span>
-                </button>
-              )}
             </div>
 
             {/* Quick Metrics Bar */}
@@ -9619,51 +10271,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* SUB-VIEW 1: DOMAIN WHITELIST */}
           {masterSubView === 'domains' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-              {/* Back to Master Menu Bar */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.45rem 0.65rem',
-                borderRadius: '0.8rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-                border: `1px solid ${theme.border}`
-              }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMasterSubView('menu');
-                    updatePlatformUrl('master_data', null, null);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    background: 'none',
-                    border: 'none',
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    fontSize: '0.76rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    padding: '0.2rem 0.3rem'
-                  }}
-                >
-                  <ChevronLeft size={16} />
-                  <span>Menu Master</span>
-                </button>
-                <span style={{
-                  fontSize: '0.7rem',
-                  color: theme.textSecondary,
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}>
-                  <Globe size={13} style={{ color: '#10b981' }} />
-                  Master Domain Aman
-                </span>
-              </div>
-
               <AdminSafeDomainsManagement
                 token={token}
                 themeMode={themeMode}
@@ -9678,51 +10285,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATE CS) */}
           {masterSubView === 'templates' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Back to Master Menu Bar */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.45rem 0.65rem',
-                borderRadius: '0.8rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-                border: `1px solid ${theme.border}`
-              }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMasterSubView('menu');
-                    updatePlatformUrl('master_data', null, null);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    background: 'none',
-                    border: 'none',
-                    color: isDark ? '#38bdf8' : '#0284c7',
-                    fontSize: '0.76rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    padding: '0.2rem 0.3rem'
-                  }}
-                >
-                  <ChevronLeft size={16} />
-                  <span>Menu Master</span>
-                </button>
-                <span style={{
-                  fontSize: '0.7rem',
-                  color: theme.textSecondary,
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}>
-                  <Zap size={13} style={{ color: '#38bdf8' }} />
-                  Template Pesan Cepat CS
-                </span>
-              </div>
-
               {/* Search Bar & Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -9822,28 +10384,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     >
                       <RefreshCw size={12} />
                       <span>Reset</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleOpenCreateTemplate}
-                      style={{
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: isDark ? '#38bdf8' : '#0284c7',
-                        border: 'none',
-                        color: '#ffffff',
-                        fontSize: '0.74rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
-                      }}
-                    >
-                      <Plus size={13} />
-                      <span>Tambah</span>
                     </button>
                   </div>
                 </div>
