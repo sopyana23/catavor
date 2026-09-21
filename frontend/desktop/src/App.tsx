@@ -137,6 +137,7 @@ import { DocumentPreviewModal, type DocumentPreviewData } from './components/Doc
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
+import { FormattedText } from './components/RichTextarea'
 
 export interface UserStoreSummary {
   id: number;
@@ -1703,165 +1704,7 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
   );
 }
 
-export const FormattedText: React.FC<{ text?: string; style?: React.CSSProperties; className?: string }> = ({ text, style, className }) => {
-  if (!text) return null;
-
-  const lines = text.split('\n');
-  const elements: React.ReactNode[] = [];
-  let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
-
-  const renderInlineMarkdown = (str: string): React.ReactNode => {
-    const parts: React.ReactNode[] = [];
-    let idx = 0;
-    const regex = /(\*\*(.*?)\*\*|\*(.*?)\*|__(.*?)__|_(.*?)_|`(.*?)`)/g;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(str)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(str.substring(lastIndex, match.index));
-      }
-      if (match[2] !== undefined) {
-        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[2]}</strong>);
-      } else if (match[4] !== undefined) {
-        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[4]}</strong>);
-      } else if (match[3] !== undefined) {
-        parts.push(<em key={`i-${idx++}`}>{match[3]}</em>);
-      } else if (match[5] !== undefined) {
-        parts.push(<em key={`i2-${idx++}`}>{match[5]}</em>);
-      } else if (match[6] !== undefined) {
-        parts.push(
-          <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(255,255,255,0.08)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary)' }}>
-            {match[6]}
-          </code>
-        );
-      }
-      lastIndex = regex.lastIndex;
-    }
-    if (lastIndex < str.length) {
-      parts.push(str.substring(lastIndex));
-    }
-    return parts.length > 0 ? parts : str;
-  };
-
-  const flushList = (key: number) => {
-    if (!currentList) return null;
-    const isUl = currentList.type === 'ul';
-    const listNode = isUl ? (
-      <ul key={`list-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.4rem 0 0.6rem 0', listStyleType: 'disc' }}>
-        {currentList.items.map((item, i) => (
-          <li key={i} style={{ marginBottom: '0.25rem' }}>{renderInlineMarkdown(item)}</li>
-        ))}
-      </ul>
-    ) : (
-      <ol key={`list-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.4rem 0 0.6rem 0' }}>
-        {currentList.items.map((item, i) => (
-          <li key={i} style={{ marginBottom: '0.25rem' }}>{renderInlineMarkdown(item)}</li>
-        ))}
-      </ol>
-    );
-    currentList = null;
-    return listNode;
-  };
-
-  lines.forEach((line, lineIdx) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('- [x] ') || trimmed.startsWith('- [ ] ') || trimmed.startsWith('[x] ') || trimmed.startsWith('[ ] ')) {
-      const isChecked = trimmed.includes('[x]') || trimmed.includes('[X]');
-      const itemText = trimmed.replace(/^[-*•]?\s*\[[ xX]\]\s+/, '');
-      const flushed = flushList(lineIdx);
-      if (flushed) elements.push(flushed);
-      elements.push(
-        <div key={`check-${lineIdx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: '0.2rem 0', paddingLeft: '0.2rem' }}>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '15px',
-            height: '15px',
-            borderRadius: '3px',
-            border: isChecked ? 'none' : '1.5px solid var(--border-hover, #64748b)',
-            backgroundColor: isChecked ? 'var(--primary)' : 'transparent',
-            color: '#ffffff',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            flexShrink: 0
-          }}>
-            {isChecked ? '✓' : ''}
-          </span>
-          <span style={{ textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--text-muted)' : 'var(--text-primary)', fontSize: '0.92rem' }}>
-            {renderInlineMarkdown(itemText)}
-          </span>
-        </div>
-      );
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
-      const itemText = trimmed.replace(/^[-*•]\s+/, '');
-      if (!currentList || currentList.type !== 'ul') {
-        const flushed = flushList(lineIdx);
-        if (flushed) elements.push(flushed);
-        currentList = { type: 'ul', items: [itemText] };
-      } else {
-        currentList.items.push(itemText);
-      }
-    } else if (/^\d+\.\s+/.test(trimmed)) {
-      const itemText = trimmed.replace(/^\d+\.\s+/, '');
-      if (!currentList || currentList.type !== 'ol') {
-        const flushed = flushList(lineIdx);
-        if (flushed) elements.push(flushed);
-        currentList = { type: 'ol', items: [itemText] };
-      } else {
-        currentList.items.push(itemText);
-      }
-    } else {
-      const flushed = flushList(lineIdx);
-      if (flushed) elements.push(flushed);
-
-      if (!trimmed) {
-        elements.push(<div key={`empty-${lineIdx}`} style={{ height: '0.5rem' }} />);
-      } else if (trimmed.startsWith('#### ')) {
-        elements.push(
-          <h5 key={`h4-${lineIdx}`} style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0.65rem 0 0.2rem 0', color: 'var(--text-muted, #94a3b8)' }}>
-            {renderInlineMarkdown(trimmed.replace(/^####\s+/, ''))}
-          </h5>
-        );
-      } else if (trimmed.startsWith('### ')) {
-        elements.push(
-          <h4 key={`h3-${lineIdx}`} style={{ fontSize: '1.02rem', fontWeight: 700, margin: '0.8rem 0 0.25rem 0', color: 'var(--primary-hover, #60a5fa)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            {renderInlineMarkdown(trimmed.replace(/^###\s+/, ''))}
-          </h4>
-        );
-      } else if (trimmed.startsWith('## ')) {
-        elements.push(
-          <h3 key={`h2-${lineIdx}`} style={{ fontSize: '1.2rem', fontWeight: 800, margin: '1.05rem 0 0.35rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem', letterSpacing: '-0.01em' }}>
-            <span style={{ width: '3px', height: '14px', borderRadius: '2px', background: 'var(--primary)', flexShrink: 0, display: 'inline-block' }} />
-            <span>{renderInlineMarkdown(trimmed.replace(/^##\s+/, ''))}</span>
-          </h3>
-        );
-      } else if (trimmed.startsWith('# ')) {
-        elements.push(
-          <h2 key={`h1-${lineIdx}`} style={{ fontSize: '1.35rem', fontWeight: 800, margin: '1.25rem 0 0.45rem 0', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.35rem', letterSpacing: '-0.01em' }}>
-            {renderInlineMarkdown(trimmed.replace(/^#\s+/, ''))}
-          </h2>
-        );
-      } else {
-        elements.push(
-          <div key={`p-${lineIdx}`} style={{ lineHeight: '1.6', marginBottom: '0.2rem' }}>
-            {renderInlineMarkdown(line)}
-          </div>
-        );
-      }
-    }
-  });
-
-  const finalFlush = flushList(lines.length);
-  if (finalFlush) elements.push(finalFlush);
-
-  return (
-    <div style={{ wordBreak: 'break-word', ...style }} className={className}>
-      {elements}
-    </div>
-  );
-};
+export { FormattedText } from './components/RichTextarea';
 
 export const ProductDescriptionView: React.FC<{ description?: string; isMobile?: boolean; title?: string }> = ({ description, isMobile = false, title }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -16691,8 +16534,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 0.85rem 0', color: 'var(--text-primary)', lineHeight: 1.35 }}>
                             {selectedNotificationDetail.title}
                           </h3>
-                          <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>
-                            {selectedNotificationDetail.detail_content || selectedNotificationDetail.message}
+                          <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.75 }}>
+                            <FormattedText text={selectedNotificationDetail.detail_content || selectedNotificationDetail.message} />
                           </div>
                         </div>
 

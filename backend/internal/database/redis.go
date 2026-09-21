@@ -142,3 +142,37 @@ func GetTicketPresences(ctx context.Context, ticketID uint) map[uint]string {
 	}
 	return result
 }
+
+// GetBroadcastListCache fetches cached serialized broadcast list data.
+func GetBroadcastListCache(ctx context.Context, cacheKey string) (string, bool) {
+	if !IsRedisAvailable() || cacheKey == "" {
+		return "", false
+	}
+	val, err := RedisClient.Get(ctx, "broadcast:list:"+cacheKey).Result()
+	if err != nil {
+		return "", false
+	}
+	return val, true
+}
+
+// SetBroadcastListCache caches serialized broadcast list data with a default TTL.
+func SetBroadcastListCache(ctx context.Context, cacheKey string, data string, ttl time.Duration) {
+	if !IsRedisAvailable() || cacheKey == "" {
+		return
+	}
+	if ttl <= 0 {
+		ttl = 60 * time.Second
+	}
+	_ = RedisClient.Set(ctx, "broadcast:list:"+cacheKey, data, ttl).Err()
+}
+
+// InvalidateBroadcastCache immediately purges all cached broadcast lists on write events.
+func InvalidateBroadcastCache(ctx context.Context) {
+	if !IsRedisAvailable() {
+		return
+	}
+	keys, err := RedisClient.Keys(ctx, "broadcast:list:*").Result()
+	if err == nil && len(keys) > 0 {
+		_ = RedisClient.Del(ctx, keys...).Err()
+	}
+}

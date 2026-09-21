@@ -52,7 +52,14 @@ import {
   Star,
   ArrowUp,
   Sun,
-  Moon
+  Moon,
+  Globe,
+  Radio,
+  Play,
+  CheckCheck,
+  Loader2,
+  LayoutDashboard,
+  Award
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -185,9 +192,10 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
   const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || isSuperAdmin(currentUser);
   const canAccessContent = hasPermission(currentUser, 'monetization:google:manage') || hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
+  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
 
   // Helper to synchronize URL query parameters cleanly and safely
-  const updatePlatformUrl = (division: string, ticketRef?: string | number | null, subtabRef?: string | null) => {
+  const updatePlatformUrl = (division: string, ticketRef?: string | number | null, subtabRef?: string | null, broadcastIdRef?: string | number | null) => {
     try {
       const url = new URL(window.location.href);
       if (division) {
@@ -210,10 +218,18 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
         url.searchParams.delete('subtab');
       }
 
+      if (broadcastIdRef) {
+        const sanitizedBcast = String(broadcastIdRef).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
+        url.searchParams.set('broadcast_id', sanitizedBcast);
+      } else {
+        url.searchParams.delete('broadcast_id');
+        url.searchParams.delete('broadcast');
+      }
+
       const newRelativePathQuery = url.pathname + url.search + url.hash;
       const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
       if (newRelativePathQuery !== currentRelativePathQuery) {
-        window.history.pushState({ division, ticket: ticketRef || null, subtab: subtabRef || null }, '', newRelativePathQuery);
+        window.history.pushState({ division, ticket: ticketRef || null, subtab: subtabRef || null, broadcast_id: broadcastIdRef || null }, '', newRelativePathQuery);
       }
     } catch (e) {
       console.error('Failed to sync URL:', e);
@@ -221,20 +237,33 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   };
 
   // Default active division reading from URL first
-  const getDefaultDivision = (): 'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content' => {
+  const getDefaultDivision = (): 'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content' | 'automation' => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = (urlParams.get('tab') || urlParams.get('division') || urlParams.get('view') || '').toLowerCase();
-      if (['overview', 'rbac', 'compliance', 'support', 'finance', 'content'].includes(tabParam)) {
+      const ticketParam = urlParams.get('ticket') || urlParams.get('ticket_id');
+      const broadcastId = urlParams.get('broadcast_id') || urlParams.get('broadcast') || urlParams.get('notif_id');
+
+      if (ticketParam && canAccessSupport) return 'support';
+      if (broadcastId && canAccessContent) return 'content';
+
+      if (['overview', 'rbac', 'compliance', 'support', 'finance', 'content', 'automation'].includes(tabParam)) {
         if (tabParam === 'rbac' && !canAccessRBAC) return 'overview';
         if (tabParam === 'compliance' && !canAccessCompliance) return 'overview';
         if (tabParam === 'support' && !canAccessSupport) return 'overview';
         if (tabParam === 'finance' && !canAccessFinance) return 'overview';
         if (tabParam === 'content' && !canAccessContent) return 'overview';
+        if (tabParam === 'automation' && !canAccessAutomation) return 'overview';
         return tabParam as any;
       }
       if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
         if (canAccessSupport) return 'support';
+      }
+      if (['siaran', 'notifikasi', 'broadcast'].includes(tabParam)) {
+        if (canAccessContent) return 'content';
+      }
+      if (['automation', 'bot', 'bots', 'otomatisasi', 'engine', 'workers', 'cron'].includes(tabParam)) {
+        if (canAccessAutomation) return 'automation';
       }
     } catch {
       // fallback
@@ -249,12 +278,13 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     if (canAccessSupport) return 'support';
     if (canAccessFinance) return 'finance';
     if (canAccessContent) return 'content';
+    if (canAccessAutomation) return 'automation';
     return 'overview';
   };
 
-  const [activeDivision, setActiveDivision] = useState<'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content'>(getDefaultDivision());
+  const [activeDivision, setActiveDivision] = useState<'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content' | 'automation'>(getDefaultDivision());
 
-  const handleSwitchDivision = (division: 'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content') => {
+  const handleSwitchDivision = (division: 'overview' | 'rbac' | 'compliance' | 'support' | 'finance' | 'content' | 'automation') => {
     setActiveDivision(division);
     setSelectedTicket(null);
     updatePlatformUrl(division, null);
@@ -276,6 +306,22 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   };
   const [loading, setLoading] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // State: Dedicated Automation Engine Module (Desktop)
+  const [automationSubView, setAutomationSubView] = useState<'overview' | 'bots' | 'logs' | 'sandbox'>('overview');
+  const [automationStatus, setAutomationStatus] = useState<any | null>(null);
+  const [automationLogs, setAutomationLogs] = useState<any[]>([]);
+  const [automationLogsTotal, setAutomationLogsTotal] = useState<number>(0);
+  const [automationLogsPage, setAutomationLogsPage] = useState<number>(1);
+  const [automationLogsTotalPages, setAutomationLogsTotalPages] = useState<number>(1);
+  const [automationLogsBotFilter, setAutomationLogsBotFilter] = useState<string>('all');
+  const [automationLogsStatusFilter, setAutomationLogsStatusFilter] = useState<string>('all');
+  const [automationLogsSearch, setAutomationLogsSearch] = useState<string>('');
+  const [debouncedAutomationSearch, setDebouncedAutomationSearch] = useState<string>('');
+  const [selectedAutomationLog, setSelectedAutomationLog] = useState<any | null>(null);
+  const [isFetchingAutomation, setIsFetchingAutomation] = useState(false);
+  const [isTriggeringBot, setIsTriggeringBot] = useState<string | null>(null);
+  const [isTestingSandbox, setIsTestingSandbox] = useState(false);
 
   // State: Compliance
   const [reports, setReports] = useState<any[]>([]);
@@ -943,10 +989,280 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
   const [ordersFilter, setOrdersFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-  // State: Content
+  // State: Content & Enhanced Broadcast Segmentation
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-  const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info', target_role: 'all' });
+  const [selectedBroadcastDetail, setSelectedBroadcastDetail] = useState<any | null>(null);
+  const [isFetchingBroadcastDetail, setIsFetchingBroadcastDetail] = useState(false);
+  const [broadcastPage, setBroadcastPage] = useState(1);
+  const [broadcastTotalPages, setBroadcastTotalPages] = useState(1);
+  const [broadcastMetrics, setBroadcastMetrics] = useState({ total_broadcasts: 0, active_broadcasts: 0, total_reads: 0 });
+  const [broadcastStatusFilter, setBroadcastStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
+  const [broadcastSearchQuery, setBroadcastSearchQuery] = useState('');
+  const [debouncedBroadcastSearch, setDebouncedBroadcastSearch] = useState('');
+  const [isFetchingBroadcasts, setIsFetchingBroadcasts] = useState(false);
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+
+  const fetchSingleBroadcastDetail = async (id: number | string) => {
+    if (!token || !id) return;
+    setIsFetchingBroadcastDetail(true);
+    try {
+      const res = await fetch(`/api/admin/notifications/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.data) {
+          setSelectedBroadcastDetail(d.data);
+          return;
+        }
+      }
+      const res2 = await fetch(`/api/notifications/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res2.ok) {
+        const d2 = await res2.json();
+        if (d2.data) {
+          setSelectedBroadcastDetail(d2.data);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch single broadcast detail:', e);
+    } finally {
+      setIsFetchingBroadcastDetail(false);
+    }
+  };
+
+  const handleOpenBroadcastDetail = (b: any) => {
+    if (!b) return;
+    setSelectedBroadcastDetail(b);
+    updatePlatformUrl(activeDivision || 'content', null, 'detail', b.id);
+  };
+
+  const handleCloseBroadcastDetail = () => {
+    setSelectedBroadcastDetail(null);
+    updatePlatformUrl(activeDivision || 'content', null, null, null);
+  };
+
+  // Target Autocomplete Search for Broadcast
+  const [targetStoreSearch, setTargetStoreSearch] = useState('');
+  const [storeSuggestions, setStoreSuggestions] = useState<any[]>([]);
+  const [selectedStoreTarget, setSelectedStoreTarget] = useState<any | null>(null);
+
+  const [targetUserSearch, setTargetUserSearch] = useState('');
+  const [userSuggestions, setUserSuggestions] = useState<any[]>([]);
+  const [selectedUserTarget, setSelectedUserTarget] = useState<any | null>(null);
+
+  const [broadcastForm, setBroadcastForm] = useState({
+    target_type: 'all' as 'all' | 'plan' | 'single_store' | 'single_user',
+    target_plan_code: 'pro',
+    target_id: 0,
+    target_name: '',
+    title: '',
+    category: 'PENGUMUMAN',
+    message: '',
+    detail_content: '',
+    type: 'info' as 'info' | 'warning' | 'success' | 'system',
+    action_type: 'detail' as 'detail' | 'navigate' | 'external_link' | 'none',
+    link_sub_tab: 'settings',
+    link_mobile_settings_tab: 'about',
+    action_label: 'Buka Pengumuman Lengkap →',
+    action_url: '',
+    expires_in_hours: 0,
+  });
+
+  // 300ms Debounced Broadcast Search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedBroadcastSearch(broadcastSearchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [broadcastSearchQuery]);
+
+  // 250ms Target Store Autocomplete Search
+  useEffect(() => {
+    if (broadcastForm.target_type === 'single_store' && targetStoreSearch.trim().length >= 1) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/admin/stores/search?q=${encodeURIComponent(targetStoreSearch.trim())}`, {
+            credentials: 'omit',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const d = await res.json();
+            setStoreSuggestions(d.data || []);
+          }
+        } catch {}
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      setStoreSuggestions([]);
+    }
+  }, [targetStoreSearch, broadcastForm.target_type, token]);
+
+  // 250ms Target User Autocomplete Search
+  useEffect(() => {
+    if (broadcastForm.target_type === 'single_user' && targetUserSearch.trim().length >= 1) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(targetUserSearch.trim())}`, {
+            credentials: 'omit',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const d = await res.json();
+            setUserSuggestions(d.data || []);
+          }
+        } catch {}
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      setUserSuggestions([]);
+    }
+  }, [targetUserSearch, broadcastForm.target_type, token]);
+
+  const fetchBroadcasts = async (page = 1, silent = false) => {
+    if (!token || !canAccessContent) return;
+    if (!silent) setIsFetchingBroadcasts(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '10');
+      if (broadcastStatusFilter !== 'all') params.set('status', broadcastStatusFilter);
+      if (debouncedBroadcastSearch.trim()) params.set('q', debouncedBroadcastSearch.trim());
+
+      const res = await fetch(`/api/admin/notifications?${params.toString()}`, {
+        credentials: 'omit',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setBroadcasts(Array.isArray(d.data) ? d.data : []);
+        if (d.pagination) {
+          setBroadcastPage(d.pagination.page || 1);
+          setBroadcastTotalPages(d.pagination.total_pages || 1);
+        }
+        if (d.metrics) {
+          setBroadcastMetrics(d.metrics);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch broadcasts:', e);
+    } finally {
+      setIsFetchingBroadcasts(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeDivision === 'content' && canAccessContent) {
+      fetchBroadcasts(1);
+    }
+  }, [activeDivision, canAccessContent, broadcastStatusFilter, debouncedBroadcastSearch]);
+
+  // 300ms Debounced Automation Search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedAutomationSearch(automationLogsSearch);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [automationLogsSearch]);
+
+  const fetchAutomationData = async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = debouncedAutomationSearch, page = automationLogsPage) => {
+    if (!token || !canAccessAutomation) return;
+    setIsFetchingAutomation(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '25');
+      if (botFilter && botFilter !== 'all') params.set('bot_name', botFilter);
+      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
+      if (search && search.trim()) params.set('q', search.trim());
+
+      const [statusRes, logsRes] = await Promise.all([
+        fetch('/api/admin/automation/status', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/admin/automation/logs?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      if (statusRes.ok) {
+        const sData = await statusRes.json();
+        setAutomationStatus(sData.data || sData);
+      }
+      if (logsRes.ok) {
+        const lData = await logsRes.json();
+        setAutomationLogs(Array.isArray(lData.data) ? lData.data : []);
+        if (lData.pagination) {
+          setAutomationLogsTotal(lData.pagination.total_items || lData.data?.length || 0);
+          setAutomationLogsPage(lData.pagination.page || 1);
+          setAutomationLogsTotalPages(lData.pagination.total_pages || 1);
+        } else {
+          setAutomationLogsTotal(lData.data?.length || 0);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch automation engine data:', err);
+    } finally {
+      setIsFetchingAutomation(false);
+    }
+  };
+
+  const handleTriggerBot = async (botType: string, label: string) => {
+    if (!token || !canAccessAutomation) return;
+    setIsTriggeringBot(botType);
+    try {
+      const res = await fetch('/api/admin/automation/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ bot_type: botType, action: botType })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || `Bot "${label}" berhasil dieksekusi!`, 'success');
+        await fetchAutomationData();
+      } else {
+        showToast(data.error || data.message || `Gagal menjalankan bot "${label}"`, 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Terjadi kesalahan saat memicu bot', 'error');
+    } finally {
+      setIsTriggeringBot(null);
+    }
+  };
+
+  const handleRunSandboxTest = async () => {
+    if (!token || !canAccessAutomation) return;
+    setIsTestingSandbox(true);
+    try {
+      const res = await fetch('/api/admin/automation/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'test_guide' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Notifikasi simulasi panduan berhasil dikirim via SSE!', 'success');
+        await fetchAutomationData();
+      } else {
+        showToast(data.error || 'Gagal mengirim simulasi', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal memproses sandbox', 'error');
+    } finally {
+      setIsTestingSandbox(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeDivision === 'automation' && canAccessAutomation) {
+      fetchAutomationData();
+    }
+  }, [activeDivision, canAccessAutomation, automationLogsBotFilter, automationLogsStatusFilter, debouncedAutomationSearch]);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setNotificationMsg({ text, type });
@@ -1248,11 +1564,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       }
 
       if (canAccessContent) {
-        const broadRes = await fetch('/api/admin/notifications', { credentials: 'omit', headers: { Authorization: `Bearer ${token}` } });
-        if (broadRes.ok) {
-          const bData = await broadRes.json();
-          setBroadcasts(Array.isArray(bData) ? bData : bData.data || []);
-        }
+        fetchBroadcasts(1, true);
       }
     } catch (err) {
       console.error('Failed to load division data:', err);
@@ -1272,17 +1584,30 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
         const searchParams = new URLSearchParams(window.location.search);
         const tabParam = (searchParams.get('tab') || searchParams.get('division') || searchParams.get('view') || '').toLowerCase();
         const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+        const broadcastId = searchParams.get('broadcast_id') || searchParams.get('broadcast') || searchParams.get('notif_id');
 
-        if (tabParam) {
-          if (['overview', 'rbac', 'compliance', 'support', 'finance', 'content'].includes(tabParam)) {
+        if (ticketParam) {
+          setActiveDivision('support');
+        } else if (broadcastId) {
+          setActiveDivision('content');
+          fetchSingleBroadcastDetail(broadcastId);
+        } else if (tabParam) {
+          if (['overview', 'rbac', 'compliance', 'support', 'finance', 'content', 'automation'].includes(tabParam)) {
             setActiveDivision(tabParam as any);
           } else if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
             setActiveDivision('support');
+          } else if (['siaran', 'notifikasi', 'broadcast'].includes(tabParam)) {
+            setActiveDivision('content');
+          } else if (['automation', 'bot', 'bots', 'otomatisasi', 'engine', 'workers', 'cron'].includes(tabParam)) {
+            setActiveDivision('automation');
           }
         }
 
         if (!ticketParam) {
           setSelectedTicket(null);
+        }
+        if (!broadcastId) {
+          setSelectedBroadcastDetail(null);
         }
       } catch (err) {
         console.error('Error handling popstate:', err);
@@ -1291,12 +1616,19 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [token, canAccessContent, canAccessSupport]);
 
-  // Deep-link direct ticket opener when tickets loaded or direct URL access
+  // Deep-link direct ticket & broadcast synchronization on load
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
+    const broadcastId = searchParams.get('broadcast_id') || searchParams.get('broadcast') || searchParams.get('notif_id');
+
+    if (broadcastId && canAccessContent && token) {
+      if (!selectedBroadcastDetail || String(selectedBroadcastDetail.id) !== String(broadcastId)) {
+        fetchSingleBroadcastDetail(broadcastId);
+      }
+    }
 
     if (ticketParam && !selectedTicket && canAccessSupport && token) {
       const cleanParam = String(ticketParam).trim().toLowerCase();
@@ -1327,7 +1659,7 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
           .catch(() => {});
       }
     }
-  }, [tickets, token]);
+  }, [tickets, token, canAccessContent, canAccessSupport]);
 
   // Open ticket and fetch full conversation stream with URL state update
   const handleOpenTicketChat = async (ticket: any, pushToHistory = true) => {
@@ -1512,26 +1844,82 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
     }
   };
 
-  // Content Broadcast Send
+  // Content Broadcast Send & Delete Handlers
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!broadcastForm.title.trim() || !broadcastForm.message.trim()) return;
+    if (!broadcastForm.title.trim() || !broadcastForm.message.trim()) {
+      showToast('Judul dan pesan siaran wajib diisi', 'error');
+      return;
+    }
+    if (broadcastForm.target_type === 'single_store' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
+      showToast('Silakan pilih toko target terlebih dahulu', 'error');
+      return;
+    }
+    if (broadcastForm.target_type === 'single_user' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
+      showToast('Silakan pilih user target terlebih dahulu', 'error');
+      return;
+    }
+
+    setSendingBroadcast(true);
     try {
       const res = await fetch('/api/admin/notifications/broadcast', {
         method: 'POST',
+        credentials: 'omit',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(broadcastForm)
       });
       if (res.ok) {
-        showToast('Siaran notifikasi platform berhasil disebarkan!', 'success');
+        showToast('Siaran pengumuman berhasil disebarkan!', 'success');
         setShowBroadcastModal(false);
-        setBroadcastForm({ title: '', message: '', type: 'info', target_role: 'all' });
-        fetchDivisionData();
+        setBroadcastForm({
+          target_type: 'all',
+          target_plan_code: 'pro',
+          target_id: 0,
+          target_name: '',
+          title: '',
+          category: 'PENGUMUMAN',
+          message: '',
+          detail_content: '',
+          type: 'info',
+          action_type: 'detail',
+          link_sub_tab: 'settings',
+          link_mobile_settings_tab: 'about',
+          action_label: 'Buka Pengumuman Lengkap →',
+          action_url: '',
+          expires_in_hours: 0,
+        });
+        setTargetStoreSearch('');
+        setSelectedStoreTarget(null);
+        setTargetUserSearch('');
+        setSelectedUserTarget(null);
+        fetchBroadcasts(1);
       } else {
-        showToast('Gagal mengirim siaran notifikasi', 'error');
+        const errData = await res.json();
+        showToast(errData.error || 'Gagal mengirim siaran', 'error');
       }
-    } catch (e) {
+    } catch {
       showToast('Kesalahan jaringan pengiriman siaran', 'error');
+    } finally {
+      setSendingBroadcast(false);
+    }
+  };
+
+  const handleDeleteBroadcast = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus siaran ini dari riwayat?')) return;
+    try {
+      const res = await fetch(`/api/admin/notifications/${id}`, {
+        method: 'DELETE',
+        credentials: 'omit',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showToast('Siaran berhasil dihapus', 'success');
+        fetchBroadcasts(broadcastPage);
+      } else {
+        showToast('Gagal menghapus siaran', 'error');
+      }
+    } catch {
+      showToast('Gagal menghapus siaran', 'error');
     }
   };
 
@@ -1904,6 +2292,40 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                   {broadcasts.length}
                 </span>
               )}
+            </button>
+          )}
+
+          {canAccessAutomation && (
+            <button
+              type="button"
+              onClick={() => handleSwitchDivision('automation')}
+              style={{
+                padding: '0.65rem 1.15rem',
+                borderRadius: '0.75rem',
+                backgroundColor: activeDivision === 'automation' ? '#0284c7' : 'rgba(255,255,255,0.04)',
+                border: 'none',
+                color: activeDivision === 'automation' ? '#fff' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                transition: 'all 0.2s'
+              }}
+            >
+              <Bot size={16} />
+              <span>Mesin Otomatisasi</span>
+              <span style={{
+                padding: '0.15rem 0.45rem',
+                borderRadius: '999px',
+                backgroundColor: '#38bdf8',
+                color: '#000',
+                fontSize: '0.7rem',
+                fontWeight: 800
+              }}>
+                9 Bot
+              </span>
             </button>
           )}
         </div>
@@ -5342,223 +5764,2748 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 5. CONTENT & EDITORIAL DIVISION                                           */}
+      {/* 5. CONTENT & BROADCAST DIVISION                                            */}
       {/* ========================================================================= */}
       {activeDivision === 'content' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Section 1: Broadcast Notifications */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text-primary)' }}>
-                  Siaran Notifikasi Global Platform
-                </h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                  Kirim pengumuman penting kepada seluruh merchant dan pengunjung platform secara real-time.
-                </p>
+          {/* Header & Quick Analytics Metrics */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 0.35rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Megaphone size={24} color="#8b5cf6" />
+                Pusat Siaran &amp; Pengumuman Platform
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Kirimkan pengumuman, pembaruan sistem, info promosi, atau peringatan secara tertarget ke merchant &amp; pengguna.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowBroadcastModal(true)}
+              style={{
+                padding: '0.65rem 1.25rem',
+                borderRadius: '0.75rem',
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Plus size={18} />
+              <span>Buat Siaran Baru</span>
+            </button>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            <div style={{
+              padding: '1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                color: '#8b5cf6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Megaphone size={22} />
               </div>
-              <button
-                onClick={() => setShowBroadcastModal(true)}
+              <div>
+                <p style={{ margin: '0 0 0.2rem', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Total Riwayat Siaran
+                </p>
+                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  {broadcastMetrics.total_broadcasts || broadcasts.length}
+                </h3>
+              </div>
+            </div>
+
+            <div style={{
+              padding: '1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                color: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Activity size={22} />
+              </div>
+              <div>
+                <p style={{ margin: '0 0 0.2rem', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Siaran Aktif / Tayang
+                </p>
+                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>
+                  {broadcastMetrics.active_broadcasts}
+                </h3>
+              </div>
+            </div>
+
+            <div style={{
+              padding: '1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                color: '#3b82f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Eye size={22} />
+              </div>
+              <div>
+                <p style={{ margin: '0 0 0.2rem', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Total Dibaca Merchant
+                </p>
+                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#3b82f6' }}>
+                  {broadcastMetrics.total_reads}
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          {/* Search, Status Filters & Refresh */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            backgroundColor: 'var(--bg-card)',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '1rem',
+            border: '1px solid var(--border-light)'
+          }}>
+            {/* Search Input */}
+            <div style={{ position: 'relative', width: '320px', maxWidth: '100%' }}>
+              <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                value={broadcastSearchQuery}
+                onChange={e => setBroadcastSearchQuery(e.target.value)}
+                placeholder="Cari judul atau isi siaran..."
                 style={{
-                  padding: '0.55rem 1rem',
+                  width: '100%',
+                  padding: '0.55rem 2.2rem 0.55rem 2.4rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: '#8b5cf6',
-                  border: 'none',
-                  color: '#fff',
-                  fontWeight: 700,
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
                   fontSize: '0.85rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {broadcastSearchQuery && (
+                <button
+                  onClick={() => setBroadcastSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter Chips */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {(['all', 'active', 'expired'] as const).map(st => {
+                const isSelected = broadcastStatusFilter === st;
+                const label = st === 'all' ? 'Semua Riwayat' : st === 'active' ? 'Sedang Tayang' : 'Kadaluarsa';
+                return (
+                  <button
+                    key={st}
+                    onClick={() => setBroadcastStatusFilter(st)}
+                    style={{
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '0.55rem',
+                      border: isSelected ? '1px solid #8b5cf6' : '1px solid var(--border-light)',
+                      backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-deep)',
+                      color: isSelected ? '#8b5cf6' : 'var(--text-secondary)',
+                      fontWeight: isSelected ? 700 : 500,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => fetchBroadcasts(broadcastPage)}
+                disabled={isFetchingBroadcasts}
+                title="Refresh Siaran"
+                style={{
+                  padding: '0.5rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.45rem'
+                  justifyContent: 'center'
                 }}
               >
-                <Plus size={16} />
-                <span>Buat Siaran Baru</span>
+                <RefreshCw size={15} className={isFetchingBroadcasts ? 'animate-spin' : ''} />
               </button>
             </div>
+          </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-              {broadcasts.map(b => (
-                <div key={b.id} style={{
+          {/* Broadcast Cards Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.15rem' }}>
+            {broadcasts.map(b => {
+              const isExpired = b.expires_at && new Date(b.expires_at).getTime() < Date.now();
+              const targetType = b.target_type || 'all';
+              let targetBadgeLabel = 'Semua Merchant';
+              let targetBadgeColor = '#3b82f6';
+              let targetBadgeBg = 'rgba(59, 130, 246, 0.12)';
+              let TargetIcon = Globe;
+
+              if (targetType === 'plan') {
+                targetBadgeLabel = `Paket: ${(b.target_plan_code || 'pro').toUpperCase()}`;
+                targetBadgeColor = '#8b5cf6';
+                targetBadgeBg = 'rgba(139, 92, 246, 0.12)';
+                TargetIcon = Sparkles;
+              } else if (targetType === 'single_store') {
+                targetBadgeLabel = `Toko: ${b.target_name || `#${b.target_id}`}`;
+                targetBadgeColor = '#10b981';
+                targetBadgeBg = 'rgba(16, 185, 129, 0.12)';
+                TargetIcon = Store;
+              } else if (targetType === 'single_user') {
+                targetBadgeLabel = `User: ${b.target_name || `#${b.target_id}`}`;
+                targetBadgeColor = '#f59e0b';
+                targetBadgeBg = 'rgba(245, 158, 11, 0.12)';
+                TargetIcon = Users;
+              }
+
+              const typeBadgeColor =
+                b.type === 'warning' ? '#f59e0b' :
+                b.type === 'success' ? '#10b981' :
+                b.type === 'system' ? '#64748b' : '#3b82f6';
+
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    padding: '1.35rem',
+                    borderRadius: '1rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                    position: 'relative'
+                  }}
+                >
+                  <div>
+                    {/* Top Row: Category & Status */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.35rem',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                          color: '#8b5cf6',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>
+                          {b.category || 'PENGUMUMAN'}
+                        </span>
+                        <span style={{
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.35rem',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          backgroundColor: `${typeBadgeColor}1a`,
+                          color: typeBadgeColor,
+                          textTransform: 'uppercase'
+                        }}>
+                          {b.type || 'INFO'}
+                        </span>
+                      </div>
+
+                      {/* Active Status Badge */}
+                      <span style={{
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '999px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        backgroundColor: isExpired ? 'rgba(100, 116, 139, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                        color: isExpired ? '#64748b' : '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isExpired ? '#64748b' : '#10b981' }} />
+                        {isExpired ? 'Kadaluarsa' : 'Sedang Tayang'}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h4 style={{ margin: '0 0 0.45rem', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                      {b.title}
+                    </h4>
+
+                    {/* Short Message Snippet */}
+                    <p style={{
+                      margin: '0 0 0.85rem',
+                      fontSize: '0.85rem',
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.45,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}>
+                      {b.message}
+                    </p>
+
+                    {/* Target Audience Pill */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                      <span style={{
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        backgroundColor: targetBadgeBg,
+                        color: targetBadgeColor,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem'
+                      }}>
+                        <TargetIcon size={13} />
+                        {targetBadgeLabel}
+                      </span>
+
+                      {/* Action Type Badge */}
+                      {b.action_type && b.action_type !== 'none' && (
+                        <span style={{
+                          padding: '0.25rem 0.55rem',
+                          borderRadius: '0.5rem',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-secondary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
+                        }}>
+                          {b.action_type === 'detail' && '📄 Popup Detail'}
+                          {b.action_type === 'navigate' && '🧭 Navigasi Menu'}
+                          {b.action_type === 'external_link' && '🔗 Link Eksternal'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Metadata & Actions */}
+                  <div style={{
+                    paddingTop: '0.75rem',
+                    borderTop: '1px solid var(--border-light)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <span title={b.created_at}>
+                        {b.created_at ? new Date(b.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600, color: '#3b82f6' }}>
+                        <Eye size={13} /> {b.read_count || 0} dibaca
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <button
+                        onClick={() => handleOpenBroadcastDetail(b)}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <Eye size={13} />
+                        Detail
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBroadcast(b.id)}
+                        style={{
+                          padding: '0.4rem 0.6rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          color: '#ef4444',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                        title="Hapus Siaran"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {broadcasts.length === 0 && !isFetchingBroadcasts && (
+              <div style={{
+                padding: '3rem 1.5rem',
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                gridColumn: '1 / -1',
+                backgroundColor: 'var(--bg-card)',
+                borderRadius: '1rem',
+                border: '1px solid var(--border-light)'
+              }}>
+                <Megaphone size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.4, color: '#8b5cf6', display: 'block' }} />
+                <h4 style={{ margin: '0 0 0.35rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Belum Ada Riwayat Siaran</h4>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.85rem' }}>
+                  {broadcastSearchQuery ? 'Tidak ada siaran yang cocok dengan kata kunci pencarian.' : 'Kirimkan siaran pengumuman pertama Anda ke platform.'}
+                </p>
+                <button
+                  onClick={() => setShowBroadcastModal(true)}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: '#8b5cf6',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  + Buat Siaran Baru
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Server-Side Pagination Bar */}
+          {broadcastTotalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0.85rem 1.25rem',
+              borderRadius: '0.85rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)'
+            }}>
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Halaman <strong>{broadcastPage}</strong> dari <strong>{broadcastTotalPages}</strong>
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => fetchBroadcasts(broadcastPage - 1)}
+                  disabled={broadcastPage <= 1 || isFetchingBroadcasts}
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: broadcastPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                    opacity: broadcastPage <= 1 ? 0.5 : 1,
+                    cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem'
+                  }}
+                >
+                  <ChevronLeft size={15} /> Sebelumnya
+                </button>
+                <button
+                  onClick={() => fetchBroadcasts(broadcastPage + 1)}
+                  disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: broadcastPage >= broadcastTotalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+                    opacity: broadcastPage >= broadcastTotalPages ? 0.5 : 1,
+                    cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem'
+                  }}
+                >
+                  Selanjutnya <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. DEDICATED AUTOMATION ENGINE & WORKER PORTAL (DESKTOP)                  */}
+      {/* ========================================================================= */}
+      {activeDivision === 'automation' && canAccessAutomation && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.25s ease-out' }}>
+          {/* Header & Sub-Tabs Navigation */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(2, 132, 199, 0.15)',
+                  color: '#0284c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Bot size={22} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>Pusat Kendali &amp; Mesin Otomatisasi</span>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                      color: '#10b981',
+                      fontWeight: 800,
+                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                    }}>
+                      DAEMON 24/7 LIVE
+                    </span>
+                  </h2>
+                </div>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Pusat orkestrasi background worker, pemindaian lifecycle toko, validasi kedaluwarsa kupon/promo, dan transmisi streaming real-time.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <button
+                type="button"
+                onClick={() => fetchAutomationData()}
+                disabled={isFetchingAutomation}
+                style={{
+                  padding: '0.55rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: isFetchingAutomation ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <RefreshCw size={14} className={isFetchingAutomation ? 'spin' : ''} />
+                <span>{isFetchingAutomation ? 'Menyinkronkan...' : 'Sinkronkan Telemetri'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAutomationSubView('sandbox')}
+                style={{
+                  padding: '0.55rem 1.15rem',
+                  borderRadius: '0.65rem',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+                }}
+              >
+                <Zap size={15} />
+                <span>Buka Sandbox</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-View Switcher Tabs */}
+          <div style={{
+            display: 'flex',
+            gap: '0.4rem',
+            padding: '0.3rem',
+            borderRadius: '0.85rem',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            width: 'fit-content'
+          }}>
+            {[
+              { id: 'overview', label: 'Ringkasan & Telemetri', icon: LayoutDashboard },
+              { id: 'bots', label: 'Katalog 9 Bot Platform', icon: Bot, badge: '9' },
+              { id: 'logs', label: 'Riwayat & Audit Log', icon: Activity, badge: String(automationLogsTotal || automationLogs.length) },
+              { id: 'sandbox', label: 'Sandbox Uji Coba', icon: Zap }
+            ].map(tab => {
+              const Icon = tab.icon;
+              const isActive = automationSubView === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setAutomationSubView(tab.id as any);
+                    if (tab.id === 'logs' || tab.id === 'overview') {
+                      fetchAutomationData();
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.55rem 1.1rem',
+                    borderRadius: '0.65rem',
+                    fontSize: '0.82rem',
+                    fontWeight: isActive ? 800 : 600,
+                    border: 'none',
+                    backgroundColor: isActive ? '#0284c7' : 'transparent',
+                    color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: isActive ? '0 2px 8px rgba(2, 132, 199, 0.25)' : 'none'
+                  }}
+                >
+                  <Icon size={15} />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '999px',
+                      backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(2, 132, 199, 0.15)',
+                      color: isActive ? '#ffffff' : '#0284c7'
+                    }}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* --------------------------------------------------------------------- */}
+          {/* SUB-VIEW 1: OVERVIEW & TELEMETRY                                      */}
+          {/* --------------------------------------------------------------------- */}
+          {automationSubView === 'overview' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Telemetry Stats Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                <div style={{
                   padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'rgba(2, 132, 199, 0.15)',
+                    color: '#0284c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Bot size={24} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Bot Terdaftar
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {automationStatus?.total_workers || 9} Bot
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '0.1rem', fontWeight: 600 }}>
+                      🟢 {automationStatus?.healthy_workers || 9} Siaga Normal
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    color: '#10b981',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <CheckCheck size={24} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Tingkat Sukses 24 Jam
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>
+                      {automationStatus?.success_rate_24h || '100.0%'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+                      0 kegagalan fatal
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    color: '#f59e0b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Activity size={24} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Eksekusi 24 Jam
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {automationStatus?.executions_24h || automationLogs.length} Kali
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+                      Cron &amp; Trigger Manual
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    color: '#6366f1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Clock size={24} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Uptime Daemon
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      24 / 7 Live
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '0.1rem', fontWeight: 600 }}>
+                      🟢 Realtime Loop Active
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Infrastructure Gateway & Stream Hub Status */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '1rem'
+              }}>
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Radio size={18} color="#0284c7" />
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      SSE Event Stream Gateway
+                    </h4>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Jalur transmisi push event instan ke antarmuka pengguna aktif tanpa melakukan polling HTTP periodik.
+                  </p>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    padding: '0.6rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    color: '#10b981'
+                  }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    <span>{automationStatus?.sse_clients_count || 1} Klien Web / Aplikasi Terhubung Aktif</span>
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Layers size={18} color="#10b981" />
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Redis Cache &amp; In-Memory State Bus
+                    </h4>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Mendukung concurrency mutex lock per bot untuk mencegah eksekusi ganda yang saling tumpang tindih.
+                  </p>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    padding: '0.6rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    color: automationStatus?.redis_available ? '#10b981' : '#0284c7'
+                  }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: automationStatus?.redis_available ? '#10b981' : '#0284c7' }} />
+                    <span>{automationStatus?.redis_available ? 'Cluster Redis Aktif (Distributed Locks)' : 'In-Memory Ring Buffer & Mutex Active'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Operational Shortcuts */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '1rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Zap size={18} color="#f59e0b" />
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Pintasan Pemicu Cepat (Operational Shortcuts)
+                  </h4>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    disabled={isTriggeringBot !== null}
+                    onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Toko')}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                      border: '1px solid rgba(2, 132, 199, 0.25)',
+                      color: '#0284c7',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Store size={16} />
+                    <span>Pindai Toko &amp; Paket</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isTriggeringBot !== null}
+                    onClick={() => handleTriggerBot('promo_expiry', 'Promo Merchant')}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      color: '#10b981',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Tag size={16} />
+                    <span>Pindai Kupon Promo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isTriggeringBot !== null}
+                    onClick={() => handleTriggerBot('cleaner_worker', 'Pembersih Notifikasi')}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(244, 63, 94, 0.08)',
+                      border: '1px solid rgba(244, 63, 94, 0.25)',
+                      color: '#f43f5e',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    <span>Bersihkan Notif Lama</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAutomationSubView('sandbox')}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(234, 179, 8, 0.08)',
+                      border: '1px solid rgba(234, 179, 8, 0.25)',
+                      color: '#eab308',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Zap size={16} />
+                    <span>Buka Sandbox Uji Coba</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --------------------------------------------------------------------- */}
+          {/* SUB-VIEW 2: 9 BOTS MATRIX CATALOG                                     */}
+          {/* --------------------------------------------------------------------- */}
+          {automationSubView === 'bots' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Bot size={18} color="#0284c7" />
+                  <span>Katalog 9 Bot Platform (Interactive Control Center)</span>
+                </h4>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Klik tombol <strong>"Jalankan Sekarang"</strong> untuk memicu eksekusi on-demand
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                {[
+                  {
+                    id: 'store_expiry',
+                    name: 'Bot Kedaluwarsa & Paket Toko',
+                    category: 'Lifecycle',
+                    categoryColor: '#3b82f6',
+                    freq: 'Setiap 1 Jam',
+                    desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status toko menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
+                    icon: <Store size={22} color="#3b82f6" />,
+                    color: '#3b82f6'
+                  },
+                  {
+                    id: 'dormancy_worker',
+                    name: 'Engine Lifecycle Dormansi Toko',
+                    category: 'Lifecycle',
+                    categoryColor: '#8b5cf6',
+                    freq: 'Setiap 1 Jam',
+                    desc: 'Memindai akun free inaktif secara bertahap: Peringatan Hari ke-30, Pembekuan Hari ke-38, Pengarsipan Hari ke-45, dan Penghapusan Permanen Hari ke-60.',
+                    icon: <Clock size={22} color="#8b5cf6" />,
+                    color: '#8b5cf6'
+                  },
+                  {
+                    id: 'promo_expiry',
+                    name: 'Bot Kedaluwarsa Promo & Kupon',
+                    category: 'Commerce',
+                    categoryColor: '#10b981',
+                    freq: 'Setiap 15 Menit',
+                    desc: 'Memindai voucher diskon & banner promo katalog produk merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
+                    icon: <Tag size={22} color="#10b981" />,
+                    color: '#10b981'
+                  },
+                  {
+                    id: 'flash_sale',
+                    name: 'Bot Sinkronisasi Flash Sale Realtime',
+                    category: 'Commerce',
+                    categoryColor: '#ef4444',
+                    freq: 'Setiap 5 Menit',
+                    desc: 'Mengaktifkan sesi flash sale terjadwal dan menutup sesi promo diskon yang telah habis waktunya secara otomatis.',
+                    icon: <Zap size={22} color="#ef4444" />,
+                    color: '#ef4444'
+                  },
+                  {
+                    id: 'support_lifecycle',
+                    name: 'Bot Helpdesk SLA & Auto-Resolve',
+                    category: 'Support',
+                    categoryColor: '#06b6d4',
+                    freq: 'Setiap 15 Menit',
+                    desc: 'Mengirimkan pengingat tiket membeku (72 jam), auto-resolve tiket tanpa respon merchant (48 jam), auto-close (7 hari), dan deteksi pelanggaran SLA.',
+                    icon: <HelpCircle size={22} color="#06b6d4" />,
+                    color: '#06b6d4'
+                  },
+                  {
+                    id: 'cleaner_worker',
+                    name: 'Worker Pembersih Notifikasi & Log',
+                    category: 'System',
+                    categoryColor: '#64748b',
+                    freq: 'Setiap 1 Jam',
+                    desc: 'Menghapus notifikasi kedaluwarsa dan riwayat terbaca > 30 hari secara berkala guna menjaga performa dan kapasitas penyimpanan basis data.',
+                    icon: <Trash2 size={22} color="#64748b" />,
+                    color: '#64748b'
+                  },
+                  {
+                    id: 'weekly_summary',
+                    name: 'Bot Ringkasan Mingguan Platform',
+                    category: 'System',
+                    categoryColor: '#f59e0b',
+                    freq: 'Setiap Minggu 08:00 WIB',
+                    desc: 'Mengompilasi statistik transaksi mingguan, pendaftaran merchant baru, kepatuhan, dan mempublikasikan ringkasan otomatis ke dashboard pengelola.',
+                    icon: <BarChart3 size={22} color="#f59e0b" />,
+                    color: '#f59e0b'
+                  },
+                  {
+                    id: 'onboarding_engine',
+                    name: 'Bot Panduan Onboarding Toko Baru',
+                    category: 'Lifecycle',
+                    categoryColor: '#10b981',
+                    freq: 'Event-Driven Realtime',
+                    desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran toko.',
+                    icon: <Award size={22} color="#10b981" />,
+                    color: '#10b981'
+                  },
+                  {
+                    id: 'sse_hub',
+                    name: 'SSE Realtime Streaming Gateway',
+                    category: 'Streaming',
+                    categoryColor: '#38bdf8',
+                    freq: 'Persistent Web Streaming',
+                    desc: 'Melayani transmisi siaran, status pergerakan tiket CS, dan pembaruan notifikasi langsung tanpa polling ke seluruh aplikasi pengguna aktif.',
+                    icon: <Radio size={22} color="#38bdf8" />,
+                    color: '#38bdf8'
+                  }
+                ].map(bot => {
+                  const isRunning = isTriggeringBot === bot.id;
+                  const runtimeWorker = automationStatus?.workers?.find((w: any) => w.name === bot.id);
+                  const isExecuting = runtimeWorker?.is_executing || isRunning;
+
+                  return (
+                    <div
+                      key={bot.id}
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '0.85rem'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '0.75rem',
+                              backgroundColor: `${bot.categoryColor}15`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {bot.icon}
+                            </div>
+                            <div>
+                              <h5 style={{ margin: '0 0 0.15rem', fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                {bot.name}
+                              </h5>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 800,
+                                  padding: '0.08rem 0.45rem',
+                                  borderRadius: '0.35rem',
+                                  backgroundColor: `${bot.categoryColor}20`,
+                                  color: bot.categoryColor
+                                }}>
+                                  {bot.category}
+                                </span>
+                                <span style={{ fontSize: '0.72rem', color: bot.color, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                  <Clock size={11} />
+                                  <span>{bot.freq}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {bot.desc}
+                        </p>
+                      </div>
+
+                      <div style={{
+                        paddingTop: '0.75rem',
+                        borderTop: '1px solid var(--border-light)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAutomationLogsBotFilter(bot.id);
+                            setAutomationSubView('logs');
+                            fetchAutomationData(bot.id, automationLogsStatusFilter, debouncedAutomationSearch);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#0284c7',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: 0
+                          }}
+                        >
+                          <span>Log Eksekusi →</span>
+                        </button>
+
+                        {bot.id !== 'sse_hub' && bot.id !== 'onboarding_engine' && (
+                          <button
+                            type="button"
+                            disabled={isExecuting || isTriggeringBot !== null}
+                            onClick={() => handleTriggerBot(bot.id, bot.name)}
+                            style={{
+                              padding: '0.45rem 0.95rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: isExecuting ? 'rgba(245, 158, 11, 0.2)' : '#0284c7',
+                              border: 'none',
+                              color: '#fff',
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              cursor: (isExecuting || isTriggeringBot !== null) ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.2)'
+                            }}
+                          >
+                            {isExecuting ? (
+                              <>
+                                <Loader2 size={13} className="spin" />
+                                <span>Memproses...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play size={13} fill="currentColor" />
+                                <span>Jalankan</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* --------------------------------------------------------------------- */}
+          {/* SUB-VIEW 3: EXECUTION LOGS & AUDIT TRAIL STREAM                       */}
+          {/* --------------------------------------------------------------------- */}
+          {automationSubView === 'logs' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Filter Controls Bar */}
+              <div style={{
+                padding: '1.25rem',
+                borderRadius: '1rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  {/* Bot Filter Pills */}
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all', label: 'Semua Bot' },
+                      { id: 'store_expiry', label: 'Toko Expired' },
+                      { id: 'dormancy_worker', label: 'Dormansi Toko' },
+                      { id: 'promo_expiry', label: 'Promo Merchant' },
+                      { id: 'flash_sale', label: 'Flash Sale' },
+                      { id: 'support_lifecycle', label: 'Support SLA' },
+                      { id: 'cleaner_worker', label: 'Pembersih Data' },
+                      { id: 'weekly_summary', label: 'Ringkasan Mingguan' }
+                    ].map(chip => (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => {
+                          setAutomationLogsBotFilter(chip.id);
+                          fetchAutomationData(chip.id, automationLogsStatusFilter, debouncedAutomationSearch);
+                        }}
+                        style={{
+                          padding: '0.35rem 0.8rem',
+                          borderRadius: '0.6rem',
+                          fontSize: '0.78rem',
+                          fontWeight: automationLogsBotFilter === chip.id ? 800 : 600,
+                          border: `1px solid ${automationLogsBotFilter === chip.id ? '#0284c7' : 'var(--border-light)'}`,
+                          backgroundColor: automationLogsBotFilter === chip.id ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+                          color: automationLogsBotFilter === chip.id ? '#0284c7' : 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Status Filters */}
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    {['all', 'success', 'error'].map(st => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => {
+                          setAutomationLogsStatusFilter(st);
+                          fetchAutomationData(automationLogsBotFilter, st, debouncedAutomationSearch);
+                        }}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.6rem',
+                          fontSize: '0.75rem',
+                          fontWeight: automationLogsStatusFilter === st ? 800 : 600,
+                          border: `1px solid ${automationLogsStatusFilter === st ? '#10b981' : 'var(--border-light)'}`,
+                          backgroundColor: automationLogsStatusFilter === st ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                          color: automationLogsStatusFilter === st ? '#10b981' : 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {st === 'all' ? 'Semua Status' : (st === 'success' ? 'Sukses' : 'Gagal')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div style={{ position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                  <input
+                    type="text"
+                    placeholder="Cari rincian eksekusi log, target ID, atau pesan error..."
+                    value={automationLogsSearch}
+                    onChange={e => setAutomationLogsSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 1rem 0.65rem 2.4rem',
+                      borderRadius: '0.75rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Logs Stream List */}
+              {isFetchingAutomation ? (
+                <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
+                  <Loader2 size={26} className="spin" color="#0284c7" style={{ margin: '0 auto 0.65rem' }} />
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Menyinkronkan log eksekusi bot platform...</p>
+                </div>
+              ) : automationLogs.length === 0 ? (
+                <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
+                  <Clock size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.4, color: '#0284c7' }} />
+                  <h4 style={{ margin: '0 0 0.35rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Belum Ada Log Eksekusi</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Tidak ada riwayat eksekusi bot yang cocok dengan kriteria filter saat ini.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {automationLogs.map((log, idx) => {
+                    const isSuccess = log.status === 'success';
+                    const statusColor = isSuccess ? '#10b981' : (log.status === 'info' ? '#0284c7' : '#ef4444');
+                    const statusBg = isSuccess ? 'rgba(16, 185, 129, 0.12)' : (log.status === 'info' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(239, 68, 68, 0.12)');
+                    const timeVal = log.timestamp || log.created_at;
+
+                    return (
+                      <div
+                        key={log.id || idx}
+                        style={{
+                          padding: '1.1rem 1.25rem',
+                          borderRadius: '0.95rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.55rem',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '0.15rem 0.55rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: statusBg,
+                              color: statusColor
+                            }}>
+                              {log.status ? log.status.toUpperCase() : 'SUKSES'}
+                            </span>
+                            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              {log.bot_title || log.bot_name || log.bot_type}
+                            </span>
+                          </div>
+
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                            {timeVal ? new Date(timeVal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':') : 'Baru saja'}
+                          </span>
+                        </div>
+
+                        <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {log.details || log.message}
+                        </p>
+
+                        {log.error_message && (
+                          <div style={{
+                            padding: '0.6rem 0.85rem',
+                            borderRadius: '0.6rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: '#ef4444',
+                            fontSize: '0.78rem',
+                            fontWeight: 600
+                          }}>
+                            <strong>Error Trace:</strong> {log.error_message}
+                          </div>
+                        )}
+
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingTop: '0.5rem',
+                          borderTop: '1px solid var(--border-light)',
+                          fontSize: '0.75rem',
+                          color: 'var(--text-secondary)'
+                        }}>
+                          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <span>Durasi Proses: <strong style={{ color: 'var(--text-primary)' }}>{log.duration_ms ?? 0} ms</strong></span>
+                            <span>•</span>
+                            <span>Terdampak: <strong style={{ color: 'var(--text-primary)' }}>{log.affected_count ?? 0} entitas</strong></span>
+                            <span>•</span>
+                            <span>Aktor: <strong style={{ color: 'var(--text-primary)' }}>{log.triggered_by || 'Daemon Cron'}</strong></span>
+                          </div>
+
+                          <span style={{
+                            fontSize: '0.7rem',
+                            padding: '0.12rem 0.5rem',
+                            borderRadius: '0.4rem',
+                            backgroundColor: log.trigger_type === 'manual' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                            color: log.trigger_type === 'manual' ? '#f59e0b' : '#6366f1',
+                            fontWeight: 700
+                          }}>
+                            {log.trigger_type === 'manual' ? '⚡ Pemicu Manual' : '⏰ Cron Terjadwal'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Logs Pagination Bar */}
+              {automationLogsTotalPages > 1 && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0.85rem 1.25rem',
                   borderRadius: '0.85rem',
                   backgroundColor: 'var(--bg-card)',
                   border: '1px solid var(--border-light)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <span style={{
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '0.35rem',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                      color: '#8b5cf6',
-                      textTransform: 'uppercase'
-                    }}>
-                      {b.type || 'INFO'}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {b.created_at ? new Date(b.created_at).toLocaleDateString('id-ID') : ''}
-                    </span>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    Halaman <strong>{automationLogsPage}</strong> dari <strong>{automationLogsTotalPages}</strong> ({automationLogsTotal} Total Log)
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => fetchAutomationData(automationLogsBotFilter, automationLogsStatusFilter, debouncedAutomationSearch, automationLogsPage - 1)}
+                      disabled={automationLogsPage <= 1 || isFetchingAutomation}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: automationLogsPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                        opacity: automationLogsPage <= 1 ? 0.5 : 1,
+                        cursor: automationLogsPage <= 1 ? 'not-allowed' : 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      <ChevronLeft size={15} /> Sebelumnya
+                    </button>
+                    <button
+                      onClick={() => fetchAutomationData(automationLogsBotFilter, automationLogsStatusFilter, debouncedAutomationSearch, automationLogsPage + 1)}
+                      disabled={automationLogsPage >= automationLogsTotalPages || isFetchingAutomation}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: automationLogsPage >= automationLogsTotalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+                        opacity: automationLogsPage >= automationLogsTotalPages ? 0.5 : 1,
+                        cursor: automationLogsPage >= automationLogsTotalPages ? 'not-allowed' : 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      Selanjutnya <ChevronRight size={15} />
+                    </button>
                   </div>
-                  <h4 style={{ margin: '0 0 0.35rem', fontSize: '1rem', color: 'var(--text-primary)' }}>{b.title}</h4>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{b.message}</p>
-                </div>
-              ))}
-              {broadcasts.length === 0 && (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', gridColumn: '1 / -1', backgroundColor: 'var(--bg-card)', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
-                  Belum ada siaran broadcast aktif. Klik tombol "Buat Siaran Baru" di atas.
                 </div>
               )}
+            </div>
+          )}
+
+          {/* --------------------------------------------------------------------- */}
+          {/* SUB-VIEW 4: SANDBOX & SIMULATOR ENGINE                                */}
+          {/* --------------------------------------------------------------------- */}
+          {automationSubView === 'sandbox' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{
+                padding: '1.5rem',
+                borderRadius: '1rem',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    color: '#f59e0b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Zap size={22} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 0.15rem', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Sandbox Simulator &amp; Pengujian Bot Platform
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                      Uji coba dan validasi transmisi SSE real-time serta eksekusi background worker secara aman.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5
+                }}>
+                  💡 <strong>Informasi Simulator:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi event SSE secara instan, memverifikasi status websocket/SSE listener di browser klien, dan melakukan eksekusi on-demand tanpa merusak integritas basis data.
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <button
+                    type="button"
+                    disabled={isTestingSandbox}
+                    onClick={handleRunSandboxTest}
+                    style={{
+                      padding: '0.85rem 1.5rem',
+                      borderRadius: '0.85rem',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: '#000',
+                      fontSize: '0.88rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: isTestingSandbox ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 14px rgba(245, 158, 11, 0.3)'
+                    }}
+                  >
+                    {isTestingSandbox ? (
+                      <>
+                        <Loader2 size={18} className="spin" />
+                        <span>Mengirimkan Event Simulasi SSE Real-Time...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        <span>Uji Transmisi Event SSE (Kirim Simulasi Panduan)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      disabled={isTriggeringBot !== null}
+                      onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Toko')}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Store size={16} color="#3b82f6" />
+                      <span>Simulasi Toko Expired</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isTriggeringBot !== null}
+                      onClick={() => handleTriggerBot('dormancy_worker', 'Dormansi Toko')}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Clock size={16} color="#8b5cf6" />
+                      <span>Simulasi Dormansi</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isTriggeringBot !== null}
+                      onClick={() => handleTriggerBot('promo_expiry', 'Promo Merchant')}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Tag size={16} color="#10b981" />
+                      <span>Simulasi Promo Expired</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isTriggeringBot !== null}
+                      onClick={() => handleTriggerBot('cleaner_worker', 'Pembersih Notifikasi')}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Trash2 size={16} color="#f43f5e" />
+                      <span>Simulasi Pembersihan</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* DESKTOP MODAL: DETAIL & ANALISIS SIARAN */}
+      {selectedBroadcastDetail && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+          onClick={handleCloseBroadcastDetail}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '620px',
+              maxHeight: '90vh',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.6rem',
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  color: '#8b5cf6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Megaphone size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Rincian Siaran Platform
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    ID #{selectedBroadcastDetail.id} • Dibuat pada {new Date(selectedBroadcastDetail.created_at).toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseBroadcastDetail}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Target & Read Stats Badges */}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  color: '#8b5cf6',
+                  textTransform: 'uppercase'
+                }}>
+                  {selectedBroadcastDetail.category || 'PENGUMUMAN'}
+                </span>
+                <span style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                  color: '#3b82f6'
+                }}>
+                  Target: {selectedBroadcastDetail.target_type === 'all' ? 'Semua Merchant' :
+                           selectedBroadcastDetail.target_type === 'plan' ? `Paket ${selectedBroadcastDetail.target_plan_code?.toUpperCase()}` :
+                           selectedBroadcastDetail.target_name || selectedBroadcastDetail.target_type}
+                </span>
+                <span style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  color: '#10b981'
+                }}>
+                  👁️ {selectedBroadcastDetail.read_count || 0} Merchant Telah Membaca
+                </span>
+              </div>
+
+              {/* Title & Message */}
+              <div>
+                <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  {selectedBroadcastDetail.title}
+                </h3>
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {selectedBroadcastDetail.message}
+                </div>
+              </div>
+
+              {/* Full Rich Content Detail if any */}
+              {selectedBroadcastDetail.detail_content && (
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Isi Pengumuman Lengkap:
+                  </h4>
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem',
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    {selectedBroadcastDetail.detail_content}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Preview Button */}
+              {selectedBroadcastDetail.action_type && selectedBroadcastDetail.action_type !== 'none' && (
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Tindakan Aksi Penerima:</span>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', fontWeight: 700, color: '#8b5cf6' }}>
+                      {selectedBroadcastDetail.action_label || 'Buka Rincian Pengumuman →'}
+                    </p>
+                  </div>
+                  <span style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: '#8b5cf6',
+                    color: '#fff',
+                    fontSize: '0.75rem',
+                    fontWeight: 700
+                  }}>
+                    Simulasi Tombol
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <button
+                onClick={() => {
+                  const id = selectedBroadcastDetail.id;
+                  handleCloseBroadcastDetail();
+                  handleDeleteBroadcast(id);
+                }}
+                style={{
+                  padding: '0.55rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: '#ef4444',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Trash2 size={15} /> Hapus Siaran
+              </button>
+
+              <button
+                onClick={handleCloseBroadcastDetail}
+                style={{
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Broadcast Create Modal */}
+      {/* DESKTOP MODAL: 2-COLUMN BROADCAST CREATION & LIVE PREVIEW */}
       {showBroadcastModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(6px)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            borderRadius: '1.25rem',
-            width: '100%',
-            maxWidth: '520px',
-            padding: '1.75rem',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Megaphone size={20} color="#8b5cf6" /> Buat Siaran Notifikasi Global
-              </h3>
-              <button onClick={() => setShowBroadcastModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                <XCircle size={20} />
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+          onClick={() => setShowBroadcastModal(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '1.25rem',
+              width: '100%',
+              maxWidth: '960px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-deep)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.6rem',
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Megaphone size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Buat Siaran Notifikasi Global Platform
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Pilih segmentasi audiens sasaran, rancang pesan, dan pantau live preview sebelum mengirimkan siaran.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBroadcastModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                  Judul Siaran:
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={broadcastForm.title}
-                  onChange={e => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
-                  placeholder="Contoh: Pemeliharaan Server Terjadwal"
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
+            {/* 2-Column Form & Live Preview Grid */}
+            <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1.15fr 0.85fr',
+                gap: '1.5rem',
+                padding: '1.5rem',
+                overflowY: 'auto',
+                flex: 1
+              }}>
+                {/* Left Column: Form Controls */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {/* Target Audience Segmentation */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.45rem' }}>
+                      Target Segmentasi Penerima:
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { id: 'all', label: 'Semua', icon: Globe },
+                        { id: 'plan', label: 'Paket', icon: Sparkles },
+                        { id: 'single_store', label: 'Toko Tertentu', icon: Store },
+                        { id: 'single_user', label: 'User Tertentu', icon: Users },
+                      ].map(t => {
+                        const isSel = broadcastForm.target_type === t.id;
+                        const IconComponent = t.icon;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setBroadcastForm({
+                                ...broadcastForm,
+                                target_type: t.id as any,
+                                target_id: 0,
+                                target_name: ''
+                              });
+                            }}
+                            style={{
+                              padding: '0.6rem 0.4rem',
+                              borderRadius: '0.65rem',
+                              border: isSel ? '1.5px solid #8b5cf6' : '1px solid var(--border-light)',
+                              backgroundColor: isSel ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-deep)',
+                              color: isSel ? '#8b5cf6' : 'var(--text-primary)',
+                              fontWeight: isSel ? 700 : 500,
+                              fontSize: '0.78rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <IconComponent size={16} />
+                            <span>{t.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              <div>
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                  Pesan Notifikasi:
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={broadcastForm.message}
-                  onChange={e => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
-                  placeholder="Tuliskan rincian pengumuman yang akan diterima seluruh pemilik toko..."
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    outline: 'none',
-                    resize: 'vertical',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
+                  {/* If Plan Tier Selected */}
+                  {broadcastForm.target_type === 'plan' && (
+                    <div style={{ animation: 'fadeIn 0.2s' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Pilih Tier Paket Merchant:
+                      </label>
+                      <select
+                        value={broadcastForm.target_plan_code}
+                        onChange={e => setBroadcastForm({ ...broadcastForm, target_plan_code: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.85rem',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="free">Paket Free / Merchant Gratis</option>
+                        <option value="pro">Paket Pro Merchant</option>
+                        <option value="enterprise">Paket Enterprise / Corporate</option>
+                      </select>
+                    </div>
+                  )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                    Tipe Pengumuman:
-                  </label>
-                  <select
-                    value={broadcastForm.type}
-                    onChange={e => setBroadcastForm({ ...broadcastForm, type: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.875rem',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="info">Informasi Umum</option>
-                    <option value="warning">Peringatan / Urgent</option>
-                    <option value="success">Promo &amp; Update Baru</option>
-                  </select>
+                  {/* If Single Store Target with Autocomplete Search */}
+                  {broadcastForm.target_type === 'single_store' && (
+                    <div style={{ position: 'relative', animation: 'fadeIn 0.2s' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Cari &amp; Pilih Toko Merchant Sasaran:
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <Search size={15} color="var(--text-secondary)" style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)' }} />
+                        <input
+                          type="text"
+                          value={selectedStoreTarget ? selectedStoreTarget.name : targetStoreSearch}
+                          onChange={e => {
+                            setSelectedStoreTarget(null);
+                            setTargetStoreSearch(e.target.value);
+                            setBroadcastForm(prev => ({ ...prev, target_id: 0, target_name: '' }));
+                          }}
+                          placeholder="Ketik nama toko atau domain..."
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.85rem 0.6rem 2.2rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: selectedStoreTarget ? '1.5px solid #10b981' : '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        {selectedStoreTarget && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStoreTarget(null);
+                              setTargetStoreSearch('');
+                              setBroadcastForm(prev => ({ ...prev, target_id: 0, target_name: '' }));
+                            }}
+                            style={{
+                              position: 'absolute',
+                              right: '0.65rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dropdown Suggestions */}
+                      {storeSuggestions.length > 0 && !selectedStoreTarget && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          zIndex: 100,
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: '0.65rem',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                          maxHeight: '180px',
+                          overflowY: 'auto',
+                          marginTop: '0.25rem'
+                        }}>
+                          {storeSuggestions.map(st => (
+                            <div
+                              key={st.id}
+                              onClick={() => {
+                                setSelectedStoreTarget(st);
+                                setBroadcastForm(prev => ({ ...prev, target_id: st.id, target_name: st.name }));
+                                setStoreSuggestions([]);
+                              }}
+                              style={{
+                                padding: '0.6rem 0.85rem',
+                                borderBottom: '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                fontSize: '0.82rem',
+                                color: 'var(--text-primary)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <div>
+                                <strong>{st.name}</strong>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: '0.4rem' }}>
+                                  ({st.domain || st.slug || `ID #${st.id}`})
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>Pilih</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* If Single User Target with Autocomplete Search */}
+                  {broadcastForm.target_type === 'single_user' && (
+                    <div style={{ position: 'relative', animation: 'fadeIn 0.2s' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Cari &amp; Pilih User / Pemilik Akun Sasaran:
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <Search size={15} color="var(--text-secondary)" style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)' }} />
+                        <input
+                          type="text"
+                          value={selectedUserTarget ? `${selectedUserTarget.name} (${selectedUserTarget.email})` : targetUserSearch}
+                          onChange={e => {
+                            setSelectedUserTarget(null);
+                            setTargetUserSearch(e.target.value);
+                            setBroadcastForm(prev => ({ ...prev, target_id: 0, target_name: '' }));
+                          }}
+                          placeholder="Ketik nama atau email user..."
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.85rem 0.6rem 2.2rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: selectedUserTarget ? '1.5px solid #f59e0b' : '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        {selectedUserTarget && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedUserTarget(null);
+                              setTargetUserSearch('');
+                              setBroadcastForm(prev => ({ ...prev, target_id: 0, target_name: '' }));
+                            }}
+                            style={{
+                              position: 'absolute',
+                              right: '0.65rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-secondary)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dropdown Suggestions */}
+                      {userSuggestions.length > 0 && !selectedUserTarget && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          zIndex: 100,
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: '0.65rem',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                          maxHeight: '180px',
+                          overflowY: 'auto',
+                          marginTop: '0.25rem'
+                        }}>
+                          {userSuggestions.map(u => (
+                            <div
+                              key={u.id}
+                              onClick={() => {
+                                setSelectedUserTarget(u);
+                                setBroadcastForm(prev => ({ ...prev, target_id: u.id, target_name: u.name }));
+                                setUserSuggestions([]);
+                              }}
+                              style={{
+                                padding: '0.6rem 0.85rem',
+                                borderBottom: '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                fontSize: '0.82rem',
+                                color: 'var(--text-primary)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <div>
+                                <strong>{u.name}</strong>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: '0.4rem' }}>
+                                  ({u.email})
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 600 }}>Pilih</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Category & Urgency Type Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Kategori Siaran:
+                      </label>
+                      <select
+                        value={broadcastForm.category}
+                        onChange={e => setBroadcastForm({ ...broadcastForm, category: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.85rem',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="PENGUMUMAN">PENGUMUMAN</option>
+                        <option value="PEMELIHARAAN">PEMELIHARAAN SISTEM</option>
+                        <option value="PROMO">PROMO &amp; FITUR BARU</option>
+                        <option value="KEBIJAKAN">KEBIJAKAN &amp; SYARAT</option>
+                        <option value="SISTEM">NOTIFIKASI SISTEM</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Tingkat Urgensi / Tipe:
+                      </label>
+                      <select
+                        value={broadcastForm.type}
+                        onChange={e => setBroadcastForm({ ...broadcastForm, type: e.target.value as any })}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.85rem',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="info">Informasi Normal (Biru/Ungu)</option>
+                        <option value="warning">Peringatan Penting (Amber)</option>
+                        <option value="success">Sukses / Promo (Hijau)</option>
+                        <option value="system">Pemberitahuan Sistem (Abu-abu)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Broadcast Title */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                      Judul Siaran:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={broadcastForm.title}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
+                      placeholder="Contoh: Pemeliharaan Server Terjadwal Malam Ini"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Short Summary Message (Toast & In-App Push) */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                      Ringkasan Notifikasi (Pop-up Toast / Cuplikan Singkat):
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={broadcastForm.message}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
+                      placeholder="Tuliskan 1-3 kalimat ringkas pengumuman..."
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        resize: 'vertical',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Detailed Rich Content Announcement */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                      Isi Pengumuman Lengkap (Opsional untuk Popup Rinci):
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={broadcastForm.detail_content}
+                      onChange={e => setBroadcastForm({ ...broadcastForm, detail_content: e.target.value })}
+                      placeholder="Tuliskan penjelasan detail, langkah-langkah, atau rincian lengkap yang akan dibaca saat pengguna klik lihat pengumuman..."
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        resize: 'vertical',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Action Behavior & Duration Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Tindakan / Aksi Ketika Diklik:
+                      </label>
+                      <select
+                        value={broadcastForm.action_type}
+                        onChange={e => setBroadcastForm({ ...broadcastForm, action_type: e.target.value as any })}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.85rem',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="detail">Buka Modal Pengumuman Lengkap</option>
+                        <option value="navigate">Navigasi ke Tab Aplikasi Tertentu</option>
+                        <option value="external_link">Buka URL Link Eksternal</option>
+                        <option value="none">Hanya Notifikasi Ringkas (Tanpa Aksi)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Masa Tayang / Expired:
+                      </label>
+                      <select
+                        value={broadcastForm.expires_in_hours}
+                        onChange={e => setBroadcastForm({ ...broadcastForm, expires_in_hours: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.85rem',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value={0}>Aktif Selamanya (Tanpa Kadaluarsa)</option>
+                        <option value={24}>24 Jam (1 Hari)</option>
+                        <option value={72}>3 Hari</option>
+                        <option value={168}>7 Hari (1 Minggu)</option>
+                        <option value={720}>30 Hari (1 Bulan)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Conditional Action Input Fields */}
+                  {broadcastForm.action_type === 'external_link' && (
+                    <div style={{ animation: 'fadeIn 0.2s' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                        Tautan URL Eksternal:
+                      </label>
+                      <input
+                        type="url"
+                        value={broadcastForm.action_url}
+                        onChange={e => setBroadcastForm({ ...broadcastForm, action_url: e.target.value })}
+                        placeholder="https://example.com/pengumuman-update"
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.85rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {broadcastForm.action_type === 'navigate' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', animation: 'fadeIn 0.2s' }}>
+                      <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                          Target Menu Desktop:
+                        </label>
+                        <select
+                          value={broadcastForm.link_sub_tab}
+                          onChange={e => setBroadcastForm({ ...broadcastForm, link_sub_tab: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.85rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="settings">Pengaturan Toko</option>
+                          <option value="subscription">Paket Langganan</option>
+                          <option value="support">Pusat Bantuan &amp; Tiket</option>
+                          <option value="products">Manajemen Produk</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
+                          Target Menu Mobile:
+                        </label>
+                        <select
+                          value={broadcastForm.link_mobile_settings_tab}
+                          onChange={e => setBroadcastForm({ ...broadcastForm, link_mobile_settings_tab: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.85rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="about">Tentang Platform</option>
+                          <option value="subscription">Menu Langganan</option>
+                          <option value="support">Tiket Bantuan</option>
+                          <option value="profile">Profil Akun</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                    Target Audiens:
-                  </label>
-                  <select
-                    value={broadcastForm.target_role}
-                    onChange={e => setBroadcastForm({ ...broadcastForm, target_role: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.875rem',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="all">Semua Merchant &amp; Pengunjung</option>
-                    <option value="pro">Hanya Toko Pro &amp; Enterprise</option>
-                  </select>
+
+                {/* Right Column: Live Interactive Mockup / Preview Card */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      ⚡ Pratinjau Langsung (Live Preview)
+                    </span>
+                    <span style={{
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '999px',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                      color: '#8b5cf6'
+                    }}>
+                      Tampilan Merchant
+                    </span>
+                  </div>
+
+                  {/* Simulated Toast Notification Card */}
+                  <div style={{
+                    padding: '1.25rem',
+                    borderRadius: '1rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1.5px solid var(--border-light)',
+                    boxShadow: '0 12px 30px rgba(0,0,0,0.15)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.85rem'
+                  }}>
+                    {/* Header in Preview */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.35rem',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                          color: '#8b5cf6',
+                          textTransform: 'uppercase'
+                        }}>
+                          {broadcastForm.category || 'PENGUMUMAN'}
+                        </span>
+                        <span style={{
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.35rem',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          backgroundColor:
+                            broadcastForm.type === 'warning' ? 'rgba(245, 158, 11, 0.15)' :
+                            broadcastForm.type === 'success' ? 'rgba(16, 185, 129, 0.15)' :
+                            broadcastForm.type === 'system' ? 'rgba(100, 116, 139, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                          color:
+                            broadcastForm.type === 'warning' ? '#f59e0b' :
+                            broadcastForm.type === 'success' ? '#10b981' :
+                            broadcastForm.type === 'system' ? '#64748b' : '#3b82f6',
+                          textTransform: 'uppercase'
+                        }}>
+                          {broadcastForm.type}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Baru saja</span>
+                    </div>
+
+                    {/* Title in Preview */}
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                      {broadcastForm.title || 'Judul Siaran Notifikasi...'}
+                    </h4>
+
+                    {/* Message snippet in Preview */}
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      {broadcastForm.message || 'Isi ringkasan notifikasi akan tampil di sini kepada pemilik toko...'}
+                    </p>
+
+                    {/* Simulated Action Button */}
+                    {broadcastForm.action_type !== 'none' && (
+                      <button
+                        type="button"
+                        style={{
+                          marginTop: '0.25rem',
+                          padding: '0.55rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                          border: '1px solid rgba(139, 92, 246, 0.25)',
+                          color: '#8b5cf6',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          cursor: 'default'
+                        }}
+                      >
+                        {broadcastForm.action_type === 'detail' && '📄 Buka Pengumuman Lengkap →'}
+                        {broadcastForm.action_type === 'navigate' && '🧭 Buka Halaman Terkait →'}
+                        {broadcastForm.action_type === 'external_link' && '🔗 Kunjungi Tautan →'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Segmentation Badge Preview */}
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem'
+                  }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Penerima yang Memenuhi Syarat:</span>
+                    <div>
+                      {broadcastForm.target_type === 'all' && '🌐 Seluruh toko merchant & pengunjung aktif'}
+                      {broadcastForm.target_type === 'plan' && `✨ Khusus toko dengan tier langganan ${broadcastForm.target_plan_code.toUpperCase()}`}
+                      {broadcastForm.target_type === 'single_store' && `🏪 Khusus toko: ${selectedStoreTarget ? selectedStoreTarget.name : '(Pilih toko sasaran)'}`}
+                      {broadcastForm.target_type === 'single_user' && `👤 Khusus akun: ${selectedUserTarget ? selectedUserTarget.name : '(Pilih akun user sasaran)'}`}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+              {/* Modal Footer */}
+              <div style={{
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid var(--border-light)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: '0.75rem',
+                backgroundColor: 'var(--bg-deep)'
+              }}>
                 <button
                   type="button"
                   onClick={() => setShowBroadcastModal(false)}
                   style={{
-                    padding: '0.6rem 1.1rem',
+                    padding: '0.6rem 1.25rem',
                     borderRadius: '0.65rem',
                     backgroundColor: 'transparent',
                     border: '1px solid var(--border-light)',
                     color: 'var(--text-secondary)',
                     fontWeight: 600,
+                    fontSize: '0.85rem',
                     cursor: 'pointer'
                   }}
                 >
@@ -5566,21 +8513,25 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={sendingBroadcast}
                   style={{
-                    padding: '0.6rem 1.3rem',
+                    padding: '0.6rem 1.5rem',
                     borderRadius: '0.65rem',
-                    backgroundColor: '#8b5cf6',
+                    background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
                     border: 'none',
                     color: '#fff',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    cursor: sendingBroadcast ? 'not-allowed' : 'pointer',
+                    opacity: sendingBroadcast ? 0.7 : 1,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.45rem'
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)'
                   }}
                 >
-                  <Send size={15} />
-                  <span>Kirim Siaran</span>
+                  <Send size={16} />
+                  <span>{sendingBroadcast ? 'Menyebarkan Siaran...' : 'Kirim Siaran Sekarang'}</span>
                 </button>
               </div>
             </form>

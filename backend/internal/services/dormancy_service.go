@@ -405,8 +405,32 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 				Str("user_name", userName).
 				Int("freed_files", deletedFilesCount).
 				Msg("Hard Purge completed. Database records and physical media files successfully reclaimed.")
+
+			GetAutomationTracker().RecordLog(AutomationLogEntry{
+				BotName:   "dormancy_purge",
+				BotTitle:  "Engine Dormansi (Hard Purge)",
+				Target:    store.StoreTitle,
+				TargetID:  store.ID,
+				Action:    "purged_records",
+				Status:    "warning",
+				Details:   fmt.Sprintf("Toko '%s' dan %d berkas media dihapus permanen setelah 60 hari inaktif.", store.StoreTitle, deletedFilesCount),
+				Timestamp: now,
+			})
 		}
 	}
+
+	totalEvents := len(stage1Stores) + len(stage2Stores) + len(stage3Stores) + len(stage4Stores)
+	summary := fmt.Sprintf("Siklus selesai. Diproses: %d toko (W1: %d, W2: %d, Suspend: %d, Purge: %d).",
+		totalEvents, len(stage1Stores), len(stage2Stores), len(stage3Stores), len(stage4Stores))
+
+	GetAutomationTracker().RecordWorkerHeartbeat(
+		"dormancy_worker",
+		"running",
+		summary,
+		"",
+		int64(totalEvents),
+		time.Now().UTC().Add(1*time.Hour),
+	)
 }
 
 // GetDormancyMetrics aggregates high-level dormancy status counts for superadmin insights.

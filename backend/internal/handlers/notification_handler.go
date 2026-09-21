@@ -2,12 +2,16 @@ package handlers
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
@@ -24,26 +28,18 @@ func NewNotificationHandler(db *gorm.DB) *NotificationHandler {
 	return &NotificationHandler{DB: db}
 }
 
-// GetNotifications returns active notifications for the authenticated store/user with pagination.
-func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
-	store, _ := c.Locals("store").(*models.Store)
-	user, _ := c.Locals("user").(*models.User)
-
-	var storeID uint
-	var userID uint
-	storePlan := "free"
-
-	if store != nil {
+// resolveStoreContext accurately extracts and resolves the store context from c.Locals, query slug, or X-Store-Slug header.
+func (h *NotificationHandler) resolveStoreContext(c *fiber.Ctx, user *models.User) (storeID uint, storePlan string, storeCreatedAt time.Time) {
+	storePlan = "free"
+	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
 		storeID = store.ID
+		storeCreatedAt = store.CreatedAt
 		if store.Plan != "" {
 			storePlan = store.Plan
 		}
-	}
-	if user != nil {
-		userID = user.ID
+		return
 	}
 
-	// Resolve exact store from query or header for strict store-scoped notifications
 	requestedSlug := strings.TrimSpace(c.Query("slug"))
 	if requestedSlug == "" {
 		requestedSlug = strings.TrimSpace(c.Get("X-Store-Slug"))
@@ -52,11 +48,24 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		var matchedStore models.Store
 		if err := h.DB.Where("slug = ? AND user_id = ?", requestedSlug, user.ID).First(&matchedStore).Error; err == nil {
 			storeID = matchedStore.ID
+			storeCreatedAt = matchedStore.CreatedAt
 			if matchedStore.Plan != "" {
 				storePlan = matchedStore.Plan
 			}
 		}
 	}
+	return
+}
+
+// GetNotifications returns active notifications for the authenticated store/user with pagination.
+func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
+	user, _ := c.Locals("user").(*models.User)
+	var userID uint
+	if user != nil {
+		userID = user.ID
+	}
+
+	storeID, storePlan, storeCreatedAt := h.resolveStoreContext(c, user)
 
 	// 1. Seed initial standard guide notifications if store has none
 	if storeID > 0 {
@@ -64,6 +73,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	}
 
 	now := time.Now().UTC()
+	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
 
 	// Parse pagination parameters
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -89,26 +99,61 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 
 	var allResults []NotifResult
 
-	// Target matching: all, matching dynamic plan, single_store, single_user
-	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
-
 	baseQuery := h.DB.Table("notifications").
 		Select(`notifications.*, 
 		        notification_reads.id as read_id, 
 		        notification_reads.read_at as read_at_time, 
-		        notification_reads.dismissed_at as dismissed_at`).
-		Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.store_id = ?", storeID).
-		Where(`
-			(notifications.expires_at IS NULL OR notifications.expires_at > ?)
-			AND notifications.created_at >= ?
-			AND (
-				notifications.target_type = 'all'
-				OR (notifications.target_type = 'plan' AND notifications.target_plan_code = ?)
-				OR (notifications.target_type = 'single_store' AND notifications.target_id = ?)
-				OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
-			)
-			AND (notification_reads.dismissed_at IS NULL)
-		`, now, thirtyDaysAgo, storePlan, storeID, userID)
+		        notification_reads.dismissed_at as dismissed_at`)
+
+	if storeID > 0 {
+		// Strict Store Workspace Isolation:
+		// A newly created catalog profile / store only sees:
+		// 1. Its own store notifications (target_type = 'single_store' AND target_id = storeID)
+		// 2. Its specific store recipient broadcasts (target_recipients containing storeID)
+		// 3. Platform broadcasts ('all', 'plan') that were created ON or AFTER the store was created
+		// 4. User notifications sent to userID created ON or AFTER the store was created
+		// This strictly prevents notification history leakage from other stores or past obsolete events.
+		storeCutoff := storeCreatedAt.Add(-2 * time.Minute)
+		if storeCutoff.Before(thirtyDaysAgo) {
+			storeCutoff = thirtyDaysAgo
+		}
+
+		baseQuery = baseQuery.
+			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.store_id = ?", storeID).
+			Where(`
+				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
+				AND (
+					(notifications.target_type = 'single_store' AND notifications.target_id = ?)
+					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
+					OR (notifications.target_type = 'all' AND notifications.created_at >= ?)
+					OR (notifications.target_type = 'plan' AND notifications.target_plan_code = ? AND notifications.created_at >= ?)
+					OR (notifications.target_type = 'single_user' AND notifications.target_id = ? AND notifications.created_at >= ?)
+					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0 AND notifications.created_at >= ?))
+				)
+				AND (notification_reads.dismissed_at IS NULL)
+			`, now,
+				storeID,
+				fmt.Sprintf(`%%"id":%d%%`, storeID), storeID,
+				storeCutoff,
+				storePlan, storeCutoff,
+				userID, storeCutoff,
+				fmt.Sprintf(`%%"id":%d%%`, userID), userID, storeCutoff)
+	} else {
+		// User/Platform level notifications (without store context)
+		baseQuery = baseQuery.
+			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.user_id = ?", userID).
+			Where(`
+				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
+				AND notifications.created_at >= ?
+				AND (
+					notifications.target_type = 'all'
+					OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
+					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
+				)
+				AND (notification_reads.dismissed_at IS NULL)
+			`, now, thirtyDaysAgo, userID,
+				fmt.Sprintf(`%%"id":%d%%`, userID), userID)
+	}
 
 	// Exclude read notifications that have exceeded the 30-day retention window
 	baseQuery = baseQuery.Where(`
@@ -179,22 +224,24 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Notification ID is required"})
 	}
 
-	store, _ := c.Locals("store").(*models.Store)
 	user, _ := c.Locals("user").(*models.User)
-
-	var storeID uint
 	var userID uint
-	if store != nil {
-		storeID = store.ID
-	}
 	if user != nil {
 		userID = user.ID
 	}
+	storeID, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 
 	var readRecord models.NotificationRead
-	err := h.DB.Where("notification_id = ? AND store_id = ?", notifID, storeID).First(&readRecord).Error
+	query := h.DB.Where("notification_id = ?", notifID)
+	if storeID > 0 {
+		query = query.Where("store_id = ?", storeID)
+	} else {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	err := query.First(&readRecord).Error
 	if err == gorm.ErrRecordNotFound {
 		readRecord = models.NotificationRead{
 			NotificationID: notifID,
@@ -218,42 +265,62 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 
 // MarkAllAsRead marks all currently unread visible notifications as read for the store.
 func (h *NotificationHandler) MarkAllAsRead(c *fiber.Ctx) error {
-	store, _ := c.Locals("store").(*models.Store)
 	user, _ := c.Locals("user").(*models.User)
-
-	var storeID uint
 	var userID uint
-	storePlan := "free"
-
-	if store != nil {
-		storeID = store.ID
-		if store.Plan != "" {
-			storePlan = store.Plan
-		}
-	}
 	if user != nil {
 		userID = user.ID
 	}
+	storeID, storePlan, storeCreatedAt := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
+	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
 
-	// Find all unread visible notification IDs
 	var unreadNotifIDs []string
-	err := h.DB.Table("notifications").
-		Select("notifications.id").
-		Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.store_id = ?", storeID).
-		Where(`
-			(notifications.expires_at IS NULL OR notifications.expires_at > ?)
-			AND (
-				notifications.target_type = 'all'
-				OR (notifications.target_type = 'plan' AND notifications.target_plan_code = ?)
-				OR (notifications.target_type = 'single_store' AND notifications.target_id = ?)
-				OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
-			)
-			AND notification_reads.id IS NULL
-		`, now, storePlan, storeID, userID).
-		Pluck("notifications.id", &unreadNotifIDs).Error
+	query := h.DB.Table("notifications").Select("notifications.id")
 
+	if storeID > 0 {
+		storeCutoff := storeCreatedAt.Add(-2 * time.Minute)
+		if storeCutoff.Before(thirtyDaysAgo) {
+			storeCutoff = thirtyDaysAgo
+		}
+
+		query = query.
+			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.store_id = ?", storeID).
+			Where(`
+				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
+				AND (
+					(notifications.target_type = 'single_store' AND notifications.target_id = ?)
+					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
+					OR (notifications.target_type = 'all' AND notifications.created_at >= ?)
+					OR (notifications.target_type = 'plan' AND notifications.target_plan_code = ? AND notifications.created_at >= ?)
+					OR (notifications.target_type = 'single_user' AND notifications.target_id = ? AND notifications.created_at >= ?)
+					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0 AND notifications.created_at >= ?))
+				)
+				AND notification_reads.id IS NULL
+			`, now,
+				storeID,
+				fmt.Sprintf(`%%"id":%d%%`, storeID), storeID,
+				storeCutoff,
+				storePlan, storeCutoff,
+				userID, storeCutoff,
+				fmt.Sprintf(`%%"id":%d%%`, userID), userID, storeCutoff)
+	} else {
+		query = query.
+			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.user_id = ?", userID).
+			Where(`
+				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
+				AND notifications.created_at >= ?
+				AND (
+					notifications.target_type = 'all'
+					OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
+					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
+				)
+				AND notification_reads.id IS NULL
+			`, now, thirtyDaysAgo, userID,
+				fmt.Sprintf(`%%"id":%d%%`, userID), userID)
+	}
+
+	err := query.Pluck("notifications.id", &unreadNotifIDs).Error
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch unread notifications"})
 	}
@@ -277,22 +344,24 @@ func (h *NotificationHandler) MarkAllAsRead(c *fiber.Ctx) error {
 // Dismiss marks a notification as dismissed/hidden for the store.
 func (h *NotificationHandler) Dismiss(c *fiber.Ctx) error {
 	notifID := c.Params("id")
-	store, _ := c.Locals("store").(*models.Store)
 	user, _ := c.Locals("user").(*models.User)
-
-	var storeID uint
 	var userID uint
-	if store != nil {
-		storeID = store.ID
-	}
 	if user != nil {
 		userID = user.ID
 	}
+	storeID, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 
 	var readRecord models.NotificationRead
-	err := h.DB.Where("notification_id = ? AND store_id = ?", notifID, storeID).First(&readRecord).Error
+	query := h.DB.Where("notification_id = ?", notifID)
+	if storeID > 0 {
+		query = query.Where("store_id = ?", storeID)
+	} else {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	err := query.First(&readRecord).Error
 	if err == gorm.ErrRecordNotFound {
 		readRecord = models.NotificationRead{
 			NotificationID: notifID,
@@ -315,17 +384,12 @@ func (h *NotificationHandler) Dismiss(c *fiber.Ctx) error {
 
 // ClearReadNotifications dismisses all notifications that have already been read by the store.
 func (h *NotificationHandler) ClearReadNotifications(c *fiber.Ctx) error {
-	store, _ := c.Locals("store").(*models.Store)
 	user, _ := c.Locals("user").(*models.User)
-
-	var storeID uint
 	var userID uint
-	if store != nil {
-		storeID = store.ID
-	}
 	if user != nil {
 		userID = user.ID
 	}
+	storeID, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 
@@ -354,20 +418,10 @@ func (h *NotificationHandler) ClearReadNotifications(c *fiber.Ctx) error {
 
 // Stream handles Server-Sent Events (SSE) for real-time notification streaming.
 func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
-	store, _ := c.Locals("store").(*models.Store)
 	user, _ := c.Locals("user").(*models.User)
-
-	var storeID uint
 	var userID uint
-	storePlan := "free"
 	platformRole := ""
 
-	if store != nil {
-		storeID = store.ID
-		if store.Plan != "" {
-			storePlan = store.Plan
-		}
-	}
 	if user != nil {
 		userID = user.ID
 		platformRole = user.PlatformRole
@@ -376,20 +430,7 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 		}
 	}
 
-	// Resolve exact store from query or header for strict store-scoped SSE connection
-	requestedSlug := strings.TrimSpace(c.Query("slug"))
-	if requestedSlug == "" {
-		requestedSlug = strings.TrimSpace(c.Get("X-Store-Slug"))
-	}
-	if requestedSlug != "" && user != nil {
-		var matchedStore models.Store
-		if err := h.DB.Where("slug = ? AND user_id = ?", requestedSlug, user.ID).First(&matchedStore).Error; err == nil {
-			storeID = matchedStore.ID
-			if matchedStore.Plan != "" {
-				storePlan = matchedStore.Plan
-			}
-		}
-	}
+	storeID, storePlan, _ := h.resolveStoreContext(c, user)
 
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache, no-transform")
@@ -437,47 +478,115 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	user, _ := c.Locals("user").(*models.User)
 
+	type RecipientItem struct {
+		Type  string `json:"type"`  // 'store' | 'user'
+		ID    uint   `json:"id"`    // StoreID or UserID
+		Name  string `json:"name"`  // Store Name or User Name
+		Slug  string `json:"slug"`  // Store slug
+		Email string `json:"email"` // User email
+		Plan  string `json:"plan"`  // Store plan
+	}
+
 	type BroadcastReq struct {
-		TargetType            string `json:"target_type"`             // 'all', 'plan', 'single_store', 'single_user'
-		TargetPlanCode        string `json:"target_plan_code"`        // e.g. 'free', 'pro_starter', 'pro_business'
-		TargetID              uint   `json:"target_id"`               // store_id or user_id
-		Title                 string `json:"title"`
-		Category              string `json:"category"`
-		Message               string `json:"message"`
-		DetailContent         string `json:"detail_content"`
-		Type                  string `json:"type"`                    // 'warning', 'success', 'order', 'system', 'info'
-		ActionType            string `json:"action_type"`             // 'detail', 'navigate', 'none', 'external_link'
-		LinkSubTab            string `json:"link_sub_tab"`
-		LinkMobileSettingsTab string `json:"link_mobile_settings_tab"`
-		ActionLabel           string `json:"action_label"`
-		ActionURL             string `json:"action_url"`
-		ExpiresInHours        int    `json:"expires_in_hours"`        // 0 = unlimited
-		RetentionHours        int    `json:"retention_hours"`         // default 72
+		TargetType            string          `json:"target_type"`             // 'all', 'plan', 'specific', 'single_store', 'single_user'
+		TargetPlanCode        string          `json:"target_plan_code"`        // e.g. 'free', 'pro', 'enterprise'
+		TargetID              uint            `json:"target_id"`               // store_id or user_id (legacy)
+		TargetName            string          `json:"target_name"`             // store title / user name / email
+		Recipients            []RecipientItem `json:"recipients"`              // multiple targeted stores / users
+		Title                 string          `json:"title"`
+		Category              string          `json:"category"`
+		Message               string          `json:"message"`
+		DetailContent         string          `json:"detail_content"`
+		Type                  string          `json:"type"`                    // 'warning', 'success', 'order', 'system', 'info'
+		ActionEnabled         bool            `json:"action_enabled"`          // explicit toggle for notification action
+		ActionType            string          `json:"action_type"`             // 'detail', 'navigate', 'none', 'external_link'
+		LinkSubTab            string          `json:"link_sub_tab"`
+		LinkMobileSettingsTab string          `json:"link_mobile_settings_tab"`
+		ActionLabel           string          `json:"action_label"`
+		ActionURL             string          `json:"action_url"`
+		ExpiresInHours        int             `json:"expires_in_hours"`        // 0 = unlimited
+		RetentionHours        int             `json:"retention_hours"`         // default 720
 	}
 
 	var req BroadcastReq
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format data tidak valid"})
 	}
 
-	if req.Title == "" || req.Message == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title and message are required"})
+	title := security.SanitizePlainText(req.Title, 150)
+	message := security.SanitizePlainText(req.Message, 2000)
+	if title == "" || message == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Judul dan pesan siaran wajib diisi"})
 	}
 
-	if req.TargetType == "" {
-		req.TargetType = "all"
+	targetType := strings.ToLower(strings.TrimSpace(req.TargetType))
+	if targetType == "" {
+		targetType = "all"
 	}
-	if req.Category == "" {
-		req.Category = "SISTEM"
+	targetPlanCode := strings.ToLower(strings.TrimSpace(req.TargetPlanCode))
+
+	category := strings.ToUpper(strings.TrimSpace(req.Category))
+	if category == "" {
+		category = "PENGUMUMAN"
 	}
-	if req.Type == "" {
-		req.Type = "info"
+
+	notifType := strings.ToLower(strings.TrimSpace(req.Type))
+	if notifType == "" {
+		notifType = "info"
 	}
-	if req.ActionType == "" {
-		req.ActionType = "detail"
+
+	actionType := strings.ToLower(strings.TrimSpace(req.ActionType))
+	if !req.ActionEnabled || actionType == "" {
+		actionType = "none"
 	}
-	if req.RetentionHours <= 0 {
-		req.RetentionHours = 72
+
+	retentionHours := req.RetentionHours
+	if retentionHours <= 0 {
+		retentionHours = 720
+	}
+
+	var targetRecipientsJSON string
+	targetName := security.SanitizePlainText(req.TargetName, 255)
+
+	if targetType == "specific" && len(req.Recipients) > 0 {
+		// Serialize multiple recipients
+		if recBytes, err := json.Marshal(req.Recipients); err == nil {
+			targetRecipientsJSON = string(recBytes)
+		}
+		if len(req.Recipients) == 1 {
+			targetName = req.Recipients[0].Name
+		} else {
+			targetName = fmt.Sprintf("%d Penerima Terpilih (%s, %s%s)",
+				len(req.Recipients),
+				req.Recipients[0].Name,
+				req.Recipients[1].Name,
+				func() string {
+					if len(req.Recipients) > 2 {
+						return fmt.Sprintf(", +%d lainnya", len(req.Recipients)-2)
+					}
+					return ""
+				}())
+		}
+	} else if targetName == "" && req.TargetID > 0 {
+		if targetType == "single_store" {
+			var st models.Store
+			if err := h.DB.Select("slug, store_title").Where("id = ?", req.TargetID).First(&st).Error; err == nil {
+				if st.StoreTitle != "" {
+					targetName = st.StoreTitle
+				} else {
+					targetName = st.Slug
+				}
+			}
+		} else if targetType == "single_user" {
+			var u models.User
+			if err := h.DB.Select("name, email").Where("id = ?", req.TargetID).First(&u).Error; err == nil {
+				if u.Name != "" {
+					targetName = u.Name
+				} else {
+					targetName = u.Email
+				}
+			}
+		}
 	}
 
 	var createdBy uint
@@ -485,50 +594,61 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 		createdBy = user.ID
 	}
 
+	detailContent := ""
+	if req.ActionEnabled && actionType == "detail" {
+		detailContent = security.SanitizeRichText(req.DetailContent, 20000)
+	}
+
+	now := time.Now().UTC()
 	notif := models.Notification{
-		ID:                    "notif_" + uuid.New().String()[:12],
-		TargetType:            req.TargetType,
-		TargetPlanCode:        req.TargetPlanCode,
+		ID:                    "notif_bc_" + uuid.New().String()[:12],
+		TargetType:            targetType,
+		TargetPlanCode:        targetPlanCode,
 		TargetID:              req.TargetID,
-		Title:                 req.Title,
-		Category:              req.Category,
-		Message:               req.Message,
-		DetailContent:         req.DetailContent,
-		Type:                  req.Type,
-		ActionType:            req.ActionType,
-		LinkSubTab:            req.LinkSubTab,
-		LinkMobileSettingsTab: req.LinkMobileSettingsTab,
-		ActionLabel:           req.ActionLabel,
-		ActionURL:             req.ActionURL,
-		RetentionHours:        req.RetentionHours,
+		TargetName:            targetName,
+		TargetRecipients:      targetRecipientsJSON,
+		IsBroadcast:           true,
+		Title:                 title,
+		Category:              category,
+		Message:               message,
+		DetailContent:         detailContent,
+		Type:                  notifType,
+		ActionEnabled:         req.ActionEnabled,
+		ActionType:            actionType,
+		LinkSubTab:            security.SanitizePlainText(req.LinkSubTab, 64),
+		LinkMobileSettingsTab: security.SanitizePlainText(req.LinkMobileSettingsTab, 64),
+		ActionLabel:           security.SanitizePlainText(req.ActionLabel, 128),
+		ActionURL:             security.SanitizeURL(req.ActionURL),
+		RetentionHours:        retentionHours,
 		CreatedBy:             createdBy,
-		CreatedAt:             time.Now().UTC(),
-		UpdatedAt:             time.Now().UTC(),
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}
 
 	if req.ExpiresInHours > 0 {
-		exp := time.Now().UTC().Add(time.Duration(req.ExpiresInHours) * time.Hour)
+		exp := now.Add(time.Duration(req.ExpiresInHours) * time.Hour)
 		notif.ExpiresAt = &exp
 	}
 
 	if err := h.DB.Create(&notif).Error; err != nil {
 		log.Error().Err(err).Msg("Failed to save broadcast notification")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save notification"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Gagal menyimpan notifikasi siaran: %v", err)})
 	}
+
+	// Purge redis broadcast cache on write
+	database.InvalidateBroadcastCache(c.Context())
 
 	// Broadcast instantly via SSE Hub
 	services.GetNotificationHub().Broadcast(&notif)
 
 	// Record Superadmin Audit Log
-	userVal := c.Locals("user")
 	var userID *uint
 	actorName := "Superadmin"
 	actorEmail := "admin@catavor.com"
-	if userVal != nil {
-		u := userVal.(*models.User)
-		userID = &u.ID
-		actorName = u.Name
-		actorEmail = u.Email
+	if user != nil {
+		userID = &user.ID
+		actorName = user.Name
+		actorEmail = user.Email
 	}
 
 	services.RecordActivity(services.RecordActivityParams{
@@ -541,12 +661,14 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 		Category:    "superadmin",
 		EntityType:  "notification",
 		EntityTitle: notif.Title,
-		Description: fmt.Sprintf("Superadmin menyebarkan notifikasi broadcast '%s' (Target: %s).", notif.Title, notif.TargetType),
+		Description: fmt.Sprintf("Superadmin menyebarkan siaran pengumuman '%s' (Target: %s %s).", notif.Title, notif.TargetType, notif.TargetName),
 		Changes: map[string]interface{}{
 			"target_type":      notif.TargetType,
 			"target_plan_code": notif.TargetPlanCode,
+			"target_id":        notif.TargetID,
+			"target_name":      notif.TargetName,
 			"category":         notif.Category,
-			"retention_hours":  notif.RetentionHours,
+			"action_type":      notif.ActionType,
 		},
 		IPAddress: c.IP(),
 		UserAgent: c.Get("User-Agent"),
@@ -554,53 +676,224 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success":      true,
-		"message":      "Notification broadcasted successfully",
+		"message":      "Siaran broadcast berhasil dikirim dan dipublikasikan!",
 		"notification": notif,
 	})
 }
 
-// SuperadminIndex lists all broadcasted notifications with read analytics.
+// SuperadminIndex lists all broadcasted notifications with server-side pagination, search, metrics, and caching.
 func (h *NotificationHandler) SuperadminIndex(c *fiber.Ctx) error {
-	var notifs []models.Notification
-	if err := h.DB.Order("created_at DESC").Find(&notifs).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch notifications"})
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "15"))
+	if limit < 1 {
+		limit = 15
+	} else if limit > 100 {
+		limit = 100
+	}
+	offset := (page - 1) * limit
+
+	status := strings.ToLower(strings.TrimSpace(c.Query("status", "all"))) // 'all', 'active', 'expired'
+	target := strings.ToLower(strings.TrimSpace(c.Query("target", "all"))) // 'all', 'plan', 'store', 'user'
+	category := strings.ToUpper(strings.TrimSpace(c.Query("category", "all")))
+	q := strings.TrimSpace(c.Query("q", ""))
+
+	// 1. Check Redis Cache
+	cacheKey := fmt.Sprintf("p%d_l%d_s%s_t%s_c%s_q%s", page, limit, status, target, category, q)
+	if cachedData, found := database.GetBroadcastListCache(c.Context(), cacheKey); found && cachedData != "" {
+		var cachedResp fiber.Map
+		if err := json.Unmarshal([]byte(cachedData), &cachedResp); err == nil {
+			c.Set("X-Cache", "HIT-REDIS")
+			return c.JSON(cachedResp)
+		}
 	}
 
-	type AdminNotifItem struct {
+	now := time.Now().UTC()
+
+	// Base count & filtering query
+	baseFilter := h.DB.Table("notifications").Where("is_broadcast = true OR created_by > 0")
+
+	if status == "active" {
+		baseFilter = baseFilter.Where("expires_at IS NULL OR expires_at > ?", now)
+	} else if status == "expired" {
+		baseFilter = baseFilter.Where("expires_at IS NOT NULL AND expires_at <= ?", now)
+	}
+
+	if target != "" && target != "all" {
+		if target == "store" {
+			baseFilter = baseFilter.Where("target_type = 'single_store'")
+		} else if target == "user" {
+			baseFilter = baseFilter.Where("target_type = 'single_user'")
+		} else {
+			baseFilter = baseFilter.Where("target_type = ?", target)
+		}
+	}
+
+	if category != "" && category != "ALL" {
+		baseFilter = baseFilter.Where("category = ?", category)
+	}
+
+	if q != "" {
+		term := "%" + strings.ToLower(q) + "%"
+		baseFilter = baseFilter.Where("(LOWER(title) LIKE ? OR LOWER(message) LIKE ? OR LOWER(target_name) LIKE ?)", term, term, term)
+	}
+
+	var totalFiltered int64
+	baseFilter.Count(&totalFiltered)
+
+	// Single Aggregated Query with Anti-N+1 Join for read counts
+	type BroadcastItemWithReads struct {
 		models.Notification
 		ReadCount int64 `json:"read_count"`
 	}
+	var results []BroadcastItemWithReads
 
-	var formatted []AdminNotifItem
-	for _, n := range notifs {
-		var readCount int64
-		h.DB.Model(&models.NotificationRead{}).Where("notification_id = ?", n.ID).Count(&readCount)
-		formatted = append(formatted, AdminNotifItem{
-			Notification: n,
-			ReadCount:    readCount,
-		})
+	query := h.DB.Table("notifications").
+		Select(`notifications.*, COALESCE(reads.cnt, 0) as read_count`).
+		Joins(`LEFT JOIN (
+			SELECT notification_id, COUNT(id) as cnt 
+			FROM notification_reads 
+			GROUP BY notification_id
+		) reads ON reads.notification_id = notifications.id`).
+		Where("notifications.is_broadcast = true OR notifications.created_by > 0")
+
+	if status == "active" {
+		query = query.Where("notifications.expires_at IS NULL OR notifications.expires_at > ?", now)
+	} else if status == "expired" {
+		query = query.Where("notifications.expires_at IS NOT NULL AND notifications.expires_at <= ?", now)
+	}
+	if target != "" && target != "all" {
+		if target == "store" {
+			query = query.Where("notifications.target_type = 'single_store'")
+		} else if target == "user" {
+			query = query.Where("notifications.target_type = 'single_user'")
+		} else {
+			query = query.Where("notifications.target_type = ?", target)
+		}
+	}
+	if category != "" && category != "ALL" {
+		query = query.Where("notifications.category = ?", category)
+	}
+	if q != "" {
+		term := "%" + strings.ToLower(q) + "%"
+		query = query.Where("(LOWER(notifications.title) LIKE ? OR LOWER(notifications.message) LIKE ? OR LOWER(notifications.target_name) LIKE ?)", term, term, term)
+	}
+
+	if err := query.Order("notifications.created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Scan(&results).Error; err != nil {
+		log.Error().Err(err).Msg("Failed to query broadcasts")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal memuat riwayat siaran"})
+	}
+
+	// Overall Broadcast Analytics Metrics
+	var totalBroadcasts, activeBroadcasts, globalBroadcasts, targetedBroadcasts, totalReads int64
+	h.DB.Table("notifications").Where("is_broadcast = true OR created_by > 0").Count(&totalBroadcasts)
+	h.DB.Table("notifications").Where("(is_broadcast = true OR created_by > 0) AND (expires_at IS NULL OR expires_at > ?)", now).Count(&activeBroadcasts)
+	h.DB.Table("notifications").Where("(is_broadcast = true OR created_by > 0) AND target_type = 'all'").Count(&globalBroadcasts)
+	h.DB.Table("notifications").Where("(is_broadcast = true OR created_by > 0) AND target_type != 'all'").Count(&targetedBroadcasts)
+	h.DB.Table("notification_reads").Where("notification_id IN (SELECT id FROM notifications WHERE is_broadcast = true OR created_by > 0)").Count(&totalReads)
+
+	totalPages := 0
+	if totalFiltered > 0 {
+		totalPages = int((totalFiltered + int64(limit) - 1) / int64(limit))
+	}
+	hasMore := page < totalPages
+
+	resp := fiber.Map{
+		"success": true,
+		"data":    results,
+		"metrics": fiber.Map{
+			"total_broadcasts":    totalBroadcasts,
+			"active_broadcasts":   activeBroadcasts,
+			"global_broadcasts":   globalBroadcasts,
+			"targeted_broadcasts": targetedBroadcasts,
+			"total_reads":         totalReads,
+		},
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total_items": totalFiltered,
+			"total_pages": totalPages,
+			"has_more":    hasMore,
+		},
+	}
+
+	// Save to Redis Cache (60s TTL)
+	if respBytes, err := json.Marshal(resp); err == nil {
+		database.SetBroadcastListCache(c.Context(), cacheKey, string(respBytes), 60*time.Second)
+	}
+
+	c.Set("X-Cache", "MISS")
+	return c.JSON(resp)
+}
+
+// SuperadminGetOne retrieves a single broadcast notification with read stats.
+func (h *NotificationHandler) SuperadminGetOne(c *fiber.Ctx) error {
+	notifID := strings.TrimSpace(c.Params("id"))
+	if notifID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID siaran tidak valid"})
+	}
+
+	cleanID := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(notifID, "@"), "#"))
+	cleanID = strings.TrimPrefix(strings.TrimPrefix(cleanID, "ID:"), "id:")
+	cleanID = strings.TrimPrefix(strings.TrimPrefix(cleanID, "ID"), "id")
+	cleanID = strings.TrimSpace(cleanID)
+
+	type BroadcastItemWithReads struct {
+		models.Notification
+		ReadCount int64 `json:"read_count"`
+	}
+	var result BroadcastItemWithReads
+
+	err := h.DB.Table("notifications").
+		Select(`notifications.*, COALESCE(reads.cnt, 0) as read_count`).
+		Joins(`LEFT JOIN (
+			SELECT notification_id, COUNT(id) as cnt 
+			FROM notification_reads 
+			GROUP BY notification_id
+		) reads ON reads.notification_id = notifications.id`).
+		Where("notifications.id = ? OR notifications.id = ? OR notifications.id LIKE ?", notifID, cleanID, "%"+cleanID).
+		First(&result).Error
+
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Siaran tidak ditemukan"})
 	}
 
 	return c.JSON(fiber.Map{
-		"data":  formatted,
-		"total": len(formatted),
+		"success": true,
+		"data":    result,
 	})
 }
 
 // SuperadminDelete deletes a broadcast notification and its read receipts.
 func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
-	notifID := c.Params("id")
+	notifID := strings.TrimSpace(c.Params("id"))
 	if notifID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Notification ID is required"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ID siaran tidak valid"})
 	}
+
+	cleanID := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(notifID, "@"), "#"))
+	cleanID = strings.TrimPrefix(strings.TrimPrefix(cleanID, "ID:"), "id:")
+	cleanID = strings.TrimPrefix(strings.TrimPrefix(cleanID, "ID"), "id")
+	cleanID = strings.TrimSpace(cleanID)
 
 	var notif models.Notification
-	_ = h.DB.Where("id = ?", notifID).First(&notif)
-
-	h.DB.Where("notification_id = ?", notifID).Delete(&models.NotificationRead{})
-	if err := h.DB.Where("id = ?", notifID).Delete(&models.Notification{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete notification"})
+	if err := h.DB.Where("id = ? OR id = ? OR id LIKE ?", notifID, cleanID, "%"+cleanID).First(&notif).Error; err == nil {
+		h.DB.Where("notification_id = ?", notif.ID).Delete(&models.NotificationRead{})
+		h.DB.Where("id = ?", notif.ID).Delete(&models.Notification{})
+	} else {
+		h.DB.Where("notification_id = ?", notifID).Delete(&models.NotificationRead{})
+		if err := h.DB.Where("id = ?", notifID).Delete(&models.Notification{}).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus siaran"})
+		}
 	}
+
+	// Invalidate redis broadcast cache
+	database.InvalidateBroadcastCache(c.Context())
 
 	// Record Superadmin Audit Log
 	userVal := c.Locals("user")
@@ -624,14 +917,102 @@ func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
 		Category:    "superadmin",
 		EntityType:  "notification",
 		EntityTitle: notif.Title,
-		Description: fmt.Sprintf("Superadmin menghapus notifikasi '%s' (ID: %s).", notif.Title, notifID),
+		Description: fmt.Sprintf("Superadmin menghapus siaran '%s' (ID: %s).", notif.Title, notifID),
 		IPAddress:   c.IP(),
 		UserAgent:   c.Get("User-Agent"),
 	})
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Notification deleted successfully",
+		"message": "Siaran berhasil dihapus.",
+	})
+}
+
+// SearchStores returns matching stores for broadcast targeted selection.
+func (h *NotificationHandler) SearchStores(c *fiber.Ctx) error {
+	rawQ := strings.TrimSpace(c.Query("q", ""))
+	type StoreResult struct {
+		ID         uint   `json:"id"`
+		Slug       string `json:"slug"`
+		StoreTitle string `json:"store_title"`
+		Plan       string `json:"plan"`
+		UserID     uint   `json:"user_id"`
+		UserName   string `json:"user_name,omitempty"`
+		UserEmail  string `json:"user_email,omitempty"`
+	}
+
+	if rawQ == "" {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"data":    []StoreResult{},
+		})
+	}
+
+	cleanQ := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rawQ, "@"), "#"))
+	cleanQ = strings.TrimPrefix(strings.TrimPrefix(cleanQ, "ID:"), "id:")
+	cleanQ = strings.TrimPrefix(strings.TrimPrefix(cleanQ, "ID"), "id")
+	cleanQ = strings.TrimSpace(cleanQ)
+
+	term := "%" + strings.ToLower(cleanQ) + "%"
+	rawTerm := "%" + strings.ToLower(rawQ) + "%"
+
+	var stores []StoreResult
+	query := h.DB.Table("stores").
+		Select("stores.id, stores.slug, stores.store_title, stores.plan, stores.user_id, users.name as user_name, users.email as user_email").
+		Joins("LEFT JOIN users ON users.id = stores.user_id")
+
+	if parsedID, err := strconv.ParseUint(cleanQ, 10, 64); err == nil && parsedID > 0 {
+		query = query.Where("stores.id = ? OR stores.user_id = ? OR LOWER(stores.slug) LIKE ? OR LOWER(stores.store_title) LIKE ?", parsedID, parsedID, term, term)
+	} else {
+		query = query.Where("LOWER(stores.slug) LIKE ? OR LOWER(stores.store_title) LIKE ? OR LOWER(stores.about_title) LIKE ? OR LOWER(stores.custom_domain) LIKE ? OR LOWER(users.name) LIKE ? OR LOWER(users.email) LIKE ? OR LOWER(stores.slug) LIKE ?", term, term, term, term, term, term, rawTerm)
+	}
+
+	query.Order("stores.store_title ASC, stores.id DESC").Limit(20).Scan(&stores)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    stores,
+	})
+}
+
+// SearchUsers returns matching users for broadcast targeted selection.
+func (h *NotificationHandler) SearchUsers(c *fiber.Ctx) error {
+	rawQ := strings.TrimSpace(c.Query("q", ""))
+	type UserResult struct {
+		ID           uint   `json:"id"`
+		Name         string `json:"name"`
+		Email        string `json:"email"`
+		PlatformRole string `json:"platform_role"`
+	}
+
+	if rawQ == "" {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"data":    []UserResult{},
+		})
+	}
+
+	cleanQ := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rawQ, "@"), "#"))
+	cleanQ = strings.TrimPrefix(strings.TrimPrefix(cleanQ, "ID:"), "id:")
+	cleanQ = strings.TrimPrefix(strings.TrimPrefix(cleanQ, "ID"), "id")
+	cleanQ = strings.TrimSpace(cleanQ)
+
+	term := "%" + strings.ToLower(cleanQ) + "%"
+
+	var users []UserResult
+	query := h.DB.Table("users").Select("id, name, email, platform_role")
+
+	if parsedID, err := strconv.ParseUint(cleanQ, 10, 64); err == nil && parsedID > 0 {
+		query = query.Where("id = ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?", parsedID, term, term)
+	} else {
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", term, term)
+	}
+
+	query.Order("name ASC, id DESC").Limit(20).Scan(&users)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    users,
 	})
 }
 
@@ -699,6 +1080,172 @@ func (h *NotificationHandler) ensureStoreInitialNotifications(storeID, userID ui
 
 	for _, g := range initialGuides {
 		h.DB.Create(&g)
+	}
+
+	// Record to automation tracker
+	services.GetAutomationTracker().RecordLog(services.AutomationLogEntry{
+		BotName:   "onboarding",
+		BotTitle:  "Bot Panduan Onboarding Toko Baru",
+		Target:    fmt.Sprintf("Toko #%d", storeID),
+		TargetID:  storeID,
+		Action:    "sent_in_app",
+		Status:    "success",
+		Details:   fmt.Sprintf("3 artikel panduan onboarding otomatis disematkan ke katalog toko #%d.", storeID),
+		Timestamp: time.Now().UTC(),
+	})
+
+	services.GetAutomationTracker().RecordWorkerHeartbeat(
+		"onboarding_engine",
+		"running",
+		fmt.Sprintf("Panduan onboarding berhasil diinjeksi ke Toko #%d.", storeID),
+		"",
+		3,
+		time.Now().UTC().Add(1*time.Hour),
+	)
+}
+
+// GetAutomationStatus returns runtime health status of background workers and bot engines.
+func (h *NotificationHandler) GetAutomationStatus(c *fiber.Ctx) error {
+	tracker := services.GetAutomationTracker()
+	snapshot := tracker.GetStatusSnapshot(c.Context())
+
+	// Augment with dormancy metrics
+	dormancyMetrics := services.GetDormancyMetrics(h.DB)
+	snapshot["dormancy_metrics"] = dormancyMetrics
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    snapshot,
+	})
+}
+
+// GetAutomationLogs returns recent bot execution logs with filtering and pagination.
+func (h *NotificationHandler) GetAutomationLogs(c *fiber.Ctx) error {
+	botFilter := strings.TrimSpace(c.Query("bot", "all"))
+	statusFilter := strings.TrimSpace(c.Query("status", "all"))
+	searchQuery := strings.TrimSpace(c.Query("q", ""))
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "50"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 50
+	} else if limit > 100 {
+		limit = 100
+	}
+
+	tracker := services.GetAutomationTracker()
+	logs, total := tracker.GetLogs(botFilter, statusFilter, searchQuery, limit, page)
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    logs,
+		"total":   total,
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	})
+}
+
+// TriggerAutomationBot handles manual force-execution and sandbox test message dispatch.
+func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
+	var req struct {
+		Action  string `json:"action"`   // 'store_expiry', 'promo_expiry', 'flash_sale', 'weekly_summary', 'support_lifecycle', 'dormancy_cycle', 'notification_cleaner', 'test_guide'
+		BotType string `json:"bot_type"` // Alternate field name sent from frontend
+	}
+	_ = c.BodyParser(&req)
+
+	action := strings.ToLower(strings.TrimSpace(req.Action))
+	if action == "" {
+		action = strings.ToLower(strings.TrimSpace(req.BotType))
+	}
+	if action == "" {
+		action = strings.ToLower(strings.TrimSpace(c.Query("action", c.Query("bot_type", ""))))
+	}
+
+	tracker := services.GetAutomationTracker()
+	user, _ := c.Locals("user").(*models.User)
+
+	switch action {
+	case "store_expiry", "dormancy_cycle", "store_expiration", "dormancy_worker":
+		if err := tracker.TriggerStoreExpiryManual(h.DB, nil); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Bot Kedaluwarsa Toko & siklus pemindaian inaktivitas akun berhasil dipicu di latar belakang.",
+		})
+
+	case "promo_expiry", "promo_expiration", "promo_worker":
+		if err := tracker.TriggerPromoExpiryManual(h.DB); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Bot Kedaluwarsa Promo berhasil memindai katalog merchant dan memperbarui promo aktif.",
+		})
+
+	case "flash_sale", "flashsale", "flash_sale_worker":
+		if err := tracker.TriggerFlashSaleManual(h.DB); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Bot Sinkronisasi Flash Sale berhasil menyinkronkan sesi diskon dan label promo produk realtime.",
+		})
+
+	case "support_lifecycle", "support", "sla_escalation", "ticket_lifecycle":
+		if err := tracker.TriggerSupportLifecycleManual(h.DB); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Bot Helpdesk SLA Escalation berhasil memproses pengingat tiket dan auto-resolve.",
+		})
+
+	case "weekly_summary", "summary", "weekly_summary_worker":
+		if err := tracker.TriggerWeeklySummaryManual(h.DB, user); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Bot Ringkasan Mingguan Platform berhasil mengompilasi statistik transaksi dan performa platform.",
+		})
+
+	case "notification_cleaner", "cleaner_worker", "cleaner":
+		if err := tracker.TriggerCleanerManual(h.DB); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Pembersihan notifikasi kedaluwarsa & retensi 30 hari berhasil dijalankan.",
+		})
+
+	case "test_guide", "sandbox_test", "test_sandbox", "guide":
+		notif, err := tracker.TriggerSandboxTestGuide(h.DB, user)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Gagal mengirim notifikasi uji coba: %v", err)})
+		}
+		return c.JSON(fiber.Map{
+			"success":      true,
+			"message":      "Notifikasi simulasi panduan berhasil dikirim ke akun Anda.",
+			"notification": notif,
+		})
+
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("Aksi '%s' tidak dikenal. Pilihan: 'store_expiry', 'promo_expiry', 'flash_sale', 'support_lifecycle', 'weekly_summary', 'notification_cleaner', 'test_guide'", action),
+		})
 	}
 }
 

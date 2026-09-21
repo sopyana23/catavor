@@ -78,7 +78,10 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(database.DB)
 	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
 	rbacHandler := handlers.NewRBACHandler()
+	safeDomainHandler := handlers.NewSafeDomainHandler()
 	spaHandler := handlers.NewSPAHandler(cfg)
+	// Initialize Automation Tracker
+	services.InitAutomationTracker(database.DB, storageService)
 
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
@@ -174,6 +177,10 @@ func main() {
 	api.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
 	api.Get("/market-intelligence/summary", analyticsHandler.GetMarketIntelligenceSummary)
 	api.Get("/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
+
+	// Public Master Safe Domains (Ecosystem Whitelist)
+	api.Get("/safe-domains", safeDomainHandler.GetPublicSafeDomains)
+	api.Get("/public/safe-domains", safeDomainHandler.GetPublicSafeDomains)
 
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
@@ -304,13 +311,27 @@ func main() {
 		guarded.Get("/v1/notifications", notificationHandler.GetNotifications)
 
 		// Superadmin Broadcast Notifications (Backward Compatibility Alias)
+		guarded.Get("/notifications/:id", notificationHandler.SuperadminGetOne)
 		guarded.Get("/admin/notifications", notificationHandler.SuperadminIndex)
+		guarded.Get("/admin/notifications/:id", notificationHandler.SuperadminGetOne)
 		guarded.Post("/admin/notifications/broadcast", notificationHandler.SuperadminBroadcast)
 		guarded.Delete("/admin/notifications/:id", notificationHandler.SuperadminDelete)
+		guarded.Get("/admin/stores/search", notificationHandler.SearchStores)
+		guarded.Get("/admin/users/search", notificationHandler.SearchUsers)
+		guarded.Get("/stores/search", notificationHandler.SearchStores)
+		guarded.Get("/users/search", notificationHandler.SearchUsers)
 
 		// Store Activity Extension & Superadmin Dormancy Metrics
 		guarded.Post("/stores/extend-activity", handlers.HandleExtendStoreActivity)
 		guarded.Post("/store/extend-activity", handlers.HandleExtendStoreActivity)
+
+		// System Bot & Automation Engine Monitoring & Sandbox
+		guarded.Get("/admin/automation/status", notificationHandler.GetAutomationStatus)
+		guarded.Get("/admin/automation/logs", notificationHandler.GetAutomationLogs)
+		guarded.Post("/admin/automation/trigger", notificationHandler.TriggerAutomationBot)
+		guarded.Get("/automation/status", notificationHandler.GetAutomationStatus)
+		guarded.Get("/automation/logs", notificationHandler.GetAutomationLogs)
+		guarded.Post("/automation/trigger", notificationHandler.TriggerAutomationBot)
 
 		// Enterprise Activity & Audit Logs
 		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)
@@ -321,11 +342,23 @@ func main() {
 		// Market Intelligence & Macro Analytics
 		guarded.Get("/admin/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
 		guarded.Get("/admin/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
+
+		// Master Safe Domains
+		guarded.Get("/admin/safe-domains", safeDomainHandler.GetAdminSafeDomains)
+		guarded.Post("/admin/safe-domains", safeDomainHandler.CreateSafeDomain)
+		guarded.Put("/admin/safe-domains/:id", safeDomainHandler.UpdateSafeDomain)
+		guarded.Delete("/admin/safe-domains/:id", safeDomainHandler.DeleteSafeDomain)
+		guarded.Post("/admin/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
 	}
 
 	// 8.1 Dedicated Platform Admin API Group (Granular RBAC Protected)
 	adminApi := api.Group("/admin", middleware.AuthRequired(cfg), middleware.RequireAdmin(cfg))
 	{
+		// System Bot & Automation Engine Monitoring & Sandbox
+		adminApi.Get("/automation/status", notificationHandler.GetAutomationStatus)
+		adminApi.Get("/automation/logs", notificationHandler.GetAutomationLogs)
+		adminApi.Post("/automation/trigger", notificationHandler.TriggerAutomationBot)
+
 		// Dynamic RBAC Matrix & Staff Management (Superadmin / Staff Governance)
 		adminApi.Get("/rbac/me", rbacHandler.GetMyPermissions)
 		adminApi.Get("/rbac/matrix", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetMatrix)
@@ -359,8 +392,11 @@ func main() {
 
 		// Content & Broadcast
 		adminApi.Get("/notifications", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminIndex)
+		adminApi.Get("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminGetOne)
 		adminApi.Post("/notifications/broadcast", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminBroadcast)
 		adminApi.Delete("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminDelete)
+		adminApi.Get("/stores/search", notificationHandler.SearchStores)
+		adminApi.Get("/users/search", notificationHandler.SearchUsers)
 
 		// Monetization & Google Analytics Settings
 		adminApi.Get("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Index)
@@ -373,6 +409,13 @@ func main() {
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.ExportMarketIntelligenceData)
+
+		// Master Safe Domains (RBAC Protected)
+		adminApi.Get("/safe-domains", safeDomainHandler.GetAdminSafeDomains)
+		adminApi.Post("/safe-domains", safeDomainHandler.CreateSafeDomain)
+		adminApi.Put("/safe-domains/:id", safeDomainHandler.UpdateSafeDomain)
+		adminApi.Delete("/safe-domains/:id", safeDomainHandler.DeleteSafeDomain)
+		adminApi.Post("/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
 	}
 
 	// 9. SPA Wildcard Fallback Router for Desktop & Mobile clients

@@ -7,17 +7,21 @@ type Notification struct {
 	ID                    string     `json:"id" gorm:"primaryKey;type:varchar(64)"`
 	TargetType            string     `json:"target_type" gorm:"type:varchar(32);default:'all';index"` // 'all', 'plan', 'single_store', 'single_user'
 	TargetPlanCode        string     `json:"target_plan_code" gorm:"type:varchar(64);index"`          // e.g. 'free', 'pro_starter', 'pro_business' (dynamic plan code)
-	TargetID              uint       `json:"target_id" gorm:"index;default:0"`                        // StoreID or UserID if single target
-	Title                 string     `json:"title" gorm:"type:varchar(255);not null"`
-	Category              string     `json:"category" gorm:"type:varchar(32);default:'SISTEM'"`       // 'PANDUAN', 'PROMOSI', 'INVENTARIS', 'SISTEM', 'KEAMANAN'
-	Message               string     `json:"message" gorm:"type:text;not null"`
-	DetailContent         string     `json:"detail_content" gorm:"type:text"`
-	Type                  string     `json:"type" gorm:"type:varchar(32);default:'system'"`           // 'warning', 'success', 'order', 'system', 'info', 'ticket', 'stock'
-	ActionType            string     `json:"action_type" gorm:"type:varchar(32);default:'detail'"`    // 'detail', 'navigate', 'none', 'external_link'
-	LinkSubTab            string     `json:"link_sub_tab" gorm:"type:varchar(64)"`                   // e.g. 'settings', 'items', 'subscription', 'help', 'share', 'analytics'
-	LinkMobileSettingsTab string     `json:"link_mobile_settings_tab" gorm:"type:varchar(64)"`        // e.g. 'about', 'general', 'contact', 'theme', 'master', 'domain'
-	ActionLabel           string     `json:"action_label" gorm:"type:varchar(128)"`                  // e.g. 'Buka Pengaturan Tentang Kami →'
-	ActionURL             string     `json:"action_url" gorm:"type:varchar(512)"`
+	TargetID                  uint       `json:"target_id" gorm:"index;default:0"`                        // StoreID or UserID if single target (legacy)
+	TargetName                string     `json:"target_name" gorm:"type:varchar(255)"`                   // Store Name or User Name/Email for display
+	TargetRecipients          string     `json:"target_recipients" gorm:"type:text"`                      // JSON encoded list of target recipients: [{"type":"store"|"user","id":12,"name":"..."}]
+	IsBroadcast               bool       `json:"is_broadcast" gorm:"default:false;index"`                 // True if manually sent via Admin Broadcast
+	Title                     string     `json:"title" gorm:"type:varchar(255);not null"`
+	Category                  string     `json:"category" gorm:"type:varchar(32);default:'SISTEM'"`       // 'PANDUAN', 'PROMOSI', 'INVENTARIS', 'SISTEM', 'KEAMANAN', 'PENGUMUMAN', 'PEMELIHARAAN'
+	Message                   string     `json:"message" gorm:"type:text;not null"`
+	DetailContent             string     `json:"detail_content" gorm:"type:text"`
+	Type                      string     `json:"type" gorm:"type:varchar(32);default:'system'"`           // 'warning', 'success', 'order', 'system', 'info', 'ticket', 'stock'
+	ActionEnabled             bool       `json:"action_enabled" gorm:"default:false"`                     // Explicit toggle for notification click action
+	ActionType                string     `json:"action_type" gorm:"type:varchar(32);default:'none'"`      // 'none', 'detail', 'navigate', 'external_link'
+	LinkSubTab                string     `json:"link_sub_tab" gorm:"type:varchar(64)"`                   // e.g. 'settings', 'items', 'subscription', 'help', 'share', 'analytics'
+	LinkMobileSettingsTab     string     `json:"link_mobile_settings_tab" gorm:"type:varchar(64)"`        // e.g. 'about', 'general', 'contact', 'theme', 'master', 'domain'
+	ActionLabel               string     `json:"action_label" gorm:"type:varchar(128)"`                  // e.g. 'Buka Pengaturan Tentang Kami →'
+	ActionURL                 string     `json:"action_url" gorm:"type:varchar(512)"`
 	ExpiresAt             *time.Time `json:"expires_at" gorm:"index"`                                 // Absolute expiration timestamp (nil = unlimited)
 	RetentionHours        int        `json:"retention_hours" gorm:"default:720"`                      // Hours to retain in history after being read (default 720h / 30 days)
 	CreatedBy             uint       `json:"created_by" gorm:"default:0"`                             // Superadmin User ID who created the broadcast
