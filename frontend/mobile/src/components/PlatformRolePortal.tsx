@@ -2913,7 +2913,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         minHeight: '100vh',
         boxSizing: 'border-box',
-        overflowX: 'hidden'
+        overflowX: 'clip'
       }}
     >
       {/* Toast Notification */}
@@ -2948,147 +2948,144 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 1. EXECUTIVE MASTER HEADER (When on Dashboard Menu)                       */}
       {/* ========================================================================= */}
       {activeView === 'dashboard' && (
-        <div style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 999,
-          boxSizing: 'border-box',
-          width: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
-          maxWidth: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
-          marginLeft: isScrolled ? '-0.95rem' : '0',
-          marginRight: isScrolled ? '-0.95rem' : '0',
-          marginTop: 0,
-          marginBottom: 0,
-          borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.25rem',
-          backgroundColor: isDark 
-            ? (isScrolled ? 'rgba(15, 23, 42, 0.94)' : '#0f172a') 
-            : (isScrolled ? 'rgba(255, 255, 255, 0.94)' : '#ffffff'),
-          borderTop: isScrolled ? 'none' : `1px solid ${theme.border}`,
-          borderLeft: isScrolled ? 'none' : `1px solid ${theme.border}`,
-          borderRight: isScrolled ? 'none' : `1px solid ${theme.border}`,
-          borderBottom: `1px solid ${isScrolled ? (isDark ? 'rgba(56, 189, 248, 0.35)' : '#cbd5e1') : theme.border}`,
-          padding: isScrolled ? '0.62rem 0.85rem' : '0.72rem 0.85rem',
-          boxShadow: isScrolled 
-            ? (isDark ? '0 14px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' : '0 10px 25px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0,0,0,0.04)')
-            : theme.shadow,
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}>
-          {/* Left Side: Avatar & Profile Info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
-            {/* Brand Logo with Live Online Dot */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div style={{
-                width: isScrolled ? '34px' : '38px',
-                height: isScrolled ? '34px' : '38px',
-                borderRadius: isScrolled ? '0.75rem' : '0.85rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '3px',
-                boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.06)',
-                transition: 'all 0.25s ease'
-              }}>
-                <img
-                  src={appLogoImg || APP_LOGO_BASE64}
-                  alt="Catavor Logo"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    borderRadius: '0.6rem'
-                  }}
-                />
-              </div>
-              {/* Live Online Dot */}
-              <span style={{
-                position: 'absolute',
-                bottom: '-2px',
-                right: '-2px',
-                width: isScrolled ? '9px' : '10px',
-                height: isScrolled ? '9px' : '10px',
-                borderRadius: '50%',
-                backgroundColor: '#10b981',
-                border: `2px solid ${theme.surface}`,
-                boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
-              }} />
-            </div>
-
-            {/* Identity Stack */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
-                <h2 style={{
-                  fontSize: isScrolled ? '0.84rem' : '0.9rem',
-                  fontWeight: 800,
-                  margin: 0,
-                  color: theme.textPrimary,
-                  letterSpacing: '-0.01em',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0
+        <>
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            zIndex: 1000,
+            boxSizing: 'border-box',
+            borderRadius: 0,
+            backgroundColor: isDark 
+              ? 'rgba(15, 23, 42, 0.96)' 
+              : 'rgba(255, 255, 255, 0.96)',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+            padding: '0.72rem 1rem',
+            boxShadow: isDark 
+              ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+              : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem'
+          }}>
+            {/* Left Side: Avatar & Profile Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+              {/* Brand Logo with Live Online Dot */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.85rem',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
+                  border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  padding: '3px',
+                  boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.06)'
                 }}>
-                  Catavor Executive
-                </h2>
+                  <img
+                    src={appLogoImg || APP_LOGO_BASE64}
+                    alt="Catavor Logo"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      borderRadius: '0.6rem'
+                    }}
+                  />
+                </div>
+                {/* Live Online Dot */}
                 <span style={{
-                  padding: '0.05rem 0.35rem',
-                  borderRadius: '999px',
-                  fontSize: '0.55rem',
-                  fontWeight: 800,
-                  backgroundColor: roleBadge.bg,
-                  color: roleBadge.color,
-                  border: `1px solid ${roleBadge.border}`,
-                  flexShrink: 0
-                }}>
-                  {roleBadge.label}
-                </span>
+                  position: 'absolute',
+                  bottom: '-2px',
+                  right: '-2px',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10b981',
+                  border: `2px solid ${theme.surface}`,
+                  boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
+                }} />
               </div>
 
-              {!isScrolled && (
+              {/* Identity Stack */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
+                  <h2 style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    margin: 0,
+                    color: theme.textPrimary,
+                    letterSpacing: '-0.01em',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}>
+                    Catavor Executive
+                  </h2>
+                  <span style={{
+                    padding: '0.05rem 0.35rem',
+                    borderRadius: '999px',
+                    fontSize: '0.55rem',
+                    fontWeight: 800,
+                    backgroundColor: roleBadge.bg,
+                    color: roleBadge.color,
+                    border: `1px solid ${roleBadge.border}`,
+                    flexShrink: 0
+                  }}>
+                    {roleBadge.label}
+                  </span>
+                </div>
+
                 <span style={{
                   fontSize: '0.66rem',
                   color: theme.textSecondary,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  maxWidth: '180px'
+                  maxWidth: '220px'
                 }}>
                   {currentUser?.email || 'admin@catavor.com'}
                 </span>
-              )}
+              </div>
+            </div>
+
+            {/* Right Side: Options Menu Button [ ⋮ ] */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setShowOptionsMenu(true)}
+                title="Menu Opsi Eksekutif"
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textPrimary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <MoreVertical size={17} />
+              </button>
             </div>
           </div>
-
-          {/* Right Side: Options Menu Button [ ⋮ ] */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => setShowOptionsMenu(true)}
-              title="Menu Opsi Eksekutif"
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '0.75rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                border: `1px solid ${theme.border}`,
-                color: theme.textPrimary,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <MoreVertical size={17} />
-            </button>
-          </div>
-        </div>
+          {/* Header Spacer for Fixed Float & Ideal Content Separation */}
+          <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
+        </>
       )}
 
       {/* ========================================================================= */}
@@ -3109,43 +3106,40 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           currentItem?.subtitle || '';
 
         return (
-          <div style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 999,
-            boxSizing: 'border-box',
-            width: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
-            maxWidth: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
-            marginLeft: isScrolled ? '-0.95rem' : '0',
-            marginRight: isScrolled ? '-0.95rem' : '0',
-            marginTop: 0,
-            marginBottom: 0,
-            borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.2rem',
-            backgroundColor: isDark 
-              ? (isScrolled ? 'rgba(15, 23, 42, 0.94)' : '#0f172a') 
-              : (isScrolled ? 'rgba(255, 255, 255, 0.94)' : '#ffffff'),
-            borderTop: isScrolled ? 'none' : `1px solid ${theme.border}`,
-            borderLeft: isScrolled ? 'none' : `1px solid ${theme.border}`,
-            borderRight: isScrolled ? 'none' : `1px solid ${theme.border}`,
-            borderBottom: `1px solid ${isScrolled ? (isDark ? 'rgba(56, 189, 248, 0.35)' : '#cbd5e1') : theme.border}`,
-            padding: isScrolled ? '0.62rem 0.85rem' : '0.65rem 0.75rem',
-            boxShadow: isScrolled 
-              ? (isDark ? '0 14px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' : '0 10px 25px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0,0,0,0.04)')
-              : theme.shadow,
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.5rem',
-            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}>
-            {/* Left Side: Brand Logo for Footer Tabs OR Pure Icon Back Button for Secondary Modules / Ticket Detail */}
-            {(isFooterTab && !(activeView === 'support' && selectedTicket)) ? (
-              <div style={{
-                width: isScrolled ? '34px' : '38px',
-                height: isScrolled ? '34px' : '38px',
-                borderRadius: isScrolled ? '0.75rem' : '0.85rem',
+          <>
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              zIndex: 1000,
+              boxSizing: 'border-box',
+              borderRadius: 0,
+              backgroundColor: isDark 
+                ? 'rgba(15, 23, 42, 0.96)' 
+                : 'rgba(255, 255, 255, 0.96)',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: 'none',
+              borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+              padding: '0.72rem 1rem',
+              boxShadow: isDark 
+                ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+                : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem'
+            }}>
+              {/* Left Side: Brand Logo for Footer Tabs OR Pure Icon Back Button for Secondary Modules / Ticket Detail */}
+              {(isFooterTab && !(activeView === 'support' && selectedTicket)) ? (
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.85rem',
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
                 display: 'flex',
@@ -3288,8 +3282,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </button>
             </div>
           </div>
-        );
-      })()}
+          {/* Header Spacer for Fixed Float & Ideal Content Separation */}
+          <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
+        </>
+      );
+    })()}
 
       {/* ========================================================================= */}
       {/* 2.1 EXECUTIVE OPTIONS MENU BOTTOM SHEET (Consolidated Theme, Refresh, etc) */}
