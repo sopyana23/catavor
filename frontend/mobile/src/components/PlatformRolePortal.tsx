@@ -71,7 +71,8 @@ import {
   Play,
   Volume2,
   VolumeX,
-  ArrowUp
+  ArrowUp,
+  Database
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -101,7 +102,8 @@ type ActiveView =
   | 'broadcast' 
   | 'automation'
   | 'audit'
-  | 'safe_domains';
+  | 'safe_domains'
+  | 'master_data';
 
 const formatSupportDateTime = (dateStr?: string | Date) => {
   if (!dateStr) return '-';
@@ -243,6 +245,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
+  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
     view: string, 
@@ -304,7 +307,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketParam) return 'support';
       if (broadcastId) return 'broadcast';
 
-      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'safe_domains'].includes(tabParam)) {
+      if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'master_data', 'safe_domains'].includes(tabParam)) {
+        if (tabParam === 'safe_domains') return 'master_data';
         return tabParam as ActiveView;
       }
       if (['overview', 'home'].includes(tabParam)) return 'dashboard';
@@ -314,7 +318,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
       if (['siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['bot', 'bots', 'otomatisasi', 'automation', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
-      if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(tabParam)) return 'safe_domains';
+      if (['domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'master_data', 'master-data', 'templates', 'canned'].includes(tabParam)) return 'master_data';
     } catch {
       // fallback
     }
@@ -329,14 +333,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const [activeView, setActiveView] = useState<ActiveView>(getDefaultView());
 
-  const handleSwitchView = (view: ActiveView) => {
-    setActiveView(view);
+  const handleSwitchView = (view: ActiveView, ticketId?: any, subView?: string | null) => {
+    const targetView = view === 'safe_domains' ? 'master_data' : view;
+    setActiveView(targetView);
     setSelectedTicket(null);
-    if (view !== 'broadcast') {
+    if (targetView !== 'broadcast') {
       setBroadcastSubView('list');
       setSelectedBroadcastDetail(null);
     }
-    updatePlatformUrl(view, null);
+    if (targetView === 'master_data') {
+      const sub = (subView === 'templates' || subView === 'domains')
+        ? subView
+        : (view === 'safe_domains' ? 'domains' : (subView === 'menu' ? 'menu' : 'menu'));
+      setMasterSubView(sub);
+      updatePlatformUrl('master_data', null, sub === 'menu' ? null : sub);
+      if (sub === 'templates') {
+        fetchCannedTemplates(true);
+      }
+    } else {
+      updatePlatformUrl(targetView, ticketId, subView);
+    }
     try {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     } catch {
@@ -379,14 +395,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const handleCloseBroadcastDetail = () => {
-    setSelectedBroadcastDetail(null);
     setBroadcastSubView('list');
-    updatePlatformUrl('broadcast', null, null, null);
-    try {
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    } catch {
-      window.scrollTo(0, 0);
-    }
+    setSelectedBroadcastDetail(null);
+    updatePlatformUrl('broadcast', null, 'list', null);
   };
 
   const handleCloseTicketChat = () => {
@@ -403,14 +414,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [isScrolled, setIsScrolled] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
-  // Support Division Sub-Navigation & Master Canned Responses State
-  const [supportSubView, setSupportSubView] = useState<'tickets' | 'templates'>(() => {
+  // Support Division & Master Data Sub-Navigation State
+  const [supportSubView, setSupportSubView] = useState<'tickets'>('tickets');
+  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const sub = (params.get('subtab') || params.get('subview') || '').toLowerCase();
-      if (sub === 'templates' || sub === 'template' || sub === 'canned') return 'templates';
+      const sub = (params.get('subtab') || params.get('subview') || params.get('sub') || '').toLowerCase();
+      const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
+      if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
     } catch {}
-    return 'tickets';
+    return 'menu';
   });
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -499,9 +513,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     setShowTemplateModal(false);
     setTemplateSheetDragY(0);
     setSelectedTicket(null); // CRITICAL: Exits ticket conversation detail view so user immediately lands on Master Template page!
-    setActiveView('support');
-    setSupportSubView('templates');
-    updatePlatformUrl('support', null, 'templates');
+    setActiveView('master_data');
+    setMasterSubView('templates');
+    updatePlatformUrl('master_data', null, 'templates');
     fetchCannedTemplates(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -889,6 +903,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
+  const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
   const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
 
   // Pengurutan alami tiket layaknya aplikasi media sosial / chat:
@@ -2123,8 +2138,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         } else if (broadcastId) {
           setActiveView('broadcast');
         } else if (tabParam) {
-          if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'audit', 'safe_domains'].includes(tabParam)) {
-            setActiveView(tabParam as ActiveView);
+          if (['dashboard', 'rbac', 'stores', 'reports', 'support', 'finance', 'monetization', 'broadcast', 'automation', 'audit', 'master_data', 'safe_domains'].includes(tabParam)) {
+            setActiveView(tabParam === 'safe_domains' ? 'master_data' : (tabParam as ActiveView));
           } else if (['overview', 'home'].includes(tabParam)) {
             setActiveView('dashboard');
           } else if (['help', 'bantuan', 'helpdesk', 'tickets', 'chat'].includes(tabParam)) {
@@ -2138,6 +2153,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           } else if (['siaran', 'notifikasi'].includes(tabParam)) {
             setActiveView('broadcast');
           }
+        }
+
+        if (['templates', 'template', 'canned'].includes(subtabParam)) {
+          setMasterSubView('templates');
+        } else if (['domains', 'safe_domains', 'whitelist'].includes(subtabParam) || tabParam === 'safe_domains') {
+          setMasterSubView('domains');
+        } else if (tabParam === 'master_data') {
+          setMasterSubView('menu');
         }
 
         if (['create', 'new', 'tambah', 'buat'].includes(subtabParam)) {
@@ -2682,6 +2705,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcasts.length} Siaran Aktif` },
     automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 9} Bot & Background Workers` },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
+    master_data: { 
+      title: 'Data Master Platform', 
+      subtitle: masterSubView === 'domains' 
+        ? 'Domain Whitelist Ekosistem' 
+        : (masterSubView === 'templates' ? `${cannedTemplates.length} Template Pesan Cepat CS` : 'Pusat Konfigurasi Master Data')
+    },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
   };
 
@@ -2743,15 +2772,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       visible: canAccessAutomation
     },
     {
-      id: 'safe_domains' as ActiveView,
-      title: 'Master Domain Aman',
-      subtitle: 'Whitelist URL Ekosistem & Mitra',
-      icon: <Globe size={20} />,
+      id: 'master_data' as ActiveView,
+      title: 'Data Master Platform',
+      subtitle: 'Domain Whitelist & Template CS',
+      icon: <Database size={20} />,
       color: '#38bdf8',
       bg: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(56, 189, 248, 0.1)',
       border: isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(56, 189, 248, 0.25)',
       badge: 0,
-      visible: canAccessMonetization || isSuperAdmin(currentUser)
+      visible: canAccessMasterData
     },
     {
       id: 'audit' as ActiveView,
@@ -2818,16 +2847,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         flexDirection: 'column',
         gap: '1.15rem',
         width: '100%',
+        maxWidth: '100%',
         backgroundColor: theme.bg,
         color: theme.textPrimary,
         padding: (activeView === 'support' && selectedTicket)
-          ? `0.5rem 0.85rem calc(${selectedTicket.status === 'closed' ? '70px' : (ticketReplyAttachments.length > 0 ? '245px' : '180px')} + env(safe-area-inset-bottom, 0px)) 0.85rem`
+          ? `0.5rem 0.95rem calc(${selectedTicket.status === 'closed' ? '70px' : (ticketReplyAttachments.length > 0 ? '245px' : '180px')} + env(safe-area-inset-bottom, 0px)) 0.95rem`
           : isSubPage
-            ? '0.5rem 0.85rem 2rem 0.85rem'
-            : '0.5rem 0.85rem 5.5rem 0.85rem',
+            ? '0.5rem 0.95rem 2rem 0.95rem'
+            : '0.5rem 0.95rem 5.5rem 0.95rem',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         minHeight: '100vh',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        overflowX: 'hidden'
       }}
     >
       {/* Toast Notification */}
@@ -2867,9 +2898,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           top: 0,
           zIndex: 999,
           boxSizing: 'border-box',
-          width: isScrolled ? 'calc(100% + 1.7rem)' : '100%',
-          marginLeft: isScrolled ? '-0.85rem' : '0',
-          marginRight: isScrolled ? '-0.85rem' : '0',
+          width: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
+          maxWidth: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
+          marginLeft: isScrolled ? '-0.95rem' : '0',
+          marginRight: isScrolled ? '-0.95rem' : '0',
           marginTop: 0,
           marginBottom: 0,
           borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.25rem',
@@ -3027,9 +3059,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             top: 0,
             zIndex: 999,
             boxSizing: 'border-box',
-            width: isScrolled ? 'calc(100% + 1.7rem)' : '100%',
-            marginLeft: isScrolled ? '-0.85rem' : '0',
-            marginRight: isScrolled ? '-0.85rem' : '0',
+            width: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
+            maxWidth: isScrolled ? 'calc(100% + 1.9rem)' : '100%',
+            marginLeft: isScrolled ? '-0.95rem' : '0',
+            marginRight: isScrolled ? '-0.95rem' : '0',
             marginTop: 0,
             marginBottom: 0,
             borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.2rem',
@@ -3088,6 +3121,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     handleCloseCreateBroadcast();
                   } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
                     handleCloseBroadcastDetail();
+                  } else if (activeView === 'master_data' && masterSubView !== 'menu') {
+                    setMasterSubView('menu');
+                    updatePlatformUrl('master_data', null, null);
                   } else {
                     handleSwitchView('dashboard');
                   }
@@ -3097,7 +3133,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     ? "Kembali ke Daftar Tiket" 
                     : (activeView === 'broadcast' && broadcastSubView !== 'list')
                       ? "Kembali ke Riwayat Siaran"
-                      : "Kembali ke Dashboard"
+                      : (activeView === 'master_data' && masterSubView !== 'menu')
+                        ? "Kembali ke Menu Master"
+                        : "Kembali ke Dashboard"
                 }
                 style={{
                   width: '34px',
@@ -3140,7 +3178,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     ? 'Buat Siaran Baru'
                     : (activeView === 'broadcast' && broadcastSubView === 'detail')
                       ? (selectedBroadcastDetail?.title || 'Rincian Siaran')
-                      : (currentItem?.title || 'Panel Modul')}
+                      : (activeView === 'master_data' && masterSubView === 'domains')
+                        ? 'Master Domain Aman'
+                        : (activeView === 'master_data' && masterSubView === 'templates')
+                          ? 'Template Pesan Cepat CS'
+                          : (currentItem?.title || 'Panel Modul')}
               </h3>
               <span style={{
                 fontSize: '0.67rem',
@@ -3156,7 +3198,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     ? 'Segmentasi & Pengumuman Platform'
                     : (activeView === 'broadcast' && broadcastSubView === 'detail')
                       ? `${selectedBroadcastDetail?.category || 'PENGUMUMAN'} • ${selectedBroadcastDetail?.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}`
-                      : subStatusText}
+                      : (activeView === 'master_data' && masterSubView === 'domains')
+                        ? 'Whitelist URL & Proteksi Ekosistem'
+                        : (activeView === 'master_data' && masterSubView === 'templates')
+                          ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
+                          : (activeView === 'master_data' && masterSubView === 'menu')
+                            ? 'Pusat Entitas & Konfigurasi Master'
+                            : subStatusText}
               </span>
             </div>
 
@@ -3443,22 +3491,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Quick Metrics Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Toko</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: '0.45rem',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Toko</span>
+              <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900, display: 'block' }}>{dormancyMetrics?.active_stores || 1}</strong>
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{orders.length}</strong>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Order</span>
+              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900, display: 'block' }}>{orders.length}</strong>
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
-              <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Laporan</span>
+              <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900, display: 'block' }}>{reports.length}</strong>
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
-              <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
+            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Tiket</span>
+              <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900, display: 'block' }}>{tickets.length}</strong>
             </div>
           </div>
 
@@ -3689,12 +3743,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           </div>
 
           {/* Section Heading: Platform & System Management */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.15rem' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0.15rem', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 Kelola Platform & Sistem
               </h3>
-              <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>Konfigurasi lanjutan dan tata kelola platform</span>
+              <span style={{ fontSize: '0.7rem', color: theme.textSecondary, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Konfigurasi lanjutan dan tata kelola platform</span>
             </div>
             <span style={{
               fontSize: '0.68rem',
@@ -3703,7 +3757,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               backgroundColor: theme.cardAlt,
               border: `1px solid ${theme.border}`,
               padding: '0.2rem 0.55rem',
-              borderRadius: '999px'
+              borderRadius: '999px',
+              flexShrink: 0,
+              marginLeft: '0.5rem'
             }}>
               {dashboardGridItems.length} Modul
             </span>
@@ -3712,14 +3768,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* 2-Column Specialized Management Grid */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '0.75rem'
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '0.75rem',
+            width: '100%',
+            boxSizing: 'border-box'
           }}>
             {dashboardGridItems.map((item) => (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => handleSwitchView(item.id)}
                 style={{
+                  width: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
                   padding: '0.95rem 0.85rem',
                   borderRadius: '1.15rem',
                   backgroundColor: theme.surface,
@@ -3733,11 +3795,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   cursor: 'pointer',
                   position: 'relative',
                   minHeight: '105px',
+                  overflow: 'hidden',
                   transition: 'transform 0.15s ease, box-shadow 0.15s ease'
                 }}
               >
                 {/* Top of Card: Icon & Badge/Chevron */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', minWidth: 0 }}>
                   <div style={{
                     width: '38px',
                     height: '38px',
@@ -3753,7 +3816,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {item.icon}
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
                     {item.badge > 0 && (
                       <span style={{
                         padding: '0.15rem 0.45rem',
@@ -3772,13 +3835,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
 
                 {/* Bottom of Card: Title & Subtitle */}
-                <div>
+                <div style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
                   <div style={{
                     fontSize: '0.84rem',
                     fontWeight: 800,
                     color: theme.textPrimary,
                     marginBottom: '0.15rem',
-                    lineHeight: 1.25
+                    lineHeight: 1.25,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }}>
                     {item.title}
                   </div>
@@ -5086,86 +5152,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       ) : (
           /* ----------------------------------------------------------------------- */
-          /* 4B. SUPPORT SUB-VIEWS: TICKET QUEUE LIST & MASTER CANNED RESPONSES       */
+          /* 4B. SUPPORT TICKETS QUEUE                                               */
           /* ----------------------------------------------------------------------- */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {/* Top Sub-Navigation Pill Switcher */}
-            <div style={{
-              display: 'flex',
-              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-              padding: '0.25rem',
-              borderRadius: '0.85rem',
-              border: `1px solid ${theme.border}`,
-              gap: '0.3rem'
-            }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setSupportSubView('tickets');
-                  updatePlatformUrl('support', null, null);
-                }}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem 0.6rem',
-                  borderRadius: '0.65rem',
-                  border: 'none',
-                  fontSize: '0.78rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  backgroundColor: supportSubView === 'tickets' ? 'var(--primary, #10b981)' : 'transparent',
-                  color: supportSubView === 'tickets' ? '#ffffff' : theme.textSecondary,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <MessageSquare size={13} />
-                <span>Antrean Tiket</span>
-                <span style={{
-                  fontSize: '0.62rem',
-                  padding: '0.05rem 0.35rem',
-                  borderRadius: '999px',
-                  backgroundColor: supportSubView === 'tickets' ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
-                  color: supportSubView === 'tickets' ? '#ffffff' : theme.textMuted
-                }}>
-                  {ticketsMetrics.total || tickets.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSupportSubView('templates');
-                  updatePlatformUrl('support', null, 'templates');
-                  fetchCannedTemplates(true);
-                }}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem 0.6rem',
-                  borderRadius: '0.65rem',
-                  border: 'none',
-                  fontSize: '0.78rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  backgroundColor: supportSubView === 'templates' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
-                  color: supportSubView === 'templates' ? '#ffffff' : theme.textSecondary,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Zap size={13} />
-                <span>Master Template</span>
-              </button>
-            </div>
-
-            {/* VIEW 1: TICKETS QUEUE */}
-            {supportSubView === 'tickets' && (
-              <>
             {/* 1. Instant Search Bar */}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
@@ -5258,13 +5247,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   >
                     <span>{tab.label}</span>
                     <span style={{
-                      fontSize: '0.66rem',
-                      fontWeight: 900,
-                      padding: '0.08rem 0.35rem',
+                      fontSize: '0.62rem',
+                      padding: '0.05rem 0.35rem',
                       borderRadius: '999px',
-                      backgroundColor: isActive ? 'rgba(0,0,0,0.25)' : theme.cardAlt,
-                      color: isActive ? '#ffffff' : (tab.count > 0 && (tab.id === 'action_required' || tab.id === 'urgent') ? '#ef4444' : theme.textMuted),
-                      border: `1px solid ${isActive ? 'rgba(255,255,255,0.2)' : theme.border}`
+                      backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
+                      color: isActive ? '#ffffff' : theme.textMuted
                     }}>
                       {tab.count}
                     </span>
@@ -5273,926 +5260,352 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               })}
             </div>
 
-            {/* 3. Time-Windowing Selector Bar for Selesai / Resolved Tab */}
-            {ticketsFilter === 'resolved' && (
-              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', padding: '0.2rem 0', overflowX: 'auto' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase', marginRight: '0.15rem', whiteSpace: 'nowrap' }}>
-                  Rentang Riwayat:
+            {/* 3. Operational Secondary Filter Pills */}
+            <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', alignItems: 'center' }}>
+              {/* Category Filter Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterSearchQuery('');
+                  setActiveFilterModal('category');
+                }}
+                style={{
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '999px',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketCategoryFilter !== 'all' ? (isDark ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5') : theme.chipInactiveBg,
+                  color: ticketCategoryFilter !== 'all' ? 'var(--primary, #10b981)' : theme.textSecondary,
+                  border: `1px solid ${ticketCategoryFilter !== 'all' ? 'var(--primary, #10b981)' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Tag size={11} />
+                <span>
+                  {ticketCategoryFilter === 'all' ? 'Semua Kategori' : (
+                    availableCategories.find(c => c.id === ticketCategoryFilter)?.label || ticketCategoryFilter
+                  )}
                 </span>
-                {[
-                  { id: '30d', label: '30 Hari Terakhir' },
-                  { id: '90d', label: '90 Hari Terakhir' },
-                  { id: 'all', label: 'Semua Riwayat Selesai' }
-                ].map(tr => (
-                  <button
-                    key={tr.id}
-                    type="button"
-                    onClick={() => setResolvedTimeRangeFilter(tr.id as any)}
-                    style={{
-                      padding: '0.25rem 0.6rem',
-                      borderRadius: '999px',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      backgroundColor: resolvedTimeRangeFilter === tr.id ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)') : theme.chipInactiveBg,
-                      color: resolvedTimeRangeFilter === tr.id ? (isDark ? '#34d399' : '#059669') : theme.textMuted,
-                      border: `1px solid ${resolvedTimeRangeFilter === tr.id ? '#10b981' : theme.border}`,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.12s ease'
-                    }}
-                  >
-                    {tr.label}
-                  </button>
-                ))}
-              </div>
-            )}
+                <ChevronDown size={11} />
+              </button>
 
-            {/* 4. Secondary Filter Row (Mobile Trigger for Bottom Sheet Modals & Reset) */}
-            {(availableCategories.length > 1 || availablePriorities.length > 1 || (ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSearchQuery)) && (
-              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                
-                {/* Category Bottom Sheet Trigger (Only when > 1 category types exist) */}
-                {availableCategories.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterSearchQuery('');
-                      setActiveFilterModal('category');
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.4rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
-                      border: `1px solid ${ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border}`,
-                      color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary,
-                      cursor: 'pointer',
-                      boxShadow: theme.cardShadow,
-                      transition: 'all 0.15s ease',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Tag size={12} style={{ color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textSecondary, flexShrink: 0 }} />
-                    <span>{ticketCategoryFilter === 'all' ? 'Semua Kategori' : (CATEGORY_LABELS[ticketCategoryFilter] || ticketCategoryFilter)}</span>
-                    <ChevronDown size={12} style={{ color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textSecondary, flexShrink: 0 }} />
-                  </button>
-                )}
+              {/* Priority Filter Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterSearchQuery('');
+                  setActiveFilterModal('priority');
+                }}
+                style={{
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '999px',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2') : theme.chipInactiveBg,
+                  color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textSecondary,
+                  border: `1px solid ${ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <AlertCircle size={11} />
+                <span>
+                  {ticketPriorityFilter === 'all' ? 'Semua Prioritas' : (
+                    availablePriorities.find(p => p.id === ticketPriorityFilter)?.label || ticketPriorityFilter
+                  )}
+                </span>
+                <ChevronDown size={11} />
+              </button>
 
-                {/* Priority Bottom Sheet Trigger (Only when > 1 priority types exist) */}
-                {availablePriorities.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterSearchQuery('');
-                      setActiveFilterModal('priority');
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.4rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
-                      border: `1px solid ${ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border}`,
-                      color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary,
-                      cursor: 'pointer',
-                      boxShadow: theme.cardShadow,
-                      transition: 'all 0.15s ease',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <AlertCircle size={12} style={{ color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textSecondary, flexShrink: 0 }} />
-                    <span>{ticketPriorityFilter === 'all' ? 'Semua Prioritas' : (PRIORITY_META[ticketPriorityFilter]?.label || ticketPriorityFilter)}</span>
-                    <ChevronDown size={12} style={{ color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textSecondary, flexShrink: 0 }} />
-                  </button>
-                )}
+              {/* SLA Filter Toggle */}
+              <button
+                type="button"
+                onClick={() => setTicketSlaFilter((prev: string) => prev === 'breached' ? 'all' : 'breached')}
+                style={{
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '999px',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketSlaFilter === 'breached' ? (isDark ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2') : theme.chipInactiveBg,
+                  color: ticketSlaFilter === 'breached' ? '#ef4444' : theme.textSecondary,
+                  border: `1px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Clock size={11} />
+                <span>SLA Lewat</span>
+              </button>
 
-                {/* Active Filter Indicator & Reset Button */}
-                {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSearchQuery) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTicketsFilter('all');
-                      setTicketCategoryFilter('all');
-                      setTicketPriorityFilter('all');
-                      setTicketSearchQuery('');
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.4rem 0.65rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.cardAlt,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textMuted,
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Reset semua filter pencarian"
-                  >
-                    <X size={12} />
-                    <span>Reset</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* 5. Tickets Feed (Server-Side Filtered & Paginated with Load More) */}
-            {ticketsLoading && tickets.length === 0 ? (
-              <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-                <RefreshCw size={26} className="animate-spin" color="var(--primary)" style={{ margin: '0 auto 0.65rem' }} />
-                <p style={{ margin: 0, color: theme.textSecondary, fontSize: '0.78rem', fontWeight: 600 }}>
-                  Memuat antrean tiket bantuan...
-                </p>
-              </div>
-            ) : tickets.length === 0 ? (
-              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-                <Inbox size={36} color="#06b6d4" style={{ margin: '0 auto 0.65rem' }} />
-                <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>
-                  {ticketSearchQuery || ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all'
-                    ? 'Tidak Ada Tiket yang Cocok'
-                    : 'Semua Tiket Terselesaikan'}
-                </h4>
-                <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
-                  {ticketSearchQuery || ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all'
-                    ? 'Coba sesuaikan kata kunci pencarian atau bersihkan filter di atas.'
-                    : 'Tidak ada antrean tiket aktif saat ini.'}
-                </p>
-              </div>
-            ) : (
-              <>
-                {sortedTickets.map(t => {
-                  const statusBg = 
-                    t.status === 'open' ? 'rgba(6, 182, 212, 0.15)' :
-                    t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.15)' :
-                    t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.15)' :
-                    t.status === 'resolved' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)';
-                  const statusColor =
-                    t.status === 'open' ? '#06b6d4' :
-                    t.status === 'in_progress' ? (isDark ? '#fbbf24' : '#d97706') :
-                    t.status === 'waiting_user' ? (isDark ? '#c084fc' : '#9333ea') :
-                    t.status === 'resolved' ? (isDark ? '#34d399' : '#059669') : '#94a3b8';
-                  const statusBorder =
-                    t.status === 'open' ? 'rgba(6, 182, 212, 0.35)' :
-                    t.status === 'in_progress' ? 'rgba(245, 158, 11, 0.35)' :
-                    t.status === 'waiting_user' ? 'rgba(168, 85, 247, 0.35)' :
-                    t.status === 'resolved' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(100, 116, 139, 0.35)';
-                  const statusLabel =
-                    t.status === 'open' ? 'Open (Baru)' :
-                    t.status === 'in_progress' ? 'Sedang Diproses' :
-                    t.status === 'waiting_user' ? 'Menunggu Merchant' :
-                    t.status === 'resolved' ? 'Terselesaikan' :
-                    t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase();
-
-                  const storePlan = String(t.store?.plan || '').toLowerCase();
-                  const storeDisplayName = t.store?.store_title || t.store?.name || t.store_name || t.user?.name || 'Merchant';
-                  const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
-                  const msgs = Array.isArray(t.messages) ? t.messages : [];
-                  const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
-                  const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
-                  const unreadCount = t.unread_count || 0;
-                  const lastSenderName = lastMsg ? (lastMsg.sender_type === 'agent' ? 'CS Support' : getFirstName(getMerchantDisplayName(t, lastMsg.sender))) : '';
-
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => handleOpenTicketChat(t)}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '1.15rem',
-                        backgroundColor: isUnread ? (isDark ? 'rgba(6, 182, 212, 0.08)' : 'rgba(6, 182, 212, 0.04)') : theme.surface,
-                        border: isUnread
-                          ? '1px solid rgba(6, 182, 212, 0.65)'
-                          : (t.status === 'open' || t.status === 'waiting_agent') 
-                            ? '1px solid rgba(6, 182, 212, 0.45)' 
-                            : (t.priority === 'urgent' ? '1px solid rgba(239, 68, 68, 0.4)' : `1px solid ${theme.border}`),
-                        boxShadow: isUnread ? '0 4px 18px rgba(6, 182, 212, 0.16)' : theme.cardShadow,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.65rem',
-                        cursor: 'pointer',
-                        transition: 'transform 0.12s ease, box-shadow 0.12s ease',
-                        position: 'relative'
-                      }}
-                    >
-                      {/* Card Header: Ticket Number & Unread Dot on Left | Status Pill on Right (Single Row, Never Wraps) */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
-                          {/* Unread Glow Dot Indicator */}
-                          {isUnread && (
-                            <span 
-                              title={unreadCount > 0 ? `${unreadCount} Pesan Baru` : 'Pesan Baru'}
-                              style={{ 
-                                display: 'inline-block', 
-                                width: '7px', 
-                                height: '7px', 
-                                borderRadius: '50%', 
-                                backgroundColor: '#06b6d4',
-                                boxShadow: '0 0 8px rgba(6, 182, 212, 0.7)',
-                                flexShrink: 0
-                              }} 
-                            />
-                          )}
-
-                          {/* Ticket Number */}
-                          <div style={{ 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)', 
-                            padding: '0.15rem 0.42rem', 
-                            borderRadius: '0.35rem', 
-                            border: '1px solid rgba(6, 182, 212, 0.22)',
-                            flexShrink: 0
-                          }}>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: 'monospace', whiteSpace: 'nowrap', letterSpacing: '0.01em' }}>
-                              {t.ticket_number || `#TCK-${t.id}`}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Status Pill with live indicator dot (Pinned Top-Right, No wrap) */}
-                        <span style={{
-                          padding: '0.2rem 0.55rem',
-                          borderRadius: '999px',
-                          fontSize: '0.64rem',
-                          fontWeight: 800,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          backgroundColor: statusBg,
-                          color: statusColor,
-                          border: `1px solid ${statusBorder}`,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem'
-                        }}>
-                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: statusColor, flexShrink: 0 }} />
-                          {statusLabel}
-                        </span>
-                      </div>
-
-                      {/* Card Subject & Clean Metadata Row */}
-                      <div>
-                        <h4 style={{ 
-                          margin: '0 0 0.3rem 0', 
-                          fontSize: '0.92rem', 
-                          fontWeight: isUnread ? 900 : 700, 
-                          color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textPrimary, 
-                          letterSpacing: '-0.01em', 
-                          lineHeight: 1.35 
-                        }}>
-                          {t.subject || 'Pertanyaan Layanan Toko'}
-                        </h4>
-
-                        {/* Streamlined Meta Info (Category, Priority, SLA, CSAT, Time) */}
-                        <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.66rem' }}>
-                          <span style={{ 
-                            fontWeight: 700, 
-                            padding: '0.12rem 0.38rem', 
-                            borderRadius: '4px', 
-                            backgroundColor: theme.cardAlt, 
-                            color: theme.textSecondary, 
-                            border: `1px solid ${theme.border}`,
-                            fontSize: '0.62rem'
-                          }}>
-                            {
-                              t.category === 'billing' ? 'Keuangan & Langganan' :
-                              t.category === 'technical' ? 'Kendala Teknis & Bug' :
-                              t.category === 'catalog_help' ? 'Bantuan Katalog' :
-                              t.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
-                            }
-                          </span>
-
-                          {t.priority && (
-                            <span style={{
-                              fontSize: '0.62rem',
-                              fontWeight: 800,
-                              padding: '0.12rem 0.38rem',
-                              borderRadius: '4px',
-                              backgroundColor: (t.priority === 'urgent' || t.priority === 'high') ? (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)') : theme.cardAlt,
-                              color: (t.priority === 'urgent' || t.priority === 'high') ? '#ef4444' : theme.textSecondary,
-                              border: `1px solid ${(t.priority === 'urgent' || t.priority === 'high') ? 'rgba(239, 68, 68, 0.35)' : theme.border}`,
-                              textTransform: 'uppercase'
-                            }}>
-                              {t.priority}
-                            </span>
-                          )}
-
-                          {/* SLA Breached or Active Countdown Badge with Premium Lucide SVG Icon */}
-                          {t.sla_breached ? (
-                            <span style={{ 
-                              fontSize: '0.62rem', 
-                              fontWeight: 800, 
-                              padding: '0.12rem 0.42rem', 
-                              borderRadius: '4px', 
-                              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)', 
-                              color: '#ef4444', 
-                              border: '1px solid rgba(239, 68, 68, 0.35)',
-                              whiteSpace: 'nowrap',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}>
-                              <AlertTriangle size={11} strokeWidth={2.4} />
-                              <span>SLA Lewat</span>
-                            </span>
-                          ) : (t.status === 'open' && t.sla_due_at) ? (
-                            (() => {
-                              const diffMin = Math.round((new Date(t.sla_due_at).getTime() - Date.now()) / (1000 * 60));
-                              if (diffMin <= 0) {
-                                return (
-                                  <span style={{ 
-                                    fontSize: '0.62rem', 
-                                    fontWeight: 800, 
-                                    padding: '0.12rem 0.42rem', 
-                                    borderRadius: '4px', 
-                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.12)', 
-                                    color: '#ef4444', 
-                                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                                    whiteSpace: 'nowrap',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem'
-                                  }}>
-                                    <AlertTriangle size={11} strokeWidth={2.4} />
-                                    <span>SLA Lewat</span>
-                                  </span>
-                                );
-                              }
-                              const hours = Math.floor(diffMin / 60);
-                              const mins = diffMin % 60;
-                              const isClose = diffMin < 30;
-                              return (
-                                <span style={{
-                                  fontSize: '0.62rem',
-                                  fontWeight: 800,
-                                  padding: '0.12rem 0.42rem',
-                                  borderRadius: '4px',
-                                  backgroundColor: isClose ? (isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(245, 158, 11, 0.12)') : (isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)'),
-                                  color: isClose ? '#f59e0b' : '#10b981',
-                                  border: `1px solid ${isClose ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  <Clock size={11} strokeWidth={2.2} />
-                                  <span>SLA: {hours > 0 ? `${hours}j ` : ''}{mins}m</span>
-                                </span>
-                              );
-                            })()
-                          ) : null}
-
-                          {/* CSAT Rating if present */}
-                          {t.rating && (
-                            <span style={{ 
-                              fontSize: '0.62rem', 
-                              fontWeight: 800, 
-                              color: '#f59e0b', 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: '0.15rem' 
-                            }}>
-                              <Star size={10} fill="#f59e0b" color="#f59e0b" />
-                              <span>{t.rating}/5</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Snippet message */}
-                        {lastMsg ? (
-                          <p style={{
-                            margin: 0,
-                            fontSize: '0.76rem',
-                            color: isUnread ? theme.textPrimary : theme.textSecondary,
-                            fontWeight: isUnread ? 600 : 400,
-                            lineHeight: 1.45,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical'
-                          }}>
-                            <strong style={{ color: lastMsg.sender_type === 'user' ? '#06b6d4' : 'var(--primary)' }}>
-                              {lastSenderName}:
-                            </strong>{' '}
-                            {lastMsg.message || (lastMsg.attachments?.length ? `[${lastMsg.attachments.length} Lampiran Bukti]` : '')}
-                          </p>
-                        ) : (t.messages && t.messages.length > 0 && (
-                          <p style={{
-                            margin: 0,
-                            fontSize: '0.76rem',
-                            color: theme.textSecondary,
-                            lineHeight: 1.45,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical'
-                          }}>
-                            {t.messages[0]?.message}
-                          </p>
-                        ))}
-                      </div>
-
-                      {/* Card Footer: Merchant Identity & Plan Badge on Left | Time & Messages Count on Right */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingTop: '0.55rem',
-                        borderTop: `1px solid ${theme.border}`,
-                        marginTop: '0.15rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1, marginRight: '0.5rem' }}>
-                          <Store size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span style={{
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            color: theme.textPrimary,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {storeDisplayName}
-                          </span>
-
-                          {/* Store Tier Badge (Contextually placed next to Store Name) */}
-                          {storePlan === 'enterprise' && (
-                            <span style={{
-                              fontSize: '0.56rem',
-                              fontWeight: 800,
-                              padding: '0.08rem 0.38rem',
-                              borderRadius: '4px',
-                              background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
-                              color: '#ffffff',
-                              letterSpacing: '0.03em',
-                              boxShadow: '0 1px 3px rgba(124, 58, 237, 0.3)',
-                              flexShrink: 0
-                            }}>
-                              ENTERPRISE
-                            </span>
-                          )}
-                          {storePlan === 'pro' && (
-                            <span style={{
-                              fontSize: '0.56rem',
-                              fontWeight: 800,
-                              padding: '0.08rem 0.38rem',
-                              borderRadius: '4px',
-                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                              color: '#ffffff',
-                              letterSpacing: '0.04em',
-                              boxShadow: '0 1px 3px rgba(217, 119, 6, 0.35)',
-                              flexShrink: 0
-                            }}>
-                              PRO
-                            </span>
-                          )}
-                          {(!storePlan || storePlan === 'free' || storePlan === 'starter') && (
-                            <span style={{
-                              fontSize: '0.56rem',
-                              fontWeight: 700,
-                              padding: '0.08rem 0.38rem',
-                              borderRadius: '4px',
-                              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(100, 116, 139, 0.12)',
-                              color: isDark ? '#94a3b8' : '#475569',
-                              border: `1px solid ${theme.border}`,
-                              letterSpacing: '0.03em',
-                              flexShrink: 0
-                            }}>
-                              FREE
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          flexShrink: 0
-                        }}>
-                          {/* Timestamp with Clock Icon */}
-                          <span style={{
-                            fontSize: '0.64rem',
-                            color: isUnread ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
-                            fontWeight: isUnread ? 700 : 500,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.22rem',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <Clock size={11} strokeWidth={2} style={{ opacity: 0.85 }} />
-                            {formatSupportDateTime(t.last_message_at || t.created_at)}
-                          </span>
-
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.08)',
-                            border: '1px solid rgba(6, 182, 212, 0.25)',
-                            color: '#06b6d4',
-                            fontSize: '0.68rem',
-                            fontWeight: 800
-                          }}>
-                            <MessageSquare size={11} />
-                            <span>{messageCount} Pesan</span>
-                            <ChevronRight size={11} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Load More Button for Server-Side Paginated Feed */}
-                {ticketsPagination.has_more && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', marginTop: '0.4rem', marginBottom: '1.25rem' }}>
-                    <button
-                      type="button"
-                      disabled={ticketsLoadingMore}
-                      onClick={handleLoadMoreTickets}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: theme.surface,
-                        border: `1.5px dashed ${isDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.4)'}`,
-                        color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
-                        cursor: ticketsLoadingMore ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.45rem',
-                        boxShadow: theme.cardShadow,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {ticketsLoadingMore ? (
-                        <>
-                          <RefreshCw size={15} className="animate-spin" />
-                          <span>Memuat Tiket Berikutnya...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown size={15} />
-                          <span>Muat Lebih Banyak Tiket ({tickets.length} dari {ticketsPagination.total_items})</span>
-                        </>
-                      )}
-                    </button>
-                    <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                      Menampilkan {tickets.length} dari {ticketsPagination.total_items} tiket
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-
-        {/* VIEW 2: MASTER CANNED RESPONSES (PENGELOLAAN TEMPLATE) */}
-        {supportSubView === 'templates' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {/* Search Bar & Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
-                  value={templateSearchQuery}
-                  onChange={(e) => setTemplateSearchQuery(e.target.value)}
-                  placeholder="Cari judul, shortcut (/salam), atau isi..."
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem 2.2rem 0.65rem 2.5rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                    border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                    fontSize: '0.82rem',
-                    fontWeight: 500,
-                    outline: 'none',
-                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
-                    boxSizing: 'border-box'
+              {/* Reset Filters (if active) */}
+              {(ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketSearchQuery.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTicketCategoryFilter('all');
+                    setTicketPriorityFilter('all');
+                    setTicketSlaFilter('all');
+                    setTicketSearchQuery('');
                   }}
-                />
-                {templateSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setTemplateSearchQuery('')}
-                    style={{
-                      position: 'absolute',
-                      right: '0.75rem',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: isDark ? '#94a3b8' : '#64748b',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem',
-                      padding: '0.2rem'
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Action Buttons Row & Category Pills */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-                  {[
-                    { id: 'all', label: 'Semua' },
-                    { id: 'general', label: 'Umum' },
-                    { id: 'billing', label: 'Keuangan' },
-                    { id: 'technical', label: 'Teknis' },
-                    { id: 'closing', label: 'Penutupan' },
-                    { id: 'account', label: 'Akun' }
-                  ].map(cat => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setTemplateCategoryFilter(cat.id)}
-                      style={{
-                        padding: '0.3rem 0.65rem',
-                        borderRadius: '999px',
-                        fontSize: '0.7rem',
-                        fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
-                        backgroundColor: templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.chipInactiveBg,
-                        color: templateCategoryFilter === cat.id ? '#ffffff' : theme.chipInactiveText,
-                        border: `1px solid ${templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.border}`,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={handleResetDefaultTemplates}
-                    style={{
-                      padding: '0.4rem 0.6rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.cardAlt,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textSecondary,
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem'
-                    }}
-                    title="Reset ke bawaan"
-                  >
-                    <RefreshCw size={12} />
-                    <span>Reset</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateTemplate}
-                    style={{
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: isDark ? '#38bdf8' : '#0284c7',
-                      border: 'none',
-                      color: '#ffffff',
-                      fontSize: '0.74rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
-                    }}
-                  >
-                    <Plus size={13} />
-                    <span>Tambah</span>
-                  </button>
-                </div>
-              </div>
+                  style={{
+                    padding: '0.3rem 0.55rem',
+                    borderRadius: '999px',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    backgroundColor: theme.cardAlt,
+                    color: theme.textMuted,
+                    border: `1px solid ${theme.border}`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <X size={11} />
+                  <span>Reset Filter</span>
+                </button>
+              )}
             </div>
 
-            {/* Template Cards List */}
-            {loadingTemplates ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: theme.textSecondary }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: isDark ? '#38bdf8' : '#0284c7' }} />
-                <span style={{ fontSize: '0.8rem' }}>Memuat master template...</span>
-              </div>
-            ) : cannedTemplates.filter(t => {
-              if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
-              if (templateSearchQuery.trim()) {
-                const q = templateSearchQuery.toLowerCase();
-                return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
-              }
-              return true;
-            }).length === 0 ? (
+            {/* Tickets Feed List */}
+            {tickets.length === 0 ? (
               <div style={{
                 padding: '2.5rem 1rem',
                 textAlign: 'center',
                 backgroundColor: theme.surface,
-                borderRadius: '1rem',
-                border: `1px dashed ${theme.border}`,
-                color: theme.textMuted
+                borderRadius: '1.15rem',
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow
               }}>
-                <Zap size={32} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.3 }} />
-                <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: '0.25rem', color: theme.textPrimary }}>
-                  Tidak Ada Template
-                </strong>
-                <p style={{ fontSize: '0.76rem', margin: '0 0 0.85rem', color: theme.textSecondary }}>
-                  Belum ada template pada kategori atau kata kunci ini.
+                <MessageSquare size={36} color="var(--primary)" style={{ margin: '0 auto 0.65rem' }} />
+                <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Tiket</h4>
+                <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
+                  Tidak ada tiket bantuan yang cocok dengan filter saat ini.
                 </p>
-                <button
-                  type="button"
-                  onClick={handleOpenCreateTemplate}
-                  style={{
-                    padding: '0.45rem 0.9rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: isDark ? '#38bdf8' : '#0284c7',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Tambah Template
-                </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {cannedTemplates
-                  .filter(t => {
-                    if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
-                    if (templateSearchQuery.trim()) {
-                      const q = templateSearchQuery.toLowerCase();
-                      return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
-                    }
-                    return true;
-                  })
-                  .map(tmpl => {
-                    const catColors: Record<string, { bg: string; text: string; label: string }> = {
-                      general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
-                      billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
-                      technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
-                      closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
-                      account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
-                    };
-                    const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
+              tickets.map((t) => {
+                const isUnread = t.status === 'open' || t.status === 'waiting_agent';
+                const statusMeta = getTicketStatusMeta(t.status);
+                const storeDisplayName = t.store_name || t.store?.name || t.user_name || t.user_email || 'Merchant';
+                const storePlan = t.store_plan || t.store?.plan || '';
+                const msgs = Array.isArray(t.messages) ? t.messages : [];
+                const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
+                const messageCount = msgs.length || t.message_count || 1;
+                const lastSenderName = lastMsg ? (lastMsg.sender_type === 'user' ? (lastMsg.sender_name || 'Merchant') : (lastMsg.sender_name || 'CS Agent')) : '';
 
-                    return (
-                      <div
-                        key={tmpl.id}
-                        style={{
-                          backgroundColor: theme.surface,
-                          border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
-                          borderRadius: '0.95rem',
-                          padding: '0.95rem',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.65rem',
-                          opacity: tmpl.is_active !== false ? 1 : 0.65,
-                          boxShadow: theme.cardShadow
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              <span style={{
-                                fontSize: '0.62rem',
-                                fontWeight: 800,
-                                padding: '0.1rem 0.45rem',
-                                borderRadius: '999px',
-                                backgroundColor: catInfo.bg,
-                                color: catInfo.text
-                              }}>
-                                {catInfo.label}
-                              </span>
-
-                              {tmpl.shortcut && (
-                                <span style={{
-                                  fontSize: '0.62rem',
-                                  fontWeight: 800,
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '0.35rem',
-                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                                  color: isDark ? '#38bdf8' : '#0284c7'
-                                }}>
-                                  /{tmpl.shortcut}
-                                </span>
-                              )}
-
-                              <span style={{
-                                fontSize: '0.58rem',
-                                fontWeight: 700,
-                                padding: '0.08rem 0.35rem',
-                                borderRadius: '0.3rem',
-                                backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
-                              }}>
-                                {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
-                              </span>
-                            </div>
-
-                            <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
-                              {tmpl.title}
-                            </strong>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleTemplateActive(tmpl)}
-                              style={{
-                                padding: '0.35rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
-                                cursor: 'pointer'
-                              }}
-                              title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
-                            >
-                              {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditTemplate(tmpl)}
-                              style={{
-                                padding: '0.35rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                color: isDark ? '#38bdf8' : '#0284c7',
-                                cursor: 'pointer'
-                              }}
-                              title="Edit Template"
-                            >
-                              <Sliders size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
-                              style={{
-                                padding: '0.35rem',
-                                borderRadius: '0.4rem',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.25)',
-                                color: '#ef4444',
-                                cursor: 'pointer'
-                              }}
-                              title="Hapus Template"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Template Content Box */}
-                        <div style={{
-                          padding: '0.65rem 0.75rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: theme.cardAlt,
-                          border: `1px solid ${theme.border}`,
-                          fontSize: '0.78rem',
-                          color: theme.textSecondary,
-                          lineHeight: 1.45,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          maxHeight: '120px',
-                          overflowY: 'auto'
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => handleOpenTicketChat(t)}
+                    style={{
+                      padding: '0.95rem 1rem',
+                      borderRadius: '1.15rem',
+                      backgroundColor: theme.surface,
+                      border: isUnread ? `1.5px solid ${statusMeta.color}` : `1px solid ${theme.border}`,
+                      boxShadow: theme.cardShadow,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.65rem',
+                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                      position: 'relative'
+                    }}
+                  >
+                    {/* Header Row: Ticket Number & Status Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                        {isUnread && (
+                          <span style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            backgroundColor: statusMeta.color,
+                            boxShadow: `0 0 8px ${statusMeta.color}`,
+                            flexShrink: 0
+                          }} />
+                        )}
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          color: isDark ? '#38bdf8' : '#0284c7',
+                          fontFamily: 'monospace',
+                          padding: '0.15rem 0.42rem',
+                          borderRadius: '0.35rem',
+                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)',
+                          border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.2)'}`
                         }}>
-                          {tmpl.content}
-                        </div>
+                          {t.ticket_number || `#TCK-${t.id}`}
+                        </span>
+                        {t.priority === 'urgent' && (
+                          <span style={{
+                            fontSize: '0.58rem',
+                            fontWeight: 800,
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            color: '#ef4444',
+                            border: '1px solid rgba(239, 68, 68, 0.3)'
+                          }}>
+                            URGENT
+                          </span>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <span style={{
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '999px',
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        backgroundColor: statusMeta.bg,
+                        color: statusMeta.color,
+                        border: `1px solid ${statusMeta.border}`,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}>
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: statusMeta.color }} />
+                        {statusMeta.shortLabel || statusMeta.label}
+                      </span>
+                    </div>
+
+                    {/* Store Info & Subject */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary }}>
+                          {storeDisplayName}
+                        </span>
+                        {storePlan && storePlan !== 'free' && (
+                          <span style={{
+                            fontSize: '0.56rem',
+                            fontWeight: 800,
+                            padding: '0.08rem 0.35rem',
+                            borderRadius: '4px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            color: isDark ? '#34d399' : '#059669',
+                            border: '1px solid rgba(16, 185, 129, 0.3)'
+                          }}>
+                            {storePlan.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 style={{
+                        margin: 0,
+                        fontSize: '0.88rem',
+                        fontWeight: isUnread ? 800 : 700,
+                        color: theme.textPrimary,
+                        lineHeight: 1.35
+                      }}>
+                        {t.subject || 'Tiket Bantuan'}
+                      </h4>
+                    </div>
+
+                    {/* Last message snippet if present */}
+                    {lastMsg && (
+                      <div style={{
+                        padding: '0.45rem 0.6rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px solid ${theme.border}`,
+                        fontSize: '0.74rem',
+                        color: theme.textSecondary,
+                        lineHeight: 1.35,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        <strong style={{ color: theme.textPrimary }}>{lastSenderName}: </strong>
+                        {lastMsg.message || 'Lampiran'}
+                      </div>
+                    )}
+
+                    {/* Footer Row: Timestamp & Message Count */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.2rem', borderTop: `1px solid ${theme.border}` }}>
+                      <span style={{ fontSize: '0.64rem', color: theme.textMuted, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Clock size={11} />
+                        {t.last_message_at || t.created_at ? new Date(t.last_message_at || t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja'}
+                      </span>
+
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.15rem 0.45rem',
+                        borderRadius: '0.4rem',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(2, 132, 199, 0.08)',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        fontSize: '0.66rem',
+                        fontWeight: 700
+                      }}>
+                        <MessageSquare size={11} />
+                        <span>{messageCount} Pesan</span>
+                        <ChevronRight size={11} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* Load More Button for Server-Side Paginated Feed */}
+            {ticketsPagination.has_more && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', marginTop: '0.4rem', marginBottom: '1.25rem' }}>
+                <button
+                  type="button"
+                  disabled={ticketsLoadingMore}
+                  onClick={handleLoadMoreTickets}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: theme.surface,
+                    border: `1.5px dashed ${isDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.4)'}`,
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontSize: '0.8rem',
+                    fontWeight: 800,
+                    cursor: ticketsLoadingMore ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    boxShadow: theme.cardShadow,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {ticketsLoadingMore ? (
+                    <>
+                      <RefreshCw size={15} className="animate-spin" />
+                      <span>Memuat Tiket Berikutnya...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={15} />
+                      <span>Muat Lebih Banyak Tiket ({tickets.length} dari {ticketsPagination.total_items})</span>
+                    </>
+                  )}
+                </button>
+                <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                  Menampilkan {tickets.length} dari {ticketsPagination.total_items} tiket
+                </span>
+              </div>
             )}
           </div>
-        )}
-      </div>
-    )
-  )}
+        )
+      )}
 
       {/* ========================================================================= */}
       {/* 4. MODULE 5: KEUANGAN & ORDER LANGGANAN                                   */}
@@ -9825,14 +9238,421 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. MODULE: MASTER DOMAIN AMAN (WHITELIST)                                 */}
+      {/* 4. MODULE: DATA MASTER PLATFORM (DOMAIN WHITELIST & TEMPLATE CS)           */}
       {/* ========================================================================= */}
-      {activeView === 'safe_domains' && (canAccessMonetization || isSuperAdmin(currentUser)) && (
-        <AdminSafeDomainsManagement
-          token={token}
-          themeMode={themeMode}
-          onClose={() => handleSwitchView('dashboard')}
-        />
+      {activeView === 'master_data' && canAccessMasterData && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+          {/* Top Sub-Navigation Pill Switcher */}
+          <div style={{
+            display: 'flex',
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+            padding: '0.25rem',
+            borderRadius: '0.85rem',
+            border: `1px solid ${theme.border}`,
+            gap: '0.3rem'
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setMasterSubView('domains');
+                updatePlatformUrl('master_data', null, 'domains');
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                padding: '0.55rem 0.6rem',
+                borderRadius: '0.65rem',
+                border: 'none',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                backgroundColor: masterSubView === 'domains' ? 'var(--primary, #10b981)' : 'transparent',
+                color: masterSubView === 'domains' ? '#ffffff' : theme.textSecondary,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Globe size={14} />
+              <span>Domain Whitelist</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMasterSubView('templates');
+                updatePlatformUrl('master_data', null, 'templates');
+                fetchCannedTemplates(true);
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                padding: '0.55rem 0.6rem',
+                borderRadius: '0.65rem',
+                border: 'none',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                backgroundColor: masterSubView === 'templates' ? (isDark ? '#38bdf8' : '#0284c7') : 'transparent',
+                color: masterSubView === 'templates' ? '#ffffff' : theme.textSecondary,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Zap size={14} />
+              <span>Template CS</span>
+              <span style={{
+                fontSize: '0.62rem',
+                padding: '0.05rem 0.35rem',
+                borderRadius: '999px',
+                backgroundColor: masterSubView === 'templates' ? 'rgba(255, 255, 255, 0.25)' : theme.cardAlt,
+                color: masterSubView === 'templates' ? '#ffffff' : theme.textMuted
+              }}>
+                {cannedTemplates.length}
+              </span>
+            </button>
+          </div>
+
+          {/* SUB-VIEW 1: DOMAIN WHITELIST */}
+          {masterSubView === 'domains' && (
+            <AdminSafeDomainsManagement
+              token={token}
+              themeMode={themeMode}
+              onClose={() => handleSwitchView('dashboard')}
+            />
+          )}
+
+          {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATE CS) */}
+          {masterSubView === 'templates' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Search Bar & Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '0.9rem', color: isDark ? '#94a3b8' : '#64748b', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    className={`search-input ${isDark ? 'dark-input' : 'light-input'}`}
+                    value={templateSearchQuery}
+                    onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                    placeholder="Cari judul, shortcut (/salam), atau isi..."
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 2.2rem 0.65rem 2.5rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)'}`,
+                      color: isDark ? '#f8fafc' : '#0f172a',
+                      fontSize: '0.82rem',
+                      fontWeight: 500,
+                      outline: 'none',
+                      boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {templateSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTemplateSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: isDark ? '#94a3b8' : '#64748b',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        padding: '0.2rem'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Action Buttons Row & Category Pills */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                    {[
+                      { id: 'all', label: 'Semua' },
+                      { id: 'general', label: 'Umum' },
+                      { id: 'billing', label: 'Keuangan' },
+                      { id: 'technical', label: 'Teknis' },
+                      { id: 'closing', label: 'Penutupan' },
+                      { id: 'account', label: 'Akun' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setTemplateCategoryFilter(cat.id)}
+                        style={{
+                          padding: '0.3rem 0.65rem',
+                          borderRadius: '999px',
+                          fontSize: '0.7rem',
+                          fontWeight: templateCategoryFilter === cat.id ? 800 : 600,
+                          backgroundColor: templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.chipInactiveBg,
+                          color: templateCategoryFilter === cat.id ? '#ffffff' : theme.chipInactiveText,
+                          border: `1px solid ${templateCategoryFilter === cat.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.border}`,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={handleResetDefaultTemplates}
+                      style={{
+                        padding: '0.4rem 0.6rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textSecondary,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                      title="Reset ke bawaan"
+                    >
+                      <RefreshCw size={12} />
+                      <span>Reset</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenCreateTemplate}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Template Cards List */}
+              {loadingTemplates ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: theme.textSecondary }}>
+                  <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: isDark ? '#38bdf8' : '#0284c7' }} />
+                  <span style={{ fontSize: '0.8rem' }}>Memuat master template...</span>
+                </div>
+              ) : cannedTemplates.filter(t => {
+                if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                if (templateSearchQuery.trim()) {
+                  const q = templateSearchQuery.toLowerCase();
+                  return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                }
+                return true;
+              }).length === 0 ? (
+                <div style={{
+                  padding: '2.5rem 1rem',
+                  textAlign: 'center',
+                  backgroundColor: theme.surface,
+                  borderRadius: '1rem',
+                  border: `1px dashed ${theme.border}`,
+                  color: theme.textMuted
+                }}>
+                  <Zap size={32} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.3 }} />
+                  <strong style={{ fontSize: '0.88rem', display: 'block', marginBottom: '0.25rem', color: theme.textPrimary }}>
+                    Tidak Ada Template
+                  </strong>
+                  <p style={{ fontSize: '0.76rem', margin: '0 0 0.85rem', color: theme.textSecondary }}>
+                    Belum ada template pada kategori atau kata kunci ini.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateTemplate}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    + Tambah Template
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {cannedTemplates
+                    .filter(t => {
+                      if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
+                      if (templateSearchQuery.trim()) {
+                        const q = templateSearchQuery.toLowerCase();
+                        return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
+                      }
+                      return true;
+                    })
+                    .map(tmpl => {
+                      const catColors: Record<string, { bg: string; text: string; label: string }> = {
+                        general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
+                        billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
+                        technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
+                        closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
+                        account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
+                      };
+                      const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
+
+                      return (
+                        <div
+                          key={tmpl.id}
+                          style={{
+                            backgroundColor: theme.surface,
+                            border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
+                            borderRadius: '0.95rem',
+                            padding: '0.95rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem',
+                            opacity: tmpl.is_active !== false ? 1 : 0.65,
+                            boxShadow: theme.cardShadow
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '0.1rem 0.45rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: catInfo.bg,
+                                  color: catInfo.text
+                                }}>
+                                  {catInfo.label}
+                                </span>
+
+                                {tmpl.shortcut && (
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '0.35rem',
+                                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                                    color: isDark ? '#38bdf8' : '#0284c7'
+                                  }}>
+                                    /{tmpl.shortcut}
+                                  </span>
+                                )}
+
+                                <span style={{
+                                  fontSize: '0.58rem',
+                                  fontWeight: 700,
+                                  padding: '0.08rem 0.35rem',
+                                  borderRadius: '0.3rem',
+                                  backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                  color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
+                                }}>
+                                  {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                                </span>
+                              </div>
+
+                              <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
+                                {tmpl.title}
+                              </strong>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTemplateActive(tmpl)}
+                                style={{
+                                  padding: '0.35rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
+                                  cursor: 'pointer'
+                                }}
+                                title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
+                              >
+                                {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditTemplate(tmpl)}
+                                style={{
+                                  padding: '0.35rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: isDark ? '#38bdf8' : '#0284c7',
+                                  cursor: 'pointer'
+                                }}
+                                title="Edit Template"
+                              >
+                                <Sliders size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
+                                style={{
+                                  padding: '0.35rem',
+                                  borderRadius: '0.4rem',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                                  color: '#ef4444',
+                                  cursor: 'pointer'
+                                }}
+                                title="Hapus Template"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Template Content Box */}
+                          <div style={{
+                            padding: '0.65rem 0.75rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            fontSize: '0.78rem',
+                            color: theme.textSecondary,
+                            lineHeight: 1.45,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            maxHeight: '120px',
+                            overflowY: 'auto'
+                          }}>
+                            {tmpl.content}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* DOCUMENT PREVIEW MODAL (PDF / IN-APP VIEWER & DIRECT DOWNLOAD) */}
