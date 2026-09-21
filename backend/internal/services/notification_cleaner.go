@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -91,4 +92,32 @@ func runCleanup(db *gorm.DB) {
 	} else if resOrphaned.RowsAffected > 0 {
 		log.Info().Int64("purged_count", resOrphaned.RowsAffected).Msg("Purged orphaned notification reads")
 	}
+
+	var totalCleaned int64
+	if resExpired.RowsAffected > 0 {
+		totalCleaned += resExpired.RowsAffected
+	}
+	if resOldTargeted.RowsAffected > 0 {
+		totalCleaned += resOldTargeted.RowsAffected
+	}
+	if resRetention.RowsAffected > 0 {
+		totalCleaned += resRetention.RowsAffected
+	}
+	if resOldDismissed.RowsAffected > 0 {
+		totalCleaned += resOldDismissed.RowsAffected
+	}
+	if resOrphaned.RowsAffected > 0 {
+		totalCleaned += resOrphaned.RowsAffected
+	}
+
+	summary := fmt.Sprintf("Pembersihan selesai. Total %d record kedaluwarsa dibersihkan.", totalCleaned)
+	GetAutomationTracker().RecordWorkerHeartbeat(
+		"cleaner_worker",
+		"running",
+		summary,
+		"",
+		totalCleaned,
+		time.Now().UTC().Add(1*time.Hour),
+	)
 }
+

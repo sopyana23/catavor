@@ -87,6 +87,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.Notification{},
 		&models.NotificationRead{},
 		&models.ActivityLog{},
+		&models.SafeDomain{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
@@ -100,6 +101,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 
 	// Seed or Import Data from SQLite
 	seedOrImportFromSQLite(db, cfg.SQLiteSourcePath)
+	seedDefaultSafeDomains(db)
 
 	return db, nil
 }
@@ -389,7 +391,19 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	// Seed Default RBAC Matrix & Roles
 	seedDefaultRBAC(db)
 
-	// 7. Auto-populate categories from store master_classes if categories table is empty
+	// 7. Auto-Migrate & Seed Master Safe Domains
+	_ = db.AutoMigrate(&models.SafeDomain{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_safe_domains_active ON safe_domains(is_active);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_safe_domains_cat ON safe_domains(category);").Error
+	seedDefaultSafeDomains(db)
+
+	// 8. Auto-Migrate Automation Logs (Persistent Job History)
+	_ = db.AutoMigrate(&models.AutomationLog{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_bot_name ON automation_logs(bot_name);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_status ON automation_logs(status);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_created_at ON automation_logs(created_at DESC);").Error
+
+	// 9. Auto-populate categories from store master_classes if categories table is empty
 	var catCount int64
 	db.Model(&models.Category{}).Count(&catCount)
 	if catCount == 0 {
@@ -448,7 +462,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 				Category:    "Paket & Pembayaran",
 				Title:       "Keuntungan Upgrade ke Akun Pro & Metode Pembayaran",
 				Slug:        "keuntungan-upgrade-akun-pro",
-				Content:     "Paket Pro Catavor membuka kapasitas posting tanpa batas (unlimited items), custom tema toko eksklusif, prioritas pencarian, dan verifikasi lencana centang resmi.",
+				Content:     "Upgrade ke akun Pro untuk membuka fitur eksklusif: Unlimited produk, custom domain, integrasi Google Analytics & Pixel, badge verifikasi toko resmi, serta prioritas dukungan CS 24/7.",
 				SortOrder:   3,
 				IsPublished: true,
 			},
@@ -458,6 +472,28 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 		}
 		log.Info().Msg("Default Help Center articles seeded successfully")
 	}
+
+	// 9. Ensure Notification & NotificationRead Tables, Columns & Indexes
+	_ = db.AutoMigrate(&models.Notification{}, &models.NotificationRead{})
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_recipients TEXT;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_plan_code VARCHAR(64);").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_name VARCHAR(255);").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_broadcast BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS detail_content TEXT;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_enabled BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_type VARCHAR(32) DEFAULT 'none';").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link_sub_tab VARCHAR(64);").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link_mobile_settings_tab VARCHAR(64);").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_label VARCHAR(128);").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(512);").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS retention_hours INT DEFAULT 720;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS created_by INT DEFAULT 0;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target_type, target_plan_code, target_id);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_broadcast ON notifications(is_broadcast, created_at DESC);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_store ON notification_reads(store_id, notification_id);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_user ON notification_reads(user_id, notification_id);").Error
 
 	// 9. Seed Default Support Canned Responses if table is empty
 	var cannedCount int64
@@ -564,9 +600,11 @@ func seedDefaultRBAC(db *gorm.DB) {
 		{Key: "audit:logs:read", Group: "audit", Name: "Lihat System Audit Logs", Description: "Melihat jejak audit trail seluruh aktivitas platform"},
 		{Key: "market_intel:manage", Group: "audit", Name: "Kelola Riset Pasar & DaaS", Description: "Mengonfigurasi dan mengekspor dataset makro riset pasar"},
 
-		// System Administration
+		// System Administration & Automation
 		{Key: "system:admins:manage", Group: "system", Name: "Kelola Staf & Role RBAC", Description: "Mengatur akun staf admin, penugasan role, dan matriks izin dinamis"},
 		{Key: "system:settings:manage", Group: "system", Name: "Kelola Master Pengaturan", Description: "Mengubah konfigurasi platform, integrasi pihak ketiga, dan Google AdSense"},
+		{Key: "system:automation:manage", Group: "system", Name: "Kelola Bot & Mesin Otomatisasi", Description: "Memantau status worker, memicu eksekusi manual, konfigurasi bot, dan uji coba sandbox"},
+		{Key: "system:automation:view", Group: "system", Name: "Lihat Status Bot & Otomatisasi", Description: "Melihat status kesehatan worker, cron daemon, dan histori eksekusi bot"},
 	}
 
 	permMap := make(map[string]uint)
@@ -714,4 +752,53 @@ func seedDefaultData(db *gorm.DB) {
 
 	log.Info().Msg("Default Catavor admin and adidas store created")
 }
+
+func seedDefaultSafeDomains(db *gorm.DB) {
+	var count int64
+	db.Model(&models.SafeDomain{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	defaults := []models.SafeDomain{
+		{Domain: "google.com", Category: "Google", Description: "Layanan Pencarian & Ekosistem Google", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "gemini.google.com", Category: "Google", Description: "Google Gemini AI Assistant", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "docs.google.com", Category: "Google", Description: "Google Docs & Spreadsheet", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "drive.google.com", Category: "Google", Description: "Google Drive Cloud Storage", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "mail.google.com", Category: "Google", Description: "Layanan Email Gmail", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "youtube.com", Category: "Media", Description: "Platform Video YouTube", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "youtu.be", Category: "Media", Description: "Tautan Pendek Video YouTube", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "maps.google.com", Category: "Google", Description: "Google Maps & Navigasi Lokasi", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "play.google.com", Category: "Google", Description: "Google Play Store", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "wa.me", Category: "Komunikasi", Description: "WhatsApp Direct Chat & Kontak CS", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "whatsapp.com", Category: "Komunikasi", Description: "Aplikasi WhatsApp Resmi", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "api.whatsapp.com", Category: "Komunikasi", Description: "WhatsApp Business API", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "telegram.org", Category: "Komunikasi", Description: "Aplikasi Telegram Messenger", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "t.me", Category: "Komunikasi", Description: "Tautan Langsung Channel & Kontak Telegram", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "instagram.com", Category: "Media Sosial", Description: "Instagram Official & Katalog Visual", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "facebook.com", Category: "Media Sosial", Description: "Facebook Page & Komunitas", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "fb.me", Category: "Media Sosial", Description: "Tautan Pendek Facebook", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "tiktok.com", Category: "Media Sosial", Description: "TikTok Official & Video Produk", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "x.com", Category: "Media Sosial", Description: "X (Twitter) Official Platform", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "twitter.com", Category: "Media Sosial", Description: "Twitter Platform", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "threads.net", Category: "Media Sosial", Description: "Meta Threads Official", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "linkedin.com", Category: "Media Sosial", Description: "LinkedIn Business Network", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "catavor.com", Category: "Platform", Description: "Platform Utama Catavor", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "dfauna.com", Category: "Platform", Description: "Ekosistem Domain Catavor / DFauna", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "localhost", Category: "Platform", Description: "Localhost Development Server", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "canva.com", Category: "Produktivitas", Description: "Layanan Desain Grafis Canva", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "zoom.us", Category: "Komunikasi", Description: "Layanan Video Meeting Zoom", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "github.com", Category: "Produktivitas", Description: "Developer Platform GitHub", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "apple.com", Category: "Mitra", Description: "Situs Resmi Apple", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "apps.apple.com", Category: "Mitra", Description: "Apple App Store", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "midtrans.com", Category: "Finansial", Description: "Payment Gateway Midtrans", IsActive: true, IsSystem: true, CreatedBy: "System"},
+		{Domain: "xendit.co", Category: "Finansial", Description: "Payment Gateway Xendit", IsActive: true, IsSystem: true, CreatedBy: "System"},
+	}
+
+	for _, d := range defaults {
+		db.Create(&d)
+	}
+	log.Info().Int("count", len(defaults)).Msg("Master Safe Domains seeded successfully")
+}
+
 

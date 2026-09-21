@@ -1512,9 +1512,42 @@ func (h *SupportHandler) runLifecycleTasks() {
 	}
 
 	// 4. Multi-Tier SLA Breach Detection
+	var breachCount int64
 	database.DB.Model(&models.SupportTicket{}).
 		Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
-		Update("sla_breached", true)
+		Count(&breachCount)
+	if breachCount > 0 {
+		database.DB.Model(&models.SupportTicket{}).
+			Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
+			Update("sla_breached", true)
+	}
+
+	// 5. Report Heartbeat to Automation Tracker
+	totalProcessed := int64(len(staleWaitingTickets) + len(ticketsToResolve) + len(staleResolvedTickets))
+	summary := fmt.Sprintf("Siklus Helpdesk SLA berjalan normal (%d tiket diproses).", totalProcessed)
+	services.GetAutomationTracker().RecordWorkerHeartbeat(
+		"support_lifecycle",
+		"running",
+		summary,
+		"",
+		totalProcessed,
+		now.Add(15*time.Minute),
+	)
+
+	if totalProcessed > 0 || breachCount > 0 {
+		services.GetAutomationTracker().RecordLog(services.AutomationLogEntry{
+			BotName:       "support_lifecycle",
+			BotTitle:      "Bot Helpdesk SLA Escalation & Auto-Resolve",
+			Target:        "Antrean Tiket Bantuan",
+			Action:        "executed_cycle",
+			TriggerType:   "cron",
+			TriggeredBy:   "Support Daemon",
+			Status:        "success",
+			AffectedCount: totalProcessed,
+			Details:       fmt.Sprintf("Siklus otomatis: %d pengingat terkirim, %d auto-resolved, %d auto-closed, %d SLA breach.", len(staleWaitingTickets), len(ticketsToResolve), len(staleResolvedTickets), breachCount),
+			Timestamp:     now,
+		})
+	}
 }
 
 // ListCannedResponses returns all canned response templates grouped or filtered.

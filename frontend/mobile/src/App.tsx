@@ -135,6 +135,7 @@ import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
+import { FormattedText } from './components/RichTextarea'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
@@ -1577,165 +1578,7 @@ export function OfficialWebsiteCard({ url }: { url?: string | null }) {
   );
 }
 
-export const FormattedText: React.FC<{ text?: string; style?: React.CSSProperties; className?: string }> = ({ text, style, className }) => {
-  if (!text) return null;
-
-  const lines = text.split('\n');
-  const elements: React.ReactNode[] = [];
-  let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
-
-  const renderInlineMarkdown = (str: string): React.ReactNode => {
-    const parts: React.ReactNode[] = [];
-    let idx = 0;
-    const regex = /(\*\*(.*?)\*\*|\*(.*?)\*|__(.*?)__|_(.*?)_|`(.*?)`)/g;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(str)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(str.substring(lastIndex, match.index));
-      }
-      if (match[2] !== undefined) {
-        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[2]}</strong>);
-      } else if (match[4] !== undefined) {
-        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[4]}</strong>);
-      } else if (match[3] !== undefined) {
-        parts.push(<em key={`i-${idx++}`}>{match[3]}</em>);
-      } else if (match[5] !== undefined) {
-        parts.push(<em key={`i2-${idx++}`}>{match[5]}</em>);
-      } else if (match[6] !== undefined) {
-        parts.push(
-          <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(255,255,255,0.08)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary)' }}>
-            {match[6]}
-          </code>
-        );
-      }
-      lastIndex = regex.lastIndex;
-    }
-    if (lastIndex < str.length) {
-      parts.push(str.substring(lastIndex));
-    }
-    return parts.length > 0 ? parts : str;
-  };
-
-  const flushList = (key: number) => {
-    if (!currentList) return null;
-    const isUl = currentList.type === 'ul';
-    const listNode = isUl ? (
-      <ul key={`list-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.35rem 0 0.5rem 0', listStyleType: 'disc' }}>
-        {currentList.items.map((item, i) => (
-          <li key={i} style={{ marginBottom: '0.2rem' }}>{renderInlineMarkdown(item)}</li>
-        ))}
-      </ul>
-    ) : (
-      <ol key={`list-${key}`} style={{ paddingLeft: '1.25rem', margin: '0.35rem 0 0.5rem 0' }}>
-        {currentList.items.map((item, i) => (
-          <li key={i} style={{ marginBottom: '0.2rem' }}>{renderInlineMarkdown(item)}</li>
-        ))}
-      </ol>
-    );
-    currentList = null;
-    return listNode;
-  };
-
-  lines.forEach((line, lineIdx) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('- [x] ') || trimmed.startsWith('- [ ] ') || trimmed.startsWith('[x] ') || trimmed.startsWith('[ ] ')) {
-      const isChecked = trimmed.includes('[x]') || trimmed.includes('[X]');
-      const itemText = trimmed.replace(/^[-*•]?\s*\[[ xX]\]\s+/, '');
-      const flushed = flushList(lineIdx);
-      if (flushed) elements.push(flushed);
-      elements.push(
-        <div key={`check-${lineIdx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0.18rem 0', paddingLeft: '0.15rem' }}>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '14px',
-            height: '14px',
-            borderRadius: '3px',
-            border: isChecked ? 'none' : '1.5px solid var(--border-hover, #64748b)',
-            backgroundColor: isChecked ? 'var(--primary)' : 'transparent',
-            color: '#ffffff',
-            fontSize: '9px',
-            fontWeight: 'bold',
-            flexShrink: 0
-          }}>
-            {isChecked ? '✓' : ''}
-          </span>
-          <span style={{ textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--text-muted)' : 'var(--text-primary)', fontSize: '0.88rem' }}>
-            {renderInlineMarkdown(itemText)}
-          </span>
-        </div>
-      );
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
-      const itemText = trimmed.replace(/^[-*•]\s+/, '');
-      if (!currentList || currentList.type !== 'ul') {
-        const flushed = flushList(lineIdx);
-        if (flushed) elements.push(flushed);
-        currentList = { type: 'ul', items: [itemText] };
-      } else {
-        currentList.items.push(itemText);
-      }
-    } else if (/^\d+\.\s+/.test(trimmed)) {
-      const itemText = trimmed.replace(/^\d+\.\s+/, '');
-      if (!currentList || currentList.type !== 'ol') {
-        const flushed = flushList(lineIdx);
-        if (flushed) elements.push(flushed);
-        currentList = { type: 'ol', items: [itemText] };
-      } else {
-        currentList.items.push(itemText);
-      }
-    } else {
-      const flushed = flushList(lineIdx);
-      if (flushed) elements.push(flushed);
-
-      if (!trimmed) {
-        elements.push(<div key={`empty-${lineIdx}`} style={{ height: '0.45rem' }} />);
-      } else if (trimmed.startsWith('#### ')) {
-        elements.push(
-          <h5 key={`h4-${lineIdx}`} style={{ fontSize: '0.88rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0.55rem 0 0.18rem 0', color: 'var(--text-muted, #94a3b8)' }}>
-            {renderInlineMarkdown(trimmed.replace(/^####\s+/, ''))}
-          </h5>
-        );
-      } else if (trimmed.startsWith('### ')) {
-        elements.push(
-          <h4 key={`h3-${lineIdx}`} style={{ fontSize: '0.98rem', fontWeight: 700, margin: '0.7rem 0 0.2rem 0', color: 'var(--primary-hover, #60a5fa)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            {renderInlineMarkdown(trimmed.replace(/^###\s+/, ''))}
-          </h4>
-        );
-      } else if (trimmed.startsWith('## ')) {
-        elements.push(
-          <h3 key={`h2-${lineIdx}`} style={{ fontSize: '1.12rem', fontWeight: 800, margin: '0.95rem 0 0.3rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', letterSpacing: '-0.01em' }}>
-            <span style={{ width: '3px', height: '13px', borderRadius: '2px', background: 'var(--primary)', flexShrink: 0, display: 'inline-block' }} />
-            <span>{renderInlineMarkdown(trimmed.replace(/^##\s+/, ''))}</span>
-          </h3>
-        );
-      } else if (trimmed.startsWith('# ')) {
-        elements.push(
-          <h2 key={`h1-${lineIdx}`} style={{ fontSize: '1.25rem', fontWeight: 800, margin: '1.1rem 0 0.35rem 0', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.3rem', letterSpacing: '-0.01em' }}>
-            {renderInlineMarkdown(trimmed.replace(/^#\s+/, ''))}
-          </h2>
-        );
-      } else {
-        elements.push(
-          <div key={`p-${lineIdx}`} style={{ lineHeight: '1.55', marginBottom: '0.15rem' }}>
-            {renderInlineMarkdown(line)}
-          </div>
-        );
-      }
-    }
-  });
-
-  const finalFlush = flushList(lines.length);
-  if (finalFlush) elements.push(finalFlush);
-
-  return (
-    <div style={{ wordBreak: 'break-word', ...style }} className={className}>
-      {elements}
-    </div>
-  );
-};
+export { FormattedText } from './components/RichTextarea';
 
 export const ProductDescriptionView: React.FC<{ description?: string; isMobile?: boolean; title?: string }> = ({ description, isMobile = true, title }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -4790,6 +4633,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
     } catch (err) {
@@ -19384,10 +19228,37 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           padding: '1.25rem',
                           borderRadius: '0.85rem',
                           border: '1px solid var(--border-light)',
-                          whiteSpace: 'pre-line',
                           boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.06)'
                         }}>
-                          {selectedNotification.detail_content || selectedNotification.message}
+                          <FormattedText 
+                            text={selectedNotification.detail_content || selectedNotification.message}
+                            onNavigate={(targetPath) => {
+                              const cleanPath = targetPath.startsWith('/') ? targetPath.substring(1) : targetPath;
+                              const slug = getStoreSlug();
+                              if (['items', 'settings', 'subscription', 'help', 'analytics', 'share'].includes(cleanPath)) {
+                                setSelectedNotification(null);
+                                setAdminSubTab(cleanPath as any);
+                                if (slug) window.history.pushState({}, '', `/${slug}/admin/${cleanPath}`);
+                              } else if (cleanPath.startsWith('admin/')) {
+                                const sub = cleanPath.replace('admin/', '');
+                                setSelectedNotification(null);
+                                setAdminSubTab(sub as any);
+                                if (slug) window.history.pushState({}, '', `/${slug}/admin/${sub}`);
+                              } else if (slug && cleanPath.startsWith(`${slug}/admin/`)) {
+                                const sub = cleanPath.replace(`${slug}/admin/`, '');
+                                setSelectedNotification(null);
+                                setAdminSubTab(sub as any);
+                                window.history.pushState({}, '', `/${slug}/admin/${sub}`);
+                              } else {
+                                if (targetPath.startsWith('/')) {
+                                  window.history.pushState({}, '', targetPath);
+                                  window.dispatchEvent(new PopStateEvent('popstate'));
+                                } else {
+                                  window.location.href = targetPath;
+                                }
+                              }
+                            }}
+                          />
                         </div>
 
                         {/* Action CTA Buttons */}
@@ -19430,6 +19301,34 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               }}
                             >
                               <span>{selectedNotification.action_label || 'Buka Halaman Terkait →'}</span>
+                            </button>
+                          )}
+
+                          {selectedNotification.action_type === 'external_link' && selectedNotification.action_url && (
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() => {
+                                const url = selectedNotification.action_url;
+                                if (url) {
+                                  window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              style={{
+                                padding: '0.85rem 1rem',
+                                borderRadius: '0.75rem',
+                                fontSize: '0.88rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 14px var(--primary-glow)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                width: '100%'
+                              }}
+                            >
+                              <span>{selectedNotification.action_label || 'Buka Tautan Luar →'}</span>
                             </button>
                           )}
 
@@ -19560,7 +19459,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           {filteredNotifications.map((item) => {
                             const isDirectNav = item.action_type === 'navigate' && item.linkSubTab;
                             const isDetail = item.action_type === 'detail' || Boolean(item.detail_content);
-                            const isNoneAction = !isDirectNav && !isDetail;
+                            const isExternal = item.action_type === 'external_link' && Boolean(item.action_url);
+                            const isNoneAction = !isDirectNav && !isDetail && !isExternal;
 
                             return (
                               <div
@@ -19593,6 +19493,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     const slug = getStoreSlug();
                                     if (slug) {
                                       window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
+                                    }
+                                  } else if (isExternal) {
+                                    const url = item.action_url;
+                                    if (url) {
+                                      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
                                     }
                                   } else {
                                     // action_type === 'none': simple short message feedback

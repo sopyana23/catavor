@@ -83,6 +83,13 @@ func (h *NotificationHub) Unregister(client *SSEClient) {
 	}
 }
 
+// GetActiveClientsCount returns the number of currently connected SSE clients.
+func (h *NotificationHub) GetActiveClientsCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
 // Broadcast sends a general notification to all matching clients in real-time.
 func (h *NotificationHub) Broadcast(notif *models.Notification) {
 	h.mu.RLock()
