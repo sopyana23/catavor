@@ -719,84 +719,115 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       {pagination.total_pages > 1 && (
         <div style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
+          justifyContent: 'center',
           gap: '0.65rem',
-          padding: '0.75rem 0.5rem',
-          borderTop: `1px solid ${theme.border}`,
-          marginTop: '0.5rem'
+          padding: '0.95rem 1rem',
+          marginTop: '0.75rem',
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+          borderRadius: '0.95rem',
+          border: `1px solid ${theme.border}`,
+          boxSizing: 'border-box',
+          width: '100%'
         }}>
-          <div style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
+          {/* Row 1: Pagination Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+            <button
+              type="button"
+              disabled={page <= 1 || loading}
+              onClick={() => {
+                setPage(p => Math.max(1, p - 1));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.65rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.cardAlt,
+                color: page <= 1 ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                opacity: page <= 1 ? 0.45 : 1,
+                transition: 'all 0.15s ease',
+                boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+            >
+              <ChevronLeft size={15} />
+              <span>Sebelumnya</span>
+            </button>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '58px',
+              padding: '0.45rem 0.75rem',
+              borderRadius: '0.65rem',
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(2, 132, 199, 0.1)',
+              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(2, 132, 199, 0.25)'}`,
+              color: isDark ? '#38bdf8' : '#0284c7',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              letterSpacing: '0.02em'
+            }}>
+              <span>{page}</span>
+              <span style={{ opacity: 0.5, margin: '0 0.25rem' }}>/</span>
+              <span>{pagination.total_pages}</span>
+            </div>
+
+            <button
+              type="button"
+              disabled={page >= pagination.total_pages || loading}
+              onClick={() => {
+                setPage(p => Math.min(pagination.total_pages, p + 1));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.65rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.cardAlt,
+                color: page >= pagination.total_pages ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                cursor: page >= pagination.total_pages ? 'not-allowed' : 'pointer',
+                opacity: page >= pagination.total_pages ? 0.45 : 1,
+                transition: 'all 0.15s ease',
+                boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)'
+              }}
+            >
+              <span>Berikutnya</span>
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {/* Row 2: Clean Info Row */}
+          <div style={{
+            fontSize: '0.74rem',
+            color: theme.textMuted,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem'
+          }}>
             {(() => {
               const totalCount = Number(pagination.total ?? (pagination as any).total_items ?? domains.length);
               const startIdx = totalCount > 0 ? ((page - 1) * limit) + 1 : 0;
               const endIdx = Math.min(page * limit, totalCount);
               return (
                 <span>
-                  Menampilkan <strong style={{ color: theme.textPrimary }}>{startIdx}</strong> - <strong style={{ color: theme.textPrimary }}>{endIdx}</strong> dari <strong style={{ color: theme.textPrimary }}>{totalCount}</strong> domain
+                  Menampilkan <strong style={{ color: theme.textPrimary, fontWeight: 700 }}>{startIdx} - {endIdx}</strong> dari <strong style={{ color: theme.textPrimary, fontWeight: 700 }}>{totalCount}</strong> domain
                 </span>
               );
             })()}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <button
-              type="button"
-              disabled={page <= 1 || loading}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.5rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: theme.cardAlt,
-                color: page <= 1 ? theme.textMuted : theme.textPrimary,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                opacity: page <= 1 ? 0.5 : 1
-              }}
-            >
-              <ChevronLeft size={14} />
-              <span>Sebelumnya</span>
-            </button>
-
-            <span style={{
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              padding: '0.35rem 0.65rem',
-              borderRadius: '0.5rem',
-              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-              color: isDark ? '#38bdf8' : '#0284c7'
-            }}>
-              {page} / {pagination.total_pages}
-            </span>
-
-            <button
-              type="button"
-              disabled={page >= pagination.total_pages || loading}
-              onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.5rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: theme.cardAlt,
-                color: page >= pagination.total_pages ? theme.textMuted : theme.textPrimary,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                cursor: page >= pagination.total_pages ? 'not-allowed' : 'pointer',
-                opacity: page >= pagination.total_pages ? 0.5 : 1
-              }}
-            >
-              <span>Berikutnya</span>
-              <ChevronRight size={14} />
-            </button>
           </div>
         </div>
       )}

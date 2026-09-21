@@ -10258,75 +10258,115 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               {templatePagination.total_pages > 1 && (
                 <div style={{
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
+                  justifyContent: 'center',
                   gap: '0.65rem',
-                  padding: '0.75rem 0.5rem',
-                  borderTop: `1px solid ${theme.border}`,
-                  marginTop: '0.5rem'
+                  padding: '0.95rem 1rem',
+                  marginTop: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+                  borderRadius: '0.95rem',
+                  border: `1px solid ${theme.border}`,
+                  boxSizing: 'border-box',
+                  width: '100%'
                 }}>
-                  <div style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                    Menampilkan <strong style={{ color: theme.textPrimary }}>{((templatePage - 1) * templateLimit) + 1}</strong> - <strong style={{ color: theme.textPrimary }}>{Math.min(templatePage * templateLimit, templatePagination.total)}</strong> dari <strong style={{ color: theme.textPrimary }}>{templatePagination.total}</strong> template
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  {/* Row 1: Pagination Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
                     <button
                       type="button"
                       disabled={templatePage <= 1 || loadingTemplates}
-                      onClick={() => setTemplatePage(p => Math.max(1, p - 1))}
+                      onClick={() => {
+                        setTemplatePage(p => Math.max(1, p - 1));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '0.5rem',
+                        gap: '0.3rem',
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '0.65rem',
                         border: `1px solid ${theme.border}`,
                         backgroundColor: theme.cardAlt,
                         color: templatePage <= 1 ? theme.textMuted : theme.textPrimary,
-                        fontSize: '0.72rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: templatePage <= 1 ? 'not-allowed' : 'pointer',
-                        opacity: templatePage <= 1 ? 0.5 : 1
+                        opacity: templatePage <= 1 ? 0.45 : 1,
+                        transition: 'all 0.15s ease',
+                        boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)'
                       }}
                     >
-                      <ChevronLeft size={14} />
+                      <ChevronLeft size={15} />
                       <span>Sebelumnya</span>
                     </button>
 
-                    <span style={{
-                      fontSize: '0.72rem',
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '58px',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(2, 132, 199, 0.1)',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(2, 132, 199, 0.25)'}`,
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      fontSize: '0.78rem',
                       fontWeight: 800,
-                      padding: '0.35rem 0.65rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                      color: isDark ? '#38bdf8' : '#0284c7'
+                      letterSpacing: '0.02em'
                     }}>
-                      {templatePage} / {templatePagination.total_pages}
-                    </span>
+                      <span>{templatePage}</span>
+                      <span style={{ opacity: 0.5, margin: '0 0.25rem' }}>/</span>
+                      <span>{templatePagination.total_pages}</span>
+                    </div>
 
                     <button
                       type="button"
                       disabled={templatePage >= templatePagination.total_pages || loadingTemplates}
-                      onClick={() => setTemplatePage(p => Math.min(templatePagination.total_pages, p + 1))}
+                      onClick={() => {
+                        setTemplatePage(p => Math.min(templatePagination.total_pages, p + 1));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '0.5rem',
+                        gap: '0.3rem',
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '0.65rem',
                         border: `1px solid ${theme.border}`,
                         backgroundColor: theme.cardAlt,
                         color: templatePage >= templatePagination.total_pages ? theme.textMuted : theme.textPrimary,
-                        fontSize: '0.72rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         cursor: templatePage >= templatePagination.total_pages ? 'not-allowed' : 'pointer',
-                        opacity: templatePage >= templatePagination.total_pages ? 0.5 : 1
+                        opacity: templatePage >= templatePagination.total_pages ? 0.45 : 1,
+                        transition: 'all 0.15s ease',
+                        boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)'
                       }}
                     >
                       <span>Berikutnya</span>
-                      <ChevronRight size={14} />
+                      <ChevronRight size={15} />
                     </button>
+                  </div>
+
+                  {/* Row 2: Clean Info Row */}
+                  <div style={{
+                    fontSize: '0.74rem',
+                    color: theme.textMuted,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    {(() => {
+                      const totalCount = Number(templatePagination.total ?? cannedTemplates.length);
+                      const startIdx = totalCount > 0 ? ((templatePage - 1) * templateLimit) + 1 : 0;
+                      const endIdx = Math.min(templatePage * templateLimit, totalCount);
+                      return (
+                        <span>
+                          Menampilkan <strong style={{ color: theme.textPrimary, fontWeight: 700 }}>{startIdx} - {endIdx}</strong> dari <strong style={{ color: theme.textPrimary, fontWeight: 700 }}>{totalCount}</strong> template
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -12455,8 +12495,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
-      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room & create broadcast form) */}
-      {showScrollTop && !selectedTicket && !(activeView === 'broadcast' && broadcastSubView === 'create') && (
+      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data & create broadcast form) */}
+      {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && (
         <button
           type="button"
           onClick={scrollToTop}
