@@ -402,6 +402,13 @@ func main() {
 		adminApi.Get("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Index)
 		adminApi.Post("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Store)
 
+		// Master Safe Domains (Ecosystem URL Whitelist)
+		adminApi.Get("/safe-domains", safeDomainHandler.GetAdminSafeDomains)
+		adminApi.Post("/safe-domains", safeDomainHandler.CreateSafeDomain)
+		adminApi.Put("/safe-domains/:id", safeDomainHandler.UpdateSafeDomain)
+		adminApi.Delete("/safe-domains/:id", safeDomainHandler.DeleteSafeDomain)
+		adminApi.Post("/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
+
 		// Finance & Billing
 		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.GetOrders)
 
