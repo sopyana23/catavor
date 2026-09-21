@@ -14007,31 +14007,101 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           Belum ada notifikasi baru untuk Anda.
                         </div>
                       ) : (
-                        notifications.map(n => (
-                          <div 
-                            key={n.id} 
-                            style={{ 
-                              padding: '1rem', 
-                              borderRadius: '0.75rem', 
-                              backgroundColor: n.read ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', 
-                              border: n.read ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(16, 185, 129, 0.25)', 
-                              display: 'flex', 
-                              gap: '0.85rem', 
-                              alignItems: 'flex-start' 
-                            }}
-                          >
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: n.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              {n.type === 'success' ? <CheckCircle size={18} style={{ color: '#10b981' }} /> : <Clock size={18} style={{ color: '#f59e0b' }} />}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                                <strong style={{ fontSize: '0.88rem', color: '#ffffff' }}>{n.title}</strong>
-                                <span style={{ fontSize: '0.68rem', color: '#6b7280' }}>{n.time}</span>
+                        notifications.map((n: any) => {
+                          const ticketRef = extractTicketFromNotif(n);
+                          let rawSubTab = n.link_sub_tab || n.linkSubTab || '';
+                          if (rawSubTab === 'support') rawSubTab = 'help';
+                          if (rawSubTab === 'products') rawSubTab = 'items';
+
+                          const isTicketNotif = Boolean(ticketRef) || n.type === 'ticket' || rawSubTab === 'help' || (n.title && (n.title.includes('CS Catavor') || n.title.includes('Balasan Baru')));
+                          const rawSettingsTab = n.link_settings_sub_tab || n.linkSettingsSubTab || n.link_mobile_settings_tab || n.linkMobileSettingsTab || '';
+                          
+                          const actionUrl = n.action_url || n.actionUrl || '';
+                          const rawActionLabel = n.action_label || n.actionLabel || '';
+                          const detailContent = n.detail_content || n.detailContent || '';
+
+                          let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
+                          if (
+                            cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
+                            cleanLabel.toLowerCase() === 'buka pengumuman' || 
+                            cleanLabel.toLowerCase() === 'buka menu terkait' || 
+                            cleanLabel.toLowerCase() === 'buka tautan luar' ||
+                            cleanLabel.toLowerCase() === 'kunjungi tautan'
+                          ) {
+                            cleanLabel = '';
+                          }
+
+                          let rawActionType = n.action_type || n.actionType;
+                          if (!rawActionType || rawActionType === 'none') {
+                            if (isTicketNotif) rawActionType = 'navigate';
+                            else if (actionUrl) rawActionType = 'external_link';
+                            else if (rawSubTab) rawActionType = 'navigate';
+                            else if (detailContent) rawActionType = 'detail';
+                            else rawActionType = 'none';
+                          }
+
+                          const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
+                          const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
+                          const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
+
+                          return (
+                            <div 
+                              key={n.id} 
+                              onClick={() => {
+                                handleMarkAsRead(n.id);
+                                setShowNotificationModal(false);
+
+                                if (isTicketNotif) {
+                                  handleNavigateToTicketFromNotif(n);
+                                  return;
+                                }
+
+                                if (isDirectNav && rawSubTab) {
+                                  setAdminTab(rawSubTab as any);
+                                  if (rawSettingsTab) {
+                                    setSettingsSubTab(rawSettingsTab as any);
+                                  }
+                                  const slug = getStoreSlug();
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/${rawSubTab}`);
+                                } else if (isDetail) {
+                                  setSelectedNotificationDetail(n);
+                                } else if (isExternal && actionUrl) {
+                                  const url = actionUrl;
+                                  window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                } else {
+                                  showToast('Notifikasi ditandai dibaca');
+                                }
+                              }}
+                              style={{ 
+                                padding: '0.85rem 1rem', 
+                                borderRadius: '0.75rem', 
+                                backgroundColor: n.read ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', 
+                                border: n.read ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(16, 185, 129, 0.25)', 
+                                display: 'flex', 
+                                gap: '0.75rem', 
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: n.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {n.type === 'success' ? <CheckCircle size={16} style={{ color: '#10b981' }} /> : <Clock size={16} style={{ color: '#f59e0b' }} />}
                               </div>
-                              <p style={{ fontSize: '0.78rem', color: '#9ca3af', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                                  <strong style={{ fontSize: '0.85rem', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</strong>
+                                  <span style={{ fontSize: '0.65rem', color: '#6b7280', flexShrink: 0, marginLeft: '0.5rem' }}>{n.time || n.timestamp}</span>
+                                </div>
+                                <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.message}</p>
+                              </div>
+                              {(isDirectNav || isExternal || isDetail) && (
+                                <div style={{ color: isExternal ? '#3b82f6' : isDirectNav ? 'var(--primary)' : '#f59e0b', flexShrink: 0 }}>
+                                  {isExternal ? <ExternalLink size={14} /> : isDirectNav ? <ArrowRight size={14} /> : <ChevronRight size={14} />}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
 
@@ -16540,35 +16610,166 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
 
                         {/* CTA Actions */}
-                        {selectedNotificationDetail.linkSubTab && (
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={() => {
-                                const subTab = selectedNotificationDetail.linkSubTab;
-                                const settingsTab = selectedNotificationDetail.linkSettingsSubTab;
-                                setSelectedNotificationDetail(null);
-                                if (subTab) {
-                                  setAdminTab(subTab);
-                                  if (settingsTab) setSettingsSubTab(settingsTab);
-                                  const slug = getStoreSlug();
-                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/${subTab}`);
+                        {(() => {
+                          const norm = (() => {
+                            const ticketRef = extractTicketFromNotif(selectedNotificationDetail);
+                            let rawSubTab = selectedNotificationDetail.link_sub_tab || selectedNotificationDetail.linkSubTab || '';
+                            if (rawSubTab === 'support') rawSubTab = 'help';
+                            if (rawSubTab === 'products') rawSubTab = 'items';
+
+                            const isTicketNotif = Boolean(ticketRef) || selectedNotificationDetail.type === 'ticket' || rawSubTab === 'help' || (selectedNotificationDetail.title && (selectedNotificationDetail.title.includes('CS Catavor') || selectedNotificationDetail.title.includes('Balasan Baru')));
+                            const rawSettingsTab = selectedNotificationDetail.link_settings_sub_tab || selectedNotificationDetail.linkSettingsSubTab || selectedNotificationDetail.link_mobile_settings_tab || selectedNotificationDetail.linkMobileSettingsTab || '';
+                            
+                            const actionUrl = selectedNotificationDetail.action_url || selectedNotificationDetail.actionUrl || '';
+                            const rawActionLabel = selectedNotificationDetail.action_label || selectedNotificationDetail.actionLabel || '';
+                            const detailContent = selectedNotificationDetail.detail_content || selectedNotificationDetail.detailContent || '';
+
+                            let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
+                            if (
+                              cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
+                              cleanLabel.toLowerCase() === 'buka pengumuman' || 
+                              cleanLabel.toLowerCase() === 'buka menu terkait' || 
+                              cleanLabel.toLowerCase() === 'buka tautan luar' ||
+                              cleanLabel.toLowerCase() === 'kunjungi tautan'
+                            ) {
+                              cleanLabel = '';
+                            }
+
+                            let rawActionType = selectedNotificationDetail.action_type || selectedNotificationDetail.actionType;
+                            if (!rawActionType || rawActionType === 'none') {
+                              if (isTicketNotif) rawActionType = 'navigate';
+                              else if (actionUrl) rawActionType = 'external_link';
+                              else if (rawSubTab) rawActionType = 'navigate';
+                              else if (detailContent) rawActionType = 'detail';
+                              else rawActionType = 'none';
+                            }
+
+                            const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
+                            const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
+
+                            const tabLabels: Record<string, string> = {
+                              settings: 'Pengaturan Toko',
+                              items: 'Katalog Produk',
+                              subscription: 'Paket Langganan',
+                              help: 'Pusat Bantuan & Tiket CS',
+                              analytics: 'Statistik Toko',
+                              share: 'Bagikan Toko / QR',
+                              articles: 'Artikel & Berita',
+                              policies: 'Kebijakan Toko',
+                              profile: 'Profil Pengguna',
+                              audit_logs: 'Log Aktivitas',
+                              rbac: 'Hak Akses Tim'
+                            };
+
+                            let btnLabel = '';
+                            if (isTicketNotif) {
+                              btnLabel = cleanLabel ? `${cleanLabel} →` : (ticketRef ? `Lihat Tiket #${ticketRef} →` : 'Buka Pusat Bantuan CS →');
+                            } else if (isDirectNav && rawSubTab) {
+                              btnLabel = cleanLabel ? `${cleanLabel} →` : `Buka ${tabLabels[rawSubTab] || rawSubTab} →`;
+                            } else if (isExternal && actionUrl) {
+                              if (cleanLabel) {
+                                btnLabel = `${cleanLabel} ↗`;
+                              } else {
+                                try {
+                                  const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
+                                  const parsed = new URL(fullUrl);
+                                  btnLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')} ↗`;
+                                } catch {
+                                  btnLabel = 'Kunjungi Tautan Luar ↗';
                                 }
-                              }}
-                              style={{
-                                padding: '0.75rem 1.75rem',
-                                borderRadius: '0.65rem',
-                                fontSize: '0.88rem',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 16px var(--primary-glow)'
-                              }}
-                            >
-                              {selectedNotificationDetail.action_label || 'Buka Halaman Terkait →'}
-                            </button>
-                          </div>
-                        )}
+                              }
+                            }
+
+                            return {
+                              ticketRef,
+                              isTicketNotif,
+                              subTab: rawSubTab,
+                              settingsTab: rawSettingsTab,
+                              actionUrl,
+                              btnLabel,
+                              isDirectNav,
+                              isExternal
+                            };
+                          })();
+
+                          return (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setSelectedNotificationDetail(null)}
+                                style={{
+                                  padding: '0.65rem 1.25rem',
+                                  borderRadius: '0.65rem',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Tutup Rincian
+                              </button>
+
+                              {norm.isDirectNav && (
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={() => {
+                                    if (norm.isTicketNotif) {
+                                      handleNavigateToTicketFromNotif(selectedNotificationDetail);
+                                      return;
+                                    }
+                                    setSelectedNotificationDetail(null);
+                                    if (norm.subTab) {
+                                      setAdminTab(norm.subTab as any);
+                                      if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
+                                      const slug = getStoreSlug();
+                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '0.65rem 1.5rem',
+                                    borderRadius: '0.65rem',
+                                    fontSize: '0.88rem',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 16px var(--primary-glow)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  <span>{norm.btnLabel}</span>
+                                </button>
+                              )}
+
+                              {norm.isExternal && (
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={() => {
+                                    const url = norm.actionUrl;
+                                    if (url) {
+                                      window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '0.65rem 1.5rem',
+                                    borderRadius: '0.65rem',
+                                    fontSize: '0.88rem',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 16px var(--primary-glow)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  <span>{norm.btnLabel}</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ) : (
@@ -16666,9 +16867,100 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                           {filteredNotifications.map((item) => {
-                            const isDirectNav = item.action_type === 'navigate' && item.linkSubTab;
-                            const isDetail = item.action_type === 'detail' || Boolean(item.detail_content);
-                            const isNoneAction = !isDirectNav && !isDetail;
+                            const norm = (() => {
+                              const ticketRef = extractTicketFromNotif(item);
+                              let rawSubTab = item.link_sub_tab || item.linkSubTab || '';
+                              if (rawSubTab === 'support') rawSubTab = 'help';
+                              if (rawSubTab === 'products') rawSubTab = 'items';
+
+                              const isTicketNotif = Boolean(ticketRef) || item.type === 'ticket' || rawSubTab === 'help' || (item.title && (item.title.includes('CS Catavor') || item.title.includes('Balasan Baru')));
+                              const rawSettingsTab = item.link_settings_sub_tab || item.linkSettingsSubTab || item.link_mobile_settings_tab || item.linkMobileSettingsTab || '';
+                              
+                              const actionUrl = item.action_url || item.actionUrl || '';
+                              const rawActionLabel = item.action_label || item.actionLabel || '';
+                              const detailContent = item.detail_content || item.detailContent || '';
+
+                              let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
+                              if (
+                                cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
+                                cleanLabel.toLowerCase() === 'buka pengumuman' || 
+                                cleanLabel.toLowerCase() === 'buka menu terkait' || 
+                                cleanLabel.toLowerCase() === 'buka tautan luar' ||
+                                cleanLabel.toLowerCase() === 'kunjungi tautan'
+                              ) {
+                                cleanLabel = '';
+                              }
+
+                              let rawActionType = item.action_type || item.actionType;
+                              if (!rawActionType || rawActionType === 'none') {
+                                if (isTicketNotif) rawActionType = 'navigate';
+                                else if (actionUrl) rawActionType = 'external_link';
+                                else if (rawSubTab) rawActionType = 'navigate';
+                                else if (detailContent) rawActionType = 'detail';
+                                else rawActionType = 'none';
+                              }
+
+                              const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
+                              const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
+                              const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
+                              const isNoneAction = !isDirectNav && !isDetail && !isExternal;
+
+                              const tabLabels: Record<string, string> = {
+                                settings: 'Pengaturan Toko',
+                                items: 'Katalog Produk',
+                                subscription: 'Paket Langganan',
+                                help: 'Pusat Bantuan & Tiket CS',
+                                analytics: 'Statistik Toko',
+                                share: 'Bagikan Toko / QR',
+                                articles: 'Artikel & Berita',
+                                policies: 'Kebijakan Toko',
+                                profile: 'Profil Pengguna',
+                                audit_logs: 'Log Aktivitas',
+                                rbac: 'Hak Akses Tim'
+                              };
+
+                              let displayLabel = cleanLabel;
+                              let displayType: 'navigate' | 'external' | 'detail' | null = null;
+
+                              if (isTicketNotif) {
+                                displayType = 'navigate';
+                                if (!displayLabel) displayLabel = ticketRef ? `Lihat Tiket #${ticketRef}` : 'Buka Pusat Bantuan CS';
+                              } else if (isDirectNav && rawSubTab) {
+                                displayType = 'navigate';
+                                if (!displayLabel) displayLabel = `Buka ${tabLabels[rawSubTab] || rawSubTab}`;
+                              } else if (isExternal && actionUrl) {
+                                displayType = 'external';
+                                if (!displayLabel) {
+                                  try {
+                                    const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
+                                    const parsed = new URL(fullUrl);
+                                    displayLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')}`;
+                                  } catch {
+                                    displayLabel = 'Buka Tautan Luar';
+                                  }
+                                }
+                              } else if (isDetail) {
+                                displayType = 'detail';
+                                if (!displayLabel) displayLabel = 'Lihat Rincian Selengkapnya';
+                              }
+
+                              return {
+                                ticketRef,
+                                isTicketNotif,
+                                subTab: rawSubTab,
+                                settingsTab: rawSettingsTab,
+                                actionType: rawActionType,
+                                actionUrl,
+                                actionLabel: rawActionLabel,
+                                detailContent,
+                                isDirectNav,
+                                isExternal,
+                                isDetail,
+                                isNoneAction,
+                                displayLabel,
+                                displayType
+                              };
+                            })();
 
                             return (
                               <div
@@ -16677,15 +16969,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 onClick={() => {
                                   // Mark as read in state & persist to backend database
                                   handleMarkAsRead(item.id);
-                                  if (isDirectNav && item.linkSubTab) {
-                                    setAdminTab(item.linkSubTab);
-                                    if (item.linkSettingsSubTab) {
-                                      setSettingsSubTab(item.linkSettingsSubTab);
+
+                                  if (norm.isTicketNotif) {
+                                    handleNavigateToTicketFromNotif(item);
+                                    return;
+                                  }
+
+                                  if (norm.isDirectNav && norm.subTab) {
+                                    setAdminTab(norm.subTab as any);
+                                    if (norm.settingsTab) {
+                                      setSettingsSubTab(norm.settingsTab as any);
                                     }
                                     const slug = getStoreSlug();
-                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/${item.linkSubTab}`);
-                                  } else if (isDetail) {
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
+                                  } else if (norm.isDetail) {
                                     setSelectedNotificationDetail(item);
+                                  } else if (norm.isExternal && norm.actionUrl) {
+                                    const url = norm.actionUrl;
+                                    window.open(url.startsWith('http') ? url : `https://${url}`, '_blank', 'noopener,noreferrer');
                                   } else {
                                     showToast('Notifikasi ditandai dibaca');
                                   }
@@ -16763,13 +17064,59 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   }}>
                                     {item.message}
                                   </p>
+
+                                  {/* Action Hint Micro-Pill (Only when actionable) */}
+                                  {norm.displayType && (
+                                    <div style={{
+                                      marginTop: '0.65rem',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      padding: '0.22rem 0.65rem',
+                                      borderRadius: '0.45rem',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      backgroundColor: norm.displayType === 'external'
+                                        ? 'rgba(59, 130, 246, 0.1)'
+                                        : norm.displayType === 'navigate'
+                                          ? 'var(--primary-glow)'
+                                          : 'rgba(245, 158, 11, 0.1)',
+                                      color: norm.displayType === 'external'
+                                        ? '#3b82f6'
+                                        : norm.displayType === 'navigate'
+                                          ? 'var(--primary)'
+                                          : '#f59e0b',
+                                      border: `1px solid ${norm.displayType === 'external' ? 'rgba(59, 130, 246, 0.25)' : norm.displayType === 'navigate' ? 'var(--primary-glow)' : 'rgba(245, 158, 11, 0.25)'}`,
+                                      width: 'fit-content'
+                                    }}>
+                                      <span>{norm.displayLabel}</span>
+                                      {norm.displayType === 'external' && <ExternalLink size={12} style={{ strokeWidth: 2.5 }} />}
+                                      {norm.displayType === 'navigate' && <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />}
+                                      {norm.displayType === 'detail' && <ChevronRight size={12} style={{ strokeWidth: 2.5 }} />}
+                                    </div>
+                                  )}
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                                  {!isNoneAction ? (
-                                    <ChevronRight size={18} style={{ color: 'var(--text-primary)', opacity: 0.75 }} />
-                                  ) : null}
-                                </div>
+                                {/* Trailing Action Icon Indicator (Clean & High Contrast) */}
+                                {norm.displayType && (
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid var(--border-light)',
+                                    color: norm.displayType === 'external' ? '#3b82f6' : norm.displayType === 'navigate' ? 'var(--primary)' : '#f59e0b',
+                                    marginLeft: '0.5rem'
+                                  }}>
+                                    {norm.displayType === 'external' && <ExternalLink size={16} />}
+                                    {norm.displayType === 'navigate' && <ArrowRight size={16} />}
+                                    {norm.displayType === 'detail' && <ChevronRight size={16} />}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

@@ -536,9 +536,18 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	}
 
 	actionType := strings.ToLower(strings.TrimSpace(req.ActionType))
-	if !req.ActionEnabled || actionType == "" {
-		actionType = "none"
+	if actionType == "" {
+		if req.ActionURL != "" {
+			actionType = "external_link"
+		} else if req.LinkSubTab != "" {
+			actionType = "navigate"
+		} else if req.DetailContent != "" {
+			actionType = "detail"
+		} else {
+			actionType = "none"
+		}
 	}
+	actionEnabled := actionType != "none" && req.ActionType != "none"
 
 	retentionHours := req.RetentionHours
 	if retentionHours <= 0 {
@@ -595,7 +604,7 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 	}
 
 	detailContent := ""
-	if req.ActionEnabled && actionType == "detail" {
+	if actionType == "detail" || (actionEnabled && req.DetailContent != "") {
 		detailContent = security.SanitizeRichText(req.DetailContent, 20000)
 	}
 
@@ -613,7 +622,7 @@ func (h *NotificationHandler) SuperadminBroadcast(c *fiber.Ctx) error {
 		Message:               message,
 		DetailContent:         detailContent,
 		Type:                  notifType,
-		ActionEnabled:         req.ActionEnabled,
+		ActionEnabled:         actionEnabled,
 		ActionType:            actionType,
 		LinkSubTab:            security.SanitizePlainText(req.LinkSubTab, 64),
 		LinkMobileSettingsTab: security.SanitizePlainText(req.LinkMobileSettingsTab, 64),

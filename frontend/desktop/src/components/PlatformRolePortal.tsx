@@ -5779,27 +5779,29 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                 Kirimkan pengumuman, pembaruan sistem, info promosi, atau peringatan secara tertarget ke merchant &amp; pengguna.
               </p>
             </div>
-            <button
-              onClick={() => setShowBroadcastModal(true)}
-              style={{
-                padding: '0.65rem 1.25rem',
-                borderRadius: '0.75rem',
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                border: 'none',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Plus size={18} />
-              <span>Buat Siaran Baru</span>
-            </button>
+            {broadcasts.length > 0 && (
+              <button
+                onClick={() => setShowBroadcastModal(true)}
+                style={{
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Plus size={18} />
+                <span>Buat Siaran Baru</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Stats Grid */}
@@ -6222,25 +6224,55 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                 border: '1px solid var(--border-light)'
               }}>
                 <Megaphone size={40} style={{ margin: '0 auto 0.75rem', opacity: 0.4, color: '#8b5cf6', display: 'block' }} />
-                <h4 style={{ margin: '0 0 0.35rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Belum Ada Riwayat Siaran</h4>
-                <p style={{ margin: '0 0 1rem', fontSize: '0.85rem' }}>
-                  {broadcastSearchQuery ? 'Tidak ada siaran yang cocok dengan kata kunci pencarian.' : 'Kirimkan siaran pengumuman pertama Anda ke platform.'}
+                <h4 style={{ margin: '0 0 0.35rem', color: 'var(--text-primary)', fontSize: '1rem' }}>
+                  {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? 'Siaran Tidak Ditemukan' : 'Belum Ada Riwayat Siaran'}
+                </h4>
+                <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem' }}>
+                  {broadcastSearchQuery || broadcastStatusFilter !== 'all'
+                    ? 'Tidak ada siaran yang cocok dengan kriteria filter atau pencarian Anda.'
+                    : 'Kirimkan siaran pengumuman atau pembaruan sistem pertama Anda ke platform.'}
                 </p>
-                <button
-                  onClick={() => setShowBroadcastModal(true)}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: '#8b5cf6',
-                    border: 'none',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Buat Siaran Baru
-                </button>
+                {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? (
+                  <button
+                    onClick={() => {
+                      setBroadcastSearchQuery('');
+                      setBroadcastStatusFilter('all');
+                    }}
+                    style={{
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Reset Filter Pencarian
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowBroadcastModal(true)}
+                    style={{
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '0.75rem',
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                      border: 'none',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: '0.875rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)'
+                    }}
+                  >
+                    <Plus size={18} />
+                    <span>+ Buat Siaran Pertama</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -8320,9 +8352,13 @@ export const PlatformRolePortal: React.FC<PlatformRolePortalProps> = ({
                           }}
                         >
                           <option value="settings">Pengaturan Toko</option>
+                          <option value="items">Katalog Produk</option>
                           <option value="subscription">Paket Langganan</option>
-                          <option value="support">Pusat Bantuan &amp; Tiket</option>
-                          <option value="products">Manajemen Produk</option>
+                          <option value="help">Pusat Bantuan &amp; Tiket</option>
+                          <option value="analytics">Statistik Toko</option>
+                          <option value="share">Bagikan Toko / QR</option>
+                          <option value="articles">Artikel &amp; Berita</option>
+                          <option value="policies">Kebijakan Toko</option>
                         </select>
                       </div>
                       <div>
