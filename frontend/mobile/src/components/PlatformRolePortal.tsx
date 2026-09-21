@@ -342,9 +342,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setSelectedBroadcastDetail(null);
     }
     if (targetView === 'master_data') {
-      const sub = (subView === 'templates' || subView === 'domains')
-        ? subView
-        : (view === 'safe_domains' ? 'domains' : (subView === 'menu' ? 'menu' : 'menu'));
+      const sub = (subView === 'templates' || subView === 'domains') ? subView : (view === 'safe_domains' ? 'domains' : masterSubView);
       setMasterSubView(sub);
       updatePlatformUrl('master_data', null, sub === 'menu' ? null : sub);
       if (sub === 'templates') {
