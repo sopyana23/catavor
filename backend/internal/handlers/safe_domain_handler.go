@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,8 +21,24 @@ func NewSafeDomainHandler() *SafeDomainHandler {
 	return &SafeDomainHandler{}
 }
 
-// GetPublicSafeDomains returns active domain strings list for fast caching by frontend clients
+// GetPublicSafeDomains returns active domain strings list with Redis caching for ultra-fast response
 func (h *SafeDomainHandler) GetPublicSafeDomains(c *fiber.Ctx) error {
+	ctx := c.Context()
+	cacheKey := "public"
+
+	// 1. Check Redis Cache
+	if cached, ok := database.GetSafeDomainsCache(ctx, cacheKey); ok && cached != "" {
+		var res []string
+		if err := json.Unmarshal([]byte(cached), &res); err == nil {
+			c.Set("X-Cache", "HIT-REDIS")
+			return c.JSON(fiber.Map{
+				"success": true,
+				"data":    res,
+			})
+		}
+	}
+
+	// 2. Query Database
 	var domains []models.SafeDomain
 	if err := database.DB.Where("is_active = ?", true).Order("domain asc").Find(&domains).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -35,38 +55,104 @@ func (h *SafeDomainHandler) GetPublicSafeDomains(c *fiber.Ctx) error {
 		}
 	}
 
+	// 3. Save to Redis Cache (24-Hour TTL, automatically purged on write)
+	if bytes, err := json.Marshal(res); err == nil {
+		database.SetSafeDomainsCache(ctx, cacheKey, string(bytes), 24*time.Hour)
+	}
+
+	c.Set("X-Cache", "MISS-REDIS")
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    res,
 	})
 }
 
-// GetAdminSafeDomains returns complete list with metadata for Super Admin management
+// GetAdminSafeDomains returns paginated list with metadata for Super Admin management (with Redis Caching)
 func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
-	var domains []models.SafeDomain
-	q := c.Query("q")
-	category := c.Query("category")
+	ctx := c.Context()
+	q := strings.TrimSpace(c.Query("q"))
+	category := strings.TrimSpace(c.Query("category"))
+	if category == "Semua" {
+		category = "all"
+	}
 
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	if limit < 1 {
+		limit = 10
+	} else if limit > 100 {
+		limit = 100
+	}
+
+	cacheKey := fmt.Sprintf("admin:cat=%s:q=%s:p=%d:l=%d", category, q, page, limit)
+
+	// 1. Check Redis Cache
+	if cached, ok := database.GetSafeDomainsCache(ctx, cacheKey); ok && cached != "" {
+		var cachedResp fiber.Map
+		if err := json.Unmarshal([]byte(cached), &cachedResp); err == nil {
+			c.Set("X-Cache", "HIT-REDIS")
+			return c.JSON(cachedResp)
+		}
+	}
+
+	// 2. Build Base Query
 	query := database.DB.Model(&models.SafeDomain{})
 	if q != "" {
-		searchTerm := "%" + strings.ToLower(strings.TrimSpace(q)) + "%"
+		searchTerm := "%" + strings.ToLower(q) + "%"
 		query = query.Where("LOWER(domain) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?", searchTerm, searchTerm, searchTerm)
 	}
-	if category != "" && category != "Semua" && category != "all" {
+	if category != "" && category != "all" {
 		query = query.Where("category = ?", category)
 	}
 
-	if err := query.Order("is_system desc, category asc, domain asc").Find(&domains).Error; err != nil {
+	// Count total items
+	var totalItems int64
+	if err := query.Count(&totalItems).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"error":   "Gagal menghitung total data master domain",
+		})
+	}
+
+	totalPages := int(math.Ceil(float64(totalItems) / float64(limit)))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	offset := (page - 1) * limit
+	var domains []models.SafeDomain
+	if err := query.Order("is_system desc, category asc, domain asc").Offset(offset).Limit(limit).Find(&domains).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Gagal memuat daftar master domain",
 		})
 	}
 
-	return c.JSON(fiber.Map{
+	resp := fiber.Map{
 		"success": true,
 		"data":    domains,
-	})
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total":       totalItems,
+			"total_items": totalItems,
+			"total_pages": totalPages,
+			"has_next":    page < totalPages,
+			"has_prev":    page > 1,
+		},
+	}
+
+	// 3. Cache Result in Redis (15m TTL)
+	if bytes, err := json.Marshal(resp); err == nil {
+		database.SetSafeDomainsCache(ctx, cacheKey, string(bytes), 15*time.Minute)
+	}
+
+	c.Set("X-Cache", "MISS-REDIS")
+	return c.JSON(resp)
 }
 
 // CreateSafeDomain adds a new domain to the master whitelist
@@ -134,6 +220,8 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 		})
 	}
 
+	database.InvalidateSafeDomainsCache(c.Context())
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Domain berhasil ditambahkan ke whitelist",
@@ -200,6 +288,8 @@ func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
 		})
 	}
 
+	database.InvalidateSafeDomainsCache(c.Context())
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Domain berhasil diperbarui",
@@ -224,6 +314,8 @@ func (h *SafeDomainHandler) DeleteSafeDomain(c *fiber.Ctx) error {
 			"error":   "Gagal menghapus domain",
 		})
 	}
+
+	database.InvalidateSafeDomainsCache(c.Context())
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -279,6 +371,8 @@ func (h *SafeDomainHandler) ResetDefaultSafeDomains(c *fiber.Ctx) error {
 			database.DB.Save(&existing)
 		}
 	}
+
+	database.InvalidateSafeDomainsCache(c.Context())
 
 	return c.JSON(fiber.Map{
 		"success": true,

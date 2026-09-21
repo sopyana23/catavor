@@ -18,7 +18,9 @@ import {
   Sparkles,
   ShieldCheck,
   Tag,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { loadDynamicSafeDomains } from '../utils/urlSecurity';
 
@@ -76,8 +78,30 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   const [domains, setDomains] = useState<SafeDomainItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    total_pages: 1
+  });
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Debounce search query 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Reset page to 1 when search or category changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedCategory]);
 
   // Modal State
   const [showFormModal, setShowFormModal] = useState(false);
@@ -97,10 +121,20 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const fetchDomains = async () => {
+  const fetchDomains = async (targetPage = page, targetSearch = debouncedSearch, targetCat = selectedCategory, targetLimit = limit) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/safe-domains', {
+      const params = new URLSearchParams();
+      params.set('page', String(targetPage));
+      params.set('limit', String(targetLimit));
+      if (targetCat && targetCat !== 'Semua') {
+        params.set('category', targetCat);
+      }
+      if (targetSearch.trim()) {
+        params.set('q', targetSearch.trim());
+      }
+
+      const res = await fetch(`/api/admin/safe-domains?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -109,6 +143,14 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setDomains(json.data);
+        if (json.pagination) {
+          setPagination({
+            page: Number(json.pagination.page || targetPage),
+            limit: Number(json.pagination.limit || targetLimit),
+            total: Number(json.pagination.total ?? json.pagination.total_items ?? json.data.length),
+            total_pages: Number(json.pagination.total_pages || 1)
+          });
+        }
       }
     } catch (err: any) {
       showToast(err.message || 'Gagal memuat data domain', 'error');
@@ -118,34 +160,21 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   };
 
   useEffect(() => {
-    fetchDomains();
-  }, [token]);
+    fetchDomains(page, debouncedSearch, selectedCategory, limit);
+  }, [token, page, debouncedSearch, selectedCategory, limit]);
 
   const categories = useMemo(() => {
     const list = ['Semua', 'Google', 'Komunikasi', 'Media Sosial', 'Platform', 'Produktivitas', 'Finansial', 'Mitra', 'Umum'];
     return list;
   }, []);
 
-  const filteredDomains = useMemo(() => {
-    return domains.filter(item => {
-      const matchSearch =
-        !searchQuery ||
-        item.domain.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchCat = selectedCategory === 'Semua' || item.category === selectedCategory;
-      return matchSearch && matchCat;
-    });
-  }, [domains, searchQuery, selectedCategory]);
-
   const stats = useMemo(() => {
-    const total = domains.length;
+    const total = pagination.total || domains.length;
     const active = domains.filter(d => d.is_active).length;
     const system = domains.filter(d => d.is_system).length;
-    const custom = total - system;
+    const custom = domains.filter(d => !d.is_system).length;
     return { total, active, system, custom };
-  }, [domains]);
+  }, [pagination.total, domains]);
 
   const handleOpenAdd = () => {
     setEditingDomain(null);
@@ -502,7 +531,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
             <span>Memuat data master whitelist...</span>
           </div>
-        ) : filteredDomains.length === 0 ? (
+        ) : domains.length === 0 ? (
           <div style={{
             padding: '2.5rem 1.5rem',
             textAlign: 'center',
@@ -520,7 +549,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             </span>
           </div>
         ) : (
-          filteredDomains.map(item => {
+          domains.map(item => {
             const catStyle = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Umum;
             return (
               <div
@@ -685,6 +714,92 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
           })
         )}
       </div>
+
+      {/* Server-Side Pagination Controls */}
+      {pagination.total_pages > 1 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.65rem',
+          padding: '0.75rem 0.5rem',
+          borderTop: `1px solid ${theme.border}`,
+          marginTop: '0.5rem'
+        }}>
+          <div style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
+            {(() => {
+              const totalCount = Number(pagination.total ?? (pagination as any).total_items ?? domains.length);
+              const startIdx = totalCount > 0 ? ((page - 1) * limit) + 1 : 0;
+              const endIdx = Math.min(page * limit, totalCount);
+              return (
+                <span>
+                  Menampilkan <strong style={{ color: theme.textPrimary }}>{startIdx}</strong> - <strong style={{ color: theme.textPrimary }}>{endIdx}</strong> dari <strong style={{ color: theme.textPrimary }}>{totalCount}</strong> domain
+                </span>
+              );
+            })()}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <button
+              type="button"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '0.5rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.cardAlt,
+                color: page <= 1 ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                opacity: page <= 1 ? 0.5 : 1
+              }}
+            >
+              <ChevronLeft size={14} />
+              <span>Sebelumnya</span>
+            </button>
+
+            <span style={{
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              padding: '0.35rem 0.65rem',
+              borderRadius: '0.5rem',
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+              color: isDark ? '#38bdf8' : '#0284c7'
+            }}>
+              {page} / {pagination.total_pages}
+            </span>
+
+            <button
+              type="button"
+              disabled={page >= pagination.total_pages || loading}
+              onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '0.5rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.cardAlt,
+                color: page >= pagination.total_pages ? theme.textMuted : theme.textPrimary,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: page >= pagination.total_pages ? 'not-allowed' : 'pointer',
+                opacity: page >= pagination.total_pages ? 0.5 : 1
+              }}
+            >
+              <span>Berikutnya</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal / Bottom Sheet Form: Tambah / Edit Safe Domain */}
       {showFormModal && (

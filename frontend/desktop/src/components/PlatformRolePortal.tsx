@@ -528,6 +528,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState('all');
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [debouncedTemplateSearch, setDebouncedTemplateSearch] = useState('');
+  const [templatePage, setTemplatePage] = useState(1);
+  const [templateLimit, setTemplateLimit] = useState(10);
+  const [templatePagination, setTemplatePagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    total_pages: 1
+  });
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedTemplateSearch(templateSearchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [templateSearchQuery]);
+
+  useEffect(() => {
+    setTemplatePage(1);
+  }, [debouncedTemplateSearch, templateCategoryFilter]);
 
   // Master Template CRUD Modal State
   const [showTemplateFormModal, setShowTemplateFormModal] = useState(false);
@@ -664,16 +684,45 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const fetchCannedTemplates = async (includeInactive = true) => {
+  const fetchCannedTemplates = async (
+    targetPageOrIncludeInactive: number | boolean = templatePage,
+    targetSearch = debouncedTemplateSearch,
+    targetCategory = templateCategoryFilter,
+    targetLimit = templateLimit,
+    includeInactive = true,
+    fetchAll = false
+  ) => {
+    let pageNum = templatePage;
+    let inact = includeInactive;
+    if (typeof targetPageOrIncludeInactive === 'boolean') {
+      inact = targetPageOrIncludeInactive;
+    } else if (typeof targetPageOrIncludeInactive === 'number') {
+      pageNum = targetPageOrIncludeInactive;
+    }
+
     setLoadingTemplates(true);
     try {
-      const url = `/api/admin/support/templates${includeInactive ? '?include_inactive=true' : ''}`;
+      const params = new URLSearchParams();
+      if (fetchAll) {
+        params.set('all', 'true');
+      } else {
+        params.set('page', String(pageNum));
+        params.set('limit', String(targetLimit));
+      }
+      if (inact) params.set('include_inactive', 'true');
+      if (targetCategory && targetCategory !== 'all') params.set('category', targetCategory);
+      if (targetSearch && targetSearch.trim()) params.set('search', targetSearch.trim());
+
+      const url = `/api/admin/support/templates?${params.toString()}`;
       const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setCannedTemplates(data.data || []);
+        if (data.pagination) {
+          setTemplatePagination(data.pagination);
+        }
       }
     } catch (e) {
       console.error('Failed to load canned response templates:', e);
@@ -681,6 +730,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setLoadingTemplates(false);
     }
   };
+
+  useEffect(() => {
+    if (activeView === 'master_data' && masterSubView === 'templates') {
+      fetchCannedTemplates(templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, true, false);
+    }
+  }, [activeView, masterSubView, templatePage, debouncedTemplateSearch, templateCategoryFilter, templateLimit, token]);
 
   const handleOpenCreateTemplate = () => {
     setEditingTemplate(null);
@@ -10024,14 +10079,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem', display: 'block', color: isDark ? '#38bdf8' : '#0284c7' }} />
                   <span style={{ fontSize: '0.8rem' }}>Memuat master template...</span>
                 </div>
-              ) : cannedTemplates.filter(t => {
-                if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
-                if (templateSearchQuery.trim()) {
-                  const q = templateSearchQuery.toLowerCase();
-                  return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
-                }
-                return true;
-              }).length === 0 ? (
+              ) : cannedTemplates.length === 0 ? (
                 <div style={{
                   padding: '2.5rem 1rem',
                   textAlign: 'center',
@@ -10066,16 +10114,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  {cannedTemplates
-                    .filter(t => {
-                      if (templateCategoryFilter !== 'all' && t.category !== templateCategoryFilter) return false;
-                      if (templateSearchQuery.trim()) {
-                        const q = templateSearchQuery.toLowerCase();
-                        return t.title?.toLowerCase().includes(q) || t.shortcut?.toLowerCase().includes(q) || t.content?.toLowerCase().includes(q);
-                      }
-                      return true;
-                    })
-                    .map(tmpl => {
+                  {cannedTemplates.map(tmpl => {
                       const catColors: Record<string, { bg: string; text: string; label: string }> = {
                         general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
                         billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
@@ -10212,6 +10251,83 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </div>
                       );
                     })}
+                </div>
+              )}
+
+              {/* Server-Side Pagination Controls for Template CS */}
+              {templatePagination.total_pages > 1 && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.65rem',
+                  padding: '0.75rem 0.5rem',
+                  borderTop: `1px solid ${theme.border}`,
+                  marginTop: '0.5rem'
+                }}>
+                  <div style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
+                    Menampilkan <strong style={{ color: theme.textPrimary }}>{((templatePage - 1) * templateLimit) + 1}</strong> - <strong style={{ color: theme.textPrimary }}>{Math.min(templatePage * templateLimit, templatePagination.total)}</strong> dari <strong style={{ color: theme.textPrimary }}>{templatePagination.total}</strong> template
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      disabled={templatePage <= 1 || loadingTemplates}
+                      onClick={() => setTemplatePage(p => Math.max(1, p - 1))}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.cardAlt,
+                        color: templatePage <= 1 ? theme.textMuted : theme.textPrimary,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: templatePage <= 1 ? 'not-allowed' : 'pointer',
+                        opacity: templatePage <= 1 ? 0.5 : 1
+                      }}
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Sebelumnya</span>
+                    </button>
+
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                      color: isDark ? '#38bdf8' : '#0284c7'
+                    }}>
+                      {templatePage} / {templatePagination.total_pages}
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={templatePage >= templatePagination.total_pages || loadingTemplates}
+                      onClick={() => setTemplatePage(p => Math.min(templatePagination.total_pages, p + 1))}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.cardAlt,
+                        color: templatePage >= templatePagination.total_pages ? theme.textMuted : theme.textPrimary,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: templatePage >= templatePagination.total_pages ? 'not-allowed' : 'pointer',
+                        opacity: templatePage >= templatePagination.total_pages ? 0.5 : 1
+                      }}
+                    >
+                      <span>Berikutnya</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

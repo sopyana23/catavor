@@ -397,6 +397,12 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_safe_domains_cat ON safe_domains(category);").Error
 	seedDefaultSafeDomains(db)
 
+	// 7.1 Auto-Migrate & Index Support Canned Responses
+	_ = db.AutoMigrate(&models.SupportCannedResponse{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_responses_cat ON support_canned_responses(category);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_responses_active ON support_canned_responses(is_active);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_responses_sort ON support_canned_responses(sort_order);").Error
+
 	// 8. Auto-Migrate Automation Logs (Persistent Job History)
 	_ = db.AutoMigrate(&models.AutomationLog{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_bot_name ON automation_logs(bot_name);").Error
