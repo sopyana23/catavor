@@ -2949,39 +2949,39 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           top: 0,
           zIndex: 999,
           boxSizing: 'border-box',
-          width: isScrolled ? 'calc(100% + 1.7rem)' : '100%',
-          marginLeft: isScrolled ? '-0.85rem' : '0',
-          marginRight: isScrolled ? '-0.85rem' : '0',
-          marginTop: 0,
-          marginBottom: 0,
-          borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.25rem',
+          width: 'calc(100% + 1.7rem)',
+          maxWidth: 'calc(100% + 1.7rem)',
+          marginLeft: '-0.85rem',
+          marginRight: '-0.85rem',
+          marginTop: '-0.5rem',
+          marginBottom: '0.65rem',
+          borderRadius: 0,
           backgroundColor: isDark 
-            ? (isScrolled ? 'rgba(15, 23, 42, 0.94)' : '#0f172a') 
-            : (isScrolled ? 'rgba(255, 255, 255, 0.94)' : '#ffffff'),
-          borderTop: isScrolled ? 'none' : `1px solid ${theme.border}`,
-          borderLeft: isScrolled ? 'none' : `1px solid ${theme.border}`,
-          borderRight: isScrolled ? 'none' : `1px solid ${theme.border}`,
-          borderBottom: `1px solid ${isScrolled ? (isDark ? 'rgba(56, 189, 248, 0.35)' : '#cbd5e1') : theme.border}`,
-          padding: isScrolled ? '0.62rem 0.85rem' : '0.72rem 0.85rem',
-          boxShadow: isScrolled 
-            ? (isDark ? '0 14px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' : '0 10px 25px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0,0,0,0.04)')
-            : theme.shadow,
+            ? 'rgba(15, 23, 42, 0.95)' 
+            : 'rgba(255, 255, 255, 0.95)',
+          borderTop: 'none',
+          borderLeft: 'none',
+          borderRight: 'none',
+          borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+          padding: '0.65rem 0.85rem',
+          boxShadow: isDark 
+            ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+            : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.5rem',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+          gap: '0.5rem'
         }}>
           {/* Left Side: Avatar & Profile Info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
             {/* Brand Logo with Live Online Dot */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
-                width: isScrolled ? '34px' : '38px',
-                height: isScrolled ? '34px' : '38px',
-                borderRadius: isScrolled ? '0.75rem' : '0.85rem',
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.85rem',
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
                 display: 'flex',
@@ -3008,8 +3008,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 position: 'absolute',
                 bottom: '-2px',
                 right: '-2px',
-                width: isScrolled ? '9px' : '10px',
-                height: isScrolled ? '9px' : '10px',
+                width: '10px',
+                height: '10px',
                 borderRadius: '50%',
                 backgroundColor: '#10b981',
                 border: `2px solid ${theme.surface}`,
@@ -3021,7 +3021,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
                 <h2 style={{
-                  fontSize: isScrolled ? '0.84rem' : '0.9rem',
+                  fontSize: '0.9rem',
                   fontWeight: 800,
                   margin: 0,
                   color: theme.textPrimary,
@@ -3045,18 +3045,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </span>
               </div>
 
-              {!isScrolled && (
-                <span style={{
-                  fontSize: '0.66rem',
-                  color: theme.textSecondary,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: '180px'
-                }}>
-                  {currentUser?.email || 'admin@catavor.com'}
-                </span>
-              )}
+              <span style={{
+                fontSize: '0.66rem',
+                color: theme.textSecondary,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: '220px'
+              }}>
+                {currentUser?.email || 'admin@catavor.com'}
+              </span>
             </div>
           </div>
 
@@ -3109,37 +3107,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             top: 0,
             zIndex: 999,
             boxSizing: 'border-box',
-            width: isScrolled ? 'calc(100% + 1.7rem)' : '100%',
-            marginLeft: isScrolled ? '-0.85rem' : '0',
-            marginRight: isScrolled ? '-0.85rem' : '0',
-            marginTop: 0,
-            marginBottom: 0,
-            borderRadius: isScrolled ? '0 0 1.15rem 1.15rem' : '1.2rem',
+            width: 'calc(100% + 1.7rem)',
+            maxWidth: 'calc(100% + 1.7rem)',
+            marginLeft: '-0.85rem',
+            marginRight: '-0.85rem',
+            marginTop: '-0.5rem',
+            marginBottom: '0.65rem',
+            borderRadius: 0,
             backgroundColor: isDark 
-              ? (isScrolled ? 'rgba(15, 23, 42, 0.94)' : '#0f172a') 
-              : (isScrolled ? 'rgba(255, 255, 255, 0.94)' : '#ffffff'),
-            borderTop: isScrolled ? 'none' : `1px solid ${theme.border}`,
-            borderLeft: isScrolled ? 'none' : `1px solid ${theme.border}`,
-            borderRight: isScrolled ? 'none' : `1px solid ${theme.border}`,
-            borderBottom: `1px solid ${isScrolled ? (isDark ? 'rgba(56, 189, 248, 0.35)' : '#cbd5e1') : theme.border}`,
-            padding: isScrolled ? '0.62rem 0.85rem' : '0.65rem 0.75rem',
-            boxShadow: isScrolled 
-              ? (isDark ? '0 14px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' : '0 10px 25px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0,0,0,0.04)')
-              : theme.shadow,
+              ? 'rgba(15, 23, 42, 0.95)' 
+              : 'rgba(255, 255, 255, 0.95)',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
+            padding: '0.65rem 0.85rem',
+            boxShadow: isDark 
+              ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+              : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.5rem',
-            transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+            gap: '0.5rem'
           }}>
             {/* Left Side: Brand Logo for Footer Tabs OR Pure Icon Back Button for Secondary Modules / Ticket Detail */}
             {(isFooterTab && !(activeView === 'support' && selectedTicket)) ? (
               <div style={{
-                width: isScrolled ? '34px' : '38px',
-                height: isScrolled ? '34px' : '38px',
-                borderRadius: isScrolled ? '0.75rem' : '0.85rem',
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.85rem',
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
                 display: 'flex',
