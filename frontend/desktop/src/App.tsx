@@ -2583,41 +2583,41 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
       {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
       
-      {/* Inline Formatting Helper Toolbar */}
+      {/* Inline Formatting Helper Toolbar: Single Row Bar */}
       <div className="rich-toolbar-wrapper">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Teks Tebal (Bold)"
-            onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
-          >
-            <strong>B</strong>
-          </button>
-          <button
-            type="button"
-            className="rich-btn-format"
-            title="Teks Miring (Italic)"
-            onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
-          >
-            <em>I</em>
-          </button>
-          <HeadingDropdown
-            onSelect={(level) => {
-              if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
-              else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
-              else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
-            }}
-            btnClassName="rich-btn-format"
-          />
-          <ListDropdown
-            onSelect={(type) => {
-              if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
-              else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
-            }}
-            btnClassName="rich-btn-format"
-          />
-        </div>
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Teks Tebal (Bold)"
+          onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
+          style={{ flexShrink: 0 }}
+        >
+          <strong>B</strong>
+        </button>
+        <button
+          type="button"
+          className="rich-btn-format"
+          title="Teks Miring (Italic)"
+          onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
+          style={{ flexShrink: 0 }}
+        >
+          <em>I</em>
+        </button>
+        <HeadingDropdown
+          onSelect={(level) => {
+            if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
+            else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
+            else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
+          }}
+          btnClassName="rich-btn-format"
+        />
+        <ListDropdown
+          onSelect={(type) => {
+            if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
+            else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
+          }}
+          btnClassName="rich-btn-format"
+        />
 
         {/* Fullscreen Button */}
         <button
@@ -2625,6 +2625,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           className="rich-btn-fullscreen"
           title="Buka Layar Penuh (Fullscreen Zen Mode)"
           onClick={() => setIsFullscreen(true)}
+          style={{ flexShrink: 0, marginLeft: 'auto' }}
         >
           <Maximize2 size={13} /> Fullscreen
         </button>
@@ -2662,15 +2663,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         <div className="zen-fullscreen-overlay">
           {/* Fullscreen Header Bar */}
           <div className="zen-fullscreen-header">
-            {/* Title & Stats */}
+            {/* Title */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div className="zen-header-title">
                 <FileText size={18} color="var(--primary)" />
                 <span>{label || 'Editor Teks'}</span>
               </div>
-              <span className="zen-header-badge">
-                {wordCount} kata · {charCount} karakter
-              </span>
             </div>
 
             {/* Middle Formatting Tools */}
@@ -2734,28 +2732,6 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 <Columns size={14} />
                 <span>{showFullscreenPreview ? 'Split Preview: Aktif' : 'Tampilkan Preview'}</span>
               </button>
-
-              {/* Minimize / Close Button */}
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.42rem 0.95rem',
-                  borderRadius: '0.375rem',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  color: '#ef4444',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
-              >
-                <Minimize2 size={14} />
-                <span>Minimize (Selesai)</span>
-              </button>
             </div>
           </div>
 
@@ -2816,10 +2792,54 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             )}
           </div>
 
-          {/* Fullscreen Footer Tips */}
-          <div className="zen-fullscreen-footer">
-            <span>💡 <strong>Tips Menulis:</strong> Tekan <code>Enter</code> pada list untuk poin baru otomatis, atau tekan <code>Enter</code> 2x untuk keluar dari mode list.</span>
-            <span>Tekan <code>ESC</code> untuk menutup layar penuh</span>
+          {/* Fullscreen Footer: Counts on Left, Selesai Button on Right */}
+          <div className="zen-fullscreen-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+              <span style={{
+                padding: '0.2rem 0.6rem',
+                borderRadius: '0.375rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-secondary)',
+                fontWeight: 700
+              }}>
+                {wordCount} kata
+              </span>
+              <span>•</span>
+              <span style={{
+                padding: '0.2rem 0.6rem',
+                borderRadius: '0.375rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
+                color: 'var(--text-secondary)',
+                fontWeight: 700
+              }}>
+                {charCount} karakter
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.42rem 1.25rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Check size={14} strokeWidth={2.5} color="#ffffff" />
+              <span>Selesai</span>
+            </button>
           </div>
         </div>
       )}

@@ -1973,16 +1973,21 @@ select option {
 .rich-toolbar-wrapper {
   position: relative;
   z-index: 40;
-  overflow: visible;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0.35rem 0.55rem;
   border-bottom: none;
   border-top-left-radius: 0.5rem;
   border-top-right-radius: 0.5rem;
   gap: 0.3rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rich-toolbar-wrapper::-webkit-scrollbar {
+  display: none;
 }
 
 .rich-btn-format {
