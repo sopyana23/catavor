@@ -2652,15 +2652,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         })
       });
       if (res.ok) {
-        showToast(`Laporan #${reportId} berhasil diperbarui (${status.toUpperCase()})`, 'success');
+        showToast('laporan berhasil diperbaharui', 'success');
         fetchReportsList(reportsPagination.page);
         handleCloseModerationPage();
       } else {
         const errData = await res.json().catch(() => ({}));
-        showToast(errData.message || 'Gagal memperbarui status laporan', 'error');
+        if (errData?.message) console.error('Update report error:', errData.message);
+        showToast('laporan gagal diperbaharui', 'error');
       }
-    } catch {
-      showToast('Kesalahan jaringan', 'error');
+    } catch (err) {
+      console.error('Update report error:', err);
+      showToast('laporan gagal diperbaharui', 'error');
     } finally {
       setIsSubmittingModeration(false);
     }
@@ -3765,9 +3767,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         color: theme.textPrimary,
         padding: (activeView === 'support' && selectedTicket)
           ? `0.5rem 0.95rem calc(${selectedTicket.status === 'closed' ? '70px' : (ticketReplyAttachments.length > 0 ? '245px' : '180px')} + env(safe-area-inset-bottom, 0px)) 0.95rem`
-          : isSubPage
-            ? '0.5rem 0.95rem 2rem 0.95rem'
-            : '0.5rem 0.95rem 5.5rem 0.95rem',
+          : (activeView === 'reports' && moderationModalReport)
+            ? '0.5rem 0.95rem 1.25rem 0.95rem'
+            : isSubPage
+              ? '0.5rem 0.95rem 2rem 0.95rem'
+              : '0.5rem 0.95rem 5.5rem 0.95rem',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         minHeight: '100vh',
         boxSizing: 'border-box',
@@ -4885,7 +4889,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ========================================================================= */
           /* 3A. DEDICATED REPORT MODERATION & ENFORCEMENT ACTION PAGE                */
           /* ========================================================================= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '0' }}>
             {/* Section 1: Entity Profile & Evidence Card */}
             <div style={{
               backgroundColor: theme.surface,
@@ -5291,8 +5295,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   switch (action) {
                     case 'warning_issued':
                       return {
-                        label: 'Terbitkan Peringatan Resmi (Warning Issued)',
-                        desc: 'Kirim notifikasi peringatan resmi kepatuhan ke pemilik toko',
+                        label: 'Terbitkan Peringatan Resmi',
+                        desc: 'Notifikasi peringatan kepatuhan dikirim ke pemilik toko',
                         icon: AlertTriangle,
                         color: '#f59e0b',
                         badge: 'PERINGATAN',
@@ -5300,45 +5304,45 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       };
                     case 'item_hidden':
                       return {
-                        label: 'Nonaktifkan & Sembunyikan Item dari Publik (IsActive=False)',
-                        desc: 'Item disembunyikan seketika dan tidak dapat dilihat oleh publik',
+                        label: 'Nonaktifkan / Sembunyikan Item',
+                        desc: 'Item disembunyikan dari katalog publik & pencarian',
                         icon: XCircle,
                         color: '#ef4444',
-                        badge: 'ITEM NONAKTIF',
+                        badge: 'NONAKTIF',
                         badgeColor: '#ef4444'
                       };
                     case 'item_restored':
                       return {
-                        label: 'Pulihkan & Tampilkan Kembali Item ke Publik (IsActive=True)',
-                        desc: 'Item dipulihkan dan dapat kembali diakses publik secara normal',
+                        label: 'Pulihkan / Aktifkan Item',
+                        desc: 'Item dipulihkan dan dapat kembali diakses publik',
                         icon: CheckCircle2,
                         color: '#10b981',
-                        badge: 'ITEM AKTIF',
+                        badge: 'AKTIF',
                         badgeColor: '#10b981'
                       };
                     case 'catalog_suspended':
                       return {
-                        label: 'Bekukan / Suspend Katalog Toko (Dormancy=Suspended)',
-                        desc: 'Seluruh etalase toko dibekukan sementara dari akses publik secara real-time',
+                        label: 'Bekukan / Suspend Toko',
+                        desc: 'Seluruh etalase toko dibekukan dari akses publik',
                         icon: Lock,
                         color: '#dc2626',
-                        badge: 'SUSPEND TOKO',
+                        badge: 'SUSPEND',
                         badgeColor: '#dc2626'
                       };
                     case 'catalog_reactivated':
                       return {
-                        label: 'Aktifkan Kembali Katalog Toko (Dormancy=Active)',
-                        desc: 'Cabut sanksi penangguhan dan buka kembali akses publik katalog toko',
+                        label: 'Pulihkan / Aktifkan Toko',
+                        desc: 'Cabut sanksi penangguhan dan buka katalog toko',
                         icon: Store,
                         color: '#10b981',
-                        badge: 'PULIHKAN TOKO',
+                        badge: 'PULIHKAN',
                         badgeColor: '#10b981'
                       };
                     case 'none':
                     default:
                       return {
-                        label: 'Tanpa Sanksi Otomatis (Hanya Catatan / Investigasi)',
-                        desc: 'Catat temuan investigasi & perbarui status tanpa mengubah status toko/produk',
+                        label: 'Tanpa Sanksi Otomatis',
+                        desc: 'Hanya mencatat investigasi tanpa mengubah status',
                         icon: FileText,
                         color: theme.textSecondary,
                         badge: 'CATATAN',
@@ -5360,59 +5364,38 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           value: string;
                           label: string;
                           desc: string;
-                          badge: string;
-                          badgeColor: string;
-                          icon: any;
                         }> = [
                           {
                             value: 'none',
-                            label: 'Tanpa Sanksi Otomatis (Hanya Catatan / Investigasi)',
-                            desc: 'Catat temuan investigasi & perbarui status tanpa mengubah status toko/produk',
-                            badge: 'CATATAN',
-                            badgeColor: '#64748b',
-                            icon: FileText
+                            label: 'Tanpa Sanksi Otomatis',
+                            desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada toko maupun produk'
                           },
                           {
                             value: 'warning_issued',
-                            label: 'Terbitkan Peringatan Resmi (Warning Issued)',
-                            desc: 'Kirim notifikasi peringatan resmi kepatuhan ke pemilik toko',
-                            badge: 'PERINGATAN',
-                            badgeColor: '#f59e0b',
-                            icon: AlertTriangle
+                            label: 'Terbitkan Peringatan Resmi',
+                            desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pemilik toko'
                           },
                           ...(isItem ? [
                             {
                               value: 'item_hidden',
-                              label: 'Nonaktifkan & Sembunyikan Item dari Publik (IsActive=False)',
-                              desc: 'Item disembunyikan seketika dan tidak dapat dilihat oleh publik',
-                              badge: 'ITEM NONAKTIF',
-                              badgeColor: '#ef4444',
-                              icon: XCircle
+                              label: 'Nonaktifkan / Sembunyikan Item',
+                              desc: 'Seketika menyembunyikan item dari katalog publik & hasil pencarian'
                             },
                             {
                               value: 'item_restored',
-                              label: 'Pulihkan & Tampilkan Kembali Item ke Publik (IsActive=True)',
-                              desc: 'Item dipulihkan dan dapat kembali diakses publik secara normal',
-                              badge: 'ITEM AKTIF',
-                              badgeColor: '#10b981',
-                              icon: CheckCircle2
+                              label: 'Pulihkan / Aktifkan Item',
+                              desc: 'Memulihkan item agar dapat kembali dilihat dan dibeli publik secara normal'
                             }
                           ] : []),
                           {
                             value: 'catalog_suspended',
-                            label: 'Bekukan / Suspend Katalog Toko (Dormancy=Suspended)',
-                            desc: 'Seluruh etalase toko dibekukan sementara dari akses publik secara real-time',
-                            badge: 'SUSPEND TOKO',
-                            badgeColor: '#dc2626',
-                            icon: Lock
+                            label: 'Bekukan / Suspend Toko',
+                            desc: 'Seluruh etalase toko dan produk dibekukan sementara dari akses publik secara real-time'
                           },
                           {
                             value: 'catalog_reactivated',
-                            label: 'Aktifkan Kembali Katalog Toko (Dormancy=Active)',
-                            desc: 'Cabut sanksi penangguhan dan buka kembali akses publik katalog toko',
-                            badge: 'PULIHKAN TOKO',
-                            badgeColor: '#10b981',
-                            icon: Store
+                            label: 'Pulihkan / Aktifkan Toko',
+                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase katalog toko'
                           }
                         ];
 
@@ -5479,18 +5462,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             {activeCfg.desc}
                           </span>
                         </div>
-                        <span style={{
-                          padding: '0.18rem 0.5rem',
-                          borderRadius: '999px',
-                          fontSize: '0.64rem',
-                          fontWeight: 800,
-                          backgroundColor: `${activeCfg.badgeColor}18`,
-                          color: activeCfg.badgeColor,
-                          border: `1px solid ${activeCfg.badgeColor}33`,
-                          flexShrink: 0
-                        }}>
-                          {activeCfg.badge}
-                        </span>
                       </div>
                       <ChevronDown size={17} color={theme.textMuted} style={{ flexShrink: 0 }} />
                     </button>
@@ -12519,7 +12490,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
                     style={{
                       backgroundColor: isSelected 
-                        ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.08)')
+                        ? (isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)')
                         : opt.isAction 
                           ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.04)')
                           : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
@@ -12531,14 +12502,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       borderStyle: opt.isAction ? 'dashed' : 'solid',
                       color: theme.textPrimary,
                       cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      transition: 'all 0.15s ease',
+                      width: '100%',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.85rem',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.85rem',
+                      marginBottom: '0.6rem'
                     }}
                     onClick={() => {
                       crudDropdownPicker.onSelect(opt.value);
                       setCrudDropdownPicker(null);
                     }}
                   >
-                    <div className="bottom-sheet-item-left" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div className="bottom-sheet-item-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
                       {opt.icon && (
                         <div style={{
                           width: '32px',
@@ -12554,16 +12534,29 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <opt.icon size={16} />
                         </div>
                       )}
-                      <div className="bottom-sheet-item-col" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                      <div className="bottom-sheet-item-col" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', flex: 1, minWidth: 0, gap: '0.2rem' }}>
                         <span className="bottom-sheet-item-name" style={{ 
                           color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary), 
-                          fontWeight: isSelected || opt.isAction ? 800 : 600,
-                          fontSize: '0.82rem'
+                          fontWeight: isSelected || opt.isAction ? 800 : 700,
+                          fontSize: '0.88rem',
+                          lineHeight: 1.35,
+                          whiteSpace: 'normal',
+                          overflow: 'visible',
+                          textOverflow: 'clip',
+                          wordBreak: 'break-word'
                         }}>
                           {opt.label}
                         </span>
                         {opt.desc && (
-                          <span className="bottom-sheet-item-desc" style={{ color: theme.textMuted, fontSize: '0.72rem' }}>{opt.desc}</span>
+                          <span className="bottom-sheet-item-desc" style={{ 
+                            color: theme.textSecondary, 
+                            fontSize: '0.74rem', 
+                            lineHeight: 1.4,
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word'
+                          }}>
+                            {opt.desc}
+                          </span>
                         )}
                       </div>
                       {opt.badge && (
@@ -12574,9 +12567,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             color: opt.badgeColor || theme.textSecondary,
                             border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`,
                             fontSize: '0.65rem',
-                            padding: '0.1rem 0.4rem',
+                            padding: '0.12rem 0.45rem',
                             borderRadius: '999px',
-                            fontWeight: 600
+                            fontWeight: 700,
+                            flexShrink: 0
                           }}
                         >
                           {opt.badge}
@@ -12586,8 +12580,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <div 
                       className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}
                       style={{
-                        width: '18px',
-                        height: '18px',
+                        width: '20px',
+                        height: '20px',
                         borderRadius: '50%',
                         border: `2px solid ${isSelected ? 'var(--primary, #f59e0b)' : theme.borderStrong}`,
                         backgroundColor: isSelected ? 'var(--primary, #f59e0b)' : 'transparent',
@@ -12598,7 +12592,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}
                     >
                       {isSelected && (
-                        <Check size={11} strokeWidth={3.5} style={{ color: '#ffffff' }} />
+                        <Check size={12} strokeWidth={3.5} style={{ color: '#ffffff' }} />
                       )}
                     </div>
                   </button>
@@ -14123,8 +14117,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
 
 
-      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data & create broadcast form) */}
-      {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && (
+      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data, create broadcast form & kelola tindakan) */}
+      {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && !moderationModalReport && (
         <button
           type="button"
           onClick={scrollToTop}

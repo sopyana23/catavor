@@ -2668,15 +2668,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         })
       });
       if (res.ok) {
-        showToast(`Laporan #${reportId} berhasil diperbarui (${status.toUpperCase()})`, 'success');
+        showToast('laporan berhasil diperbaharui', 'success');
         fetchReportsList(reportsPagination.page);
         handleCloseModerationPage();
       } else {
         const errData = await res.json().catch(() => ({}));
-        showToast(errData.message || 'Gagal memperbarui status laporan', 'error');
+        if (errData?.message) console.error('Update report error:', errData.message);
+        showToast('laporan gagal diperbaharui', 'error');
       }
-    } catch {
-      showToast('Kesalahan jaringan', 'error');
+    } catch (err) {
+      console.error('Update report error:', err);
+      showToast('laporan gagal diperbaharui', 'error');
     } finally {
       setIsSubmittingModeration(false);
     }
@@ -3745,9 +3747,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         color: theme.textPrimary,
         padding: (activeView === 'support' && selectedTicket)
           ? `0.5rem 0.85rem calc(${selectedTicket.status === 'closed' ? '70px' : (ticketReplyAttachments.length > 0 ? '245px' : '180px')} + env(safe-area-inset-bottom, 0px)) 0.85rem`
-          : isSubPage
-            ? '0.5rem 0.85rem 2rem 0.85rem'
-            : '0.5rem 0.85rem 5.5rem 0.85rem',
+          : (activeView === 'reports' && moderationModalReport)
+            ? '0.5rem 0.85rem 1.25rem 0.85rem'
+            : isSubPage
+              ? '0.5rem 0.85rem 2rem 0.85rem'
+              : '0.5rem 0.85rem 5.5rem 0.85rem',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         minHeight: '100vh',
         boxSizing: 'border-box'
@@ -4845,7 +4849,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ========================================================================= */
           /* 3A. DEDICATED REPORT MODERATION & ENFORCEMENT ACTION PAGE                */
           /* ========================================================================= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '0' }}>
             {/* Section 1: Entity Profile & Evidence Card */}
             <div style={{
               backgroundColor: theme.surface,
@@ -5238,17 +5242,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   switch (action) {
                     case 'warning_issued':
                       return {
-                        label: 'Terbitkan Peringatan Resmi (Warning Issued)',
-                        desc: 'Kirim notifikasi peringatan resmi kepatuhan ke pemilik toko',
-                        icon: AlertTriangle,
-                        color: '#f59e0b',
-                        badge: 'PERINGATAN',
-                        badgeColor: '#f59e0b'
-                      };
-                    case 'warning_issued':
-                      return {
                         label: 'Terbitkan Peringatan Resmi',
-                        desc: 'Kirim notifikasi peringatan resmi kepatuhan ke pemilik toko',
+                        desc: 'Notifikasi peringatan kepatuhan dikirim ke pemilik toko',
                         icon: AlertTriangle,
                         color: '#f59e0b',
                         badge: 'PERINGATAN',
@@ -5257,8 +5252,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       };
                     case 'item_hidden':
                       return {
-                        label: 'Sembunyikan Item Produk',
-                        desc: 'Item disembunyikan seketika dari akses publik (IsActive=False)',
+                        label: 'Nonaktifkan / Sembunyikan Item',
+                        desc: 'Item disembunyikan dari katalog publik & pencarian',
                         icon: XCircle,
                         color: '#ef4444',
                         badge: 'NONAKTIF',
@@ -5267,8 +5262,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       };
                     case 'item_restored':
                       return {
-                        label: 'Pulihkan Item Produk',
-                        desc: 'Item dipulihkan dan dapat kembali diakses publik (IsActive=True)',
+                        label: 'Pulihkan / Aktifkan Item',
+                        desc: 'Item dipulihkan dan dapat kembali diakses publik',
                         icon: CheckCircle2,
                         color: '#10b981',
                         badge: 'AKTIF',
@@ -5277,8 +5272,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       };
                     case 'catalog_suspended':
                       return {
-                        label: 'Bekukan Katalog Toko',
-                        desc: 'Seluruh etalase toko dibekukan sementara dari akses publik (Dormancy=Suspended)',
+                        label: 'Bekukan / Suspend Toko',
+                        desc: 'Seluruh etalase toko dibekukan dari akses publik',
                         icon: Lock,
                         color: '#dc2626',
                         badge: 'SUSPEND',
@@ -5287,8 +5282,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       };
                     case 'catalog_reactivated':
                       return {
-                        label: 'Aktifkan Katalog Toko',
-                        desc: 'Cabut sanksi penangguhan dan buka kembali akses publik (Dormancy=Active)',
+                        label: 'Pulihkan / Aktifkan Toko',
+                        desc: 'Cabut sanksi penangguhan dan buka katalog toko',
                         icon: Store,
                         color: '#10b981',
                         badge: 'PULIHKAN',
@@ -5299,7 +5294,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     default:
                       return {
                         label: 'Tanpa Sanksi Otomatis',
-                        desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis',
+                        desc: 'Hanya mencatat investigasi tanpa mengubah status',
                         icon: FileText,
                         color: theme.textSecondary,
                         badge: 'CATATAN',
@@ -5321,60 +5316,45 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         const actionOptions: Array<{
                           value: string;
                           label: string;
-                          desc?: string;
+                          desc: string;
                           info: string;
-                          badge: string;
-                          badgeColor: string;
-                          icon: any;
                         }> = [
                           {
                             value: 'none',
                             label: 'Tanpa Sanksi Otomatis',
-                            badge: 'CATATAN',
-                            badgeColor: '#64748b',
-                            icon: FileText,
+                            desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada toko maupun produk',
                             info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik toko atau produk.'
                           },
                           {
                             value: 'warning_issued',
                             label: 'Terbitkan Peringatan Resmi',
-                            badge: 'PERINGATAN',
-                            badgeColor: '#f59e0b',
-                            icon: AlertTriangle,
+                            desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pemilik toko',
                             info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pemilik toko. Status toko dan produk tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
                           },
                           ...(isItem ? [
                             {
                               value: 'item_hidden',
-                              label: 'Sembunyikan Item Produk',
-                              badge: 'NONAKTIF',
-                              badgeColor: '#ef4444',
-                              icon: XCircle,
+                              label: 'Nonaktifkan / Sembunyikan Item',
+                              desc: 'Seketika menyembunyikan item dari katalog publik & hasil pencarian',
                               info: 'Seketika mengubah database item menjadi IsActive=False. Item disembunyikan dari katalog publik dan calon pembeli tidak dapat melihat atau membelinya.'
                             },
                             {
                               value: 'item_restored',
-                              label: 'Pulihkan Item Produk',
-                              badge: 'AKTIF',
-                              badgeColor: '#10b981',
-                              icon: CheckCircle2,
+                              label: 'Pulihkan / Aktifkan Item',
+                              desc: 'Memulihkan item agar dapat kembali dilihat dan dibeli publik secara normal',
                               info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta dibeli secara publik seperti biasa.'
                             }
                           ] : []),
                           {
                             value: 'catalog_suspended',
-                            label: 'Bekukan Katalog Toko',
-                            badge: 'SUSPEND',
-                            badgeColor: '#dc2626',
-                            icon: Lock,
+                            label: 'Bekukan / Suspend Toko',
+                            desc: 'Seluruh etalase toko dan produk dibekukan sementara dari akses publik secara real-time',
                             info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
                           },
                           {
                             value: 'catalog_reactivated',
-                            label: 'Aktifkan Katalog Toko',
-                            badge: 'PULIHKAN',
-                            badgeColor: '#10b981',
-                            icon: Store,
+                            label: 'Pulihkan / Aktifkan Toko',
+                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase katalog toko',
                             info: 'Seketika memulihkan status dormansi toko menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase katalog toko ke publik.'
                           }
                         ];
@@ -5420,25 +5400,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         }}>
                           <ActiveIcon size={16} />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                           <span style={{
                             fontSize: '0.82rem',
                             fontWeight: 700,
-                            color: theme.textPrimary
+                            color: theme.textPrimary,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }}>
                             {activeCfg.label}
                           </span>
                           <span style={{
-                            padding: '0.12rem 0.45rem',
-                            borderRadius: '999px',
-                            fontSize: '0.62rem',
-                            fontWeight: 800,
-                            backgroundColor: `${activeCfg.badgeColor}18`,
-                            color: activeCfg.badgeColor,
-                            border: `1px solid ${activeCfg.badgeColor}33`,
-                            flexShrink: 0
+                            fontSize: '0.68rem',
+                            color: theme.textMuted,
+                            fontWeight: 500,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }}>
-                            {activeCfg.badge}
+                            {activeCfg.desc}
                           </span>
                         </div>
                       </div>
@@ -12707,13 +12688,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
                       style={{
                         margin: 0,
-                        padding: '0.65rem 0.85rem',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: '0.6rem',
+                        gap: '0.75rem',
                         backgroundColor: isSelected 
-                          ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.08)')
+                          ? (isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)')
                           : opt.isAction 
                             ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.04)')
                             : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
@@ -12726,6 +12706,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         color: theme.textPrimary,
                         cursor: 'pointer',
                         borderRadius: '0.75rem',
+                        padding: '0.8rem 1rem',
                         transition: 'all 0.15s ease'
                       }}
                       onClick={() => {
@@ -12733,7 +12714,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         setCrudDropdownPicker(null);
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                         {opt.icon && (
                           <div style={{
                             width: '32px',
@@ -12749,33 +12730,46 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             <opt.icon size={16} />
                           </div>
                         )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0, flex: 1, gap: '0.2rem' }}>
                           <span style={{ 
                             color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary), 
                             fontWeight: isSelected || opt.isAction ? 800 : 700,
-                            fontSize: '0.82rem',
-                            lineHeight: 1.25
+                            fontSize: '0.88rem',
+                            lineHeight: 1.35,
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word'
                           }}>
                             {opt.label}
                           </span>
-                          {opt.badge && (
-                            <span 
-                              style={{
-                                backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
-                                color: opt.badgeColor || theme.textSecondary,
-                                border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`,
-                                fontSize: '0.62rem',
-                                padding: '0.1rem 0.45rem',
-                                borderRadius: '999px',
-                                fontWeight: 700,
-                                flexShrink: 0,
-                                letterSpacing: '0.02em'
-                              }}
-                            >
-                              {opt.badge}
+                          {opt.desc && (
+                            <span style={{
+                              color: theme.textSecondary,
+                              fontSize: '0.74rem',
+                              lineHeight: 1.4,
+                              whiteSpace: 'normal',
+                              wordBreak: 'break-word'
+                            }}>
+                              {opt.desc}
                             </span>
                           )}
                         </div>
+                        {opt.badge && (
+                          <span 
+                            style={{
+                              backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
+                              color: opt.badgeColor || theme.textSecondary,
+                              border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`,
+                              fontSize: '0.62rem',
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '999px',
+                              fontWeight: 700,
+                              flexShrink: 0,
+                              letterSpacing: '0.02em'
+                            }}
+                          >
+                            {opt.badge}
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
@@ -14382,8 +14376,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
 
-      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data & create broadcast form) */}
-      {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && (
+      {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data, create broadcast form & kelola tindakan) */}
+      {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && !moderationModalReport && (
         <button
           type="button"
           onClick={scrollToTop}
