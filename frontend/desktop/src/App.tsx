@@ -3005,6 +3005,8 @@ interface ShopSettings {
   store_theme?: string
   last_activity_at?: string
   dormancy_status?: string
+  suspension_reason?: string
+  dormancy_suspended_at?: string
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -6699,6 +6701,174 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return null;
   };
 
+  // Helper: Ekstraksi data komprehensif dari notifikasi kasus moderasi Trust & Safety (Desktop)
+  const parseModerationCase = (notif: any) => {
+    if (!notif) return { isModeration: false, reportNumber: '', targetType: 'item', targetName: '', reason: '', notes: '', actionTaken: '', isAppealEligible: false, statusBadge: '', statusColor: '#f43f5e', issuedDateStr: '' };
+
+    const category = String(notif.category || '').toUpperCase();
+    const actionUrl = String(notif.action_url || notif.actionUrl || '');
+    const title = String(notif.title || '');
+    const message = String(notif.message || '');
+    const detail = String(notif.detail_content || notif.detailContent || '');
+    const combined = `${title} ${message} ${detail}`;
+
+    const isSecurityOrMod = category === 'KEAMANAN' || 
+      actionUrl.includes('report=') || 
+      title.includes('Penangguhan Item') || 
+      title.includes('Pembekuan Item') || 
+      title.includes('Item Dihapus') || 
+      title.includes('Toko Dibekukan') || 
+      title.includes('Peringatan Konten') || 
+      title.includes('Pemulihan Item') ||
+      combined.includes('#RPT-');
+
+    if (!isSecurityOrMod) {
+      return { isModeration: false, reportNumber: '', targetType: 'item', targetName: '', reason: '', notes: '', actionTaken: '', isAppealEligible: false, statusBadge: '', statusColor: '#f43f5e', issuedDateStr: '' };
+    }
+
+    let reportNumber = '';
+    let targetType = 'item';
+    let targetName = '';
+    let reason = '';
+    let notes = '';
+
+    if (actionUrl) {
+      try {
+        const dummyBase = 'http://localhost';
+        const parsedUrl = new URL(actionUrl.startsWith('http') ? actionUrl : `${dummyBase}/${actionUrl.replace(/^\//, '')}`);
+        reportNumber = parsedUrl.searchParams.get('report') || '';
+        targetType = parsedUrl.searchParams.get('target_type') || 'item';
+        targetName = parsedUrl.searchParams.get('target_name') || '';
+        reason = parsedUrl.searchParams.get('reason') || '';
+        notes = parsedUrl.searchParams.get('notes') || '';
+      } catch {}
+    }
+
+    if (!reportNumber) {
+      const rptMatch = combined.match(/#?(RPT-\d{8}-[A-Za-z0-9]+)/i);
+      if (rptMatch) reportNumber = rptMatch[1];
+    }
+
+    if (!reason) {
+      const reasonMatch = combined.match(/Kategori(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
+                          combined.match(/Dugaan(?:\s+Pelanggaran)?\s*:\s*([^\n\r.]+)/i) ||
+                          combined.match(/Alasan\s*:\s*([^\n\r.]+)/i);
+      if (reasonMatch) reason = reasonMatch[1].trim();
+      else if (combined.includes('satwa dilindungi')) reason = 'Satwa Dilindungi / Regulasi Keanekaragaman Hayati';
+      else if (combined.includes('tidak berizin')) reason = 'Izin Usaha / Dokumen Tidak Lengkap';
+      else if (combined.includes('spam')) reason = 'Konten Menyesatkan / Spam';
+      else reason = 'Pelanggaran Syarat & Ketentuan Layanan';
+    }
+
+    if (!notes) {
+      const notesMatch = combined.match(/Catatan(?:\s+Peninjau|\s+Admin)?\s*:\s*["']?([^"'\n\r]+)["']?/i);
+      if (notesMatch) notes = notesMatch[1].trim();
+      else notes = 'Ditemukan ketidaksesuaian kebijakan atau indikasi pelanggaran pada entitas terkait berdasarkan audit penguji.';
+    }
+
+    if (!targetName) {
+      const nameMatch = combined.match(/produk\s+"([^"]+)"/i) || 
+                        combined.match(/item\s+"([^"]+)"/i) || 
+                        combined.match(/toko\s+"([^"]+)"/i) ||
+                        combined.match(/"([^"]+)"/);
+      if (nameMatch) targetName = nameMatch[1].trim();
+    }
+
+    let actionTaken = 'item_hidden';
+    let statusBadge = 'Item Dibekukan (Takedown)';
+    let statusColor = '#f43f5e';
+    let isAppealEligible = true;
+
+    if (title.includes('Penangguhan') || combined.includes('ditangguhkan')) {
+      actionTaken = 'catalog_suspended';
+      statusBadge = 'Katalog Ditangguhkan';
+      statusColor = '#ef4444';
+      isAppealEligible = true;
+    } else if (title.includes('Pemulihan') || combined.includes('dipulihkan')) {
+      actionTaken = 'item_restored';
+      statusBadge = 'Telah Dipulihkan';
+      statusColor = '#10b981';
+      isAppealEligible = false;
+    } else if (title.includes('Peringatan') || combined.includes('peringatan')) {
+      actionTaken = 'warning_issued';
+      statusBadge = 'Peringatan Pelanggaran';
+      statusColor = '#f59e0b';
+      isAppealEligible = true;
+    } else if (title.includes('Dihapus') || combined.includes('dihapus permanen')) {
+      actionTaken = 'item_deleted';
+      statusBadge = 'Item Dihapus';
+      statusColor = '#dc2626';
+      isAppealEligible = true;
+    }
+
+    let issuedDateStr = notif.timestamp || notif.time || '';
+    if (!issuedDateStr || issuedDateStr === 'Baru saja') {
+      try {
+        const d = notif.created_at ? new Date(notif.created_at) : new Date();
+        issuedDateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch {
+        issuedDateStr = 'Baru saja';
+      }
+    }
+
+    return {
+      isModeration: true,
+      reportNumber,
+      targetType,
+      targetName,
+      reason,
+      notes,
+      actionTaken,
+      isAppealEligible,
+      statusBadge,
+      statusColor,
+      issuedDateStr
+    };
+  };
+
+  // Helper: Buka modal tiket bantuan dengan template banding kepatuhan Trust & Safety otomatis (Desktop)
+  const handleOpenAppealTicket = (notif: any) => {
+    const modCase = parseModerationCase(notif);
+    setSelectedNotificationDetail(null);
+    setAdminTab('help');
+    setShowCreateTicketModal(true);
+
+    const subject = `Banding Kepatuhan Moderasi - #${modCase.reportNumber || 'RPT-MODERASI'}`;
+    const targetLabel = modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog';
+    const draftMessage = `Yth. Tim Kepatuhan & Trust & Safety Catavor,
+
+Saya bermaksud mengajukan permohonan banding resmi dan klarifikasi atas tindakan moderasi yang diberlakukan terhadap:
+
+• Nomor Laporan/Kasus: #${modCase.reportNumber || 'RPT-MODERASI'}
+• Entitas Terdampak: ${modCase.targetName || 'Item Terkait'} (${targetLabel})
+• Dugaan Pelanggaran: ${modCase.reason}
+• Tindakan Moderasi: ${modCase.statusBadge}
+• Catatan Peninjau: "${modCase.notes || 'Penonaktifan sementara atas dasar kepatuhan kebijakan'}"
+
+--- ALASAN & FAKTA KLARIFIKASI BANDING ---
+[Jelaskan mengapa produk/toko Anda telah sesuai dengan pedoman atau lampirkan perbaikan data yang telah Anda lakukan]
+
+1. Penjelasan legalitas / keaslian / izin edar:
+2. Perbaikan deskripsi / foto yang telah dilakukan:
+3. Dokumen pendukung terlampir:
+
+Mohon kiranya tim Trust & Safety dapat meninjau kembali kasus ini dan memulihkan visibilitas etalase kami.
+
+Terima kasih atas perhatian dan kerja samanya.`;
+
+    setNewTicketForm({
+      subject,
+      category: 'catalog_help',
+      priority: 'high',
+      message: draftMessage
+    });
+
+    const slug = getStoreSlug();
+    if (slug) {
+      window.history.pushState({}, '', `/${slug}/admin/help`);
+    }
+  };
+
   // Best Practice: Navigasi langsung (Deep-Link) dari notifikasi ke detail chat tiket bantuan (Desktop)
   const handleNavigateToTicketFromNotif = (notifItem: any) => {
     const ticketRef = extractTicketFromNotif(notifItem);
@@ -7792,7 +7962,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             default_is_comments_enabled: '0',
             default_require_comment_approval: '0',
             default_require_comment_email: '0',
-            default_verify_comment_email_domain: '0'
+            default_verify_comment_email_domain: '0',
+            dormancy_status: store.dormancy_status || 'active',
+            suspension_reason: store.suspension_reason || 'none',
+            dormancy_suspended_at: store.dormancy_suspended_at || ''
           };
           
           // Preload and convert custom store logo to Base64 in RAM/Storage FIRST
@@ -13084,7 +13257,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           ) : (
           <>
             {/* Free Plan Branding Banner (Desktop) */}
-            {settings.plan === 'free' && (
+            {settings.plan === 'free' && settings.dormancy_status !== 'suspended' && (
               <div
                 className="glass-panel animate-fade-in"
                 style={{
@@ -13152,14 +13325,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             )}
 
             {/* Hero Section */}
-            <section className="hero-section">
-              <h2 className="hero-title">
-                Galeri Satwa Hias <span className="hero-highlight">Premium</span>
-              </h2>
-              <p className="hero-desc">
-                Kami menyediakan berbagai pilihan produk barang dan produk berkualitas tinggi dengan layanan cepat, aman, dan terpercaya.
-              </p>
-            </section>
+            {!error && settings.dormancy_status !== 'suspended' && (
+              <section className="hero-section">
+                <h2 className="hero-title">
+                  Galeri Satwa Hias <span className="hero-highlight">Premium</span>
+                </h2>
+                <p className="hero-desc">
+                  Kami menyediakan berbagai pilihan produk barang dan produk berkualitas tinggi dengan layanan cepat, aman, dan terpercaya.
+                </p>
+              </section>
+            )}
 
 
 
@@ -13270,9 +13445,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   padding: '4.5rem 2.5rem', 
                   textAlign: 'center', 
                   borderRadius: '1.25rem',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  border: settings.suspension_reason === 'moderation_violation'
+                    ? '1px solid rgba(239, 68, 68, 0.4)'
+                    : '1px solid rgba(245, 158, 11, 0.35)',
                   background: 'var(--card-bg-gradient)',
-                  boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+                  boxShadow: settings.suspension_reason === 'moderation_violation'
+                    ? '0 16px 45px rgba(239, 68, 68, 0.15)'
+                    : '0 12px 40px rgba(0,0,0,0.25)',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -13284,38 +13463,85 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               >
                 <div 
                   style={{ 
-                    width: '72px', 
-                    height: '72px', 
+                    width: '76px', 
+                    height: '76px', 
                     borderRadius: '50%', 
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)', 
-                    border: '2px solid rgba(245, 158, 11, 0.3)', 
+                    backgroundColor: settings.suspension_reason === 'moderation_violation'
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : 'rgba(245, 158, 11, 0.15)', 
+                    border: settings.suspension_reason === 'moderation_violation'
+                      ? '2px solid rgba(239, 68, 68, 0.4)'
+                      : '2px solid rgba(245, 158, 11, 0.3)', 
                     display: 'flex', 
                     alignItems: 'center', 
-                    justifyContent: 'center',
-                    color: '#f59e0b',
-                    boxShadow: '0 0 24px rgba(245, 158, 11, 0.2)'
+                    justifyContent: 'center', 
+                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
+                    boxShadow: settings.suspension_reason === 'moderation_violation'
+                      ? '0 0 28px rgba(239, 68, 68, 0.25)'
+                      : '0 0 24px rgba(245, 158, 11, 0.2)'
                   }}
                 >
-                  <Clock size={36} />
+                  {settings.suspension_reason === 'moderation_violation' ? (
+                    <ShieldAlert size={38} />
+                  ) : (
+                    <Clock size={36} />
+                  )}
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                    Katalog Sedang Diliburkan
+                  <div style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '0.4rem', 
+                    padding: '0.28rem 0.85rem', 
+                    borderRadius: '20px', 
+                    backgroundColor: settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
+                    border: settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
+                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                    fontSize: '0.74rem', 
+                    fontWeight: 800, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.5px', 
+                    marginBottom: '0.75rem' 
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', boxShadow: settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' }} />
+                    {settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
+                  </div>
+                  <h3 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                    {settings.suspension_reason === 'moderation_violation' 
+                      ? 'Profil Katalog Sedang Dibekukan Sementara' 
+                      : 'Katalog Sedang Diliburkan'}
                   </h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', maxWidth: '460px', margin: '0 auto', lineHeight: 1.6 }}>
-                    Katalog toko ini sedang dinonaktifkan sementara karena masa aktif belum diperpanjang oleh pemilik toko.
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto', lineHeight: 1.6 }}>
+                    {settings.suspension_reason === 'moderation_violation'
+                      ? 'Akses publik ke katalog ini dinonaktifkan sementara oleh Tim Kepatuhan & Moderasi Catavor sehubungan dengan peninjauan laporan pelanggaran pedoman platform.'
+                      : 'Katalog toko ini sedang dinonaktifkan sementara karena masa aktif belum diperpanjang oleh pemilik toko.'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setView('admin');
-                  }}
-                  className="btn-primary"
-                  style={{ padding: '0.75rem 1.75rem', borderRadius: '0.75rem', fontSize: '0.88rem', fontWeight: 800, marginTop: '0.5rem' }}
-                >
-                  Saya Pemilik Toko (Masuk &amp; Aktifkan)
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', width: '100%', maxWidth: '340px', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => { window.location.href = window.location.origin; }}
+                    className="btn-secondary"
+                    style={{ 
+                      padding: '0.75rem 1.5rem', 
+                      borderRadius: '0.75rem', 
+                      fontSize: '0.88rem', 
+                      fontWeight: 700, 
+                      width: '100%',
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Globe size={16} />
+                    Ke Halaman Utama Portal
+                  </button>
+                </div>
               </div>
             ) : !loading && !error && (
               <>
@@ -14541,12 +14767,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
                       ) : (
                         notifications.map((n: any) => {
+                          const modCase = parseModerationCase(n);
+                          const isModerationNotif = modCase.isModeration;
                           const ticketRef = extractTicketFromNotif(n);
                           let rawSubTab = n.link_sub_tab || n.linkSubTab || '';
                           if (rawSubTab === 'support') rawSubTab = 'help';
                           if (rawSubTab === 'products') rawSubTab = 'items';
 
-                          const isTicketNotif = Boolean(ticketRef) || n.type === 'ticket' || rawSubTab === 'help' || (n.title && (n.title.includes('CS Catavor') || n.title.includes('Balasan Baru')));
+                          const isTicketNotif = !isModerationNotif && (Boolean(ticketRef) || n.type === 'ticket' || rawSubTab === 'help' || (n.title && (n.title.includes('CS Catavor') || n.title.includes('Balasan Baru'))));
                           const rawSettingsTab = n.link_settings_sub_tab || n.linkSettingsSubTab || n.link_mobile_settings_tab || n.linkMobileSettingsTab || '';
                           
                           const actionUrl = n.action_url || n.actionUrl || '';
@@ -14565,7 +14793,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           }
 
                           let rawActionType = n.action_type || n.actionType;
-                          if (!rawActionType || rawActionType === 'none') {
+                          if (isModerationNotif) {
+                            rawActionType = 'detail';
+                          } else if (!rawActionType || rawActionType === 'none') {
                             if (isTicketNotif) rawActionType = 'navigate';
                             else if (actionUrl) rawActionType = 'external_link';
                             else if (rawSubTab) rawActionType = 'navigate';
@@ -14583,6 +14813,18 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               onClick={() => {
                                 handleMarkAsRead(n.id);
                                 setShowNotificationModal(false);
+
+                                if (isModerationNotif) {
+                                  setSelectedNotificationDetail(n);
+                                  try {
+                                    sessionStorage.setItem('catavor_active_desktop_notification_id', String(n.id));
+                                    sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(n));
+                                  } catch {}
+                                  setAdminTab('notifications');
+                                  const slug = storeSlug || getStoreSlug();
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${n.id}`);
+                                  return;
+                                }
 
                                 if (isTicketNotif) {
                                   handleNavigateToTicketFromNotif(n);
@@ -17085,177 +17327,362 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               {adminTab === 'notifications' && (
                 <div className="glass-panel animate-fade-in" style={{ padding: '1.75rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)' }}>
-                  {selectedNotificationDetail ? (
-                    /* ==========================================================
-                       VIEW 1: FULL PAGE NOTIFICATION DETAIL VIEW (DESKTOP)
-                       ========================================================== */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      {/* Top Back Navigation Bar */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => {
-                            setSelectedNotificationDetail(null);
-                            try {
-                              sessionStorage.removeItem('catavor_active_desktop_notification_id');
-                              sessionStorage.removeItem('catavor_active_desktop_notification_data');
-                            } catch {}
-                            const slug = storeSlug || getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                          }}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          <ChevronLeft size={16} />
-                          <span>Kembali ke Daftar Notifikasi</span>
-                        </button>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                            padding: '0.2rem 0.65rem',
-                            borderRadius: '0.4rem',
-                            color: selectedNotificationDetail.type === 'warning' ? '#d97706' : selectedNotificationDetail.type === 'success' ? '#059669' : selectedNotificationDetail.type === 'order' ? '#2563eb' : 'var(--primary)',
-                            backgroundColor: selectedNotificationDetail.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : selectedNotificationDetail.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : selectedNotificationDetail.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
-                            border: '1px solid currentColor'
-                          }}>
-                            {selectedNotificationDetail.category || (selectedNotificationDetail.type === 'warning' ? 'PANDUAN' : selectedNotificationDetail.type === 'success' ? 'PROMOSI' : selectedNotificationDetail.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                            {selectedNotificationDetail.timestamp || selectedNotificationDetail.time || 'Baru saja'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Detail Body Container */}
-                      <div className="glass-panel" style={{
-                        padding: '2rem',
-                        borderRadius: '1rem',
-                        border: '1px solid var(--border-light)',
-                        background: 'var(--card-bg-gradient)',
-                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '1.5rem'
-                      }}>
-                        <div>
-                          <h2 style={{
-                            fontSize: '1.45rem',
-                            fontWeight: 800,
-                            margin: '0 0 1rem 0',
-                            color: 'var(--text-primary)',
-                            lineHeight: 1.35,
-                            letterSpacing: '-0.01em',
-                            borderBottom: '1px solid var(--border-light)',
-                            paddingBottom: '1rem'
-                          }}>
-                            {selectedNotificationDetail.title}
-                          </h2>
-                          <div style={{
-                            fontSize: '0.94rem',
-                            color: 'var(--text-primary)',
-                            lineHeight: 1.8,
-                            wordBreak: 'break-word',
-                            letterSpacing: '0.01em'
-                          }}>
-                            <FormattedText text={selectedNotificationDetail.detail_content || selectedNotificationDetail.message} />
-                          </div>
-                        </div>
-
-                        {/* CTA Actions */}
-                        {(() => {
-                          const norm = (() => {
-                            const ticketRef = extractTicketFromNotif(selectedNotificationDetail);
-                            let rawSubTab = selectedNotificationDetail.link_sub_tab || selectedNotificationDetail.linkSubTab || '';
-                            if (rawSubTab === 'support') rawSubTab = 'help';
-                            if (rawSubTab === 'products') rawSubTab = 'items';
-
-                            const isTicketNotif = Boolean(ticketRef) || selectedNotificationDetail.type === 'ticket' || rawSubTab === 'help' || (selectedNotificationDetail.title && (selectedNotificationDetail.title.includes('CS Catavor') || selectedNotificationDetail.title.includes('Balasan Baru')));
-                            const rawSettingsTab = selectedNotificationDetail.link_settings_sub_tab || selectedNotificationDetail.linkSettingsSubTab || selectedNotificationDetail.link_mobile_settings_tab || selectedNotificationDetail.linkMobileSettingsTab || '';
-                            
-                            const actionUrl = selectedNotificationDetail.action_url || selectedNotificationDetail.actionUrl || '';
-                            const rawActionLabel = selectedNotificationDetail.action_label || selectedNotificationDetail.actionLabel || '';
-                            const detailContent = selectedNotificationDetail.detail_content || selectedNotificationDetail.detailContent || '';
-
-                            let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
-                            if (
-                              cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
-                              cleanLabel.toLowerCase() === 'buka pengumuman' || 
-                              cleanLabel.toLowerCase() === 'buka menu terkait' || 
-                              cleanLabel.toLowerCase() === 'buka tautan luar' ||
-                              cleanLabel.toLowerCase() === 'kunjungi tautan'
-                            ) {
-                              cleanLabel = '';
-                            }
-
-                            let rawActionType = selectedNotificationDetail.action_type || selectedNotificationDetail.actionType;
-                            if (!rawActionType || rawActionType === 'none') {
-                              if (isTicketNotif) rawActionType = 'navigate';
-                              else if (actionUrl) rawActionType = 'external_link';
-                              else if (rawSubTab) rawActionType = 'navigate';
-                              else if (detailContent) rawActionType = 'detail';
-                              else rawActionType = 'none';
-                            }
-
-                            const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
-                            const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
-
-                            const tabLabels: Record<string, string> = {
-                              settings: 'Pengaturan Toko',
-                              items: 'Katalog Produk',
-                              subscription: 'Paket Langganan',
-                              help: 'Pusat Bantuan & Tiket CS',
-                              analytics: 'Statistik Toko',
-                              share: 'Bagikan Toko / QR',
-                              articles: 'Artikel & Berita',
-                              policies: 'Kebijakan Toko',
-                              profile: 'Profil Pengguna',
-                              audit_logs: 'Log Aktivitas',
-                              rbac: 'Hak Akses Tim'
-                            };
-
-                            let btnLabel = '';
-                            if (isTicketNotif) {
-                              btnLabel = cleanLabel ? `${cleanLabel} →` : (ticketRef ? `Lihat Tiket #${ticketRef} →` : 'Buka Pusat Bantuan CS →');
-                            } else if (isDirectNav && rawSubTab) {
-                              btnLabel = cleanLabel ? `${cleanLabel} →` : `Buka ${tabLabels[rawSubTab] || rawSubTab} →`;
-                            } else if (isExternal && actionUrl) {
-                              if (cleanLabel) {
-                                btnLabel = `${cleanLabel} ↗`;
-                              } else {
+                  {selectedNotificationDetail ? (() => {
+                    const modCase = parseModerationCase(selectedNotificationDetail);
+                    if (modCase.isModeration) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                          {/* Top Back Navigation Bar */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => {
+                                setSelectedNotificationDetail(null);
                                 try {
-                                  const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
-                                  const parsed = new URL(fullUrl);
-                                  btnLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')} ↗`;
-                                } catch {
-                                  btnLabel = 'Kunjungi Tautan Luar ↗';
-                                }
-                              }
-                            }
+                                  sessionStorage.removeItem('catavor_active_desktop_notification_id');
+                                  sessionStorage.removeItem('catavor_active_desktop_notification_data');
+                                } catch {}
+                                const slug = storeSlug || getStoreSlug();
+                                if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              <ChevronLeft size={16} />
+                              <span>Kembali ke Daftar Notifikasi</span>
+                            </button>
 
-                            return {
-                              ticketRef,
-                              isTicketNotif,
-                              subTab: rawSubTab,
-                              settingsTab: rawSettingsTab,
-                              actionUrl,
-                              btnLabel,
-                              isDirectNav,
-                              isExternal
-                            };
-                          })();
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <span style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                                padding: '0.2rem 0.65rem',
+                                borderRadius: '0.4rem',
+                                color: modCase.statusColor,
+                                backgroundColor: `${modCase.statusColor}18`,
+                                border: `1px solid ${modCase.statusColor}40`
+                              }}>
+                                {modCase.statusBadge}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                {modCase.issuedDateStr}
+                              </span>
+                            </div>
+                          </div>
 
-                          return (
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                          {/* Desktop Case Sheet Container */}
+                          <div className="glass-panel" style={{
+                            padding: '2.25rem',
+                            borderRadius: '1.25rem',
+                            border: '1px solid rgba(244, 63, 94, 0.28)',
+                            background: 'radial-gradient(ellipse at top left, rgba(244, 63, 94, 0.08) 0%, var(--card-bg-gradient) 70%)',
+                            boxShadow: '0 12px 35px rgba(0, 0, 0, 0.35)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1.75rem'
+                          }}>
+                            {/* Incident Header Banner */}
+                            <div style={{
+                              padding: '1.35rem 1.5rem',
+                              borderRadius: '0.9rem',
+                              background: 'rgba(244, 63, 94, 0.1)',
+                              border: '1px solid rgba(244, 63, 94, 0.25)',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '1.25rem'
+                            }}>
+                              <div style={{
+                                width: '48px',
+                                height: '48px',
+                                borderRadius: '0.8rem',
+                                backgroundColor: 'rgba(244, 63, 94, 0.2)',
+                                border: '1px solid rgba(244, 63, 94, 0.35)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                color: '#f43f5e'
+                              }}>
+                                <ShieldAlert size={26} style={{ strokeWidth: 2.3 }} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.06em',
+                                    color: '#f43f5e',
+                                    backgroundColor: 'rgba(244, 63, 94, 0.18)',
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '0.35rem'
+                                  }}>
+                                    Trust &amp; Safety • Lembar Kasus Kepatuhan
+                                  </span>
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: 'var(--text-secondary)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem'
+                                  }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: modCase.statusColor }} />
+                                    Status: {modCase.statusBadge}
+                                  </span>
+                                </div>
+                                <h2 style={{
+                                  fontSize: '1.35rem',
+                                  fontWeight: 800,
+                                  color: 'var(--text-primary)',
+                                  margin: '0 0 0.35rem 0',
+                                  lineHeight: 1.3
+                                }}>
+                                  {selectedNotificationDetail.title}
+                                </h2>
+                                <p style={{
+                                  fontSize: '0.84rem',
+                                  color: 'var(--text-secondary)',
+                                  margin: 0,
+                                  lineHeight: 1.5
+                                }}>
+                                  Pemberitahuan resmi hasil audit penegakan kepatuhan ekosistem pasar Catavor. Data di bawah ini bersifat valid dan tercatat dalam sistem audit integritas platform.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Case Reference Strip */}
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.85rem 1.25rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px solid var(--border-light)',
+                              flexWrap: 'wrap',
+                              gap: '0.85rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                <FileText size={16} color="var(--primary)" />
+                                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>ID Kasus Resmi:</span>
+                                <span style={{
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.92rem',
+                                  fontWeight: 800,
+                                  color: 'var(--text-primary)',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                                  padding: '0.15rem 0.55rem',
+                                  borderRadius: '0.35rem',
+                                  border: '1px solid var(--border-light)'
+                                }}>
+                                  #{modCase.reportNumber || 'RPT-MODERASI'}
+                                </span>
+                                {modCase.reportNumber && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard?.writeText(modCase.reportNumber);
+                                      showToast(`Nomor laporan #${modCase.reportNumber} disalin!`);
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'var(--text-secondary)',
+                                      cursor: 'pointer',
+                                      padding: '0.2rem',
+                                      display: 'flex',
+                                      alignItems: 'center'
+                                    }}
+                                    title="Salin Nomor Laporan"
+                                  >
+                                    <Copy size={13} />
+                                  </button>
+                                )}
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                <span>Tanggal Terbit: <strong style={{ color: 'var(--text-primary)' }}>{modCase.issuedDateStr}</strong></span>
+                                <span>Kategori: <strong style={{ color: 'var(--text-primary)' }}>Audit Moderasi Katalog</strong></span>
+                              </div>
+                            </div>
+
+                            {/* 4-Column Structured Metric Cards */}
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                              gap: '1rem'
+                            }}>
+                              {/* Card 1: Entitas */}
+                              <div style={{
+                                padding: '1.1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem'
+                              }}>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Entitas Terdampak
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                  <Package size={17} color="var(--primary)" style={{ flexShrink: 0 }} />
+                                  <span style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+                                    {modCase.targetName || 'Item Katalog Terkait'}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Tipe: {modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog'}
+                                </span>
+                              </div>
+
+                              {/* Card 2: Pelanggaran */}
+                              <div style={{
+                                padding: '1.1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem'
+                              }}>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Kategori Pelanggaran
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                  <AlertTriangle size={17} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+                                    {modCase.reason}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Kepatuhan Regulasi &amp; Komunitas
+                                </span>
+                              </div>
+
+                              {/* Card 3: Status Visibilitas */}
+                              <div style={{
+                                padding: '1.1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem'
+                              }}>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Status Visibilitas
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                  <Lock size={17} color={modCase.statusColor} style={{ flexShrink: 0 }} />
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.statusColor }}>
+                                    {modCase.statusBadge}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Disembunyikan dari Publik
+                                </span>
+                              </div>
+
+                              {/* Card 4: Hak Banding */}
+                              <div style={{
+                                padding: '1.1rem 1.25rem',
+                                borderRadius: '0.85rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem'
+                              }}>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Hak Banding Mitra
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                  <Scale size={17} color={modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)' }}>
+                                    {modCase.isAppealEligible ? 'Terbuka & Dijamin' : 'Telah Selesai'}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Maksimal 14 hari kalender
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Verified Examiner Findings Callout Box */}
+                            <div style={{
+                              padding: '1.35rem 1.5rem',
+                              borderRadius: '0.9rem',
+                              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.75rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <BadgeCheck size={18} color="var(--primary)" />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  Temuan Audit &amp; Catatan Resmi Tim Trust &amp; Safety
+                                </span>
+                              </div>
+
+                              <div style={{
+                                padding: '1rem 1.25rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderLeft: '3.5px solid #f43f5e',
+                                fontSize: '0.88rem',
+                                color: 'var(--text-primary)',
+                                lineHeight: 1.65,
+                                fontStyle: 'italic'
+                              }}>
+                                "{modCase.notes}"
+                              </div>
+
+                              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                Sesuai Peraturan Perlindungan Ekosistem Pasar Satwa &amp; Flora Catavor Pasal 4 (Standar Verifikasi &amp; Izin Edar), tindakan penghentian tayang sementara diberlakukan guna melindungi pembeli dan reputasi seluruh mitra penjual.
+                              </div>
+                            </div>
+
+                            {/* Right to Appeal Advisory Guide */}
+                            <div style={{
+                              padding: '1.1rem 1.35rem',
+                              borderRadius: '0.85rem',
+                              backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                              border: '1px solid rgba(59, 130, 246, 0.22)',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '0.85rem'
+                            }}>
+                              <LifeBuoy size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                                <strong style={{ color: '#3b82f6', display: 'block', marginBottom: '0.2rem', fontSize: '0.84rem' }}>
+                                  Panduan Pengajuan Banding Kepatuhan:
+                                </strong>
+                                Jika Anda meyakini terdapat kekeliruan klasifikasi atau telah memperbarui dokumen legalitas/izin penangkaran resmi, silakan gunakan tombol <strong>"Ajukan Banding Kepatuhan"</strong> di bawah. Permohonan Anda akan diteruskan langsung ke antrean prioritas tim verifikasi kepatuhan Catavor dengan template data yang telah terisi otomatis.
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              gap: '0.85rem',
+                              paddingTop: '1.25rem',
+                              borderTop: '1px solid var(--border-light)',
+                              flexWrap: 'wrap'
+                            }}>
                               <button
                                 type="button"
                                 className="btn-secondary"
                                 onClick={() => setSelectedNotificationDetail(null)}
                                 style={{
-                                  padding: '0.65rem 1.25rem',
+                                  padding: '0.65rem 1.35rem',
                                   borderRadius: '0.65rem',
                                   fontSize: '0.85rem',
                                   fontWeight: 700,
@@ -17265,69 +17692,277 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 Tutup Rincian
                               </button>
 
-                              {norm.isDirectNav && (
+                              {modCase.isAppealEligible && (
                                 <button
                                   type="button"
-                                  className="btn-primary"
-                                  onClick={() => {
-                                    if (norm.isTicketNotif) {
-                                      handleNavigateToTicketFromNotif(selectedNotificationDetail);
-                                      return;
-                                    }
-                                    setSelectedNotificationDetail(null);
-                                    if (norm.subTab) {
-                                      setAdminTab(norm.subTab as any);
-                                      if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
-                                      const slug = getStoreSlug();
-                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
-                                    }
-                                  }}
+                                  onClick={() => handleOpenAppealTicket(selectedNotificationDetail)}
                                   style={{
                                     padding: '0.65rem 1.5rem',
                                     borderRadius: '0.65rem',
                                     fontSize: '0.88rem',
                                     fontWeight: 800,
                                     cursor: 'pointer',
-                                    boxShadow: '0 4px 16px var(--primary-glow)',
+                                    backgroundColor: '#f43f5e',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    boxShadow: '0 4px 18px rgba(244, 63, 94, 0.45)',
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '0.4rem'
+                                    gap: '0.5rem'
                                   }}
                                 >
-                                  <span>{norm.btnLabel}</span>
-                                </button>
-                              )}
-
-                              {norm.isExternal && (
-                                <button
-                                  type="button"
-                                  className="btn-primary"
-                                  onClick={() => {
-                                    if (norm.actionUrl) {
-                                      handleSafeExternalRedirect(norm.actionUrl);
-                                    }
-                                  }}
-                                  style={{
-                                    padding: '0.65rem 1.5rem',
-                                    borderRadius: '0.65rem',
-                                    fontSize: '0.88rem',
-                                    fontWeight: 800,
-                                    cursor: 'pointer',
-                                    boxShadow: '0 4px 16px var(--primary-glow)',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.4rem'
-                                  }}
-                                >
-                                  <span>{norm.btnLabel}</span>
+                                  <Scale size={16} style={{ strokeWidth: 2.5 }} />
+                                  <span>Ajukan Banding Kepatuhan</span>
+                                  <ArrowRight size={15} style={{ strokeWidth: 2.5 }} />
                                 </button>
                               )}
                             </div>
-                          );
-                        })()}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Top Back Navigation Bar */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => {
+                              setSelectedNotificationDetail(null);
+                              try {
+                                sessionStorage.removeItem('catavor_active_desktop_notification_id');
+                                sessionStorage.removeItem('catavor_active_desktop_notification_data');
+                              } catch {}
+                              const slug = storeSlug || getStoreSlug();
+                              if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            <ChevronLeft size={16} />
+                            <span>Kembali ke Daftar Notifikasi</span>
+                          </button>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              padding: '0.2rem 0.65rem',
+                              borderRadius: '0.4rem',
+                              color: selectedNotificationDetail.type === 'warning' ? '#d97706' : selectedNotificationDetail.type === 'success' ? '#059669' : selectedNotificationDetail.type === 'order' ? '#2563eb' : 'var(--primary)',
+                              backgroundColor: selectedNotificationDetail.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : selectedNotificationDetail.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : selectedNotificationDetail.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
+                              border: '1px solid currentColor'
+                            }}>
+                              {selectedNotificationDetail.category || (selectedNotificationDetail.type === 'warning' ? 'PANDUAN' : selectedNotificationDetail.type === 'success' ? 'PROMOSI' : selectedNotificationDetail.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              {selectedNotificationDetail.timestamp || selectedNotificationDetail.time || 'Baru saja'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Detail Body Container */}
+                        <div className="glass-panel" style={{
+                          padding: '2rem',
+                          borderRadius: '1rem',
+                          border: '1px solid var(--border-light)',
+                          background: 'var(--card-bg-gradient)',
+                          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1.5rem'
+                        }}>
+                          <div>
+                            <h2 style={{
+                              fontSize: '1.45rem',
+                              fontWeight: 800,
+                              margin: '0 0 1rem 0',
+                              color: 'var(--text-primary)',
+                              lineHeight: 1.35,
+                              letterSpacing: '-0.01em',
+                              borderBottom: '1px solid var(--border-light)',
+                              paddingBottom: '1rem'
+                            }}>
+                              {selectedNotificationDetail.title}
+                            </h2>
+                            <div style={{
+                              fontSize: '0.94rem',
+                              color: 'var(--text-primary)',
+                              lineHeight: 1.8,
+                              wordBreak: 'break-word',
+                              letterSpacing: '0.01em'
+                            }}>
+                              <FormattedText text={selectedNotificationDetail.detail_content || selectedNotificationDetail.message} />
+                            </div>
+                          </div>
+
+                          {/* CTA Actions */}
+                          {(() => {
+                            const norm = (() => {
+                              const ticketRef = extractTicketFromNotif(selectedNotificationDetail);
+                              let rawSubTab = selectedNotificationDetail.link_sub_tab || selectedNotificationDetail.linkSubTab || '';
+                              if (rawSubTab === 'support') rawSubTab = 'help';
+                              if (rawSubTab === 'products') rawSubTab = 'items';
+
+                              const isTicketNotif = Boolean(ticketRef) || selectedNotificationDetail.type === 'ticket' || rawSubTab === 'help' || (selectedNotificationDetail.title && (selectedNotificationDetail.title.includes('CS Catavor') || selectedNotificationDetail.title.includes('Balasan Baru')));
+                              const rawSettingsTab = selectedNotificationDetail.link_settings_sub_tab || selectedNotificationDetail.linkSettingsSubTab || selectedNotificationDetail.link_mobile_settings_tab || selectedNotificationDetail.linkMobileSettingsTab || '';
+                              
+                              const actionUrl = selectedNotificationDetail.action_url || selectedNotificationDetail.actionUrl || '';
+                              const rawActionLabel = selectedNotificationDetail.action_label || selectedNotificationDetail.actionLabel || '';
+                              const detailContent = selectedNotificationDetail.detail_content || selectedNotificationDetail.detailContent || '';
+
+                              let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
+                              if (
+                                cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
+                                cleanLabel.toLowerCase() === 'buka pengumuman' || 
+                                cleanLabel.toLowerCase() === 'buka menu terkait' || 
+                                cleanLabel.toLowerCase() === 'buka tautan luar' ||
+                                cleanLabel.toLowerCase() === 'kunjungi tautan'
+                              ) {
+                                cleanLabel = '';
+                              }
+
+                              let rawActionType = selectedNotificationDetail.action_type || selectedNotificationDetail.actionType;
+                              if (!rawActionType || rawActionType === 'none') {
+                                if (isTicketNotif) rawActionType = 'navigate';
+                                else if (actionUrl) rawActionType = 'external_link';
+                                else if (rawSubTab) rawActionType = 'navigate';
+                                else if (detailContent) rawActionType = 'detail';
+                                else rawActionType = 'none';
+                              }
+
+                              const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
+                              const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
+
+                              const tabLabels: Record<string, string> = {
+                                settings: 'Pengaturan Toko',
+                                items: 'Katalog Produk',
+                                subscription: 'Paket Langganan',
+                                help: 'Pusat Bantuan & Tiket CS',
+                                analytics: 'Statistik Toko',
+                                share: 'Bagikan Toko / QR',
+                                articles: 'Artikel & Berita',
+                                policies: 'Kebijakan Toko',
+                                profile: 'Profil Pengguna',
+                                audit_logs: 'Log Aktivitas',
+                                rbac: 'Hak Akses Tim'
+                              };
+
+                              let btnLabel = '';
+                              if (isTicketNotif) {
+                                btnLabel = cleanLabel ? `${cleanLabel} →` : (ticketRef ? `Lihat Tiket #${ticketRef} →` : 'Buka Pusat Bantuan CS →');
+                              } else if (isDirectNav && rawSubTab) {
+                                btnLabel = cleanLabel ? `${cleanLabel} →` : `Buka ${tabLabels[rawSubTab] || rawSubTab} →`;
+                              } else if (isExternal && actionUrl) {
+                                if (cleanLabel) {
+                                  btnLabel = `${cleanLabel} ↗`;
+                                } else {
+                                  try {
+                                    const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
+                                    const parsed = new URL(fullUrl);
+                                    btnLabel = `Kunjungi ${parsed.hostname.replace(/^www\./, '')} ↗`;
+                                  } catch {
+                                    btnLabel = 'Kunjungi Tautan Luar ↗';
+                                  }
+                                }
+                              }
+
+                              return {
+                                ticketRef,
+                                isTicketNotif,
+                                subTab: rawSubTab,
+                                settingsTab: rawSettingsTab,
+                                actionUrl,
+                                btnLabel,
+                                isDirectNav,
+                                isExternal
+                              };
+                            })();
+
+                            return (
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  onClick={() => setSelectedNotificationDetail(null)}
+                                  style={{
+                                    padding: '0.65rem 1.25rem',
+                                    borderRadius: '0.65rem',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Tutup Rincian
+                                </button>
+
+                                {norm.isDirectNav && (
+                                  <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => {
+                                      if (norm.isTicketNotif) {
+                                        handleNavigateToTicketFromNotif(selectedNotificationDetail);
+                                        return;
+                                      }
+                                      setSelectedNotificationDetail(null);
+                                      if (norm.subTab) {
+                                        setAdminTab(norm.subTab as any);
+                                        if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
+                                        const slug = getStoreSlug();
+                                        if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '0.65rem 1.5rem',
+                                      borderRadius: '0.65rem',
+                                      fontSize: '0.88rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      boxShadow: '0 4px 16px var(--primary-glow)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <span>{norm.btnLabel}</span>
+                                  </button>
+                                )}
+
+                                {norm.isExternal && (
+                                  <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => {
+                                      if (norm.actionUrl) {
+                                        handleSafeExternalRedirect(norm.actionUrl);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '0.65rem 1.5rem',
+                                      borderRadius: '0.65rem',
+                                      fontSize: '0.88rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      boxShadow: '0 4px 16px var(--primary-glow)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <span>{norm.btnLabel}</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
+                    );
+                  })() : (
                     /* ==========================================================
                        VIEW 2: NOTIFICATION LIST FEED (DESKTOP)
                        ========================================================== */
@@ -17423,12 +18058,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                           {filteredNotifications.map((item) => {
                             const norm = (() => {
+                              const modCase = parseModerationCase(item);
+                              const isModerationNotif = modCase.isModeration;
                               const ticketRef = extractTicketFromNotif(item);
                               let rawSubTab = item.link_sub_tab || item.linkSubTab || '';
                               if (rawSubTab === 'support') rawSubTab = 'help';
                               if (rawSubTab === 'products') rawSubTab = 'items';
 
-                              const isTicketNotif = Boolean(ticketRef) || item.type === 'ticket' || rawSubTab === 'help' || (item.title && (item.title.includes('CS Catavor') || item.title.includes('Balasan Baru')));
+                              const isTicketNotif = !isModerationNotif && (Boolean(ticketRef) || item.type === 'ticket' || rawSubTab === 'help' || (item.title && (item.title.includes('CS Catavor') || item.title.includes('Balasan Baru'))));
                               const rawSettingsTab = item.link_settings_sub_tab || item.linkSettingsSubTab || item.link_mobile_settings_tab || item.linkMobileSettingsTab || '';
                               
                               const actionUrl = item.action_url || item.actionUrl || '';
@@ -17447,7 +18084,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               }
 
                               let rawActionType = item.action_type || item.actionType;
-                              if (!rawActionType || rawActionType === 'none') {
+                              if (isModerationNotif) {
+                                rawActionType = 'detail';
+                              } else if (!rawActionType || rawActionType === 'none') {
                                 if (isTicketNotif) rawActionType = 'navigate';
                                 else if (actionUrl) rawActionType = 'external_link';
                                 else if (rawSubTab) rawActionType = 'navigate';
@@ -17496,10 +18135,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 }
                               } else if (isDetail) {
                                 displayType = 'detail';
-                                if (!displayLabel) displayLabel = 'Lihat Rincian Selengkapnya';
+                                if (!displayLabel) displayLabel = isModerationNotif ? 'Buka Lembar Kasus Kepatuhan' : 'Lihat Rincian Selengkapnya';
                               }
 
                               return {
+                                modCase,
+                                isModerationNotif,
                                 ticketRef,
                                 isTicketNotif,
                                 subTab: rawSubTab,
@@ -17524,6 +18165,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 onClick={() => {
                                   // Mark as read in state & persist to backend database
                                   handleMarkAsRead(item.id);
+
+                                  if (norm.isModerationNotif) {
+                                    setSelectedNotificationDetail(item);
+                                    try {
+                                      sessionStorage.setItem('catavor_active_desktop_notification_id', String(item.id));
+                                      sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(item));
+                                    } catch {}
+                                    const slug = storeSlug || getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
+                                    return;
+                                  }
 
                                   if (norm.isTicketNotif) {
                                     handleNavigateToTicketFromNotif(item);
@@ -17575,23 +18227,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                           width: '7px',
                                           height: '7px',
                                           borderRadius: '50%',
-                                          backgroundColor: 'var(--primary)',
-                                          boxShadow: '0 0 6px var(--primary)',
+                                          backgroundColor: norm.isModerationNotif ? '#f43f5e' : 'var(--primary)',
                                           display: 'inline-block'
                                         }} />
                                       )}
                                       <span style={{
-                                        fontSize: '0.66rem',
+                                        fontSize: '0.7rem',
                                         fontWeight: 800,
-                                        letterSpacing: '0.04em',
                                         textTransform: 'uppercase',
-                                        padding: '0.12rem 0.55rem',
+                                        letterSpacing: '0.04em',
+                                        padding: '0.15rem 0.5rem',
                                         borderRadius: '0.35rem',
-                                        color: item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
-                                        backgroundColor: item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
+                                        color: norm.isModerationNotif ? '#f43f5e' : item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
+                                        backgroundColor: norm.isModerationNotif ? 'rgba(244, 63, 94, 0.12)' : item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
                                         border: '1px solid currentColor'
                                       }}>
-                                        {item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM')}
+                                        {norm.isModerationNotif ? 'KEAMANAN' : (item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM'))}
                                       </span>
                                     </div>
 
@@ -17626,7 +18277,34 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   </p>
 
                                   {/* Action Hint Micro-Pill (Only when actionable) */}
-                                  {norm.displayType && (
+                                  {norm.isModerationNotif && norm.modCase.isAppealEligible ? (
+                                    <div
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenAppealTicket(item);
+                                      }}
+                                      style={{
+                                        marginTop: '0.65rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.22rem 0.65rem',
+                                        borderRadius: '0.45rem',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 800,
+                                        backgroundColor: 'rgba(244, 63, 94, 0.14)',
+                                        color: '#f43f5e',
+                                        border: '1px solid rgba(244, 63, 94, 0.35)',
+                                        width: 'fit-content',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Buka formulir pengajuan banding langsung ke CS"
+                                    >
+                                      <Scale size={12} style={{ strokeWidth: 2.5 }} />
+                                      <span>Ajukan Banding Kepatuhan</span>
+                                      <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
+                                    </div>
+                                  ) : norm.displayType && (
                                     <div style={{
                                       marginTop: '0.65rem',
                                       display: 'inline-flex',
@@ -17658,7 +18336,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 </div>
 
                                 {/* Trailing Action Icon Indicator (Clean & High Contrast) */}
-                                {norm.displayType && (
+                                {(norm.isModerationNotif || norm.displayType) && (
                                   <div style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -17669,12 +18347,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     borderRadius: '0.55rem',
                                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                     border: '1px solid var(--border-light)',
-                                    color: norm.displayType === 'external' ? '#3b82f6' : norm.displayType === 'navigate' ? 'var(--primary)' : '#f59e0b',
+                                    color: norm.isModerationNotif ? '#f43f5e' : norm.displayType === 'external' ? '#3b82f6' : norm.displayType === 'navigate' ? 'var(--primary)' : '#f59e0b',
                                     marginLeft: '0.5rem'
                                   }}>
-                                    {norm.displayType === 'external' && <ExternalLink size={16} />}
-                                    {norm.displayType === 'navigate' && <ArrowRight size={16} />}
-                                    {norm.displayType === 'detail' && <ChevronRight size={16} />}
+                                    {norm.isModerationNotif ? <Scale size={16} /> : norm.displayType === 'external' ? <ExternalLink size={16} /> : norm.displayType === 'navigate' ? <ArrowRight size={16} /> : <ChevronRight size={16} />}
                                   </div>
                                 )}
                               </div>
@@ -21995,12 +22671,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                   <div style={{ flex: 1 }}>
                     <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
-                      {actionMenuData.type === 'store' ? 'Bagikan Katalog' : 'Bagikan Produk Ini'}
+                      {actionMenuData.type === 'store' ? 'Bagikan Katalog' : 'Bagikan Item Ini'}
                     </span>
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                       {actionMenuData.type === 'store' 
                         ? 'Salin tautan atau bagikan QR code katalog ini' 
-                        : 'Salin tautan langsung produk untuk dibagikan ke chat & medsos'}
+                        : 'Salin tautan langsung item untuk dibagikan ke chat & medsos'}
                     </span>
                   </div>
                   <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />

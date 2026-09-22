@@ -417,10 +417,10 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 			"message": "Subjek kendala wajib diisi.",
 		})
 	}
-	if len([]rune(strings.TrimSpace(req.Subject))) > 80 {
+	if len([]rune(strings.TrimSpace(req.Subject))) > 200 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
-			"message": "Judul subjek tiket maksimal 80 karakter. Tuliskan rincian kendala pada kolom isi pesan.",
+			"message": "Judul subjek tiket maksimal 200 karakter. Tuliskan rincian kendala pada kolom isi pesan.",
 		})
 	}
 

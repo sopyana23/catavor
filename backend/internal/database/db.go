@@ -330,12 +330,22 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	// 1. Create Compatibility VIEW 'faunas' pointing to 'products'
 	_ = db.Exec("CREATE OR REPLACE VIEW faunas AS SELECT * FROM products;").Error
 
-	// 2. Create High-Performance Indexes on products table
+	// 2. Ensure Schema Columns and High-Performance Indexes on products table
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(50) DEFAULT 'none';").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_reason TEXT;").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_store_active ON products(store_id, is_active);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_moderation_status ON products(moderation_status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_price ON products(store_id, price);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
+
+	// 2.1 Ensure Schema Columns and High-Performance Indexes on reports table
+	_ = db.AutoMigrate(&models.Report{})
+	_ = db.Exec("ALTER TABLE reports ADD COLUMN IF NOT EXISTS item_type VARCHAR(50);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_reports_item_type ON reports(item_type);").Error
+	_ = db.Exec("UPDATE reports r SET item_type = p.product_type FROM products p WHERE r.target_type = 'item' AND r.fauna_id = p.id AND (r.item_type IS NULL OR r.item_type = '');").Error
 
 	// 3. Create Support & Help Center Tables, Columns & Indexes
 	_ = db.AutoMigrate(&models.SupportTicket{}, &models.SupportMessage{}, &models.SupportAttachment{}, &models.HelpArticle{}, &models.SupportCannedResponse{})
@@ -367,6 +377,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_warning1_sent_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_warning2_sent_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_suspended_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS suspension_reason VARCHAR(100) DEFAULT 'none';").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS reactivation_token VARCHAR(128);").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_exempt_from_dormancy BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_dormancy ON stores(plan, dormancy_status, is_exempt_from_dormancy, last_activity_at);").Error
@@ -500,6 +511,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_store ON notification_reads(store_id, notification_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_user ON notification_reads(user_id, notification_id);").Error
+	_ = db.Exec("UPDATE notifications SET action_type = 'detail', link_sub_tab = '' WHERE category = 'KEAMANAN' AND (link_sub_tab = 'help' OR action_type = 'navigate');").Error
 
 	// 9. Seed Default Support Canned Responses if table is empty
 	var cannedCount int64
