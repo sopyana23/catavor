@@ -13437,19 +13437,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             )}
 
             {/* Catalog Main Content */}
-            {!loading && !error && settings.dormancy_status === 'suspended' ? (
-              /* DORMANT / SUSPENDED CATALOG STATE (Desktop) */
+            {!loading && !error && (settings.dormancy_status === 'suspended' || settings.dormancy_status === 'banned') ? (
+              /* DORMANT / SUSPENDED / BANNED CATALOG STATE (Desktop) */
               <div 
                 className="glass-panel animate-fade-in" 
                 style={{ 
                   padding: '4.5rem 2.5rem', 
                   textAlign: 'center', 
                   borderRadius: '1.25rem',
-                  border: settings.suspension_reason === 'moderation_violation'
+                  border: settings.dormancy_status === 'banned'
+                    ? '1px solid rgba(153, 27, 27, 0.55)'
+                    : settings.suspension_reason === 'moderation_violation'
                     ? '1px solid rgba(239, 68, 68, 0.4)'
                     : '1px solid rgba(245, 158, 11, 0.35)',
                   background: 'var(--card-bg-gradient)',
-                  boxShadow: settings.suspension_reason === 'moderation_violation'
+                  boxShadow: settings.dormancy_status === 'banned'
+                    ? '0 16px 45px rgba(153, 27, 27, 0.22)'
+                    : settings.suspension_reason === 'moderation_violation'
                     ? '0 16px 45px rgba(239, 68, 68, 0.15)'
                     : '0 12px 40px rgba(0,0,0,0.25)',
                   display: 'flex',
@@ -13466,22 +13470,28 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     width: '76px', 
                     height: '76px', 
                     borderRadius: '50%', 
-                    backgroundColor: settings.suspension_reason === 'moderation_violation'
+                    backgroundColor: settings.dormancy_status === 'banned'
+                      ? 'rgba(153, 27, 27, 0.25)'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? 'rgba(239, 68, 68, 0.15)'
                       : 'rgba(245, 158, 11, 0.15)', 
-                    border: settings.suspension_reason === 'moderation_violation'
+                    border: settings.dormancy_status === 'banned'
+                      ? '2px solid rgba(239, 68, 68, 0.55)'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? '2px solid rgba(239, 68, 68, 0.4)'
                       : '2px solid rgba(245, 158, 11, 0.3)', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
-                    boxShadow: settings.suspension_reason === 'moderation_violation'
+                    color: settings.dormancy_status === 'banned' ? '#ef4444' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
+                    boxShadow: settings.dormancy_status === 'banned'
+                      ? '0 0 28px rgba(239, 68, 68, 0.35)'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? '0 0 28px rgba(239, 68, 68, 0.25)'
                       : '0 0 24px rgba(245, 158, 11, 0.2)'
                   }}
                 >
-                  {settings.suspension_reason === 'moderation_violation' ? (
+                  {settings.dormancy_status === 'banned' || settings.suspension_reason === 'moderation_violation' ? (
                     <ShieldAlert size={38} />
                   ) : (
                     <Clock size={36} />
@@ -13494,25 +13504,35 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     gap: '0.4rem', 
                     padding: '0.28rem 0.85rem', 
                     borderRadius: '20px', 
-                    backgroundColor: settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
-                    border: settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
-                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                    backgroundColor: settings.dormancy_status === 'banned' ? 'rgba(153, 27, 27, 0.2)' : settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
+                    border: settings.dormancy_status === 'banned' ? '1px solid rgba(239, 68, 68, 0.5)' : settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
+                    color: settings.dormancy_status === 'banned' ? '#f87171' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
                     fontSize: '0.74rem', 
                     fontWeight: 800, 
                     textTransform: 'uppercase', 
                     letterSpacing: '0.5px', 
                     marginBottom: '0.75rem' 
                   }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', boxShadow: settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' }} />
-                    {settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
+                    <span style={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%', 
+                      backgroundColor: settings.dormancy_status === 'banned' ? '#ef4444' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                      boxShadow: settings.dormancy_status === 'banned' ? '0 0 8px #ef4444' : settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' 
+                    }} />
+                    {settings.dormancy_status === 'banned' ? 'Status: Ditangguhkan Permanen' : settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
                   </div>
                   <h3 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                    {settings.suspension_reason === 'moderation_violation' 
+                    {settings.dormancy_status === 'banned'
+                      ? 'Profil Katalog Ditangguhkan Secara Permanen'
+                      : settings.suspension_reason === 'moderation_violation' 
                       ? 'Profil Katalog Sedang Dibekukan Sementara' 
                       : 'Katalog Sedang Diliburkan'}
                   </h3>
                   <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto', lineHeight: 1.6 }}>
-                    {settings.suspension_reason === 'moderation_violation'
+                    {settings.dormancy_status === 'banned'
+                      ? 'Akses publik ke katalog ini dinonaktifkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran pedoman platform atau masa sanggahan telah kedaluwarsa.'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? 'Akses publik ke katalog ini dinonaktifkan sementara oleh Tim Kepatuhan & Moderasi Catavor sehubungan dengan peninjauan laporan pelanggaran pedoman platform.'
                       : 'Katalog toko ini sedang dinonaktifkan sementara karena masa aktif belum diperpanjang oleh pemilik toko.'}
                   </p>
