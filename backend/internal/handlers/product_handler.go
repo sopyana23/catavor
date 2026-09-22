@@ -139,6 +139,21 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		})
 	}
 
+	// Inactive item guard for public storefront visitors
+	if !product.IsActive {
+		isAuthorized := false
+		if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil && storeVal.ID == product.StoreID {
+			isAuthorized = true
+		}
+		if !isAuthorized {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success":     false,
+				"message":     "Item katalog ini sedang dinonaktifkan atau diturunkan sementara oleh pengelola.",
+				"is_inactive": true,
+			})
+		}
+	}
+
 	// Increment view count
 	database.DB.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
 

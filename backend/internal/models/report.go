@@ -14,6 +14,7 @@ type Report struct {
 	StoreSlug         string     `gorm:"size:255;not null" json:"store_slug"`
 	StoreTitle        string     `gorm:"size:255;not null" json:"store_title"`
 	ItemName          string     `gorm:"size:255" json:"item_name,omitempty"`
+	ItemType          string     `gorm:"size:50" json:"item_type,omitempty"`
 	ReasonCategory    string     `gorm:"size:100;index;not null" json:"reason_category"`
 	ReasonLabel       string     `gorm:"size:255;not null" json:"reason_label"`
 	Description       string     `gorm:"type:text" json:"description"`

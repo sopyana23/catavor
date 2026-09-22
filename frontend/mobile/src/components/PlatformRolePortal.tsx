@@ -998,7 +998,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [moderationAction, setModerationAction] = useState<string>('none');
   const [moderationNotes, setModerationNotes] = useState<string>('');
   const [isSubmittingModeration, setIsSubmittingModeration] = useState<boolean>(false);
+  const [reportsPagination, setReportsPagination] = useState<{ page: number; limit: number; total: number; total_pages: number }>({ page: 1, limit: 20, total: 0, total_pages: 1 });
+  const [reportMetrics, setReportMetrics] = useState<any | null>(null);
+  const [reportActiveEvidence, setReportActiveEvidence] = useState<any[]>([]);
+  const [reportPriorHistory, setReportPriorHistory] = useState<any[]>([]);
+  const [isLoadingReportDetail, setIsLoadingReportDetail] = useState<boolean>(false);
   const [dormancyMetrics, setDormancyMetrics] = useState<any | null>(null);
+
+  const formatCatalogType = (pType?: string) => {
+    const clean = (pType || '').toLowerCase().trim();
+    switch (clean) {
+      case 'fauna':
+        return 'Hewan / Satwa (Fauna)';
+      case 'physical':
+        return 'Barang Fisik';
+      case 'digital':
+        return 'Produk Digital';
+      case 'service':
+        return 'Jasa & Layanan';
+      case 'food':
+        return 'Kuliner / Makanan & Minuman';
+      case 'property':
+        return 'Properti';
+      default:
+        return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : 'Barang Fisik';
+    }
+  };
 
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketsFilter, setTicketsFilter] = useState<'all' | 'unread' | 'action_required' | 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed'>('all');
@@ -1135,6 +1160,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       count: map[p] || 0
     }));
   }, [tickets]);
+
+  // Trigger Compliance Reports fetch on filter / debounced search changes
+  useEffect(() => {
+    if (!token || !canAccessCompliance) return;
+    const timer = setTimeout(() => {
+      fetchReportsList(1, reportsFilter, reportsTargetFilter, reportsSearchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [reportsFilter, reportsTargetFilter, reportsSearchQuery, token, canAccessCompliance]);
 
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersFilter, setOrdersFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('all');
@@ -2082,11 +2116,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     setLoading(true);
     try {
       if (canAccessCompliance) {
-        const res = await fetch('/api/admin/reports', { headers: { Authorization: `Bearer ${token}` } });
-        if (res.ok) {
-          const d = await res.json();
-          setReports(Array.isArray(d) ? d : d.data || []);
-        }
+        fetchReportsList(1);
         const dormRes = await fetch('/api/admin/dormancy/metrics', { headers: { Authorization: `Bearer ${token}` } });
         if (dormRes.ok) {
           const dormData = await dormRes.json();
@@ -2572,6 +2602,35 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Compliance Reports List Server-Side Fetcher
+  const fetchReportsList = async (page = 1, status = reportsFilter, target = reportsTargetFilter, search = reportsSearchQuery) => {
+    if (!token) return;
+    try {
+      const q = new URLSearchParams({
+        page: String(page),
+        limit: '20',
+        status: status,
+        target_type: target,
+        search: search
+      });
+      const res = await fetch(`/api/admin/reports?${q.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setReports(d.data || []);
+        if (d.pagination) {
+          setReportsPagination(d.pagination);
+        }
+        if (d.metrics) {
+          setReportMetrics(d.metrics);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch reports list', e);
+    }
+  };
+
   // Compliance Status & Moderation Action Update
   const handleUpdateReportStatus = async (
     reportId: number, 
@@ -2594,7 +2653,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       });
       if (res.ok) {
         showToast(`Laporan #${reportId} berhasil diperbarui (${status.toUpperCase()})`, 'success');
-        loadData();
+        fetchReportsList(reportsPagination.page);
         handleCloseModerationPage();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -2613,6 +2672,34 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     setModerationStatus(report.status === 'pending' ? 'investigating' : report.status);
     setModerationAction(report.action_taken || 'none');
     setModerationNotes(report.admin_notes || '');
+    setReportActiveEvidence([]);
+    setReportPriorHistory([]);
+    setIsLoadingReportDetail(true);
+
+    if (token) {
+      const refId = report.id || report.report_number;
+      fetch(`/api/admin/reports/${refId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(json => {
+          if (json.data) {
+            setModerationModalReport(json.data);
+            setModerationStatus(json.data.status === 'pending' ? 'investigating' : json.data.status);
+            setModerationAction(json.data.action_taken || 'none');
+            setModerationNotes(json.data.admin_notes || '');
+          }
+          if (json.active_reports || json.active_evidence) {
+            setReportActiveEvidence(json.active_reports || json.active_evidence);
+          }
+          if (json.history_reports || json.prior_history) {
+            setReportPriorHistory(json.history_reports || json.prior_history);
+          }
+        })
+        .catch(err => console.error('Failed to load active evidence & history', err))
+        .finally(() => setIsLoadingReportDetail(false));
+    }
+
     if (pushToHistory) {
       const reportRef = report.report_number || report.id;
       updatePlatformUrl('reports', null, null, null, reportRef);
@@ -2626,6 +2713,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const handleCloseModerationPage = () => {
     setModerationModalReport(null);
+    setReportActiveEvidence([]);
+    setReportPriorHistory([]);
     updatePlatformUrl('reports', null, null, null, null);
     try {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -4821,8 +4910,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     border: `1px solid ${moderationModalReport.target_type === 'catalog' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`,
                     letterSpacing: '0.02em'
                   }}>
-                    {moderationModalReport.target_type === 'catalog' ? 'KATALOG TOKO' : 'ITEM KATALOG'}
+                    {moderationModalReport.target_type === 'catalog' ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
                   </span>
+                  {moderationModalReport.target_type === 'item' && (
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 800,
+                      padding: '0.22rem 0.55rem',
+                      borderRadius: '0.45rem',
+                      backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`,
+                      letterSpacing: '0.02em',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}>
+                      <Tag size={11} />
+                      {formatCatalogType(moderationModalReport.item_type || moderationModalReport.fauna?.product_type || moderationModalReport.product_type)}
+                    </span>
+                  )}
                   <span style={{
                     fontFamily: 'monospace',
                     fontSize: '0.72rem',
@@ -4885,7 +4992,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   ) : (
                     <>
                       <Store size={17} style={{ color: '#a855f7', flexShrink: 0, marginTop: '2px' }} />
-                      <span>{moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog Toko'}</span>
+                      <span>{moderationModalReport.store_title || moderationModalReport.store_slug || 'Profil Katalog'}</span>
                     </>
                   )}
                 </div>
@@ -4902,15 +5009,49 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 border: `1px solid ${theme.border}`
               }}>
                 <div>
-                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Katalog Toko</span>
+                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Profil Bisnis / Usaha</span>
                   <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, wordBreak: 'break-word' }}>
                     {moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}
                   </span>
                 </div>
+                {moderationModalReport.target_type === 'item' ? (
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Jenis / Tipe Katalog</span>
+                    <span style={{ 
+                      fontSize: '0.76rem', 
+                      fontWeight: 800, 
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(14, 165, 233, 0.1)',
+                      padding: '0.12rem 0.5rem',
+                      borderRadius: '0.4rem',
+                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      width: 'fit-content'
+                    }}>
+                      <Tag size={11} />
+                      {formatCatalogType(moderationModalReport.item_type || moderationModalReport.fauna?.product_type || moderationModalReport.product_type)}
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Jenis Entitas</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary }}>
+                      Profil Katalog Lengkap
+                    </span>
+                  </div>
+                )}
                 <div>
                   <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Kategori Pelanggaran</span>
                   <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f43f5e', wordBreak: 'break-word', lineHeight: 1.3 }}>
                     {moderationModalReport.reason_label || moderationModalReport.reason_category || 'Lainnya'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, textTransform: 'capitalize' }}>
+                    {moderationModalReport.status || 'Pending'}
                   </span>
                 </div>
                 <div>
@@ -4942,6 +5083,119 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textPrimary, lineHeight: 1.5, fontStyle: 'italic' }}>
                     "{moderationModalReport.description}"
                   </p>
+                </div>
+              )}
+
+              {/* Multi-Reporter Active Evidence Timeline */}
+              {reportActiveEvidence && reportActiveEvidence.length > 0 && (
+                <div style={{
+                  padding: '0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)',
+                  border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <AlertTriangle size={14} />
+                      <span>🔥 {reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
+                    </div>
+                    <span style={{ fontSize: '0.64rem', padding: '0.1rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', fontWeight: 800 }}>
+                      KASUS JAMAK
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.4 }}>
+                    Pengguna lain juga melaporkan entitas ini. Menindak kasus ini akan otomatis memperbarui seluruh laporan terkait.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.2rem' }}>
+                    {reportActiveEvidence.map((ae: any, idx: number) => (
+                      <div key={ae.id || idx} style={{
+                        padding: '0.65rem',
+                        borderRadius: '0.6rem',
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.8)',
+                        border: `1px solid ${theme.border}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: theme.textPrimary }}>
+                            {ae.report_number || `#RPT-${ae.id}`}
+                          </span>
+                          <span style={{ color: theme.textMuted }}>
+                            {ae.created_at ? new Date(ae.created_at).toLocaleString('id-ID') : '-'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f43f5e' }}>
+                          {ae.reason_label || ae.reason_category}
+                        </div>
+                        {ae.description && (
+                          <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontStyle: 'italic', lineHeight: 1.35 }}>
+                            "{ae.description}"
+                          </div>
+                        )}
+                        <div style={{ fontSize: '0.65rem', color: theme.textMuted }}>
+                          Pelapor: {ae.reporter_email || ae.reporter_ip || 'Anonim'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Prior Review History Ledger (Audit Context) */}
+              {reportPriorHistory && reportPriorHistory.length > 0 && (
+                <div style={{
+                  padding: '0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(14, 165, 233, 0.08)' : 'rgba(14, 165, 233, 0.04)',
+                  border: `1px solid ${isDark ? 'rgba(14, 165, 233, 0.25)' : 'rgba(14, 165, 233, 0.18)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem'
+                }}>
+                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Clock size={14} />
+                    <span>📜 Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
+                    Entitas ini pernah dilaporkan dan diselesaikan sebelumnya:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {reportPriorHistory.map((ph: any, pidx: number) => (
+                      <div key={ph.id || pidx} style={{
+                        padding: '0.55rem 0.65rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#ffffff',
+                        border: `1px solid ${theme.border}`,
+                        fontSize: '0.7rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.2rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, color: theme.textPrimary }}>
+                            {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>
+                            {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
+                          </span>
+                        </div>
+                        {ph.action_taken && ph.action_taken !== 'none' && (
+                          <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
+                            Sanksi Diterapkan: {ph.action_taken}
+                          </div>
+                        )}
+                        {ph.admin_notes && (
+                          <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontStyle: 'italic' }}>
+                            Catatan Admin: "{ph.admin_notes}"
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -5246,12 +5500,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* Filter Status Chips */}
           <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
             {[
-              { id: 'all', label: 'Semua', count: reports.length },
-              { id: 'pending', label: 'Menunggu', count: reports.filter(r => r.status === 'pending').length },
-              { id: 'investigating', label: 'Investigasi', count: reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
-              { id: 'action_taken', label: 'Ditindak', count: reports.filter(r => r.status === 'action_taken').length },
-              { id: 'dismissed', label: 'Ditolak', count: reports.filter(r => r.status === 'dismissed').length },
-              { id: 'resolved', label: 'Selesai', count: reports.filter(r => r.status === 'resolved').length },
+              { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
+              { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
+              { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
+              { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? reportMetrics.action_taken : reports.filter(r => r.status === 'action_taken').length },
+              { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
+              { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
             ].map(f => (
               <button
                 key={f.id}
@@ -5426,8 +5680,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           color: isCatalog ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0284c7'),
                           border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`
                         }}>
-                          {isCatalog ? 'KATALOG TOKO' : 'ITEM KATALOG'}
+                          {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
                         </span>
+                        {!isCatalog && (
+                          <span style={{
+                            fontSize: '0.64rem',
+                            fontWeight: 800,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                            color: isDark ? '#38bdf8' : '#0284c7',
+                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
+                          }}>
+                            {formatCatalogType(r.item_type || r.fauna?.product_type)}
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -5454,12 +5721,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         {isCatalog ? <Store size={15} color="var(--primary)" /> : <Package size={15} color="var(--primary)" />}
                         <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
                           {isCatalog 
-                            ? (r.store_title || `Toko /${r.store_slug}`) 
+                            ? (r.store_title || `Katalog /${r.store_slug}`) 
                             : (r.item_name || 'Item Produk')}
                         </h4>
                       </div>
                       <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                        Toko: <strong>{r.store_title || 'Katalog'}</strong> (/{r.store_slug || '-'})
+                        Profil: <strong>{r.store_title || 'Katalog'}</strong> (/{r.store_slug || '-'})
                       </span>
                     </div>
 
@@ -5585,6 +5852,60 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
                 );
               })
+          )}
+
+          {/* Compliance Reports Pagination */}
+          {reportsPagination && reportsPagination.total_pages > 1 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0.8rem 1rem',
+              backgroundColor: theme.surface,
+              borderRadius: '0.9rem',
+              border: `1px solid ${theme.border}`,
+              marginTop: '0.5rem'
+            }}>
+              <button
+                type="button"
+                disabled={reportsPagination.page <= 1}
+                onClick={() => fetchReportsList(reportsPagination.page - 1)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '0.55rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                  color: theme.textPrimary,
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                  opacity: reportsPagination.page <= 1 ? 0.4 : 1
+                }}
+              >
+                Sebelumnya
+              </button>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: theme.textSecondary }}>
+                Halaman <strong>{reportsPagination.page}</strong> dari {reportsPagination.total_pages} ({reportsPagination.total} Laporan)
+              </span>
+              <button
+                type="button"
+                disabled={reportsPagination.page >= reportsPagination.total_pages}
+                onClick={() => fetchReportsList(reportsPagination.page + 1)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '0.55rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                  color: theme.textPrimary,
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
+                  opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
+                }}
+              >
+                Selanjutnya
+              </button>
+            </div>
           )}
           </div>
         )

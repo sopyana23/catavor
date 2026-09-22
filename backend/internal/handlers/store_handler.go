@@ -142,7 +142,9 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	}
 
 	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
-	services.TouchStoreActivity(database.DB, store.ID)
+	if store.DormancyStatus != "suspended" {
+		services.TouchStoreActivity(database.DB, store.ID)
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -166,7 +168,15 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		})
 	}
 
-	query := database.DB.Model(&models.Fauna{}).Where("store_id = ?", store.ID)
+	if store.DormancyStatus == "suspended" {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"count":   0,
+			"data":    []models.Fauna{},
+		})
+	}
+
+	query := database.DB.Model(&models.Fauna{}).Where("store_id = ? AND is_active = ?", store.ID, true)
 
 	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
@@ -303,6 +313,29 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Toko tidak ditemukan.",
+		})
+	}
+
+	if store.DormancyStatus == "suspended" {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"count":   0,
+			"data":    []models.Product{},
+			"store": fiber.Map{
+				"id":             store.ID,
+				"slug":           store.Slug,
+				"store_title":    store.StoreTitle,
+				"store_theme":    store.StoreTheme,
+				"store_logo_url": store.StoreLogoURL,
+			},
+			"pagination": fiber.Map{
+				"current_page": 1,
+				"per_page":     0,
+				"total_items":  0,
+				"total_pages":  0,
+				"has_next":     false,
+				"has_prev":     false,
+			},
 		})
 	}
 
@@ -474,7 +507,7 @@ func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 
 func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
 	var stores []models.Store
-	database.DB.Order("created_at desc").Limit(12).Find(&stores)
+	database.DB.Where("dormancy_status != ?", "suspended").Order("created_at desc").Limit(12).Find(&stores)
 
 	type StoreCard struct {
 		ID             uint   `json:"id"`

@@ -25,6 +25,8 @@ type Fauna struct {
 	DetailedInfo        datatypes.JSON `gorm:"type:jsonb" json:"detailed_info"`
 	ProductType         string         `gorm:"size:50;default:'physical';index" json:"product_type"` // physical | digital | fauna | service | food
 	Attributes          datatypes.JSON `gorm:"type:jsonb" json:"attributes"`
+	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
+	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 
