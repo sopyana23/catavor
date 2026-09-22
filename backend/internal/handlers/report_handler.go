@@ -228,7 +228,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 func (h *ReportHandler) Show(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var report models.Report
-	if err := database.DB.Preload("Store").Preload("Fauna").First(&report, id).Error; err != nil {
+	if err := database.DB.Preload("Store").Preload("Fauna").Where("id = ? OR report_number = ?", id, id).First(&report).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Data laporan tidak ditemukan.",
@@ -241,11 +241,11 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateStatus updates report review status and internal compliance notes (Admin/Compliance only)
+// UpdateStatus updates report review status, internal compliance notes, and executes moderation enforcement (Admin/Compliance only)
 func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var report models.Report
-	if err := database.DB.First(&report, id).Error; err != nil {
+	if err := database.DB.Where("id = ? OR report_number = ?", id, id).First(&report).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Data laporan tidak ditemukan.",
@@ -253,9 +253,10 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		Status      string `json:"status"`
-		AdminNotes  string `json:"admin_notes"`
-		ActionTaken string `json:"action_taken"`
+		Status           string `json:"status"`
+		AdminNotes       string `json:"admin_notes"`
+		ActionTaken      string `json:"action_taken"`
+		ApplyEnforcement *bool  `json:"apply_enforcement"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -275,11 +276,62 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		report.ActionTaken = security.SanitizePlainText(req.ActionTaken, 100)
 	}
 
+	// Real-world Moderation Enforcement
+	applyEnforcement := true
+	if req.ApplyEnforcement != nil {
+		applyEnforcement = *req.ApplyEnforcement
+	}
+
+	if applyEnforcement {
+		switch report.ActionTaken {
+		case "item_hidden":
+			if report.FaunaID != nil && *report.FaunaID > 0 {
+				_ = database.DB.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Update("is_active", false).Error
+				_ = database.DB.Model(&models.Fauna{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Update("is_shipping_available", false).Error
+			}
+		case "item_restored":
+			if report.FaunaID != nil && *report.FaunaID > 0 {
+				_ = database.DB.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Update("is_active", true).Error
+				_ = database.DB.Model(&models.Fauna{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Update("is_shipping_available", true).Error
+			}
+		case "catalog_suspended":
+			if report.StoreID > 0 {
+				now := time.Now().UTC()
+				_ = database.DB.Model(&models.Store{}).Where("id = ?", report.StoreID).Updates(map[string]interface{}{
+					"dormancy_status":       "suspended",
+					"dormancy_suspended_at": &now,
+				}).Error
+			}
+		case "catalog_reactivated":
+			if report.StoreID > 0 {
+				_ = database.DB.Model(&models.Store{}).Where("id = ?", report.StoreID).Updates(map[string]interface{}{
+					"dormancy_status":       "active",
+					"dormancy_suspended_at": nil,
+				}).Error
+			}
+		}
+	}
+
 	now := time.Now().UTC()
 	report.ReviewedAt = &now
 
+	var actorUserID *uint
+	var actorName = "Admin Kepatuhan"
+	var actorEmail = "compliance@catavor.com"
+	var actorRole = "superadmin"
+
 	if user, ok := c.Locals("user").(*models.User); ok && user != nil {
 		report.ReviewedBy = &user.ID
+		actorUserID = &user.ID
+		if user.Name != "" {
+			actorName = user.Name
+		}
+		if user.Email != "" {
+			actorEmail = user.Email
+		}
+		if user.PlatformRole != "" {
+			actorRole = user.PlatformRole
+		}
 	}
 
 	if err := database.DB.Save(&report).Error; err != nil {
@@ -289,9 +341,28 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		})
 	}
 
+	// Record Enterprise Audit Trail
+	auditDesc := fmt.Sprintf("Laporan #%s (%s) diperbarui: Status '%s', Tindakan Moderasi '%s'", report.ReportNumber, report.ReasonLabel, report.Status, report.ActionTaken)
+	_ = database.DB.Create(&models.ActivityLog{
+		StoreID:     &report.StoreID,
+		UserID:      actorUserID,
+		ActorRole:   actorRole,
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "report.moderation_enforce",
+		Category:    "moderation",
+		EntityType:  "report",
+		EntityID:    &report.ID,
+		EntityTitle: report.ReportNumber,
+		Description: auditDesc,
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+		CreatedAt:   now,
+	}).Error
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Status laporan berhasil diperbarui.",
+		"message": "Status laporan dan tindakan moderasi berhasil diproses.",
 		"data":    report,
 	})
 }

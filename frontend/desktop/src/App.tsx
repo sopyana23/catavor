@@ -379,6 +379,106 @@ export function getItemActionConfig(item: any) {
   };
 }
 
+export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any): { id: string; title: string; desc: string }[] {
+  if (targetType === 'store') {
+    return [
+      { 
+        id: 'illegal_commodities', 
+        title: 'Konten, Komoditas, atau Layanan Terlarang Hukum', 
+        desc: 'Menawarkan barang/jasa terlarang undang-undang, zat berbahaya, satwa dilindungi, atau konten ilegal' 
+      },
+      { 
+        id: 'copyright_brand', 
+        title: 'Pelanggaran Hak Cipta, Merek Dagang & Lisensi', 
+        desc: 'Menggunakan nama brand, logo, foto portofolio, karya digital, atau identitas pihak lain tanpa izin sah' 
+      },
+      { 
+        id: 'fraud_scam', 
+        title: 'Indikasi Penipuan Transaksi, Usaha Fiktif, atau Scam', 
+        desc: 'Profil usaha fiktif, pesanan tidak diproses pasca pembayaran, kontak palsu, atau penipuan uang muka' 
+      },
+      { 
+        id: 'misleading_profile', 
+        title: 'Profil Bisnis, Lokasi, atau Legalitas Menyesatkan', 
+        desc: 'Alamat operasional palsu, izin usaha/sertifikasi bodong, atau klaim garansi yang manipulatif' 
+      },
+      { 
+        id: 'community_violation', 
+        title: 'Pelanggaran Ketentuan Komunitas & Etika Berbisnis', 
+        desc: 'Perilaku kasar, diskriminasi, spamming, atau pelanggaran tata tertib platform lainnya' 
+      }
+    ];
+  }
+
+  // Target type: 'item'
+  const pType = (item?.product_type || 'physical') as string;
+
+  if (pType === 'digital') {
+    return [
+      { id: 'pirated_license', title: 'Lisensi Bajakan / Akun Curian / Pelanggaran Hak Cipta', desc: 'Penjualan lisensi tidak sah, akun crack/curian, atau pembajakan software/karya digital' },
+      { id: 'malware_virus', title: 'Mengandung Malware, Virus, atau Skrip Berbahaya', desc: 'File unduhan memuat virus, ransomware, trojan, atau script berbahaya bagi sistem/perangkat' },
+      { id: 'broken_link', title: 'Tautan Unduhan Rusak / File Rusak (Corrupted)', desc: 'Link download mati, file corrupt tidak bisa dibuka, atau file tidak pernah dikirimkan' },
+      { id: 'misleading_features', title: 'Fitur atau Format File Tidak Sesuai Deskripsi', desc: 'Format file, resolusi, kompatibilitas, atau kelengkapan fitur digital fiktif dan menipu' },
+      { id: 'phishing_scam', title: 'Indikasi Phishing / Akses Akun Pribadi Ilegal', desc: 'Meminta kredensial akun pribadi pengguna atau metode pengiriman file mencurigakan' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Produk Digital', desc: 'Pelanggaran ketentuan produk digital lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  if (pType === 'service') {
+    return [
+      { id: 'fraud_service', title: 'Layanan Fiktif / Tidak Dikerjakan Pasca Pembayaran', desc: 'Penyedia jasa tidak mengerjakan order, kabur setelah menerima pembayaran (ghosting), atau order fiktif' },
+      { id: 'unlicensed_practice', title: 'Praktik Tanpa Izin Resmi / Keahlian Palsu', desc: 'Layanan mewajibkan sertifikasi/izin profesional resmi namun tidak memiliki legalitas valid' },
+      { id: 'misleading_scope', title: 'Lingkup Kerja Menyesatkan / Tarif Jebakan', desc: 'Janji lingkup pekerjaan tidak sesuai realita atau ada biaya tambahan tersembunyi di luar kesepakatan' },
+      { id: 'safety_violation', title: 'Pelanggaran Standar Keselamatan & Etika Profesi', desc: 'Pengerjaan membahayakan keselamatan klien/properti, perlakuan tidak etis, atau malpraktik teknis' },
+      { id: 'breach_warranty', title: 'Ingkar Garansi / Menolak Revisi Sesuai Perjanjian', desc: 'Mengabaikan komitmen purnajual, revisi kerja yang dijanjikan, atau menolak pertanggungjawaban garansi' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Layanan Jasa', desc: 'Pelanggaran ketentuan layanan jasa lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  if (pType === 'food') {
+    return [
+      { id: 'expired_spoiled', title: 'Makanan Basi, Kadaluwarsa, atau Tidak Layak Konsumsi', desc: 'Makanan sudah melewati masa kedaluwarsa, basi, berjamur, atau membusuk saat disajikan/diterima' },
+      { id: 'hygiene_hazard', title: 'Masalah Kebersihan Ekstrem / Kontaminasi Benda Asing', desc: 'Ditemukan benda asing berbahaya, pengolahan kotor, atau fasilitas dapur tidak higienis' },
+      { id: 'hidden_ingredients', title: 'Bahan Berbahaya / Keterangan Alergen & Non-Halal Ditutupi', desc: 'Mengandung zat berbahaya dilarang, atau menyembunyikan status non-halal/alergen kritis' },
+      { id: 'misleading_portion', title: 'Porsi Sangat Memanipulasi / Kemasan Rusak Parah', desc: 'Porsi dan komposisi makanan jauh berbeda dari iklan, atau kemasan bocor/hancur membahayakan' },
+      { id: 'unregistered_food', title: 'Tanpa Izin Edar P-IRT / BPOM pada Produk Tertentu', desc: 'Produk olahan kemasan/pabrikan yang diedarkan tanpa sertifikasi izin kesehatan wajib' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Menu Kuliner', desc: 'Pelanggaran ketentuan kuliner lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  if (pType === 'property') {
+    return [
+      { id: 'disputed_ownership', title: 'Sengketa Kepemilikan / Sertifikat Bodong', desc: 'Properti dalam sengketa hukum, sertifikat ganda, atau status kepemilikan tanah tidak sah' },
+      { id: 'fictitious_listing', title: 'Listing Fiktif / Menggunakan Foto Milik Pihak Lain', desc: 'Properti tidak ada di lokasi tertera, mencuri foto milik pihak lain, atau klaim agen palsu' },
+      { id: 'spec_mismatch', title: 'Lokasi, Luas Tanah, atau Kondisi Bangunan Palsu', desc: 'Alamat/pin lokasi palsu, luas tanah/bangunan manipulasi, atau kondisi rusak fatal disembunyikan' },
+      { id: 'hidden_hazard', title: 'Cacat Lingkungan Ekstrem / Tanpa Legalitas Izin (PBG/IMB)', desc: 'Daerah rawan bencana fatal ditutupi, atau bangunan dibangun tanpa izin konstruksi resmi' },
+      { id: 'deposit_scam', title: 'Indikasi Penipuan Uang Muka (DP) / Booking Fee', desc: 'Memaksa transfer DP sebelum survey lokasi fisik atau skema pembayaran mencurigakan' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Listing Properti', desc: 'Pelanggaran ketentuan listing properti lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  if (pType === 'fauna') {
+    return [
+      { id: 'protected_species', title: 'Satwa atau Flora Langka Dilindungi Undang-Undang', desc: 'Menawarkan satwa/tumbuhan yang masuk daftar dilindungi (Apendiks CITES / regulasi KSDAE)' },
+      { id: 'animal_cruelty', title: 'Indikasi Kekejaman / Kondisi Satwa Sakit atau Terlantar', desc: 'Satwa dipelihara dalam kondisi mengenaskan, sakit parah, stres berat, atau dieksploitasi' },
+      { id: 'illegal_wildlife', title: 'Hasil Tangkapan Liar Ilegal / Tanpa Izin Tangkar (BKSDA)', desc: 'Hasil perburuan liar ilegal tanpa legalitas izin penangkaran atau dokumen resmi asal-usul' },
+      { id: 'false_pedigree', title: 'Manipulasi Trah/Ras, Silsilah Bodong, atau Riwayat Palsu', desc: 'Pemalsuan silsilah (pedigree/stambum), buku vaksin palsu, atau foto indukan manipulatif' },
+      { id: 'transit_cruelty', title: 'Metode Pengiriman Membahayakan Keselamatan Hidup', desc: 'Pengiriman lewat kurir non-khusus tanpa standar keselamatan satwa/tanaman hidup' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Satwa & Flora', desc: 'Pelanggaran ketentuan satwa atau flora lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  // Default: physical
+  return [
+    { id: 'counterfeit', title: 'Barang Tiruan / Tiruan Merek Resmi (KW)', desc: 'Produk tiruan, pemalsuan merek dagang resmi, atau pelanggaran hak cipta desain fisik' },
+    { id: 'illegal_item', title: 'Komoditas Terlarang atau Ilegal Hukum', desc: 'Barang terlarang undang-undang, obat tanpa izin edar, atau barang sitaan/pasar gelap' },
+    { id: 'misleading_info', title: 'Spesifikasi atau Kondisi Barang Tidak Sesuai', desc: 'Foto, merk, kondisi fisik (baru/bekas), atau kelengkapan barang manipulatif dan tidak akurat' },
+    { id: 'price_manipulation', title: 'Manipulasi Harga atau Biaya Tersembunyi', desc: 'Harga jebakan tidak wajar, biaya fiktif yang memaksa, atau mark-up di luar kesepakatan' },
+    { id: 'defective_hazard', title: 'Barang Cacat Fatal, Rekondisi Diam-diam, atau Berbahaya', desc: 'Produk rusak parah, barang rekondisi dijual sebagai baru, atau membahayakan keselamatan' },
+    { id: 'other', title: 'Pelanggaran Lainnya pada Item Fisik', desc: 'Pelanggaran pada item produk fisik lainnya yang tidak tercantum di atas' }
+  ];
+}
+
 export function isNonEmptyValue(val: any): boolean {
   if (val === undefined || val === null) return false;
   if (typeof val === 'boolean') return true;
@@ -21953,7 +22053,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     onClick={() => {
                       const savedData = actionMenuData;
                       setActionMenuData(null);
-                      setReportReason(savedData.type === 'store' ? 'illegal_content' : 'counterfeit');
+                      const initialReasons = getCatalogReportReasons(savedData.type as any, savedData.item);
+                      setReportReason(initialReasons[0]?.id || 'other');
                       setReportNotes('');
                       setReportEmail('');
                       setReportModalData(savedData);
@@ -21979,12 +22080,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                     <div style={{ flex: 1 }}>
                       <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', color: '#ef4444' }}>
-                        {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Produk Ini'}
+                        {actionMenuData.type === 'store' ? 'Laporkan Katalog Ini' : 'Laporkan Item Ini'}
                       </span>
                       <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                         {actionMenuData.type === 'store' 
-                          ? 'Laporkan jika katalog memuat konten terlarang atau pelanggaran aturan' 
-                          : 'Laporkan jika produk palsu, menyesatkan, atau melanggar aturan'}
+                          ? 'Laporkan jika katalog memuat konten, komoditas, atau layanan terlarang' 
+                          : 'Laporkan jika item palsu, berbahaya, menyesatkan, atau melanggar aturan'}
                       </span>
                     </div>
                     <ChevronRight size={18} style={{ color: '#ef4444' }} />
@@ -22042,10 +22143,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>
                     {reportModalData.type === 'store' 
                       ? (settings.store_title ? `Laporkan Katalog: ${settings.store_title}` : 'Laporkan Katalog Ini') 
-                      : `Laporkan Produk: ${reportModalData.item?.name || 'Produk'}`}
+                      : `Laporkan Item: ${reportModalData.item?.name || 'Item Katalog'}`}
                   </h3>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                    Pilih alasan pelanggaran untuk ditinjau Tim Kepatuhan
+                    Pilih alasan pelanggaran yang paling relevan untuk ditinjau Tim Kepatuhan
                   </span>
                 </div>
               </div>
@@ -22064,19 +22165,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 Alasan Pelaporan *
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {(reportModalData.type === 'store' ? [
-                  { id: 'illegal_content', title: 'Konten atau Komoditas Terlarang', desc: 'Menampilkan barang terlarang hukum, zat berbahaya, atau satwa/tumbuhan dilindungi' },
-                  { id: 'copyright', title: 'Pelanggaran Hak Cipta & Merek Dagang', desc: 'Menggunakan nama brand, logo, foto, atau hak cipta tanpa izin sah' },
-                  { id: 'fraud_suspicion', title: 'Indikasi Penipuan atau Aktivitas Fiktif', desc: 'Indikasi penipuan pesanan, identitas palsu, atau transaksi mencurigakan' },
-                  { id: 'misleading_info', title: 'Informasi atau Kontak Menyesatkan', desc: 'Nomor kontak, alamat, atau profil katalog manipulatif / palsu' },
-                  { id: 'other', title: 'Alasan Lainnya', desc: 'Pelanggaran ketentuan penggunaan dan komunitas lainnya' }
-                ] : [
-                  { id: 'counterfeit', title: 'Produk Tiruan atau Pembajakan (KW)', desc: 'Barang tiruan atau bajakan yang melanggar hak cipta / brand resmi' },
-                  { id: 'illegal_item', title: 'Komoditas Terlarang atau Satwa Dilindungi', desc: 'Barang terlarang hukum atau satwa/tumbuhan dilindungi undang-undang' },
-                  { id: 'misleading_info', title: 'Foto atau Deskripsi Menyesatkan', desc: 'Informasi spesifikasi, kondisi, atau foto produk fiktif / tidak akurat' },
-                  { id: 'price_manipulation', title: 'Manipulasi Harga atau Informasi Tarif', desc: 'Harga fiktif, tidak wajar, atau tidak sesuai dengan kesepakatan' },
-                  { id: 'other', title: 'Alasan Lainnya', desc: 'Pelanggaran pada item produk yang tidak tercantum di atas' }
-                ]).map((reason) => {
+                {getCatalogReportReasons(reportModalData.type as any, reportModalData.item).map((reason) => {
                   const isSelected = reportReason === reason.id;
                   return (
                     <button
@@ -22188,24 +22277,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 className="btn-primary"
                 disabled={isSubmittingReport}
                 onClick={async () => {
-                  const reasonList = reportModalData.type === 'store' ? [
-                    { id: 'illegal_content', title: 'Konten atau Komoditas Terlarang' },
-                    { id: 'copyright', title: 'Pelanggaran Hak Cipta & Merek Dagang' },
-                    { id: 'fraud_suspicion', title: 'Indikasi Penipuan atau Aktivitas Fiktif' },
-                    { id: 'misleading_info', title: 'Informasi atau Kontak Menyesatkan' },
-                    { id: 'other', title: 'Alasan Lainnya' }
-                  ] : [
-                    { id: 'counterfeit', title: 'Produk Tiruan atau Pembajakan (KW)' },
-                    { id: 'illegal_item', title: 'Komoditas Terlarang atau Satwa Dilindungi' },
-                    { id: 'misleading_info', title: 'Foto atau Deskripsi Menyesatkan' },
-                    { id: 'price_manipulation', title: 'Manipulasi Harga atau Informasi Tarif' },
-                    { id: 'other', title: 'Alasan Lainnya' }
-                  ];
+                  const reasonList = getCatalogReportReasons(reportModalData.type as any, reportModalData.item);
                   const currentReasonObj = reasonList.find(r => r.id === reportReason);
                   const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
                   const targetName = reportModalData.type === 'store' 
                     ? (settings.store_title || 'katalog ini') 
-                    : (reportModalData.item?.name || 'produk ini');
+                    : (reportModalData.item?.name || 'item ini');
 
                   setIsSubmittingReport(true);
                   try {
