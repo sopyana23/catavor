@@ -48,7 +48,9 @@ type Store struct {
 	DormancyWarning1SentAt   *time.Time     `json:"dormancy_warning1_sent_at,omitempty"`
 	DormancyWarning2SentAt   *time.Time     `json:"dormancy_warning2_sent_at,omitempty"`
 	DormancySuspendedAt      *time.Time     `json:"dormancy_suspended_at,omitempty"`
+	DormancyBannedAt         *time.Time     `json:"dormancy_banned_at,omitempty"`
 	SuspensionReason         string         `gorm:"size:100;default:'none';index" json:"suspension_reason,omitempty"` // none | dormancy | moderation_violation
+	IsBlacklisted            bool           `gorm:"default:false;index" json:"is_blacklisted"`
 	ReactivationToken        string         `gorm:"size:128;index" json:"-"`
 	IsExemptFromDormancy     bool           `gorm:"default:false" json:"is_exempt_from_dormancy"`
 	CreatedAt                time.Time      `json:"created_at"`

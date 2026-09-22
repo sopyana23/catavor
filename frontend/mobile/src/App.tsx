@@ -7237,10 +7237,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     let statusColor = '#f43f5e';
     let isAppealEligible = true;
 
-    if (titleLower.includes('penangguhan') || msgLower.includes('penangguhan') || titleLower.includes('suspend')) {
+    if (titleLower.includes('permanen') || msgLower.includes('permanen') || titleLower.includes('banned') || msgLower.includes('banned')) {
+      actionTaken = 'account_banned';
+      statusBadge = 'DITANGGUHKAN PERMANEN (BANNED)';
+      statusHeadline = 'Penangguhan Akun & Profil Katalog Secara Permanen';
+      statusColor = '#991b1b';
+      targetType = 'store';
+      isAppealEligible = false;
+    } else if (titleLower.includes('penangguhan') || msgLower.includes('penangguhan') || titleLower.includes('suspend')) {
       actionTaken = 'catalog_suspended';
-      statusBadge = 'TOKO DITANGGUHKAN';
-      statusHeadline = 'Penangguhan Operasional Profil Katalog Toko';
+      statusBadge = 'TOKO DIBEKUKAN SEMENTARA';
+      statusHeadline = 'Pembekuan Sementara Profil Katalog Toko';
       statusColor = '#ef4444';
       targetType = 'store';
       isAppealEligible = true;
@@ -7259,6 +7266,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
 
     let issuedDateStr = 'Baru saja';
+    let daysRemainingForAppeal = 0;
     const rawDate = notif.created_at || notif.createdAt;
     if (rawDate) {
       try {
@@ -7271,6 +7279,16 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
             hour: '2-digit',
             minute: '2-digit'
           }) + ' WIB';
+
+          if (actionTaken === 'catalog_suspended' || actionTaken === 'item_hidden') {
+            const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+            const expiryTime = d.getTime() + thirtyDaysMs;
+            const diffMs = expiryTime - Date.now();
+            daysRemainingForAppeal = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+            if (daysRemainingForAppeal <= 0) {
+              isAppealEligible = false;
+            }
+          }
         }
       } catch {}
     }
@@ -7278,6 +7296,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return {
       isModeration,
       isAppealEligible,
+      daysRemainingForAppeal,
       reportNumber,
       targetType,
       targetName,
@@ -16326,19 +16345,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </div>
             )}
 
-            {!loading && !error && settings.dormancy_status === 'suspended' ? (
-              /* DORMANT / SUSPENDED CATALOG STATE (Mobile) */
+            {!loading && !error && (settings.dormancy_status === 'suspended' || settings.dormancy_status === 'banned') ? (
+              /* DORMANT / SUSPENDED / BANNED CATALOG STATE (Mobile) */
               <div 
                 className="glass-panel animate-fade-in" 
                 style={{ 
                   padding: '3.5rem 1.5rem', 
                   textAlign: 'center', 
                   borderRadius: '1.25rem',
-                  border: settings.suspension_reason === 'moderation_violation'
+                  border: settings.dormancy_status === 'banned'
+                    ? '1px solid rgba(153, 27, 27, 0.55)'
+                    : settings.suspension_reason === 'moderation_violation'
                     ? '1px solid rgba(239, 68, 68, 0.45)'
                     : '1px solid rgba(245, 158, 11, 0.4)',
                   background: 'var(--card-bg-gradient)',
-                  boxShadow: settings.suspension_reason === 'moderation_violation'
+                  boxShadow: settings.dormancy_status === 'banned'
+                    ? '0 12px 35px rgba(153, 27, 27, 0.22)'
+                    : settings.suspension_reason === 'moderation_violation'
                     ? '0 12px 35px rgba(239, 68, 68, 0.16)'
                     : '0 10px 30px rgba(0,0,0,0.22)',
                   display: 'flex',
@@ -16354,22 +16377,28 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     width: '68px', 
                     height: '68px', 
                     borderRadius: '50%', 
-                    backgroundColor: settings.suspension_reason === 'moderation_violation'
+                    backgroundColor: settings.dormancy_status === 'banned'
+                      ? 'rgba(153, 27, 27, 0.25)'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? 'rgba(239, 68, 68, 0.15)'
                       : 'rgba(245, 158, 11, 0.15)', 
-                    border: settings.suspension_reason === 'moderation_violation'
+                    border: settings.dormancy_status === 'banned'
+                      ? '2px solid rgba(239, 68, 68, 0.55)'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? '2px solid rgba(239, 68, 68, 0.4)'
-                      : '2px solid rgba(245, 158, 11, 0.3)', 
+                      : '2px solid rgba(245, 158, 11, 0.35)', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
-                    boxShadow: settings.suspension_reason === 'moderation_violation'
+                    color: settings.dormancy_status === 'banned' ? '#ef4444' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
+                    boxShadow: settings.dormancy_status === 'banned'
+                      ? '0 0 24px rgba(239, 68, 68, 0.35)'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? '0 0 24px rgba(239, 68, 68, 0.25)'
                       : '0 0 20px rgba(245, 158, 11, 0.2)'
                   }}
                 >
-                  {settings.suspension_reason === 'moderation_violation' ? (
+                  {settings.dormancy_status === 'banned' || settings.suspension_reason === 'moderation_violation' ? (
                     <ShieldAlert size={34} />
                   ) : (
                     <Clock size={32} />
@@ -16382,9 +16411,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     gap: '0.4rem', 
                     padding: '0.25rem 0.8rem', 
                     borderRadius: '20px', 
-                    backgroundColor: settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
-                    border: settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
-                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                    backgroundColor: settings.dormancy_status === 'banned' ? 'rgba(153, 27, 27, 0.2)' : settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
+                    border: settings.dormancy_status === 'banned' ? '1px solid rgba(239, 68, 68, 0.5)' : settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
+                    color: settings.dormancy_status === 'banned' ? '#f87171' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
                     fontSize: '0.72rem', 
                     fontWeight: 800, 
                     textTransform: 'uppercase', 
@@ -16395,18 +16424,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       width: '6px', 
                       height: '6px', 
                       borderRadius: '50%', 
-                      backgroundColor: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
-                      boxShadow: settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' 
+                      backgroundColor: settings.dormancy_status === 'banned' ? '#ef4444' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                      boxShadow: settings.dormancy_status === 'banned' ? '0 0 8px #ef4444' : settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' 
                     }} />
-                    {settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
+                    {settings.dormancy_status === 'banned' ? 'Status: Ditangguhkan Permanen' : settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
                   </div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.45rem' }}>
-                    {settings.suspension_reason === 'moderation_violation' 
+                    {settings.dormancy_status === 'banned'
+                      ? 'Profil Katalog Ditangguhkan Secara Permanen'
+                      : settings.suspension_reason === 'moderation_violation' 
                       ? 'Profil Katalog Sedang Dibekukan Sementara' 
                       : 'Katalog Sedang Diliburkan'}
                   </h3>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '340px', margin: '0 auto', lineHeight: 1.55 }}>
-                    {settings.suspension_reason === 'moderation_violation'
+                    {settings.dormancy_status === 'banned'
+                      ? 'Akses publik ke katalog ini dinonaktifkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran pedoman platform atau masa sanggahan telah kedaluwarsa.'
+                      : settings.suspension_reason === 'moderation_violation'
                       ? 'Akses publik ke katalog ini dinonaktifkan sementara oleh Tim Kepatuhan & Moderasi Catavor sehubungan dengan peninjauan laporan pelanggaran pedoman platform.'
                       : 'Katalog toko ini sedang dinonaktifkan sementara karena masa aktif belum diperpanjang oleh pemilik toko.'}
                   </p>
@@ -20262,11 +20295,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     <Scale size={13} style={{ color: 'var(--primary)' }} />
                                     <span>Hak Banding Mitra</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isAppealEligible ? '#10b981' : 'var(--text-secondary)', wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                    {modCase.isAppealEligible ? 'Tersedia (Prioritas)' : 'Tidak Diperlukan'}
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isAppealEligible ? '#10b981' : '#ef4444', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                    {modCase.actionTaken === 'account_banned' 
+                                      ? 'Permanen (Ditutup)' 
+                                      : modCase.isAppealEligible 
+                                      ? `Tersedia (${modCase.daysRemainingForAppeal} Hari)` 
+                                      : 'Tidak Tersedia'}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    SLA Evaluasi: &lt; 24 Jam Kerja
+                                    {modCase.isAppealEligible ? 'SLA Evaluasi: < 24 Jam Kerja' : 'Keputusan penegakan bersifat final'}
                                   </div>
                                 </div>
                               </div>
@@ -20336,6 +20373,28 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 paddingTop: '0.5rem',
                                 borderTop: '1px solid var(--border-light)'
                               }}>
+                                {!modCase.isAppealEligible && (
+                                  <div style={{
+                                    padding: '0.85rem 1rem',
+                                    borderRadius: '0.75rem',
+                                    backgroundColor: 'rgba(153, 27, 27, 0.12)',
+                                    border: '1px solid rgba(153, 27, 27, 0.35)',
+                                    color: '#f87171',
+                                    fontSize: '0.8rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    lineHeight: 1.45
+                                  }}>
+                                    <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                    <span>
+                                      {modCase.actionTaken === 'account_banned'
+                                        ? 'Akun dan katalog telah ditangguhkan secara permanen. Pengajuan banding reguler tidak lagi dibuka.'
+                                        : 'Masa tenggang banding 30 hari telah berakhir. Akses pengajuan banding otomatis ditutup.'}
+                                    </span>
+                                  </div>
+                                )}
+
                                 {modCase.isAppealEligible && (
                                   <button
                                     type="button"

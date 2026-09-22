@@ -38,11 +38,13 @@ func StartDormancyWorker(ctx context.Context, db *gorm.DB, strg storage.StorageS
 		// Run an initial scan on startup after 10 seconds
 		time.Sleep(10 * time.Second)
 		RunDormancyCycle(db, strg)
+		RunModerationEscalationCycle(db, strg)
 
 		for {
 			select {
 			case <-ticker.C:
 				RunDormancyCycle(db, strg)
+				RunModerationEscalationCycle(db, strg)
 			case <-ctx.Done():
 				log.Info().Msg("Dormancy Lifecycle Worker stopped gracefully")
 				return
@@ -306,7 +308,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 	day60Threshold := now.AddDate(0, 0, -60)
 	var stage4Stores []models.Store
 	err = db.Preload("User").
-		Where("plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'suspended' AND last_activity_at <= ?", day60Threshold).
+		Where("plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'suspended' AND (suspension_reason = 'dormancy' OR suspension_reason = 'none' OR suspension_reason = '' OR suspension_reason IS NULL) AND last_activity_at <= ?", day60Threshold).
 		Find(&stage4Stores).Error
 
 	if err == nil && len(stage4Stores) > 0 {
@@ -431,6 +433,187 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 		int64(totalEvents),
 		time.Now().UTC().Add(1*time.Hour),
 	)
+}
+
+// RunModerationEscalationCycle evaluates all stores suspended due to moderation violations.
+// Standard Industry Pattern (Grace Period -> Auto Ban -> Safe Media Purge):
+// 1. Grace Period Escalation (30 Days): If a store is suspended for 'moderation_violation' for > 30 days
+//    and no active support ticket (appeal) exists, the bot automatically escalates the status to 'banned',
+//    sets dormancy_banned_at = now, marks is_blacklisted = true, logs an enterprise ActivityLog,
+//    records an AutomationTracker entry, and dispatches a permanent ban notification.
+// 2. Safe Media Purge (90 Days Banned): For stores permanently banned > 90 days, physical media files
+//    are purged from storage to conserve server resources, but the store and user database rows are
+//    PERMANENTLY preserved as tombstone blacklist records to prevent re-registration (Sybil resistance).
+func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
+	if db == nil {
+		return
+	}
+	now := time.Now()
+
+	// 1. Auto-Ban stores whose 30-day grace period expired without an active appeal
+	graceCutoff := now.AddDate(0, 0, -30)
+	var suspendedModerationStores []models.Store
+	err := db.Preload("User").
+		Where("dormancy_status = 'suspended' AND suspension_reason = 'moderation_violation' AND (dormancy_suspended_at IS NOT NULL AND dormancy_suspended_at <= ?)", graceCutoff).
+		Find(&suspendedModerationStores).Error
+
+	if err == nil && len(suspendedModerationStores) > 0 {
+		for _, store := range suspendedModerationStores {
+			// Check if there is any active support ticket (appeal) for this user/store
+			var activeAppealCount int64
+			db.Model(&models.SupportTicket{}).
+				Where("user_id = ? AND status IN ('open', 'in_progress')", store.UserID).
+				Count(&activeAppealCount)
+
+			// If merchant has an open/in_progress appeal ticket under review, DO NOT auto-ban.
+			if activeAppealCount > 0 {
+				log.Info().
+					Uint("store_id", store.ID).
+					Str("store_title", store.StoreTitle).
+					Int64("active_appeals", activeAppealCount).
+					Msg("Moderation Escalator: Active appeal ticket detected, preserving suspended grace state.")
+				continue
+			}
+
+			// Merchant took no action (ghosted/bodo amat) -> Escalate to PERMANENT BAN
+			log.Warn().
+				Uint("store_id", store.ID).
+				Str("store_title", store.StoreTitle).
+				Msg("Moderation Escalator: 30-day grace period expired without appeal. Auto-escalating to BANNED.")
+
+			bannedAt := now
+			db.Model(&models.Store{}).Where("id = ?", store.ID).Updates(map[string]interface{}{
+				"dormancy_status":    "banned",
+				"dormancy_banned_at": bannedAt,
+				"is_blacklisted":     true,
+			})
+
+			// Mark User as blacklisted
+			if store.UserID > 0 {
+				db.Model(&models.User{}).Where("id = ?", store.UserID).Update("is_blacklisted", true)
+			}
+
+			// Invalidate cache
+			activityCacheMutex.Lock()
+			delete(activityCache, store.ID)
+			activityCacheMutex.Unlock()
+
+			// Create in-app Trust & Safety notice
+			notifID := fmt.Sprintf("banned_mod_%d_%d", store.ID, now.Unix())
+			notif := models.Notification{
+				ID:         notifID,
+				TargetType: "single_store",
+				TargetID:   store.ID,
+				TargetName: store.StoreTitle,
+				Title:      "Akun & Katalog Ditangguhkan Secara Permanen",
+				Message:    fmt.Sprintf("Masa tenggang banding (30 hari) untuk katalog '%s' telah berakhir tanpa pengajuan sanggahan. Status akun dan katalog kini telah dinaikkan menjadi Ditangguhkan Permanen.", store.StoreTitle),
+				Type:       "danger",
+				Category:   "KEAMANAN",
+				ActionType: "detail",
+				ActionURL:  fmt.Sprintf("/admin/settings?status=banned&store=%s", store.Slug),
+				CreatedAt:  now,
+			}
+			_ = db.Create(&notif).Error
+
+			// Record in ActivityLog (Enterprise Audit Trail)
+			desc := fmt.Sprintf("Sistem otomatis (bot: moderation_escalator) menaikkan status toko '%s' (#%d) menjadi Ditangguhkan Permanen (Banned) karena masa tenggang banding 30 hari telah berakhir tanpa respon.", store.StoreTitle, store.ID)
+			activityLog := models.ActivityLog{
+				StoreID:     &store.ID,
+				UserID:      &store.UserID,
+				ActorRole:   "system",
+				ActorName:   "Bot Eskalasi Moderasi Catavor",
+				ActorEmail:  "system-bot@catavor.com",
+				Action:      "moderation.auto_banned",
+				Category:    "moderation",
+				EntityType:  "store",
+				EntityID:    &store.ID,
+				EntityTitle: store.StoreTitle,
+				Description: desc,
+				CreatedAt:   now,
+			}
+			_ = db.Create(&activityLog).Error
+
+			// Record in AutomationTracker
+			GetAutomationTracker().RecordLog(AutomationLogEntry{
+				BotName:   "moderation_escalator",
+				BotTitle:  "Engine Eskalasi Moderasi (Auto-Ban)",
+				Target:    store.StoreTitle,
+				TargetID:  store.ID,
+				Action:    "auto_banned",
+				Status:    "error",
+				Details:   fmt.Sprintf("Toko '%s' dinaikkan statusnya menjadi Banned Permanen setelah 30 hari grace period tanpa permohonan banding.", store.StoreTitle),
+				Timestamp: now,
+			})
+		}
+	}
+
+	// 2. Safe Media Purge for stores permanently banned for > 90 days
+	// (Clean up media files to reclaim storage, but PERMANENTLY KEEP stores & users records)
+	banned90Cutoff := now.AddDate(0, 0, -90)
+	var longBannedStores []models.Store
+	err = db.Where("dormancy_status = 'banned' AND dormancy_banned_at IS NOT NULL AND dormancy_banned_at <= ?", banned90Cutoff).
+		Find(&longBannedStores).Error
+
+	if err == nil && len(longBannedStores) > 0 {
+		ctx := context.Background()
+		for _, store := range longBannedStores {
+			var products []models.Product
+			_ = db.Preload("Images").Where("store_id = ?", store.ID).Find(&products).Error
+
+			deletedFilesCount := 0
+			for _, prod := range products {
+				if prod.ImageURL != "" && strg != nil {
+					key := extractStorageKeyFromURL(prod.ImageURL)
+					if key != "" {
+						_ = strg.Delete(ctx, key)
+						deletedFilesCount++
+					}
+				}
+				for _, pImg := range prod.Images {
+					if pImg.ImageURL != "" && strg != nil {
+						key := extractStorageKeyFromURL(pImg.ImageURL)
+						if key != "" {
+							_ = strg.Delete(ctx, key)
+							deletedFilesCount++
+						}
+					}
+				}
+			}
+
+			if store.StoreLogoURL != "" && strg != nil {
+				key := extractStorageKeyFromURL(store.StoreLogoURL)
+				if key != "" {
+					_ = strg.Delete(ctx, key)
+					deletedFilesCount++
+				}
+			}
+			if store.PromoBanner != "" && strg != nil {
+				key := extractStorageKeyFromURL(store.PromoBanner)
+				if key != "" {
+					_ = strg.Delete(ctx, key)
+					deletedFilesCount++
+				}
+			}
+
+			// Clear image references in product records without deleting the products/store records
+			if deletedFilesCount > 0 {
+				_ = db.Exec("DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID)
+				_ = db.Exec("UPDATE products SET image_url = '' WHERE store_id = ?", store.ID)
+				_ = db.Exec("UPDATE stores SET store_logo_url = '', promo_banner = '' WHERE id = ?", store.ID)
+
+				GetAutomationTracker().RecordLog(AutomationLogEntry{
+					BotName:   "moderation_media_cleanup",
+					BotTitle:  "Pembersihan Media Toko Banned",
+					Target:    store.StoreTitle,
+					TargetID:  store.ID,
+					Action:    "purged_media_only",
+					Status:    "warning",
+					Details:   fmt.Sprintf("Dibersihkan %d berkas media dari toko banned '%s'. Rekam jejak akun tetap di-blacklist.", deletedFilesCount, store.StoreTitle),
+					Timestamp: now,
+				})
+			}
+		}
+	}
 }
 
 // GetDormancyMetrics aggregates high-level dormancy status counts for superadmin insights.

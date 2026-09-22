@@ -1577,6 +1577,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       value: any;
       label: string;
       desc?: string;
+      info?: string;
       badge?: string;
       badgeColor?: string;
       icon?: any;
@@ -1584,6 +1585,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }>;
     onSelect: (val: any) => void;
   } | null>(null);
+
+  const [expandedDropdownInfoValue, setExpandedDropdownInfoValue] = useState<any | null>(null);
 
   const [dropdownDragY, setDropdownDragY] = useState(0);
   const [isDropdownDragging, setIsDropdownDragging] = useState(false);
@@ -1617,6 +1620,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (!crudDropdownPicker) {
       setDropdownDragY(0);
       setIsDropdownDragging(false);
+      setExpandedDropdownInfoValue(null);
     }
   }, [crudDropdownPicker]);
 
@@ -5228,35 +5232,221 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </p>
               </div>
 
-              <div>
-                <select
-                  value={moderationAction}
-                  onChange={e => setModerationAction(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.8rem 1rem',
-                    borderRadius: '0.75rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.textPrimary,
-                    fontSize: '0.84rem',
-                    fontWeight: 600,
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="none">Tanpa Sanksi Otomatis (Hanya Catatan / Investigasi)</option>
-                  <option value="warning_issued">⚠️ Terbitkan Peringatan Resmi (Warning Issued)</option>
-                  {moderationModalReport.target_type === 'item' && (
-                    <>
-                      <option value="item_hidden">🚫 Nonaktifkan & Sembunyikan Item dari Publik (IsActive=False)</option>
-                      <option value="item_restored">✅ Pulihkan & Tampilkan Kembali Item ke Publik (IsActive=True)</option>
-                    </>
-                  )}
-                  <option value="catalog_suspended">⛔ Bekukan / Suspend Katalog Toko (Dormancy=Suspended)</option>
-                  <option value="catalog_reactivated">🔓 Aktifkan Kembali Katalog Toko (Dormancy=Active)</option>
-                </select>
-              </div>
+              {/* Dropdown Modal Trigger */}
+              {(() => {
+                const getModerationActionConfig = (action: string) => {
+                  switch (action) {
+                    case 'warning_issued':
+                      return {
+                        label: 'Terbitkan Peringatan Resmi (Warning Issued)',
+                        desc: 'Kirim notifikasi peringatan resmi kepatuhan ke pemilik toko',
+                        icon: AlertTriangle,
+                        color: '#f59e0b',
+                        badge: 'PERINGATAN',
+                        badgeColor: '#f59e0b'
+                      };
+                    case 'warning_issued':
+                      return {
+                        label: 'Terbitkan Peringatan Resmi',
+                        desc: 'Kirim notifikasi peringatan resmi kepatuhan ke pemilik toko',
+                        icon: AlertTriangle,
+                        color: '#f59e0b',
+                        badge: 'PERINGATAN',
+                        badgeColor: '#f59e0b',
+                        info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pemilik toko. Status toko dan produk tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
+                      };
+                    case 'item_hidden':
+                      return {
+                        label: 'Sembunyikan Item Produk',
+                        desc: 'Item disembunyikan seketika dari akses publik (IsActive=False)',
+                        icon: XCircle,
+                        color: '#ef4444',
+                        badge: 'NONAKTIF',
+                        badgeColor: '#ef4444',
+                        info: 'Seketika mengubah database item menjadi IsActive=False. Item disembunyikan dari katalog publik dan calon pembeli tidak dapat melihat atau membelinya.'
+                      };
+                    case 'item_restored':
+                      return {
+                        label: 'Pulihkan Item Produk',
+                        desc: 'Item dipulihkan dan dapat kembali diakses publik (IsActive=True)',
+                        icon: CheckCircle2,
+                        color: '#10b981',
+                        badge: 'AKTIF',
+                        badgeColor: '#10b981',
+                        info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta dibeli secara publik seperti biasa.'
+                      };
+                    case 'catalog_suspended':
+                      return {
+                        label: 'Bekukan Katalog Toko',
+                        desc: 'Seluruh etalase toko dibekukan sementara dari akses publik (Dormancy=Suspended)',
+                        icon: Lock,
+                        color: '#dc2626',
+                        badge: 'SUSPEND',
+                        badgeColor: '#dc2626',
+                        info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
+                      };
+                    case 'catalog_reactivated':
+                      return {
+                        label: 'Aktifkan Katalog Toko',
+                        desc: 'Cabut sanksi penangguhan dan buka kembali akses publik (Dormancy=Active)',
+                        icon: Store,
+                        color: '#10b981',
+                        badge: 'PULIHKAN',
+                        badgeColor: '#10b981',
+                        info: 'Seketika memulihkan status dormansi toko menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase katalog toko ke publik.'
+                      };
+                    case 'none':
+                    default:
+                      return {
+                        label: 'Tanpa Sanksi Otomatis',
+                        desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis',
+                        icon: FileText,
+                        color: theme.textSecondary,
+                        badge: 'CATATAN',
+                        badgeColor: '#64748b',
+                        info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik toko atau produk.'
+                      };
+                  }
+                };
+
+                const activeCfg = getModerationActionConfig(moderationAction);
+                const ActiveIcon = activeCfg.icon;
+                const isItem = moderationModalReport.target_type === 'item';
+
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const actionOptions: Array<{
+                          value: string;
+                          label: string;
+                          desc?: string;
+                          info: string;
+                          badge: string;
+                          badgeColor: string;
+                          icon: any;
+                        }> = [
+                          {
+                            value: 'none',
+                            label: 'Tanpa Sanksi Otomatis',
+                            badge: 'CATATAN',
+                            badgeColor: '#64748b',
+                            icon: FileText,
+                            info: 'Laporan diproses dan temuan investigasi dicatat dalam audit trail internal tanpa memberikan sanksi ataupun mengubah status publik toko atau produk.'
+                          },
+                          {
+                            value: 'warning_issued',
+                            label: 'Terbitkan Peringatan Resmi',
+                            badge: 'PERINGATAN',
+                            badgeColor: '#f59e0b',
+                            icon: AlertTriangle,
+                            info: 'Mengirimkan notifikasi peringatan pelanggaran kepatuhan resmi ke pemilik toko. Status toko dan produk tetap aktif namun tercatat memiliki riwayat teguran kepatuhan.'
+                          },
+                          ...(isItem ? [
+                            {
+                              value: 'item_hidden',
+                              label: 'Sembunyikan Item Produk',
+                              badge: 'NONAKTIF',
+                              badgeColor: '#ef4444',
+                              icon: XCircle,
+                              info: 'Seketika mengubah database item menjadi IsActive=False. Item disembunyikan dari katalog publik dan calon pembeli tidak dapat melihat atau membelinya.'
+                            },
+                            {
+                              value: 'item_restored',
+                              label: 'Pulihkan Item Produk',
+                              badge: 'AKTIF',
+                              badgeColor: '#10b981',
+                              icon: CheckCircle2,
+                              info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta dibeli secara publik seperti biasa.'
+                            }
+                          ] : []),
+                          {
+                            value: 'catalog_suspended',
+                            label: 'Bekukan Katalog Toko',
+                            badge: 'SUSPEND',
+                            badgeColor: '#dc2626',
+                            icon: Lock,
+                            info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
+                          },
+                          {
+                            value: 'catalog_reactivated',
+                            label: 'Aktifkan Katalog Toko',
+                            badge: 'PULIHKAN',
+                            badgeColor: '#10b981',
+                            icon: Store,
+                            info: 'Seketika memulihkan status dormansi toko menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase katalog toko ke publik.'
+                          }
+                        ];
+
+                        setCrudDropdownPicker({
+                          title: 'Tindakan Penegakan Sistem',
+                          subtitle: 'Pilih sanksi atau tindakan kepatuhan yang akan dieksekusi secara real-time',
+                          icon: ShieldAlert,
+                          selectedValue: moderationAction,
+                          options: actionOptions,
+                          onSelect: (val) => setModerationAction(val)
+                        });
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 0.95rem',
+                        borderRadius: '0.75rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.inputBg,
+                        color: theme.textPrimary,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.65rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'border-color 0.18s ease, box-shadow 0.18s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.55rem',
+                          backgroundColor: `${activeCfg.badgeColor}18`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: activeCfg.color,
+                          flexShrink: 0
+                        }}>
+                          <ActiveIcon size={16} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            color: theme.textPrimary
+                          }}>
+                            {activeCfg.label}
+                          </span>
+                          <span style={{
+                            padding: '0.12rem 0.45rem',
+                            borderRadius: '999px',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            backgroundColor: `${activeCfg.badgeColor}18`,
+                            color: activeCfg.badgeColor,
+                            border: `1px solid ${activeCfg.badgeColor}33`,
+                            flexShrink: 0
+                          }}>
+                            {activeCfg.badge}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronDown size={17} color={theme.textMuted} style={{ flexShrink: 0 }} />
+                    </button>
+                  </div>
+                );
+              })()}
 
               <div style={{
                 padding: '0.7rem 0.95rem',
@@ -5585,212 +5775,215 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 };
                 const currentBadge = statusBadgeMap[r.status] || statusBadgeMap.pending;
 
+                const hasAction = r.action_taken && r.action_taken !== 'none';
+                const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
+                const actionLabel = r.action_taken === 'item_hidden' 
+                  ? 'Item Dinonaktifkan' 
+                  : r.action_taken === 'catalog_suspended' 
+                  ? 'Katalog Dibekukan' 
+                  : r.action_taken === 'warning_issued' 
+                  ? 'Diberi Peringatan' 
+                  : (r.action_taken || '');
+
                 return (
                   <div
                     key={r.id}
                     style={{
-                      padding: '1.05rem',
-                      borderRadius: '1.15rem',
+                      padding: '0.9rem 1.1rem',
+                      borderRadius: '0.95rem',
                       backgroundColor: theme.surface,
-                      border: r.status === 'pending' ? '1px solid rgba(245, 158, 11, 0.45)' : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.45)' : `1px solid ${theme.border}`),
+                      border: r.status === 'pending' 
+                        ? '1px solid rgba(245, 158, 11, 0.4)' 
+                        : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`),
                       boxShadow: theme.cardShadow,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.75rem'
+                      gap: '0.65rem',
+                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                     }}
                   >
-                    {/* Header Row: Ticket # + Target Type + Status */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {/* Header Row: Ticket # + Target Type Pill + Date & Status Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                         <span style={{
                           fontFamily: 'monospace',
-                          fontSize: '0.74rem',
+                          fontSize: '0.72rem',
                           fontWeight: 800,
                           color: theme.textPrimary,
                           backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
                           padding: '0.15rem 0.45rem',
-                          borderRadius: '0.45rem',
+                          borderRadius: '0.4rem',
                           border: `1px solid ${theme.border}`
                         }}>
                           {r.report_number || `#RPT-${r.id}`}
                         </span>
+
                         <span style={{
                           fontSize: '0.64rem',
                           fontWeight: 800,
                           padding: '0.15rem 0.45rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                          borderRadius: '0.4rem',
+                          backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.12)' : 'rgba(14, 165, 233, 0.12)',
                           color: isCatalog ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0284c7'),
-                          border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.3)' : 'rgba(14, 165, 233, 0.3)'}`
+                          border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
                         }}>
                           {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
                         </span>
+
                         {!isCatalog && (
                           <span style={{
                             fontSize: '0.64rem',
-                            fontWeight: 800,
+                            fontWeight: 700,
                             padding: '0.15rem 0.45rem',
-                            borderRadius: '0.45rem',
-                            backgroundColor: 'rgba(14, 165, 233, 0.12)',
-                            color: isDark ? '#38bdf8' : '#0284c7',
-                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
+                            borderRadius: '0.4rem',
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                            color: theme.textSecondary,
+                            border: `1px solid ${theme.border}`
                           }}>
                             {formatCatalogType(r.item_type || r.fauna?.product_type)}
                           </span>
                         )}
-                      </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <span style={{
-                          padding: '0.2rem 0.55rem',
-                          borderRadius: '999px',
-                          fontSize: '0.66rem',
-                          fontWeight: 800,
-                          backgroundColor: currentBadge.bg,
-                          color: currentBadge.text,
-                          border: `1px solid ${currentBadge.border}`
-                        }}>
-                          {currentBadge.label}
-                        </span>
                         <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                          {r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : 'Baru'}
+                          • {r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : 'Baru'}
                         </span>
                       </div>
-                    </div>
 
-                    {/* Reported Target Information */}
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                        {isCatalog ? <Store size={15} color="var(--primary)" /> : <Package size={15} color="var(--primary)" />}
-                        <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                          {isCatalog 
-                            ? (r.store_title || `Katalog /${r.store_slug}`) 
-                            : (r.item_name || 'Item Produk')}
-                        </h4>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                        Profil: <strong>{r.store_title || 'Katalog'}</strong> (/{r.store_slug || '-'})
+                      <span style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '999px',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        backgroundColor: currentBadge.bg,
+                        color: currentBadge.text,
+                        border: `1px solid ${currentBadge.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}>
+                        {currentBadge.label}
                       </span>
                     </div>
 
-                    {/* Violation Reason Label */}
-                    <div style={{
-                      padding: '0.45rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      border: '1px solid rgba(239, 68, 68, 0.25)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem'
-                    }}>
-                      <ShieldAlert size={15} color="#ef4444" style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#ef4444' }}>
-                        {r.reason_label || r.reason_category || 'Pelanggaran Aturan'}
-                      </span>
-                    </div>
-
-                    {/* Reporter Evidence Description */}
-                    <p style={{
-                      margin: 0,
-                      fontSize: '0.76rem',
-                      color: theme.textSecondary,
-                      lineHeight: 1.5,
-                      backgroundColor: theme.quoteBg,
-                      padding: '0.6rem 0.8rem',
-                      borderRadius: '0.65rem',
-                      fontStyle: 'italic',
-                      borderLeft: `3px solid ${theme.border}`
-                    }}>
-                      "{r.description || 'Tidak ada keterangan tambahan dari pelapor.'}"
-                    </p>
-
-                    {/* Enforcement or Admin Notes Banner (if any) */}
-                    {r.action_taken && r.action_taken !== 'none' && (
-                      <div style={{
-                        padding: '0.45rem 0.75rem',
-                        borderRadius: '0.6rem',
-                        backgroundColor: r.action_taken.includes('restored') || r.action_taken.includes('reactivated') ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
-                        border: `1px solid ${r.action_taken.includes('restored') || r.action_taken.includes('reactivated') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        color: r.action_taken.includes('restored') || r.action_taken.includes('reactivated') ? (isDark ? '#34d399' : '#059669') : '#f43f5e'
-                      }}>
-                        ⚡ Tindakan: {r.action_taken === 'item_hidden' ? 'Item ini dinonaktifkan dari katalog publik' : r.action_taken === 'catalog_suspended' ? 'Katalog toko ini dibekukan sementara' : r.action_taken === 'warning_issued' ? 'Peringatan resmi diterbitkan ke toko' : r.action_taken}
+                    {/* Middle Row: Entity Target & Violation Tags */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '180px' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '0.55rem',
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {isCatalog ? <Store size={16} color="var(--primary)" /> : <Package size={16} color="var(--primary)" />}
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.25 }}>
+                            {isCatalog 
+                              ? (r.store_title || `Katalog /${r.store_slug}`) 
+                              : (r.item_name || 'Item Produk')}
+                          </h4>
+                          <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                            {isCatalog ? `/${r.store_slug || '-'}` : (r.store_title ? `${r.store_title} (/${r.store_slug || '-'})` : `/${r.store_slug || '-'}`)}
+                          </span>
+                        </div>
                       </div>
-                    )}
 
-                    {r.admin_notes && (
-                      <div style={{
-                        padding: '0.45rem 0.75rem',
-                        borderRadius: '0.6rem',
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                        border: `1px dashed ${theme.border}`,
-                        fontSize: '0.71rem',
-                        color: theme.textSecondary
-                      }}>
-                        📝 <strong>Catatan Kepatuhan:</strong> {r.admin_notes}
-                      </div>
-                    )}
-
-                    {/* Metadata & Actions Row */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.55rem', borderTop: `1px solid ${theme.border}`, flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                        <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
-                          Pelapor: <strong>{r.reporter_email || 'Anonim (Tanpa Email)'}</strong>
+                      {/* Chips / Pills: Violation Reason & Active Action */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <span style={{
+                          padding: '0.22rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: '#ef4444',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}>
+                          <ShieldAlert size={12} color="#ef4444" />
+                          <span>{r.reason_label || r.reason_category || 'Pelanggaran Aturan'}</span>
                         </span>
-                        <span style={{ fontSize: '0.64rem', color: theme.textMuted }}>
-                          IP: {r.reporter_ip || '-'}
-                        </span>
-                      </div>
 
-                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                        {/* Quick View Public Link */}
-                        {r.store_slug && (
-                          <a
-                            href={`/${r.store_slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              padding: '0.4rem 0.65rem',
-                              borderRadius: '0.6rem',
-                              backgroundColor: isDark ? '#334155' : '#f1f5f9',
-                              border: `1px solid ${theme.border}`,
-                              color: theme.textPrimary,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              textDecoration: 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.3rem'
-                            }}
-                          >
-                            <ExternalLink size={13} />
-                            <span>Inspeksi</span>
-                          </a>
-                        )}
-
-                        {/* Moderation Action Button */}
-                        <button
-                          onClick={() => handleOpenModerationPage(r)}
-                          style={{
-                            padding: '0.4rem 0.75rem',
-                            borderRadius: '0.6rem',
-                            backgroundColor: '#f43f5e',
-                            border: '1px solid #f43f5e',
-                            color: '#ffffff',
+                        {hasAction && (
+                          <span style={{
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '0.45rem',
+                            backgroundColor: isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                            border: `1px solid ${isRestored ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
                             fontSize: '0.72rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'flex',
+                            fontWeight: 700,
+                            color: isRestored ? (isDark ? '#34d399' : '#059669') : '#f43f5e',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}>
+                            <span>⚡ {actionLabel}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Footer Row: Clean Action Buttons */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      alignItems: 'center',
+                      paddingTop: '0.5rem',
+                      borderTop: `1px solid ${theme.border}`,
+                      gap: '0.45rem'
+                    }}>
+                      {r.store_slug && (
+                        <a
+                          href={`/${r.store_slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: isDark ? '#334155' : '#f1f5f9',
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                            display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.3rem',
-                            boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)'
+                            transition: 'opacity 0.15s ease'
                           }}
                         >
-                          <Sliders size={13} />
-                          <span>Kelola Tindakan</span>
-                        </button>
-                      </div>
+                          <ExternalLink size={12} />
+                          <span>Inspeksi</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleOpenModerationPage(r)}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: '#f43f5e',
+                          border: '1px solid #f43f5e',
+                          color: '#ffffff',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)',
+                          transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                        }}
+                      >
+                        <Sliders size={12} />
+                        <span>Kelola Tindakan</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -12504,96 +12697,171 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <div className="bottom-sheet-scrollable-body" style={{ maxHeight: '60vh', padding: '0.5rem 1rem 1.25rem' }}>
               {crudDropdownPicker.options.map((opt) => {
                 const isSelected = crudDropdownPicker.selectedValue === opt.value;
+                const isInfoExpanded = expandedDropdownInfoValue === opt.value;
+                const explanationText = opt.info || opt.desc;
+
                 return (
-                  <button
-                    key={String(opt.value)}
-                    type="button"
-                    className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
-                    style={{
-                      backgroundColor: isSelected 
-                        ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.08)')
-                        : opt.isAction 
-                          ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.04)')
-                          : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
-                      borderColor: isSelected 
-                        ? 'var(--primary, #f59e0b)' 
-                        : opt.isAction 
-                          ? 'var(--primary, #f59e0b)' 
-                          : theme.border,
-                      borderStyle: opt.isAction ? 'dashed' : 'solid',
-                      color: theme.textPrimary,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onClick={() => {
-                      crudDropdownPicker.onSelect(opt.value);
-                      setCrudDropdownPicker(null);
-                    }}
-                  >
-                    <div className="bottom-sheet-item-left" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                      {opt.icon && (
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.6rem',
-                          backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.2)' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: isSelected ? '#f59e0b' : theme.textSecondary,
-                          flexShrink: 0
-                        }}>
-                          <opt.icon size={16} />
-                        </div>
-                      )}
-                      <div className="bottom-sheet-item-col" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                        <span className="bottom-sheet-item-name" style={{ 
-                          color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary), 
-                          fontWeight: isSelected || opt.isAction ? 800 : 600,
-                          fontSize: '0.82rem'
-                        }}>
-                          {opt.label}
-                        </span>
-                        {opt.desc && (
-                          <span className="bottom-sheet-item-desc" style={{ color: theme.textMuted, fontSize: '0.72rem' }}>{opt.desc}</span>
-                        )}
-                      </div>
-                      {opt.badge && (
-                        <span 
-                          className="bottom-sheet-item-badge"
-                          style={{
-                            backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
-                            color: opt.badgeColor || theme.textSecondary,
-                            border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`,
-                            fontSize: '0.65rem',
-                            padding: '0.1rem 0.4rem',
-                            borderRadius: '999px',
-                            fontWeight: 600
-                          }}
-                        >
-                          {opt.badge}
-                        </span>
-                      )}
-                    </div>
-                    <div 
-                      className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}
+                  <div key={String(opt.value)} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <button
+                      type="button"
+                      className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
                       style={{
-                        width: '18px',
-                        height: '18px',
-                        borderRadius: '50%',
-                        border: `2px solid ${isSelected ? 'var(--primary, #f59e0b)' : theme.borderStrong}`,
-                        backgroundColor: isSelected ? 'var(--primary, #f59e0b)' : 'transparent',
+                        margin: 0,
+                        padding: '0.65rem 0.85rem',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
+                        justifyContent: 'space-between',
+                        gap: '0.6rem',
+                        backgroundColor: isSelected 
+                          ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.08)')
+                          : opt.isAction 
+                            ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.04)')
+                            : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
+                        borderColor: isSelected 
+                          ? 'var(--primary, #f59e0b)' 
+                          : opt.isAction 
+                            ? 'var(--primary, #f59e0b)' 
+                            : theme.border,
+                        borderStyle: opt.isAction ? 'dashed' : 'solid',
+                        color: theme.textPrimary,
+                        cursor: 'pointer',
+                        borderRadius: '0.75rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onClick={() => {
+                        crudDropdownPicker.onSelect(opt.value);
+                        setCrudDropdownPicker(null);
                       }}
                     >
-                      {isSelected && (
-                        <Check size={11} strokeWidth={3.5} style={{ color: '#ffffff' }} />
-                      )}
-                    </div>
-                  </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                        {opt.icon && (
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.55rem',
+                            backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.2)' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: isSelected ? '#f59e0b' : (opt.badgeColor || theme.textSecondary),
+                            flexShrink: 0
+                          }}>
+                            <opt.icon size={16} />
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                          <span style={{ 
+                            color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary), 
+                            fontWeight: isSelected || opt.isAction ? 800 : 700,
+                            fontSize: '0.82rem',
+                            lineHeight: 1.25
+                          }}>
+                            {opt.label}
+                          </span>
+                          {opt.badge && (
+                            <span 
+                              style={{
+                                backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
+                                color: opt.badgeColor || theme.textSecondary,
+                                border: `1px solid ${opt.badgeColor ? `${opt.badgeColor}44` : theme.border}`,
+                                fontSize: '0.62rem',
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                fontWeight: 700,
+                                flexShrink: 0,
+                                letterSpacing: '0.02em'
+                              }}
+                            >
+                              {opt.badge}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
+                        {explanationText && (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            title="Klik untuk melihat penjelasan detail"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedDropdownInfoValue((prev: string | null) => prev === opt.value ? null : opt.value);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                                setExpandedDropdownInfoValue((prev: string | null) => prev === opt.value ? null : opt.value);
+                              }
+                            }}
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '50%',
+                              border: `1px solid ${isInfoExpanded ? (isDark ? 'rgba(56, 189, 248, 0.5)' : 'rgba(2, 132, 199, 0.4)') : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)')}`,
+                              backgroundColor: isInfoExpanded 
+                                ? (isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 132, 199, 0.12)') 
+                                : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'),
+                              color: isInfoExpanded ? (isDark ? '#38bdf8' : '#0284c7') : theme.textMuted,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <Info size={14} />
+                          </div>
+                        )}
+
+                        <div 
+                          className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            border: `2px solid ${isSelected ? 'var(--primary, #f59e0b)' : theme.borderStrong}`,
+                            backgroundColor: isSelected ? 'var(--primary, #f59e0b)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}
+                        >
+                          {isSelected && (
+                            <Check size={11} strokeWidth={3.5} style={{ color: '#ffffff' }} />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Elegant Expandable Info Explanation Card */}
+                    {explanationText && isInfoExpanded && (
+                      <div
+                        style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : 'rgba(241, 245, 249, 0.95)',
+                          border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.55rem',
+                          fontSize: '0.74rem',
+                          lineHeight: 1.45,
+                          color: theme.textSecondary,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+                        }}
+                      >
+                        <Info size={15} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0, marginTop: '2px' }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: theme.textPrimary, marginBottom: '0.15rem' }}>
+                            Penjelasan Tindakan:
+                          </div>
+                          <div>{explanationText}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
