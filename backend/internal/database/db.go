@@ -377,10 +377,13 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_warning1_sent_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_warning2_sent_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_suspended_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_banned_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS suspension_reason VARCHAR(100) DEFAULT 'none';").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS reactivation_token VARCHAR(128);").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_exempt_from_dormancy BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_dormancy ON stores(plan, dormancy_status, is_exempt_from_dormancy, last_activity_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_blacklisted ON stores(is_blacklisted);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
 	// 5. Ensure ActivityLog Table & Indexes
 	_ = db.AutoMigrate(&models.ActivityLog{})
@@ -392,7 +395,9 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 
 	// 6. Ensure RBAC Schema, Permissions & Roles
 	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_role VARCHAR(50) DEFAULT 'merchant';").Error
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_users_platform_role ON users(platform_role);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_users_is_blacklisted ON users(is_blacklisted);").Error
 	_ = db.Exec("UPDATE users SET platform_role = 'superadmin', is_password_changed = true WHERE email = 'admin@catavor.com';").Error
 	_ = db.AutoMigrate(&models.PlatformRole{}, &models.PlatformPermission{}, &models.PlatformRolePermission{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_platform_roles_slug ON platform_roles(slug);").Error

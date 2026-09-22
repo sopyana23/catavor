@@ -82,7 +82,10 @@ type StoreSummary struct {
 	StoreLogoURL   string `json:"store_logo_url"`
 	Plan           string `json:"plan"`
 	PaymentStatus  string `json:"payment_status"`
-	WhatsappNumber string `json:"whatsapp_number"`
+	WhatsappNumber   string `json:"whatsapp_number"`
+	DormancyStatus   string `json:"dormancy_status,omitempty"`
+	SuspensionReason string `json:"suspension_reason,omitempty"`
+	IsBlacklisted    bool   `json:"is_blacklisted"`
 }
 
 func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targetSlug string) ([]StoreSummary, StoreSummary) {
@@ -93,15 +96,18 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			theme = "navy"
 		}
 		list = append(list, StoreSummary{
-			ID:             s.ID,
-			Slug:           s.Slug,
-			StoreTitle:     s.StoreTitle,
-			StoreSlogan:    s.StoreSlogan,
-			StoreTheme:     theme,
-			StoreLogoURL:   s.StoreLogoURL,
-			Plan:           s.Plan,
-			PaymentStatus:  s.PaymentStatus,
-			WhatsappNumber: s.WhatsappNumber,
+			ID:               s.ID,
+			Slug:             s.Slug,
+			StoreTitle:       s.StoreTitle,
+			StoreSlogan:      s.StoreSlogan,
+			StoreTheme:       theme,
+			StoreLogoURL:     s.StoreLogoURL,
+			Plan:             s.Plan,
+			PaymentStatus:    s.PaymentStatus,
+			WhatsappNumber:   s.WhatsappNumber,
+			DormancyStatus:   s.DormancyStatus,
+			SuspensionReason: s.SuspensionReason,
+			IsBlacklisted:    s.IsBlacklisted,
 		})
 	}
 	if len(list) == 0 && singleStore != nil {
@@ -110,15 +116,18 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			theme = "navy"
 		}
 		summary := StoreSummary{
-			ID:             singleStore.ID,
-			Slug:           singleStore.Slug,
-			StoreTitle:     singleStore.StoreTitle,
-			StoreSlogan:    singleStore.StoreSlogan,
-			StoreTheme:     theme,
-			StoreLogoURL:   singleStore.StoreLogoURL,
-			Plan:           singleStore.Plan,
-			PaymentStatus:  singleStore.PaymentStatus,
-			WhatsappNumber: singleStore.WhatsappNumber,
+			ID:               singleStore.ID,
+			Slug:             singleStore.Slug,
+			StoreTitle:       singleStore.StoreTitle,
+			StoreSlogan:      singleStore.StoreSlogan,
+			StoreTheme:       theme,
+			StoreLogoURL:     singleStore.StoreLogoURL,
+			Plan:             singleStore.Plan,
+			PaymentStatus:    singleStore.PaymentStatus,
+			WhatsappNumber:   singleStore.WhatsappNumber,
+			DormancyStatus:   singleStore.DormancyStatus,
+			SuspensionReason: singleStore.SuspensionReason,
+			IsBlacklisted:    singleStore.IsBlacklisted,
 		}
 		list = append(list, summary)
 		return list, summary
@@ -248,6 +257,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			"store_theme":         activeStore.StoreTheme,
 			"store_plan":          activeStore.Plan,
 			"payment_status":      activeStore.PaymentStatus,
+			"dormancy_status":     activeStore.DormancyStatus,
+			"suspension_reason":   activeStore.SuspensionReason,
+			"is_blacklisted":      user.IsBlacklisted || activeStore.IsBlacklisted,
 		},
 	})
 }
@@ -324,6 +336,25 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": fmt.Sprintf("Nama pengguna / slug toko '%s' adalah kata kunci sistem yang dicadangkan dan tidak dapat digunakan sebagai nama toko.", slug),
+		})
+	}
+
+	// Check if email or slug is blacklisted due to permanent moderation ban
+	var blacklistedUserCount int64
+	database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", req.Email).Count(&blacklistedUserCount)
+	if blacklistedUserCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Alamat email ini telah ditangguhkan secara permanen karena pelanggaran pedoman platform Catavor.",
+		})
+	}
+
+	var blacklistedStoreCount int64
+	database.DB.Model(&models.Store{}).Where("LOWER(slug) = ? AND (is_blacklisted = true OR dormancy_status = 'banned')", slug).Count(&blacklistedStoreCount)
+	if blacklistedStoreCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Nama pengguna / slug toko ini telah dinonaktifkan secara permanen dan tidak dapat digunakan kembali.",
 		})
 	}
 

@@ -16,6 +16,7 @@ type User struct {
 	GoogleID          *string    `gorm:"size:255;index" json:"google_id,omitempty"`
 	IsPasswordChanged bool       `gorm:"default:false" json:"is_password_changed"`
 	PlatformRole      string     `gorm:"size:50;default:'merchant';index" json:"platform_role"`
+	IsBlacklisted     bool       `gorm:"default:false;index" json:"is_blacklisted"`
 	RememberToken     *string    `gorm:"size:100" json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
