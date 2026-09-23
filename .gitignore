@@ -15,6 +15,7 @@
 
 # Databases & Dynamic Local uploads
 **/database/*.sqlite
+*.db
 /public/storage/fauna/*
 !/public/storage/fauna/.gitkeep
 /public/storage/articles/*

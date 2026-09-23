@@ -88,6 +88,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.NotificationRead{},
 		&models.ActivityLog{},
 		&models.SafeDomain{},
+		&models.BlacklistedSlug{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
@@ -342,9 +343,10 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_attributes_gin ON products USING GIN (attributes);").Error
 
 	// 2.1 Ensure Schema Columns and High-Performance Indexes on reports table
-	_ = db.AutoMigrate(&models.Report{})
+	_ = db.AutoMigrate(&models.Report{}, &models.BlacklistedSlug{})
 	_ = db.Exec("ALTER TABLE reports ADD COLUMN IF NOT EXISTS item_type VARCHAR(50);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_reports_item_type ON reports(item_type);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_blacklisted_slugs_slug ON blacklisted_slugs(slug);").Error
 	_ = db.Exec("UPDATE reports r SET item_type = p.product_type FROM products p WHERE r.target_type = 'item' AND r.fauna_id = p.id AND (r.item_type IS NULL OR r.item_type = '');").Error
 
 	// 3. Create Support & Help Center Tables, Columns & Indexes
@@ -379,10 +381,12 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_suspended_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS dormancy_banned_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS suspension_reason VARCHAR(100) DEFAULT 'none';").Error
+	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS reactivation_token VARCHAR(128);").Error
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_exempt_from_dormancy BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_dormancy ON stores(plan, dormancy_status, is_exempt_from_dormancy, last_activity_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_suspended ON stores(is_suspended);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_blacklisted ON stores(is_blacklisted);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
 	// 5. Ensure ActivityLog Table & Indexes

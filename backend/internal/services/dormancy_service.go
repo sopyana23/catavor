@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/smtp"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -99,6 +100,10 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 		return nil, fmt.Errorf("token reaktivasi tidak ditemukan atau sudah kedaluwarsa")
 	}
 
+	if store.DormancyStatus == "banned" || store.IsBlacklisted {
+		return nil, fmt.Errorf("toko ini telah ditangguhkan secara permanen oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
+	}
+
 	now := time.Now().UTC()
 	store.LastActivityAt = now
 	store.DormancyStatus = "active"
@@ -134,6 +139,10 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 	err := db.Preload("User").Where("id = ?", storeID).First(&store).Error
 	if err != nil {
 		return nil, fmt.Errorf("toko tidak ditemukan")
+	}
+
+	if store.DormancyStatus == "banned" || store.IsBlacklisted {
+		return nil, fmt.Errorf("toko ini telah ditangguhkan secara permanen oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
 	now := time.Now().UTC()
@@ -276,6 +285,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			db.Model(&store).Updates(map[string]interface{}{
 				"dormancy_status":       "suspended",
+				"is_suspended":          true,
 				"dormancy_suspended_at": suspendedAt,
 				"reactivation_token":    token,
 			})
@@ -484,13 +494,49 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 			bannedAt := now
 			db.Model(&models.Store{}).Where("id = ?", store.ID).Updates(map[string]interface{}{
 				"dormancy_status":    "banned",
+				"is_suspended":       true,
 				"dormancy_banned_at": bannedAt,
 				"is_blacklisted":     true,
 			})
 
-			// Mark User as blacklisted
+			// Mark User as blacklisted ONLY if no other active stores remain
+			var ownerEmail string
 			if store.UserID > 0 {
-				db.Model(&models.User{}).Where("id = ?", store.UserID).Update("is_blacklisted", true)
+				var u models.User
+				if err := db.Select("email").Where("id = ?", store.UserID).First(&u).Error; err == nil {
+					ownerEmail = u.Email
+				}
+				var remainingActiveCount int64
+				_ = db.Model(&models.Store{}).
+					Where("user_id = ? AND id != ? AND dormancy_status != 'banned' AND is_blacklisted = false", store.UserID, store.ID).
+					Count(&remainingActiveCount).Error
+				if remainingActiveCount == 0 {
+					db.Model(&models.User{}).Where("id = ?", store.UserID).Update("is_blacklisted", true)
+				}
+			}
+
+			// Register store slug into blacklisted_slugs table
+			cleanSlug := strings.ToLower(strings.TrimSpace(store.Slug))
+			if cleanSlug != "" {
+				var count int64
+				_ = db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanSlug).Count(&count).Error
+				if count == 0 {
+					bannedRecord := models.BlacklistedSlug{
+						Slug:         cleanSlug,
+						StoreTitle:   store.StoreTitle,
+						OwnerEmail:   ownerEmail,
+						Reason:       "Masa tenggang banding 30 hari berakhir tanpa respon (eskalasi bot)",
+						BannedBy:     "moderation_escalator_bot",
+						ReportNumber: "BOT-ESCALATION",
+						BannedAt:     bannedAt,
+						CreatedAt:    bannedAt,
+					}
+					_ = db.Create(&bannedRecord).Error
+				}
+			}
+
+			if ownerEmail != "" {
+				go SendSingleCatalogBannedEmail(ownerEmail, store.StoreTitle, cleanSlug, "BOT-ESCALATION", "Masa tenggang banding 30 hari berakhir tanpa respon", "Eskalasi bot kepatuhan otomatis")
 			}
 
 			// Invalidate cache
@@ -498,20 +544,103 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 			delete(activityCache, store.ID)
 			activityCacheMutex.Unlock()
 
-			// Create in-app Trust & Safety notice
+			// Check and sync any existing moderation report for this store
+			var existingReport models.Report
+			hasReport := false
+			if err := db.Where("store_id = ? AND action_taken = 'catalog_suspended'", store.ID).Order("id desc").First(&existingReport).Error; err == nil {
+				hasReport = true
+				escalationNote := "[Eskalasi Sistem: Masa tenggang banding 30 hari telah berakhir tanpa sanggahan. Status dinaikkan menjadi Banned Permanen oleh Bot]."
+				notes := existingReport.AdminNotes
+				if notes != "" {
+					notes = notes + " " + escalationNote
+				} else {
+					notes = escalationNote
+				}
+				db.Model(&models.Report{}).Where("id = ?", existingReport.ID).Updates(map[string]interface{}{
+					"status":       "banned",
+					"action_taken": "catalog_banned",
+					"admin_notes":  notes,
+					"reviewed_at":  &now,
+				})
+				existingReport.Status = "banned"
+				existingReport.ActionTaken = "catalog_banned"
+				existingReport.AdminNotes = notes
+			}
+
+			reportNum := fmt.Sprintf("RPT-AUTO-%d", store.ID)
+			reasonLabel := "Pelanggaran Pedoman Komunitas (Masa Tenggang Berakhir)"
+			adminNotes := "Masa tenggang banding (30 hari) telah kedaluwarsa tanpa adanya permohonan sanggahan dari pemilik toko."
+			if hasReport {
+				if existingReport.ReportNumber != "" {
+					reportNum = existingReport.ReportNumber
+				}
+				if existingReport.ReasonLabel != "" {
+					reasonLabel = existingReport.ReasonLabel
+				}
+				if existingReport.AdminNotes != "" {
+					adminNotes = existingReport.AdminNotes
+				}
+			}
+
+			actionURL := fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=catalog&target_name=%s&item_type=%s&reason=%s&notes=%s",
+				store.Slug,
+				reportNum,
+				url.QueryEscape("catalog"),
+				url.QueryEscape(store.StoreTitle),
+				url.QueryEscape("Profil Katalog"),
+				url.QueryEscape(reasonLabel),
+				url.QueryEscape(adminNotes),
+			)
+
+			detailArticle := fmt.Sprintf(`### Penonaktifan Permanen Profil Katalog & Akun (Banned)
+Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
+
+---
+### Rincian Kasus Kepatuhan:
+• Nomor Berkas: **#%s**
+• Tanggal Penegakan: **%s**
+• Nama Profil Terdaftar: **%s**
+• Entitas Terdampak: **Profil Katalog Lengkap**
+• Kategori Pelanggaran: **%s**
+
+### Catatan Tim Kepatuhan & Eskalasi Bot:
+> "%s"
+
+---
+### Penjelasan Keputusan & Status Eskalasi:
+Akses publik ke profil katalog **%s** dan akun pemilik telah ditangguhkan secara permanen oleh Sistem Otomatisasi Kepatuhan Catavor (*Bot: moderation_escalator*) karena masa tenggang banding (30 hari kerja) telah kedaluwarsa tanpa adanya permohonan sanggahan resmi.
+
+---
+### Hak Banding & Peninjauan Terakhir (Right to Appeal):
+Meskipun status telah dinaikkan menjadi permanen, Anda tetap berhak mengajukan peninjauan terakhir kepada Dewan Pengawas Kepatuhan Platform jika memiliki bukti otentik baru yang sah.
+
+Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formulir pengaduan resmi dengan draf tiket yang telah disiapkan secara otomatis.`,
+				reportNum,
+				now.Format("02 Jan 2006, 15:04 WIB"),
+				store.StoreTitle,
+				reasonLabel,
+				adminNotes,
+				store.StoreTitle,
+			)
+
+			// Create in-app Trust & Safety notice (Fully compatible with Incident Case Sheet)
 			notifID := fmt.Sprintf("banned_mod_%d_%d", store.ID, now.Unix())
 			notif := models.Notification{
-				ID:         notifID,
-				TargetType: "single_store",
-				TargetID:   store.ID,
-				TargetName: store.StoreTitle,
-				Title:      "Akun & Katalog Ditangguhkan Secara Permanen",
-				Message:    fmt.Sprintf("Masa tenggang banding (30 hari) untuk katalog '%s' telah berakhir tanpa pengajuan sanggahan. Status akun dan katalog kini telah dinaikkan menjadi Ditangguhkan Permanen.", store.StoreTitle),
-				Type:       "danger",
-				Category:   "KEAMANAN",
-				ActionType: "detail",
-				ActionURL:  fmt.Sprintf("/admin/settings?status=banned&store=%s", store.Slug),
-				CreatedAt:  now,
+				ID:            notifID,
+				TargetType:    "single_store",
+				TargetID:      store.ID,
+				TargetName:    store.StoreTitle,
+				Title:         "Eskalasi Sanksi: Akun & Katalog Ditangguhkan Secara Permanen",
+				Message:       fmt.Sprintf("Masa tenggang banding (30 hari) untuk katalog '%s' telah berakhir (#%s). Status akun dan katalog kini telah dinaikkan menjadi Ditangguhkan Permanen.", store.StoreTitle, reportNum),
+				Type:          "danger",
+				Category:      "KEAMANAN",
+				ActionEnabled: true,
+				ActionType:    "detail",
+				LinkSubTab:    "",
+				ActionLabel:   "Ajukan Banding Kepatuhan →",
+				ActionURL:     actionURL,
+				DetailContent: detailArticle,
+				CreatedAt:     now,
 			}
 			_ = db.Create(&notif).Error
 

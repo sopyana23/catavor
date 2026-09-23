@@ -135,6 +135,7 @@ import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
+import { StoreChooserSheet, type CatalogStoreItem } from './components/StoreChooserSheet'
 import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './utils/urlSecurity'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
@@ -152,7 +153,33 @@ export interface UserStoreSummary {
   payment_status?: string;
   whatsapp_number?: string;
   item_count?: number;
+  dormancy_status?: string;
+  is_suspended?: boolean;
+  suspension_reason?: string;
+  is_blacklisted?: boolean;
+  last_activity_at?: string;
+  created_at?: string;
 }
+
+export const isCatalogChooserRoute = (rawPath?: string | null): boolean => {
+  if (!rawPath || typeof rawPath !== 'string') return false;
+  const p = rawPath.toLowerCase().trim().replace(/\/+$/, '');
+  return p === '/admin/catalogs' || p === '/admin/stores' || p === '/catalogs' || p === '/select-catalog';
+};
+
+export const isReservedStoreSlug = (slug?: string | null): boolean => {
+  if (!slug) return false;
+  const s = slug.toLowerCase();
+  const reserved = [
+    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 
+    'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 
+    'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 
+    'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 
+    'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 
+    'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
+  ];
+  return reserved.includes(s);
+};
 
 export interface AnalyticsData {
   period: string;
@@ -530,6 +557,7 @@ interface ShopSettings {
   dormancy_status?: string
   suspension_reason?: string
   dormancy_suspended_at?: string
+  is_suspended?: boolean
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -2976,6 +3004,7 @@ interface ShopSettings {
   dormancy_status?: string
   suspension_reason?: string
   dormancy_suspended_at?: string
+  is_suspended?: boolean
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -5588,6 +5617,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
       if (
         path.includes('/admin') ||
+        (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login') && !isReservedStoreSlug(path.split('/').filter(Boolean)[0])) ||
         rawTabParam === 'admin' ||
         rawTabParam === 'help' ||
         rawTabParam === 'support' ||
@@ -6112,7 +6142,18 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   });
 
-  const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(false);
+  const [isFirstTimeLogin, setIsFirstTimeLogin] = useState<boolean>(() => 
+    typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)
+  );
+  const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(() => 
+    typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)
+  );
+  const [storeChooserComplianceAlert, setStoreChooserComplianceAlert] = useState<{
+    type: 'banned' | 'suspended' | 'info';
+    message: string;
+    bannedSlug?: string;
+  } | null>(null);
+  const [switchingStoreSlug, setSwitchingStoreSlug] = useState<string | null>(null);
   const [showCreateStoreModal, setShowCreateStoreModal] = useState<boolean>(false);
   const [createStoreForm, setCreateStoreForm] = useState({
     store_name: '',
@@ -6261,10 +6302,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const handleSwitchStore = async (targetSlug: string) => {
     if (!token || !targetSlug) return;
-    if (storeSlug && targetSlug.toLowerCase() === storeSlug.toLowerCase()) {
+    setIsFirstTimeLogin(false);
+    if (storeSlug && targetSlug.toLowerCase() === storeSlug.toLowerCase() && !isFirstTimeLogin) {
       setShowStoreSwitcherModal(false);
       return;
     }
+    setSwitchingStoreSlug(targetSlug);
     try {
       const res = await fetch(`${API_BASE}/user/stores/switch`, {
         method: 'POST',
@@ -6297,14 +6340,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
         setStoreSlug(targetSlug);
         setShowStoreSwitcherModal(false);
+        setStoreChooserComplianceAlert(null);
+        setView('tabs');
+        setActiveTab('admin');
+        setAdminSubTab('menu');
+        setPortalTab('home');
         window.history.pushState({}, '', `/${targetSlug}/admin`);
         await loadData(targetSlug);
-        showToast(`Beralih ke katalog "${data.active_store?.store_title || targetSlug}"`, 'success');
+        showToast(`Beralih ke profil katalog "${data.active_store?.store_title || targetSlug}"`, 'success');
       } else {
-        showToast(data.message || 'Gagal beralih katalog', 'error');
+        showToast(data.message || 'Gagal beralih profil katalog', 'error');
       }
     } catch (err) {
-      showToast('Terjadi kesalahan koneksi saat beralih katalog', 'error');
+      showToast('Terjadi kesalahan koneksi saat beralih profil katalog', 'error');
+    } finally {
+      setSwitchingStoreSlug(null);
     }
   };
 
@@ -7764,7 +7814,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       return;
     }
 
-    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/');
+    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
 
     if (isPlatformAdminPath) {
       if (token && isPlatformAdmin(adminUser)) {
@@ -8012,7 +8062,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.toLowerCase();
-      const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/'));
       if (isPlatformAdminPath) {
         if (token && isPlatformAdmin(adminUser)) {
           setActiveTab('admin');
@@ -8284,6 +8334,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             }
           } else if (sub === 'about') { setView('tabs'); setActiveTab('about'); }
           else if (sub === 'sightings') { setView('tabs'); setActiveTab('sightings'); }
+          else if (sub === 'login') { setView('tabs'); setActiveTab('admin'); setAdminSubTab('items'); }
           else { setView('tabs'); setActiveTab('catalog'); }
         } else {
           setView('tabs');
@@ -8296,7 +8347,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
-      const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/'));
       if (isPlatformAdminPath || path === '/dashboard') {
         const savedToken = token || localStorage.getItem('catavor_token');
         const savedUserStr = localStorage.getItem('catavor_user');
@@ -8328,6 +8379,12 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: window.location.pathname + window.location.search }));
           } catch {}
         }
+      } else if (isCatalogChooserRoute(path)) {
+        setStoreSlug(null);
+        setIsFirstTimeLogin(true);
+        setShowStoreSwitcherModal(true);
+        document.documentElement.setAttribute('data-theme', 'navy');
+        document.body.setAttribute('data-theme', 'navy');
       } else if (path === '/login') {
         setPortalTab('login');
       } else if (path === '/register' || path === '/register/step-1') {
@@ -8388,6 +8445,37 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     document.documentElement.scrollTop = 0;
   }, [activeTab, adminSubTab, mobileSettingsTab]);
 
+  // Dedicated Permanent Account Ban Force Logout Handler (Wipes all auth & redirects cleanly without redirect-loop)
+  const handleAccountBanned = (msg = 'Akun dan profil katalog Anda telah dinonaktifkan secara permanen oleh platform karena pelanggaran kepatuhan. Sesi login telah dicabut.') => {
+    try {
+      localStorage.removeItem('catavor_token');
+      localStorage.removeItem('catavor_user');
+      localStorage.removeItem('catavor_stores');
+      localStorage.removeItem('catavor_password_changed');
+      localStorage.removeItem('catavor_settings');
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('catavor_store_') || key.startsWith('catavor_auth') || key.startsWith('catavor_admin')) {
+          localStorage.removeItem(key);
+        }
+      });
+      sessionStorage.removeItem('catavor_auth_redirect');
+      sessionStorage.removeItem('catavor_portal_tab');
+    } catch (e) {}
+
+    document.documentElement.setAttribute('data-theme', 'navy');
+    document.body.setAttribute('data-theme', 'navy');
+    setToken(null);
+    setAdminUser(null);
+    setUserStores([]);
+    setStoreSlug(null);
+    setIsPasswordChanged(true);
+    setActiveTab('catalog');
+    setPortalTab('home');
+    setLoginForm({ email: '', password: '' });
+    window.history.pushState({}, '', '/');
+    showToast(msg, 'error');
+  };
+
   // Reset Auth & Industry-standard session expiration handler
   const handleUnauthorized = (msg = 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.', preserveRedirect = true) => {
     if (preserveRedirect && typeof window !== 'undefined') {
@@ -8399,6 +8487,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           subTab: adminSubTab,
           settingsTab: mobileSettingsTab
         }));
+      } catch (e) {}
+    } else {
+      try {
+        sessionStorage.removeItem('catavor_auth_redirect');
       } catch (e) {}
     }
     localStorage.removeItem('catavor_token');
@@ -8419,6 +8511,19 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   };
 
   const checkAuthResponse = (res: Response, data?: any) => {
+    if (res.status === 403 && data?.code === 'STORE_BANNED_SWITCH_REQUIRED') {
+      setStoreChooserComplianceAlert({
+        type: 'banned',
+        message: data?.message || `Profil katalog '${data?.banned_slug || ''}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
+        bannedSlug: data?.banned_slug
+      });
+      setShowStoreSwitcherModal(true);
+      return false;
+    }
+    if (res.status === 403 && (data?.code === 'ACCOUNT_BANNED' || data?.code === 'USER_BLACKLISTED' || data?.code === 'ALL_STORES_BANNED')) {
+      handleAccountBanned(data?.message);
+      return false;
+    }
     if (res.status === 401 || (data && (data.message === 'Unauthenticated.' || data.message === 'Unauthenticated' || data.code === 'TOKEN_EXPIRED' || data.code === 'INVALID_TOKEN' || data.code === 'UNAUTHENTICATED'))) {
       const msg = data?.code === 'TOKEN_EXPIRED'
         ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
@@ -8500,6 +8605,27 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       headers
     });
 
+    if (response.status === 403) {
+      try {
+        const clone = response.clone();
+        const data = await clone.json();
+        if (data?.code === 'STORE_BANNED_SWITCH_REQUIRED') {
+          setStoreChooserComplianceAlert({
+            type: 'banned',
+            message: data?.message || `Profil katalog '${data?.banned_slug || ''}' telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
+            bannedSlug: data?.banned_slug
+          });
+          setShowStoreSwitcherModal(true);
+          throw new Error('STORE_BANNED_SWITCH_REQUIRED');
+        } else if (data?.code === 'ACCOUNT_BANNED' || data?.code === 'USER_BLACKLISTED' || data?.code === 'ALL_STORES_BANNED') {
+          handleAccountBanned(data?.message);
+          throw new Error('ACCOUNT_BANNED');
+        }
+      } catch (e: any) {
+        if (e?.message === 'ACCOUNT_BANNED' || e?.message === 'STORE_BANNED_SWITCH_REQUIRED') throw e;
+      }
+    }
+
     if (response.status === 401) {
       try {
         const clone = response.clone();
@@ -8569,7 +8695,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           }
         });
 
-        if (res.status === 401) {
+        if (res.status === 403) {
+          const data = await res.json().catch(() => ({}));
+          if (data?.code === 'ACCOUNT_BANNED' || data?.code === 'USER_BLACKLISTED' || data?.code === 'ALL_STORES_BANNED') {
+            handleAccountBanned(data?.message);
+            return;
+          }
+        } else if (res.status === 401) {
           const data = await res.json().catch(() => ({}));
           const msg = data.code === 'TOKEN_EXPIRED'
             ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
@@ -8615,11 +8747,11 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
-    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) {
+    if (isCatalogChooserRoute(path) || path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) {
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -8627,7 +8759,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     
     if (!reservedPortal.includes(parts[0])) {
       const storeSub = parts[1];
-      const validStoreSubs = ['admin', 'about', 'sightings', 'articles'];
+      const validStoreSubs = ['admin', 'about', 'sightings', 'articles', 'login'];
       if (validStoreSubs.includes(storeSub)) {
         return false;
       }
@@ -8639,7 +8771,12 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   // Load Data
   const loadData = async (overrideSlug?: string) => {
     const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-    const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/');
+    if (isCatalogChooserRoute(path)) {
+      setLoading(false);
+      setIsAppInitializing(false);
+      return;
+    }
+    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
     if (isPlatformAdminPath && isPlatformAdmin(adminUser)) {
       setLoading(false);
       setIsAppInitializing(false);
@@ -8648,7 +8785,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     setLoading(true);
     setError(null);
-    const slug = overrideSlug || getStoreSlug() || (path.includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : null);
+    const slug = isCatalogChooserRoute(path) ? null : (overrideSlug || getStoreSlug() || (path.includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : null));
     
     try {
       if (slug) {
@@ -8680,6 +8817,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             store_logo_url: store.store_logo_url || '',
             store_theme: store.store_theme || 'navy',
             dormancy_status: store.dormancy_status || 'active',
+            is_suspended: Boolean(store.is_suspended || settingsData.is_suspended || store.dormancy_status === 'suspended'),
             suspension_reason: store.suspension_reason || 'none',
             dormancy_suspended_at: store.dormancy_suspended_at || '',
             last_activity_at: store.last_activity_at || '',
@@ -8706,15 +8844,16 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           }
           
           setSettings(fetchedSettings);
+          setSettingsForm(fetchedSettings);
+          const currentTheme = fetchedSettings.store_theme || 'navy';
+          document.documentElement.setAttribute('data-theme', currentTheme);
+          document.body.setAttribute('data-theme', currentTheme);
           try {
             if (slug) {
               localStorage.setItem(`catavor_store_${slug.toLowerCase()}`, JSON.stringify(fetchedSettings));
             }
             localStorage.setItem('catavor_settings', JSON.stringify(fetchedSettings));
           } catch {}
-          if (token && adminUser && slug && (adminUser.store_slug?.toLowerCase() === slug.toLowerCase() || (adminUser as any).username?.toLowerCase() === slug.toLowerCase())) {
-            setSettingsForm(fetchedSettings);
-          }
           
           if (store.master_categories) {
             setMasterCategories(prev => {
@@ -8733,16 +8872,55 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           if (store.master_statuses) setMasterStatuses(store.master_statuses);
           if (store.master_shipping_coverages) setMasterShippingCoverages(store.master_shipping_coverages);
 
-          // Fetch store-scoped products catalog (Load complete store inventory into master state)
-          const faunaRes = await fetch(`${API_BASE}/u/${slug}/products`);
-          const faunaData = await faunaRes.json();
-          if (faunaData.success) {
-            setFaunas(faunaData.data);
+          // Fetch store-scoped products catalog (Load complete store inventory into master state if active)
+          if (settingsData.is_suspended || store.dormancy_status === 'suspended') {
+            setFaunas([]);
           } else {
-            setError(faunaData.message || 'Gagal memuat produk.');
+            const faunaRes = await fetch(`${API_BASE}/u/${slug}/products`);
+            const faunaData = await faunaRes.json();
+            if (faunaData.success) {
+              setFaunas(faunaData.data);
+            } else {
+              setError(faunaData.message || 'Gagal memuat produk.');
+            }
           }
         } else {
           setError(settingsData.message || 'Katalog / Store tidak ditemukan.');
+          // If 404 and user is logged in, proactively check if account was banned or offer store switch
+          if (settingsRes.status === 404 && token) {
+            try {
+              const verifyRes = await fetch(`${API_BASE}/auth/verify`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Accept': 'application/json'
+                }
+              });
+              if (verifyRes.status === 403) {
+                const vData = await verifyRes.json().catch(() => ({}));
+                if (vData?.code === 'ACCOUNT_BANNED' || vData?.code === 'USER_BLACKLISTED' || vData?.code === 'ALL_STORES_BANNED') {
+                  handleAccountBanned(vData?.message);
+                  return;
+                }
+              } else if (verifyRes.ok) {
+                const vData = await verifyRes.json().catch(() => ({}));
+                if (vData?.success && Array.isArray(vData?.stores) && vData.stores.length > 0) {
+                  setUserStores(vData.stores);
+                  setStoreChooserComplianceAlert({
+                    type: 'banned',
+                    message: `Profil katalog '${slug}' tidak dapat diakses atau telah dinonaktifkan oleh Tim Kepatuhan. Rincian telah dikirimkan ke email akun Anda. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
+                    bannedSlug: slug || undefined
+                  });
+                  // RULE: Toko sebelumnya dibanned -> reset tema ke default landing page navy & reset active slug
+                  document.documentElement.setAttribute('data-theme', 'navy');
+                  document.body.setAttribute('data-theme', 'navy');
+                  setStoreSlug(null);
+                  window.history.pushState({}, '', '/catalogs');
+                  setShowStoreSwitcherModal(true);
+                  return;
+                }
+              }
+            } catch (e) {}
+          }
         }
       } else {
         // Portal mode: Fetch featured stores
@@ -8928,8 +9106,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
-    if (storeSlug || error || isInvalidRoute()) return;
     const path = window.location.pathname.toLowerCase();
+    if (storeSlug || error || isInvalidRoute() || isCatalogChooserRoute(path)) return;
     if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) return;
     if (token && isPlatformAdmin(adminUser)) return;
 
@@ -8962,7 +9140,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       const path = window.location.pathname.toLowerCase();
-      const isPlatformAdminPath = path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/');
+      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/'));
       if (isPlatformAdminPath) {
         if (token && isPlatformAdmin(adminUser)) {
           setActiveTab('admin');
@@ -8978,7 +9156,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
-      if (path === '/login') {
+      if (isCatalogChooserRoute(path)) {
+        setStoreSlug(null);
+        setIsFirstTimeLogin(true);
+        setShowStoreSwitcherModal(true);
+        document.documentElement.setAttribute('data-theme', 'navy');
+        document.body.setAttribute('data-theme', 'navy');
+      } else if (path === '/login') {
         setPortalTab('login');
       } else if (path === '/register' || path === '/register/step-1') {
         setPortalTab('register');
@@ -9090,23 +9274,36 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   }, [adminUser])
 
   // Real Google OAuth 2.0 SSO Handler Mobile (Google Accounts Popup Window & GSI API)
-  const processGoogleUserPayload = async (googleUser: { email: string; name: string; google_id: string; avatar?: string }) => {
+  const processGoogleUserPayload = async (googleUser: { email?: string; name?: string; google_id?: string; avatar?: string; token?: string; credential?: string }) => {
     try {
+      if (!googleUser.email && !googleUser.token && !googleUser.credential) {
+        showToast('Gagal mendapatkan informasi email dari Google. Pastikan izin akses profil disetujui.', 'error');
+        return;
+      }
+
+      const currentRequestedSlug = getStoreSlug();
+
       const res = await fetch(`${API_BASE}/auth/google`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentRequestedSlug ? { 'X-Store-Slug': currentRequestedSlug } : {})
+        },
         body: JSON.stringify({
-          email: googleUser.email,
-          name: googleUser.name,
-          google_id: googleUser.google_id,
-          avatar: googleUser.avatar,
+          email: googleUser.email || '',
+          name: googleUser.name || '',
+          google_id: googleUser.google_id || '',
+          avatar: googleUser.avatar || '',
+          token: googleUser.token || '',
+          credential: googleUser.credential || '',
+          store_slug: currentRequestedSlug || '',
           plan: registerPlan
         })
       });
 
       const data = await res.json();
       if (data.success) {
-        if (data.token && data.user && data.user.store_slug) {
+        if (data.token && data.user && (data.user.store_slug || data.active_store?.slug)) {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
           localStorage.setItem('catavor_token', data.token);
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
@@ -9115,15 +9312,41 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             setUserStores(data.stores);
           }
           localStorage.setItem('catavor_password_changed', 'true');
-          const userTheme = data.user.store_theme || 'navy';
+          const userTheme = data.active_store?.store_theme || data.user.store_theme || 'navy';
           document.documentElement.setAttribute('data-theme', userTheme);
           document.body.setAttribute('data-theme', userTheme);
           setToken(data.token);
           setAdminUser(data.user);
           setIsPasswordChanged(true);
-          setStoreSlug(data.user.store_slug);
 
-          // Restore redirect destination if returning from expired session
+          if (isPlatformAdmin(data.user)) {
+            setStoreSlug(null);
+            setPortalTab('home');
+            setView('tabs');
+            setActiveTab('admin');
+            window.history.pushState({}, '', '/admin');
+            showToast('Selamat datang di Platform Console!', 'success');
+            return;
+          }
+
+          // Case 1: Specific store login (e.g. /adidas/login or /adidas/admin)
+          if (currentRequestedSlug) {
+            sessionStorage.removeItem('catavor_auth_redirect');
+            const targetSlug = currentRequestedSlug;
+            setStoreSlug(targetSlug);
+            setIsFirstTimeLogin(false);
+            setShowStoreSwitcherModal(false);
+            setPortalTab('home');
+            setView('tabs');
+            setActiveTab('admin');
+            setAdminSubTab('menu');
+            window.history.pushState({}, '', `/${targetSlug}/admin`);
+            loadData(targetSlug);
+            showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
+            return;
+          }
+
+          // Case 2: General login from root /login
           let redirectRestored = false;
           try {
             const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
@@ -9133,23 +9356,49 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               if (parsed.path && parsed.path.includes('/admin')) {
                 window.history.pushState({}, '', parsed.path);
                 setActiveTab('admin');
-                if (parsed.subTab) {
-                  setAdminSubTab(parsed.subTab);
-                }
-                if (parsed.settingsTab) {
-                  setMobileSettingsTab(parsed.settingsTab);
-                }
+                if (parsed.subTab) setAdminSubTab(parsed.subTab);
+                if (parsed.settingsTab) setMobileSettingsTab(parsed.settingsTab);
                 redirectRestored = true;
+                const pathSlug = parsed.path.split('/').filter(Boolean)[0];
+                if (pathSlug && !isReservedStoreSlug(pathSlug)) {
+                  setStoreSlug(pathSlug);
+                  loadData(pathSlug);
+                }
               }
             }
           } catch (e) {}
 
           if (!redirectRestored) {
-            window.history.pushState({}, '', `/${data.user.store_slug}/admin`);
-            setView('tabs');
-            setActiveTab('admin');
-            setAdminSubTab('menu');
-            setPortalTab('home');
+            if (data.stores && data.stores.length > 1) {
+              setStoreSlug(null);
+              setIsFirstTimeLogin(true);
+              setShowStoreSwitcherModal(true);
+              setStoreChooserComplianceAlert(null);
+              document.documentElement.setAttribute('data-theme', 'navy');
+              document.body.setAttribute('data-theme', 'navy');
+              window.history.pushState({}, '', '/catalogs');
+              showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
+            } else {
+              const targetSlug = data.active_store?.slug || data.user.store_slug || (data.stores && data.stores[0]?.slug) || '';
+              if (targetSlug) {
+                setStoreSlug(targetSlug);
+                setIsFirstTimeLogin(false);
+                setShowStoreSwitcherModal(false);
+                setPortalTab('home');
+                setView('tabs');
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                window.history.pushState({}, '', `/${targetSlug}/admin`);
+                loadData(targetSlug);
+                showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
+              } else {
+                setStoreSlug(null);
+                setPortalTab('home');
+                setView('tabs');
+                setActiveTab('admin');
+                window.history.pushState({}, '', '/dashboard');
+              }
+            }
           }
           showToast('Selamat datang kembali! Akun Google Anda telah terdaftar, otomatis masuk ke Dashboard.', 'success');
         } else {
@@ -9208,15 +9457,34 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
                 const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                   headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
                 });
-                const googleUser = await userInfoRes.json();
+                if (userInfoRes.ok) {
+                  const googleUser = await userInfoRes.json();
+                  if (googleUser && googleUser.email) {
+                    processGoogleUserPayload({
+                      email: googleUser.email,
+                      name: googleUser.name,
+                      google_id: googleUser.sub,
+                      avatar: googleUser.picture,
+                      token: tokenResponse.access_token
+                    });
+                    return;
+                  }
+                }
+                // Backend fallback using access token directly
                 processGoogleUserPayload({
-                  email: googleUser.email,
-                  name: googleUser.name,
-                  google_id: googleUser.sub,
-                  avatar: googleUser.picture
+                  email: '',
+                  name: '',
+                  google_id: '',
+                  token: tokenResponse.access_token
                 });
               } catch (err) {
                 console.error('UserInfo fetch failed:', err);
+                processGoogleUserPayload({
+                  email: '',
+                  name: '',
+                  google_id: '',
+                  token: tokenResponse.access_token
+                });
               }
             }
           }
@@ -9262,16 +9530,37 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
               headers: { Authorization: `Bearer ${accessToken}` }
             })
-            .then(res => res.json())
-            .then(googleUser => {
+            .then(async (res) => {
+              if (res.ok) {
+                const googleUser = await res.json();
+                if (googleUser && googleUser.email) {
+                  processGoogleUserPayload({
+                    email: googleUser.email,
+                    name: googleUser.name,
+                    google_id: googleUser.sub,
+                    avatar: googleUser.picture,
+                    token: accessToken
+                  });
+                  return;
+                }
+              }
+              // Backend fallback using access token directly
               processGoogleUserPayload({
-                email: googleUser.email,
-                name: googleUser.name,
-                google_id: googleUser.sub,
-                avatar: googleUser.picture
+                email: '',
+                name: '',
+                google_id: '',
+                token: accessToken
               });
             })
-            .catch(err => console.error(err));
+            .catch(err => {
+              console.error(err);
+              processGoogleUserPayload({
+                email: '',
+                name: '',
+                google_id: '',
+                token: accessToken
+              });
+            });
           }
         }
       } catch (e) {
@@ -9539,14 +9828,20 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     setLoginLoading(true)
     setLoginError(null)
 
+    const currentRequestedSlug = getStoreSlug();
+
     try {
       const res = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...(currentRequestedSlug ? { 'X-Store-Slug': currentRequestedSlug } : {})
         },
-        body: JSON.stringify(loginForm)
+        body: JSON.stringify({
+          ...loginForm,
+          store_slug: currentRequestedSlug || ''
+        })
       })
 
       const data = await res.json()
@@ -9560,7 +9855,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         const isPassChanged = Boolean(data.is_password_changed ?? data.user?.is_password_changed ?? true);
         localStorage.setItem('catavor_password_changed', isPassChanged ? 'true' : 'false');
         
-        const loginTheme = data.user?.store_theme || 'navy';
+        const loginTheme = data.active_store?.store_theme || data.user?.store_theme || 'navy';
         document.documentElement.setAttribute('data-theme', loginTheme);
         document.body.setAttribute('data-theme', loginTheme);
         setSettingsForm(prev => ({ ...prev, store_theme: loginTheme }));
@@ -9570,7 +9865,34 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         setIsPasswordChanged(isPassChanged)
         setLoginForm({ email: '', password: '' })
         
-        // If login succeeded, restore previous redirect destination if returning from expired session
+        if (isPlatformAdmin(data.user)) {
+          setStoreSlug(null);
+          setPortalTab('home');
+          setView('tabs');
+          setActiveTab('admin');
+          window.history.pushState({}, '', '/admin');
+          showToast('Selamat datang di Platform Console!', 'success');
+          return;
+        }
+
+        // Case 1: Specific store login (e.g. /adidas/login or /adidas/admin)
+        if (currentRequestedSlug) {
+          sessionStorage.removeItem('catavor_auth_redirect');
+          const targetSlug = currentRequestedSlug;
+          setStoreSlug(targetSlug);
+          setIsFirstTimeLogin(false);
+          setShowStoreSwitcherModal(false);
+          setPortalTab('home');
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('menu');
+          window.history.pushState({}, '', `/${targetSlug}/admin`);
+          loadData(targetSlug);
+          showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
+          return;
+        }
+
+        // Case 2: General login from root /login
         let redirectRestored = false;
         try {
           const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
@@ -9580,34 +9902,41 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             if (parsed.path && parsed.path.includes('/admin')) {
               window.history.pushState({}, '', parsed.path);
               setActiveTab('admin');
-              if (parsed.subTab) {
-                setAdminSubTab(parsed.subTab);
-              }
-              if (parsed.settingsTab) {
-                setMobileSettingsTab(parsed.settingsTab);
-              }
+              if (parsed.subTab) setAdminSubTab(parsed.subTab);
+              if (parsed.settingsTab) setMobileSettingsTab(parsed.settingsTab);
               redirectRestored = true;
+              const pathSlug = parsed.path.split('/').filter(Boolean)[0];
+              if (pathSlug && !isReservedStoreSlug(pathSlug)) {
+                setStoreSlug(pathSlug);
+                loadData(pathSlug);
+              }
             }
           }
         } catch (e) {}
 
         if (!redirectRestored) {
-          if (isPlatformAdmin(data.user)) {
+          if (data.stores && data.stores.length > 1) {
             setStoreSlug(null);
-            setPortalTab('home');
-            setView('tabs');
-            setActiveTab('admin');
-            window.history.pushState({}, '', '/admin');
+            setIsFirstTimeLogin(true);
+            setShowStoreSwitcherModal(true);
+            setStoreChooserComplianceAlert(null);
+            document.documentElement.setAttribute('data-theme', 'navy');
+            document.body.setAttribute('data-theme', 'navy');
+            window.history.pushState({}, '', '/catalogs');
+            showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
           } else {
-            const targetSlug = data.user?.store_slug || data.active_store?.slug || (data.stores && data.stores[0]?.slug) || '';
+            const targetSlug = data.active_store?.slug || data.user.store_slug || (data.stores && data.stores[0]?.slug) || '';
             if (targetSlug) {
               setStoreSlug(targetSlug);
+              setIsFirstTimeLogin(false);
+              setShowStoreSwitcherModal(false);
               setPortalTab('home');
               setView('tabs');
               setActiveTab('admin');
               setAdminSubTab('menu');
               window.history.pushState({}, '', `/${targetSlug}/admin`);
               loadData(targetSlug);
+              showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
             } else {
               setStoreSlug(null);
               setPortalTab('home');
@@ -9699,7 +10028,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     } catch (err) {
       console.error(err)
     } finally {
-      handleUnauthorized()
+      handleUnauthorized('Sesi telah ditutup.', false)
       goToCatalog()
     }
   }
@@ -9791,6 +10120,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   // Save Settings
   const handleSettingsSave = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Perubahan pengaturan tidak dapat disimpan.');
+      return;
+    }
     setSettingsLoading(true)
     setSettingsSuccess(null)
     try {
@@ -9961,6 +10294,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   // Open Add Form
   // Open Create Form with Dynamic Quota Guard
   const openCreateSheet = () => {
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Penambahan produk baru dinonaktifkan.');
+      return;
+    }
     const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
     const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
     if (maxActive !== -1 && currentActive >= maxActive) {
@@ -10015,6 +10352,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   // Open Edit Form with Anti-Cheat Protection
   const openEditSheet = (item: Fauna) => {
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Pengeditan produk dinonaktifkan.');
+      return;
+    }
     if ((item as any).is_active === false) {
       const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
       const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
@@ -10677,6 +11018,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   // Delete Item
   const handleFaunaDelete = async (id: number): Promise<boolean> => {
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Penghapusan produk dinonaktifkan.');
+      return false;
+    }
     try {
       const res = await fetch(`${API_BASE}/products/${id}`, {
         method: 'DELETE',
@@ -11015,7 +11360,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   // Render Dedicated Platform Administration Console for Platform Admins (Mobile)
   const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-  const isPlatformAdminPath = currentPath === '/admin' || currentPath.startsWith('/admin/') || currentPath === '/catavor/admin' || currentPath.startsWith('/catavor/admin/') || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/');
+  const isPlatformAdminPath = !isCatalogChooserRoute(currentPath) && (currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/catavor/admin' || currentPath.startsWith('/catavor/admin/') || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/'));
   if (token && isPlatformAdmin(adminUser) && (activeTab === 'admin' || isPlatformAdminPath)) {
     return (
       <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', padding: 0, margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box', overflowX: 'clip' }}>
@@ -12857,6 +13202,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
   const isBottomNavVisible = Boolean(
     !error &&
     settings.dormancy_status !== 'suspended' &&
+    !settings.is_suspended &&
+    settings.dormancy_status !== 'banned' &&
     !showLightbox &&
     !selectedFauna &&
     !isDetailActive &&
@@ -13293,13 +13640,26 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <button 
                   type="button" 
                   className="btn-primary"
+                  disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                   onClick={() => {
+                    if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
                     const temp = selectedFauna;
                     setIsDetailActive(false);
                     setSelectedFauna(null);
                     openEditSheet(temp);
                   }}
-                  style={{ flex: 1, height: '42px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', borderRadius: '0.35rem' }}
+                  style={{
+                    flex: 1,
+                    height: '42px',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.25rem',
+                    borderRadius: '0.35rem',
+                    ...((settings.dormancy_status === 'suspended' || settings.is_suspended) ? { opacity: 0.5, cursor: 'not-allowed' } : {})
+                  }}
+                  title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ''}
                 >
                   <Edit3 size={14} />
                   Edit
@@ -13307,10 +13667,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <button 
                   type="button" 
                   className="btn-danger"
+                  disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                   onClick={() => {
+                    if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
                     setFaunaToDelete(selectedFauna);
                   }}
-                  style={{ flex: 1, height: '42px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', borderRadius: '0.35rem' }}
+                  style={{
+                    flex: 1,
+                    height: '42px',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.25rem',
+                    borderRadius: '0.35rem',
+                    ...((settings.dormancy_status === 'suspended' || settings.is_suspended) ? { opacity: 0.5, cursor: 'not-allowed' } : {})
+                  }}
+                  title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ''}
                 >
                   <Trash2 size={14} />
                   Hapus
@@ -13322,7 +13695,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 {isStoreOwner && (
                   <button
                     type="button"
+                    disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                     onClick={() => {
+                      if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
                       const temp = selectedFauna;
                       setIsDetailActive(false);
                       setSelectedFauna(null);
@@ -13341,15 +13716,16 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       color: 'var(--primary)',
                       fontSize: '0.82rem',
                       fontWeight: 700,
-                      cursor: 'pointer',
+                      cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                      opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
                       transition: 'all 0.15s ease'
                     }}
-                    title="Edit Item Ini di Panel Admin"
+                    title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : 'Edit Item'}
                   >
-                    <Edit3 size={15} />
-                    <span>Edit Item</span>
+                    <Edit3 size={14} />
+                    <span>Edit</span>
                   </button>
                 )}
                 <button 
@@ -15528,6 +15904,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <button 
                         type="button"
                         className="btn-primary" 
+                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                         style={{ 
                           padding: '0.35rem 0.65rem', 
                           borderRadius: '0.5rem', 
@@ -15536,14 +15913,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           display: 'flex', 
                           alignItems: 'center', 
                           gap: '0.2rem',
-                          cursor: 'pointer',
+                          cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                          opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
                           whiteSpace: 'nowrap',
                           flexShrink: 0
                         }}
-                        onClick={openCreateSheet}
+                        onClick={() => {
+                          if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
+                          openCreateSheet();
+                        }}
+                        title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ''}
                       >
                         <Plus size={14} />
-                        <span>Tambah</span>
+                        <span>{(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Terkunci' : 'Tambah'}</span>
                       </button>
                     )}
 
@@ -15714,7 +16096,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </h1>
                     </div>
                   </div>
-                  {settings.dormancy_status !== 'suspended' && (
+                  {settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <button
                         type="button"
@@ -16345,23 +16727,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </div>
             )}
 
-            {!loading && !error && (settings.dormancy_status === 'suspended' || settings.dormancy_status === 'banned') ? (
-              /* DORMANT / SUSPENDED / BANNED CATALOG STATE (Mobile) */
+            {!loading && !error && (settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
+              /* DORMANT / SUSPENDED CATALOG STATE (Mobile) */
               <div 
                 className="glass-panel animate-fade-in" 
                 style={{ 
                   padding: '3.5rem 1.5rem', 
                   textAlign: 'center', 
                   borderRadius: '1.25rem',
-                  border: settings.dormancy_status === 'banned'
-                    ? '1px solid rgba(153, 27, 27, 0.55)'
-                    : settings.suspension_reason === 'moderation_violation'
+                  border: settings.suspension_reason === 'moderation_violation'
                     ? '1px solid rgba(239, 68, 68, 0.45)'
                     : '1px solid rgba(245, 158, 11, 0.4)',
                   background: 'var(--card-bg-gradient)',
-                  boxShadow: settings.dormancy_status === 'banned'
-                    ? '0 12px 35px rgba(153, 27, 27, 0.22)'
-                    : settings.suspension_reason === 'moderation_violation'
+                  boxShadow: settings.suspension_reason === 'moderation_violation'
                     ? '0 12px 35px rgba(239, 68, 68, 0.16)'
                     : '0 10px 30px rgba(0,0,0,0.22)',
                   display: 'flex',
@@ -16377,28 +16755,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     width: '68px', 
                     height: '68px', 
                     borderRadius: '50%', 
-                    backgroundColor: settings.dormancy_status === 'banned'
-                      ? 'rgba(153, 27, 27, 0.25)'
-                      : settings.suspension_reason === 'moderation_violation'
+                    backgroundColor: settings.suspension_reason === 'moderation_violation'
                       ? 'rgba(239, 68, 68, 0.15)'
                       : 'rgba(245, 158, 11, 0.15)', 
-                    border: settings.dormancy_status === 'banned'
-                      ? '2px solid rgba(239, 68, 68, 0.55)'
-                      : settings.suspension_reason === 'moderation_violation'
+                    border: settings.suspension_reason === 'moderation_violation'
                       ? '2px solid rgba(239, 68, 68, 0.4)'
                       : '2px solid rgba(245, 158, 11, 0.35)', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    color: settings.dormancy_status === 'banned' ? '#ef4444' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
-                    boxShadow: settings.dormancy_status === 'banned'
-                      ? '0 0 24px rgba(239, 68, 68, 0.35)'
-                      : settings.suspension_reason === 'moderation_violation'
+                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b',
+                    boxShadow: settings.suspension_reason === 'moderation_violation'
                       ? '0 0 24px rgba(239, 68, 68, 0.25)'
                       : '0 0 20px rgba(245, 158, 11, 0.2)'
                   }}
                 >
-                  {settings.dormancy_status === 'banned' || settings.suspension_reason === 'moderation_violation' ? (
+                  {settings.suspension_reason === 'moderation_violation' ? (
                     <ShieldAlert size={34} />
                   ) : (
                     <Clock size={32} />
@@ -16411,9 +16783,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     gap: '0.4rem', 
                     padding: '0.25rem 0.8rem', 
                     borderRadius: '20px', 
-                    backgroundColor: settings.dormancy_status === 'banned' ? 'rgba(153, 27, 27, 0.2)' : settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
-                    border: settings.dormancy_status === 'banned' ? '1px solid rgba(239, 68, 68, 0.5)' : settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
-                    color: settings.dormancy_status === 'banned' ? '#f87171' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                    backgroundColor: settings.suspension_reason === 'moderation_violation' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
+                    border: settings.suspension_reason === 'moderation_violation' ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(245, 158, 11, 0.3)', 
+                    color: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
                     fontSize: '0.72rem', 
                     fontWeight: 800, 
                     textTransform: 'uppercase', 
@@ -16424,27 +16796,59 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       width: '6px', 
                       height: '6px', 
                       borderRadius: '50%', 
-                      backgroundColor: settings.dormancy_status === 'banned' ? '#ef4444' : settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
-                      boxShadow: settings.dormancy_status === 'banned' ? '0 0 8px #ef4444' : settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' 
+                      backgroundColor: settings.suspension_reason === 'moderation_violation' ? '#ef4444' : '#f59e0b', 
+                      boxShadow: settings.suspension_reason === 'moderation_violation' ? '0 0 8px #ef4444' : '0 0 8px #f59e0b' 
                     }} />
-                    {settings.dormancy_status === 'banned' ? 'Status: Ditangguhkan Permanen' : settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
+                    {settings.suspension_reason === 'moderation_violation' ? 'Status: Dibekukan Sementara' : 'Status: Diliburkan'}
                   </div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.45rem' }}>
-                    {settings.dormancy_status === 'banned'
-                      ? 'Profil Katalog Ditangguhkan Secara Permanen'
-                      : settings.suspension_reason === 'moderation_violation' 
+                    {settings.suspension_reason === 'moderation_violation' 
                       ? 'Profil Katalog Sedang Dibekukan Sementara' 
                       : 'Katalog Sedang Diliburkan'}
                   </h3>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '340px', margin: '0 auto', lineHeight: 1.55 }}>
-                    {settings.dormancy_status === 'banned'
-                      ? 'Akses publik ke katalog ini dinonaktifkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran pedoman platform atau masa sanggahan telah kedaluwarsa.'
-                      : settings.suspension_reason === 'moderation_violation'
+                    {settings.suspension_reason === 'moderation_violation'
                       ? 'Akses publik ke katalog ini dinonaktifkan sementara oleh Tim Kepatuhan & Moderasi Catavor sehubungan dengan peninjauan laporan pelanggaran pedoman platform.'
                       : 'Katalog toko ini sedang dinonaktifkan sementara karena masa aktif belum diperpanjang oleh pemilik toko.'}
                   </p>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', width: '100%', maxWidth: '320px', marginTop: '0.5rem' }}>
+                  {token && (settings.suspension_reason === 'moderation_violation' || settings.dormancy_status === 'suspended') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setAdminSubTab('help');
+                        setNewTicketForm({
+                          subject: `Banding Kepatuhan: Peninjauan Status Katalog (${settings.store_title || 'Toko'})`,
+                          category: 'catalog_help',
+                          priority: 'high',
+                          message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                        });
+                        setIsCreatingTicket(true);
+                      }}
+                      className="btn-primary"
+                      style={{ 
+                        padding: '0.75rem 1.25rem', 
+                        borderRadius: '0.75rem', 
+                        fontSize: '0.84rem', 
+                        fontWeight: 700, 
+                        width: '100%',
+                        backgroundColor: '#dc2626',
+                        color: '#fff',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)'
+                      }}
+                    >
+                      <ShieldAlert size={15} />
+                      Ajukan Banding ke Tim Kepatuhan
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => { window.location.href = window.location.origin; }}
@@ -17393,6 +17797,83 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           ) : (
             /* ADMIN DASHBOARD (MOBILE - LOGGED IN & PASSWORD CHANGED) */
             <div className="animate-fade-in" style={{ marginTop: '1rem' }}>
+              {/* Suspended Store Warning & Appeal Banner (Mobile) */}
+              {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                <div 
+                  className="glass-panel animate-fade-in"
+                  style={{
+                    padding: '1.1rem 1rem',
+                    marginBottom: '1rem',
+                    borderRadius: '0.85rem',
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.1) 100%)',
+                    border: '1px solid rgba(239, 68, 68, 0.45)',
+                    boxShadow: '0 6px 20px rgba(239, 68, 68, 0.12)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.85rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ef4444',
+                      flexShrink: 0,
+                      marginTop: '2px'
+                    }}>
+                      <ShieldAlert size={20} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#ef4444', display: 'block', marginBottom: '0.2rem' }}>
+                        Status: Dibekukan Sementara (Suspended)
+                      </span>
+                      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                        {settings.suspension_reason === 'moderation_violation'
+                          ? 'Katalog publik Anda dinonaktifkan sementara oleh Tim Kepatuhan platform. Fitur penambahan/pengubahan katalog dibekukan.'
+                          : 'Katalog toko ini dibekukan sementara karena masa aktif belum diperpanjang. Pengelolaan data dinonaktifkan.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdminSubTab('help');
+                      setNewTicketForm({
+                        subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || 'Toko'})`,
+                        category: 'catalog_help',
+                        priority: 'high',
+                        message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                      });
+                      setIsCreatingTicket(true);
+                    }}
+                    style={{
+                      padding: '0.65rem 1rem',
+                      borderRadius: '0.65rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      backgroundColor: '#dc2626',
+                      color: '#fff',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      width: '100%',
+                      boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)'
+                    }}
+                  >
+                    <ShieldAlert size={15} />
+                    <span>Ajukan Banding Kepatuhan</span>
+                  </button>
+                </div>
+              )}
+
               {adminSubTab === 'menu' && (
                 /* CLEAN NATIVE MOBILE MERCHANT ADMIN DASHBOARD */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -19368,10 +19849,18 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <button 
                               type="submit" 
                               className="btn-primary btn-full" 
-                              disabled={settingsLoading}
-                              style={{ marginTop: '0.5rem', padding: '0.75rem', fontWeight: 800 }}
+                              disabled={settingsLoading || settings.dormancy_status === 'suspended' || settings.is_suspended}
+                              style={{ 
+                                marginTop: '0.5rem', 
+                                padding: '0.75rem', 
+                                fontWeight: 800,
+                                ...((settings.dormancy_status === 'suspended' || settings.is_suspended) ? { opacity: 0.5, cursor: 'not-allowed' } : {})
+                              }}
+                              title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ''}
                             >
-                              {settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                              {(settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                ? 'Terkunci: Toko Sedang Dibekukan'
+                                : (settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan')}
                             </button>
                           )}
                         </form>
@@ -25911,206 +26400,35 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       )}
 
       {/* ==========================================================
-         STORE SWITCHER BOTTOM SHEET (MOBILE STANDARD WITH DRAG)
+         STORE CHOOSER & SWITCHER BOTTOM SHEET (INDUSTRY STANDARD)
          ========================================================== */}
-      {showStoreSwitcherModal && (
-        <div 
-          className="bottom-sheet-backdrop" 
-          onClick={() => setShowStoreSwitcherModal(false)}
-        >
-          <div 
-            className="bottom-sheet-content" 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
-              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-              maxHeight: '82vh',
-              padding: '0.65rem 1.15rem 1rem'
-            }}
-          >
-            {/* Smooth Drag Handle Area */}
-            <div 
-              className="bottom-sheet-handle-bar"
-              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={() => handleSheetDragEnd('stores')}
-              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
-              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
-              onMouseUp={() => handleSheetDragEnd('stores')}
-            >
-              <div className="bottom-sheet-handle" />
-            </div>
-
-            {/* Header */}
-            <div 
-              className="bottom-sheet-header"
-              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={() => handleSheetDragEnd('stores')}
-              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
-              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
-              onMouseUp={() => handleSheetDragEnd('stores')}
-            >
-              <div className="bottom-sheet-title-box">
-                <Layers size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <h3 className="bottom-sheet-title">Profil Katalog Saya</h3>
-              </div>
-            </div>
-
-            {/* Scrollable Store List */}
-            <div 
-              className="bottom-sheet-scrollable-body" 
-              style={{ 
-                maxHeight: '48vh',
-                overflowY: 'auto',
-                overscrollBehavior: 'contain',
-                WebkitOverflowScrolling: 'touch',
-                padding: '0.65rem 0.15rem 0.35rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.45rem'
-              }}
-            >
-              {userStores.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                  Memuat daftar katalog...
-                </div>
-              ) : (
-                (() => {
-                  const planWeight = (plan?: string) => {
-                    if (plan === 'pro_business') return 3;
-                    if (plan === 'pro_starter') return 2;
-                    return 1;
-                  };
-
-                  const sortedStores = [...userStores].sort((a, b) => {
-                    const isAActive = a.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                    const isBActive = b.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                    if (isAActive && !isBActive) return -1;
-                    if (!isAActive && isBActive) return 1;
-
-                    const weightDiff = planWeight(b.plan) - planWeight(a.plan);
-                    if (weightDiff !== 0) return weightDiff;
-
-                    const nameA = (a.store_title || a.slug).toLowerCase();
-                    const nameB = (b.store_title || b.slug).toLowerCase();
-                    return nameA.localeCompare(nameB);
-                  });
-
-                  return sortedStores.map((st) => {
-                    const isActive = st.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                    return (
-                      <button
-                        key={st.id}
-                        type="button"
-                        className={`bottom-sheet-item ${isActive ? 'active' : ''}`}
-                        style={{
-                          backgroundColor: isActive ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                          border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                          padding: '0.75rem 0.85rem'
-                        }}
-                        onClick={() => {
-                          if (!isActive) {
-                            handleSwitchStore(st.slug);
-                          }
-                        }}
-                      >
-                        <div className="bottom-sheet-item-left">
-                          <div style={{
-                            width: '38px',
-                            height: '38px',
-                            borderRadius: '0.55rem',
-                            backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-card-hover)',
-                            color: isActive ? '#ffffff' : 'var(--text-primary)',
-                            border: isActive ? 'none' : '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 800,
-                            fontSize: '0.92rem',
-                            flexShrink: 0,
-                            overflow: 'hidden'
-                          }}>
-                            {st.store_logo_url ? (
-                              <img src={st.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              st.store_title ? st.store_title.charAt(0).toUpperCase() : st.slug.charAt(0).toUpperCase()
-                            )}
-                          </div>
-
-                          <div className="bottom-sheet-item-col">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              <span className="bottom-sheet-item-name" style={{ color: isActive ? 'var(--primary)' : 'var(--text-primary)', fontWeight: 800 }}>
-                                {st.store_title || st.slug}
-                              </span>
-                              <span style={{
-                                fontSize: '0.58rem',
-                                fontWeight: 800,
-                                padding: '0.08rem 0.35rem',
-                                borderRadius: '4px',
-                                backgroundColor: st.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.18)' : st.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.18)' : 'var(--primary-glow)',
-                                color: st.plan === 'pro_business' ? '#d97706' : st.plan === 'pro_starter' ? '#0284c7' : 'var(--primary)',
-                                border: st.plan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.35)' : st.plan === 'pro_starter' ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid var(--primary)',
-                                textTransform: 'uppercase'
-                              }}>
-                                {st.plan === 'pro_business' ? 'Bisnis' : st.plan === 'pro_starter' ? 'Starter' : 'Free'}
-                              </span>
-                            </div>
-                            <span className="bottom-sheet-item-desc" style={{ color: 'var(--text-secondary)' }}>
-                              catavor.com/{st.slug} {st.item_count !== undefined ? `• ${st.item_count} item` : ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className={`bottom-sheet-radio ${isActive ? 'selected' : ''}`} style={{
-                          backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                          borderColor: isActive ? 'var(--primary)' : 'var(--border-light)'
-                        }}>
-                          {isActive && (
-                            <Check size={12} strokeWidth={3.5} style={{ color: '#ffffff', stroke: '#ffffff', display: 'block', margin: 'auto' }} />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  });
-                })()
-              )}
-            </div>
-
-            {/* Bottom Action Button - Clean Compact Spacing */}
-            <div style={{
-              paddingTop: '0.65rem',
-              borderTop: '1px solid var(--border-light)',
-              marginTop: '0.35rem',
-              flexShrink: 0
-            }}>
-              <button 
-                type="button" 
-                className="btn-primary btn-full"
-                onClick={() => {
-                  setShowStoreSwitcherModal(false);
-                  setShowCreateStoreModal(true);
-                }}
-                style={{ 
-                  padding: '0.75rem 1rem', 
-                  fontSize: '0.84rem', 
-                  fontWeight: 800, 
-                  borderRadius: '0.75rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '0.45rem',
-                  width: '100%',
-                  boxShadow: '0 4px 14px var(--primary-glow)'
-                }}
-              >
-                <Plus size={16} />
-                <span>Buat Profil Katalog Baru</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <StoreChooserSheet
+        isOpen={showStoreSwitcherModal}
+        user={adminUser}
+        stores={userStores}
+        activeSlug={isFirstTimeLogin ? null : storeSlug}
+        complianceAlert={storeChooserComplianceAlert}
+        onSelectStore={(targetStore) => handleSwitchStore(targetStore.slug)}
+        onCreateNewStore={() => {
+          setShowStoreSwitcherModal(false);
+          setShowCreateStoreModal(true);
+        }}
+        onClose={() => {
+          setShowStoreSwitcherModal(false);
+          setStoreChooserComplianceAlert(null);
+          setIsFirstTimeLogin(false);
+          if (!storeSlug) {
+            setView('tabs');
+            setActiveTab('catalog');
+            setPortalTab('home');
+            window.history.pushState({}, '', '/');
+          }
+        }}
+        onLogout={handleLogout}
+        switchingSlug={switchingStoreSlug}
+        isFirstTimeLogin={isFirstTimeLogin}
+        activeTheme={storeChooserComplianceAlert ? 'navy' : (isFirstTimeLogin ? 'navy' : (settingsForm.store_theme || settings.store_theme || 'navy'))}
+      />
 
       {/* ==========================================================
          CREATE NEW STORE BOTTOM SHEET (MOBILE STANDARD WITH DRAG)
