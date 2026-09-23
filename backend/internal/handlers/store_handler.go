@@ -131,6 +131,16 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 		})
 	}
 
+	// 1. Check if slug is in blacklisted_slugs (Permanently banned / terminated store)
+	var blacklisted models.BlacklistedSlug
+	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&blacklisted).Error; err == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
+
+	// 2. Fetch Store from DB
 	var store models.Store
 	if err := database.DB.Preload("Categories", func(db *gorm.DB) *gorm.DB {
 		return db.Where("is_active = true").Order("sort_order ASC, id ASC")
@@ -141,10 +151,34 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
-	if store.DormancyStatus != "suspended" {
-		services.TouchStoreActivity(database.DB, store.ID)
+	// 3. If store is permanently banned or blacklisted, return 404 Not Found
+	if store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
 	}
+
+	// 4. If store is temporarily suspended (dormancy_status == 'suspended'), return firm suspension metadata for dynamic UI
+	if store.DormancyStatus == "suspended" || store.IsSuspended {
+		return c.JSON(fiber.Map{
+			"success":      true,
+			"is_suspended": true,
+			"data": fiber.Map{
+				"id":                    store.ID,
+				"slug":                  store.Slug,
+				"store_title":           store.StoreTitle,
+				"store_logo_url":        store.StoreLogoURL,
+				"dormancy_status":       "suspended",
+				"suspension_reason":     "moderation_violation",
+				"dormancy_suspended_at": store.DormancySuspendedAt,
+				"moderation_notes":      store.SuspensionReason,
+			},
+		})
+	}
+
+	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
+	services.TouchStoreActivity(database.DB, store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -160,6 +194,18 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 			"message": "Toko tidak ditemukan.",
 		})
 	}
+
+	// Check if slug is blacklisted
+	var blacklistedFaunaCount int64
+	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedFaunaCount)
+	if blacklistedFaunaCount > 0 {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"count":   0,
+			"data":    []models.Fauna{},
+		})
+	}
+
 	var store models.Store
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -168,7 +214,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		})
 	}
 
-	if store.DormancyStatus == "suspended" {
+	if store.DormancyStatus == "suspended" || store.DormancyStatus == "banned" || store.IsBlacklisted {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,
@@ -308,6 +354,25 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 			"message": "Toko tidak ditemukan.",
 		})
 	}
+	// Check if slug is blacklisted
+	var blacklistedCount int64
+	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedCount)
+	if blacklistedCount > 0 {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"count":   0,
+			"data":    []models.Product{},
+			"pagination": fiber.Map{
+				"current_page": 1,
+				"per_page":     0,
+				"total_items":  0,
+				"total_pages":  0,
+				"has_next":     false,
+				"has_prev":     false,
+			},
+		})
+	}
+
 	var store models.Store
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -316,7 +381,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	if store.DormancyStatus == "suspended" {
+	if store.DormancyStatus == "suspended" || store.DormancyStatus == "banned" || store.IsBlacklisted {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,
@@ -1047,7 +1112,7 @@ func removeJSONString(jsonBytes datatypes.JSON, val string) datatypes.JSON {
 func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 	user := c.Locals("user").(*models.User)
 	var stores []models.Store
-	if err := database.DB.Where("user_id = ?", user.ID).Order("id asc").Find(&stores).Error; err != nil {
+	if err := database.DB.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&stores).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil daftar katalog toko.",
@@ -1073,8 +1138,12 @@ func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 			"plan":            s.Plan,
 			"payment_status":  s.PaymentStatus,
 			"whatsapp_number": s.WhatsappNumber,
-			"item_count":      itemCount,
-			"created_at":      s.CreatedAt,
+			"item_count":        itemCount,
+			"dormancy_status":   s.DormancyStatus,
+			"is_suspended":      s.IsSuspended || s.DormancyStatus == "suspended",
+			"suspension_reason": s.SuspensionReason,
+			"last_activity_at":  s.LastActivityAt,
+			"created_at":        s.CreatedAt,
 		})
 	}
 
@@ -1148,6 +1217,16 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": fmt.Sprintf("Link username / slug '%s' adalah nama merek sistem Catavor yang dilindungi atau kata kunci yang dicadangkan.", req.StoreSlug),
+		})
+	}
+
+	// Check if slug is blacklisted
+	var blacklistedCreateCount int64
+	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", req.StoreSlug).Count(&blacklistedCreateCount)
+	if blacklistedCreateCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Nama pengguna / slug toko ini telah dinonaktifkan secara permanen oleh platform dan tidak dapat digunakan kembali.",
 		})
 	}
 
@@ -1285,6 +1364,13 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		})
 	}
 
+	if targetStore.DormancyStatus == "banned" || targetStore.IsBlacklisted {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Profil katalog ini telah dinonaktifkan secara permanen oleh platform.",
+		})
+	}
+
 	cfg := config.LoadConfig()
 	newToken, err := middleware.GenerateToken(user, &targetStore, cfg)
 	if err != nil {
@@ -1299,9 +1385,9 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		theme = "navy"
 	}
 
-	// Fetch all stores of user
+	// Fetch all stores of user (excluding banned stores)
 	var allStores []models.Store
-	database.DB.Where("user_id = ?", user.ID).Order("id asc").Find(&allStores)
+	database.DB.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).Order("id asc").Find(&allStores)
 	var storeSummaries []fiber.Map
 	for _, s := range allStores {
 		th := s.StoreTheme
@@ -1319,8 +1405,13 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 			"store_logo_url":  s.StoreLogoURL,
 			"plan":            s.Plan,
 			"payment_status":  s.PaymentStatus,
-			"whatsapp_number": s.WhatsappNumber,
-			"item_count":      itemCount,
+			"whatsapp_number":   s.WhatsappNumber,
+			"item_count":        itemCount,
+			"dormancy_status":   s.DormancyStatus,
+			"is_suspended":      s.IsSuspended || s.DormancyStatus == "suspended",
+			"suspension_reason": s.SuspensionReason,
+			"last_activity_at":  s.LastActivityAt,
+			"created_at":        s.CreatedAt,
 		})
 	}
 

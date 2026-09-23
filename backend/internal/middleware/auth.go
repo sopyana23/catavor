@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 type JWTClaims struct {
@@ -109,12 +111,42 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 
 		// Retrieve user and their stores from DB to guarantee freshest state
 		var user models.User
-		if err := database.DB.Preload("Stores").Preload("Store").First(&user, claims.UserID).Error; err != nil {
+		if err := database.DB.Preload("Stores", func(db *gorm.DB) *gorm.DB {
+			return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
+		}).Preload("Store", func(db *gorm.DB) *gorm.DB {
+			return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
+		}).First(&user, claims.UserID).Error; err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"code":    "USER_NOT_FOUND",
 				"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
 			})
+		}
+
+		isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
+			strings.EqualFold(user.PlatformRole, "support") ||
+			strings.EqualFold(user.PlatformRole, "compliance") ||
+			strings.EqualFold(user.PlatformRole, "admin") ||
+			user.Email == "admin@catavor.com"
+
+		if !isPlatformAdmin && user.IsBlacklisted {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_BANNED",
+				"message": "Akun dan profil katalog Anda telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Sesi login telah dicabut.",
+			})
+		}
+
+		if !isPlatformAdmin && len(user.Stores) == 0 && user.Store == nil {
+			var totalStoresCount int64
+			database.DB.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
+			if totalStoresCount > 0 {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success": false,
+					"code":    "ACCOUNT_BANNED",
+					"message": "Seluruh profil katalog Anda telah dinonaktifkan secara permanen oleh platform karena pelanggaran kepatuhan. Sesi login telah dicabut.",
+				})
+			}
 		}
 
 		c.Locals("user", &user)
@@ -202,7 +234,30 @@ func StoreOwnerRequired() fiber.Handler {
 			if matchedStore == nil {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"success": false,
-					"message": "Akses Ditolak: Anda tidak memiliki otoritas atas toko ini.",
+					"message": "Akses Ditolak: Anda tidak memiliki otoritas atas profil katalog ini.",
+				})
+			}
+
+			if !isPlatformAdminUser && (matchedStore.DormancyStatus == "banned" || matchedStore.IsBlacklisted) {
+				hasOtherActiveStores := false
+				for _, s := range user.Stores {
+					if s.ID != matchedStore.ID && s.DormancyStatus != "banned" && !s.IsBlacklisted {
+						hasOtherActiveStores = true
+						break
+					}
+				}
+				if hasOtherActiveStores {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"success":     false,
+						"code":        "STORE_BANNED_SWITCH_REQUIRED",
+						"message":     fmt.Sprintf("Profil katalog '%s' telah dinonaktifkan secara permanen. Anda dapat beralih ke profil katalog Anda yang lain.", matchedStore.StoreTitle),
+						"banned_slug": matchedStore.Slug,
+					})
+				}
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success": false,
+					"code":    "STORE_BANNED",
+					"message": "Profil katalog ini telah dinonaktifkan secara permanen oleh platform.",
 				})
 			}
 		} else {
@@ -235,6 +290,63 @@ func StoreOwnerRequired() fiber.Handler {
 		c.Locals("store", matchedStore)
 		c.Locals("store_id", matchedStore.ID)
 		c.Locals("store_slug", matchedStore.Slug)
+
+		return c.Next()
+	}
+}
+
+// OperationalStoreRequired blocks mutation actions if store is suspended or banned
+func OperationalStoreRequired() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		user, _ := c.Locals("user").(*models.User)
+		isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
+			strings.EqualFold(user.PlatformRole, "support") ||
+			strings.EqualFold(user.PlatformRole, "compliance") ||
+			user.Email == "admin@catavor.com")
+
+		if isStaff {
+			return c.Next()
+		}
+
+		store, ok := c.Locals("store").(*models.Store)
+		if !ok || store == nil {
+			return c.Next()
+		}
+
+		if store.DormancyStatus == "banned" || store.IsBlacklisted {
+			hasOtherActiveStores := false
+			if user != nil && len(user.Stores) > 0 {
+				for _, s := range user.Stores {
+					if s.ID != store.ID && s.DormancyStatus != "banned" && !s.IsBlacklisted {
+						hasOtherActiveStores = true
+						break
+					}
+				}
+			}
+
+			if hasOtherActiveStores {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success":     false,
+					"code":        "STORE_BANNED_SWITCH_REQUIRED",
+					"message":     fmt.Sprintf("Profil katalog '%s' telah dinonaktifkan secara permanen. Anda dapat beralih ke profil katalog Anda yang lain.", store.StoreTitle),
+					"banned_slug": store.Slug,
+				})
+			}
+
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "STORE_BANNED",
+				"message": "Operasional profil katalog ini telah ditangguhkan secara permanen (Banned) oleh Tim Kepatuhan. Perubahan data tidak diizinkan.",
+			})
+		}
+
+		if store.DormancyStatus == "suspended" || store.IsSuspended {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "STORE_SUSPENDED",
+				"message": "Operasional toko ini sedang dibekukan sementara oleh Tim Kepatuhan. Penambahan atau perubahan data katalog tidak diizinkan selama masa pembekuan. Silakan ajukan banding melalui Pusat Bantuan.",
+			})
+		}
 
 		return c.Next()
 	}

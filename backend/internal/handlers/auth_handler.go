@@ -26,8 +26,9 @@ import (
 var validate = validator.New()
 
 type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email,max=254"`
-	Password string `json:"password" validate:"required,max=72"`
+	Email     string `json:"email" validate:"required,email,max=254"`
+	Password  string `json:"password" validate:"required,max=72"`
+	StoreSlug string `json:"store_slug"`
 }
 
 type RegisterRequest struct {
@@ -85,12 +86,16 @@ type StoreSummary struct {
 	WhatsappNumber   string `json:"whatsapp_number"`
 	DormancyStatus   string `json:"dormancy_status,omitempty"`
 	SuspensionReason string `json:"suspension_reason,omitempty"`
+	IsSuspended      bool   `json:"is_suspended"`
 	IsBlacklisted    bool   `json:"is_blacklisted"`
 }
 
 func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targetSlug string) ([]StoreSummary, StoreSummary) {
 	var list []StoreSummary
 	for _, s := range stores {
+		if s.DormancyStatus == "banned" || s.IsBlacklisted {
+			continue
+		}
 		theme := s.StoreTheme
 		if theme == "" {
 			theme = "navy"
@@ -107,10 +112,11 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			WhatsappNumber:   s.WhatsappNumber,
 			DormancyStatus:   s.DormancyStatus,
 			SuspensionReason: s.SuspensionReason,
+			IsSuspended:      s.IsSuspended || s.DormancyStatus == "suspended",
 			IsBlacklisted:    s.IsBlacklisted,
 		})
 	}
-	if len(list) == 0 && singleStore != nil {
+	if len(list) == 0 && singleStore != nil && singleStore.DormancyStatus != "banned" && !singleStore.IsBlacklisted {
 		theme := singleStore.StoreTheme
 		if theme == "" {
 			theme = "navy"
@@ -127,6 +133,7 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			WhatsappNumber:   singleStore.WhatsappNumber,
 			DormancyStatus:   singleStore.DormancyStatus,
 			SuspensionReason: singleStore.SuspensionReason,
+			IsSuspended:      singleStore.IsSuspended || singleStore.DormancyStatus == "suspended",
 			IsBlacklisted:    singleStore.IsBlacklisted,
 		}
 		list = append(list, summary)
@@ -186,13 +193,52 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, "")
+	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "compliance") ||
+		strings.EqualFold(user.PlatformRole, "admin") ||
+		user.Email == "admin@catavor.com"
+
+	if !isPlatformAdmin && user.IsBlacklisted {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "USER_BLACKLISTED",
+			"message": "Akun Anda telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Surat pemberitahuan resmi telah dikirimkan ke alamat email terdaftar Anda.",
+		})
+	}
+
+	targetSlug := cleanSlug(req.StoreSlug)
+	if targetSlug == "" {
+		targetSlug = cleanSlug(c.Get("X-Store-Slug"))
+	}
+	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+
+	if !isPlatformAdmin && len(storeList) == 0 && (len(user.Stores) > 0 || user.Store != nil) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "ALL_STORES_BANNED",
+			"message": "Akun dan seluruh profil katalog Anda telah dinonaktifkan secara permanen oleh platform karena pelanggaran kepatuhan.",
+		})
+	}
 
 	var primaryStore *models.Store
-	if len(user.Stores) > 0 {
-		primaryStore = &user.Stores[0]
-	} else {
-		primaryStore = user.Store
+	if targetSlug != "" {
+		for i := range user.Stores {
+			if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
+				primaryStore = &user.Stores[i]
+				break
+			}
+		}
+		if primaryStore == nil && user.Store != nil && strings.EqualFold(user.Store.Slug, targetSlug) {
+			primaryStore = user.Store
+		}
+	}
+	if primaryStore == nil {
+		if len(user.Stores) > 0 {
+			primaryStore = &user.Stores[0]
+		} else {
+			primaryStore = user.Store
+		}
 	}
 
 	token, err := middleware.GenerateToken(&user, primaryStore, h.cfg)
@@ -241,8 +287,10 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		"message":             "Login berhasil.",
 		"token":               token,
 		"is_password_changed": user.IsPasswordChanged,
-		"stores":              storeList,
-		"active_store":        activeStore,
+		"stores":                   storeList,
+		"stores_count":             len(storeList),
+		"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
+		"active_store":             activeStore,
 		"user": fiber.Map{
 			"id":                  user.ID,
 			"name":                user.Name,
@@ -355,6 +403,15 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Pendaftaran ditolak: Nama pengguna / slug toko ini telah dinonaktifkan secara permanen dan tidak dapat digunakan kembali.",
+		})
+	}
+
+	var blacklistedSlugCount int64
+	database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", slug).Count(&blacklistedSlugCount)
+	if blacklistedSlugCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Nama pengguna / slug toko ini telah dinonaktifkan secara permanen oleh platform dan tidak dapat digunakan kembali.",
 		})
 	}
 
@@ -647,7 +704,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				avatar = decPic
 			}
 		} else {
-			// Fallback to Google TokenInfo API
+			// Fallback to Google TokenInfo API (for ID Token)
 			resp, err := http.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + credentialStr)
 			if err == nil && resp.StatusCode == http.StatusOK {
 				defer resp.Body.Close()
@@ -663,6 +720,38 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 					name = gMap.Name
 					googleID = gMap.Sub
 					avatar = gMap.Picture
+				}
+			}
+
+			// Fallback: Check if credentialStr is an OAuth2 access_token via Google UserInfo API
+			if email == "" {
+				client := &http.Client{Timeout: 10 * time.Second}
+				uReq, uErr := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
+				if uErr == nil {
+					uReq.Header.Set("Authorization", "Bearer "+credentialStr)
+					uResp, err := client.Do(uReq)
+					if err == nil && uResp.StatusCode == http.StatusOK {
+						defer uResp.Body.Close()
+						uBody, _ := io.ReadAll(uResp.Body)
+						var uMap struct {
+							Email   string `json:"email"`
+							Name    string `json:"name"`
+							Sub     string `json:"sub"`
+							Picture string `json:"picture"`
+						}
+						if err := json.Unmarshal(uBody, &uMap); err == nil && uMap.Email != "" {
+							email = uMap.Email
+							if name == "" {
+								name = uMap.Name
+							}
+							if googleID == "" {
+								googleID = uMap.Sub
+							}
+							if avatar == "" {
+								avatar = uMap.Picture
+							}
+						}
+					}
 				}
 			}
 		}
@@ -693,13 +782,30 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			database.DB.Save(&user)
 		}
 
-		storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, "")
+		targetSlug := cleanSlug(req.StoreSlug)
+		if targetSlug == "" {
+			targetSlug = cleanSlug(c.Get("X-Store-Slug"))
+		}
+		storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
 
 		var primaryStore *models.Store
-		if len(user.Stores) > 0 {
-			primaryStore = &user.Stores[0]
-		} else {
-			primaryStore = user.Store
+		if targetSlug != "" {
+			for i := range user.Stores {
+				if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
+					primaryStore = &user.Stores[i]
+					break
+				}
+			}
+			if primaryStore == nil && user.Store != nil && strings.EqualFold(user.Store.Slug, targetSlug) {
+				primaryStore = user.Store
+			}
+		}
+		if primaryStore == nil {
+			if len(user.Stores) > 0 {
+				primaryStore = &user.Stores[0]
+			} else {
+				primaryStore = user.Store
+			}
 		}
 
 		token, err := middleware.GenerateToken(&user, primaryStore, h.cfg)
@@ -724,8 +830,10 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			"message":             "Login Google berhasil!",
 			"token":               token,
 			"is_password_changed": true,
-			"stores":              storeList,
-			"active_store":        activeStore,
+			"stores":                   storeList,
+			"stores_count":             len(storeList),
+			"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
+			"active_store":             activeStore,
 			"user": fiber.Map{
 				"id":                  user.ID,
 				"name":                user.Name,
@@ -918,6 +1026,20 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 		})
 	}
 
+	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "compliance") ||
+		strings.EqualFold(user.PlatformRole, "admin") ||
+		user.Email == "admin@catavor.com"
+
+	if !isPlatformAdmin && user.IsBlacklisted {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "ACCOUNT_BANNED",
+			"message": "Akun dan profil katalog Anda telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Sesi login telah dicabut.",
+		})
+	}
+
 	targetSlug := c.Get("X-Store-Slug")
 	if targetSlug == "" {
 		if s, ok := c.Locals("store_slug").(string); ok && s != "" {
@@ -925,6 +1047,18 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 		}
 	}
 	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+
+	if !isPlatformAdmin && len(storeList) == 0 {
+		var totalStoresCount int64
+		database.DB.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
+		if totalStoresCount > 0 {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_BANNED",
+				"message": "Seluruh profil katalog Anda telah dinonaktifkan secara permanen oleh platform karena pelanggaran kepatuhan. Sesi login telah dicabut.",
+			})
+		}
+	}
 
 	return c.JSON(fiber.Map{
 		"success":             true,
@@ -962,8 +1096,34 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
+	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
+		strings.EqualFold(user.PlatformRole, "support") ||
+		strings.EqualFold(user.PlatformRole, "compliance") ||
+		strings.EqualFold(user.PlatformRole, "admin") ||
+		user.Email == "admin@catavor.com"
+
+	if !isPlatformAdmin && user.IsBlacklisted {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "ACCOUNT_BANNED",
+			"message": "Akun dan profil katalog Anda telah dinonaktifkan secara permanen karena pelanggaran pedoman platform. Sesi login telah dicabut.",
+		})
+	}
+
 	targetSlug := c.Get("X-Store-Slug")
 	storeList, activeStore := buildStoreSummaries(user.Stores, user.Store, targetSlug)
+
+	if !isPlatformAdmin && len(storeList) == 0 {
+		var totalStoresCount int64
+		database.DB.Model(&models.Store{}).Where("user_id = ?", user.ID).Count(&totalStoresCount)
+		if totalStoresCount > 0 {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_BANNED",
+				"message": "Seluruh profil katalog Anda telah dinonaktifkan secara permanen oleh platform karena pelanggaran kepatuhan. Sesi login telah dicabut.",
+			})
+		}
+	}
 
 	var currentStore *models.Store
 	if activeStore.ID > 0 {

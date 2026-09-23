@@ -995,7 +995,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // States: Division Data
   const [reports, setReports] = useState<any[]>([]);
-  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 'action_taken' | 'resolved' | 'dismissed'>('all');
+  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 'action_taken' | 'banned' | 'resolved' | 'dismissed'>('all');
   const [reportsTargetFilter, setReportsTargetFilter] = useState<'all' | 'item' | 'catalog'>('all');
   const [reportsSearchQuery, setReportsSearchQuery] = useState<string>('');
   const [debouncedReportsSearch, setDebouncedReportsSearch] = useState<string>('');
@@ -1004,6 +1004,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [moderationAction, setModerationAction] = useState<string>('none');
   const [moderationNotes, setModerationNotes] = useState<string>('');
   const [isSubmittingModeration, setIsSubmittingModeration] = useState<boolean>(false);
+  const [showModerationConfirmModal, setShowModerationConfirmModal] = useState<boolean>(false);
+  const [bannedConfirmModalReport, setBannedConfirmModalReport] = useState<any | null>(null);
+  const [bannedConfirmInput, setBannedConfirmInput] = useState<string>('');
+  const [bannedConfirmAcknowledged, setBannedConfirmAcknowledged] = useState<boolean>(false);
   const [reportsPagination, setReportsPagination] = useState<{ page: number; limit: number; total: number; total_pages: number }>({ page: 1, limit: 20, total: 0, total_pages: 1 });
   const [reportMetrics, setReportMetrics] = useState<any | null>(null);
   const [reportActiveEvidence, setReportActiveEvidence] = useState<any[]>([]);
@@ -2668,17 +2672,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         })
       });
       if (res.ok) {
-        showToast('laporan berhasil diperbaharui', 'success');
+        showToast('Tindakan moderasi berhasil diterapkan dan audit trail tercatat', 'success');
         fetchReportsList(reportsPagination.page);
+        setShowModerationConfirmModal(false);
+        setBannedConfirmInput('');
         handleCloseModerationPage();
       } else {
         const errData = await res.json().catch(() => ({}));
         if (errData?.message) console.error('Update report error:', errData.message);
-        showToast('laporan gagal diperbaharui', 'error');
+        showToast(errData?.message || 'Laporan gagal diperbaharui', 'error');
       }
     } catch (err) {
       console.error('Update report error:', err);
-      showToast('laporan gagal diperbaharui', 'error');
+      showToast('Terjadi kesalahan saat memproses moderasi', 'error');
     } finally {
       setIsSubmittingModeration(false);
     }
@@ -5172,11 +5178,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.65rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.55rem' }}>
                 {[
                   { value: 'investigating', label: 'Investigasi Aktif', color: '#f59e0b', desc: 'Audit sedang berjalan & verifikasi bukti' },
-                  { value: 'action_taken', label: 'Tindakan Diambil', color: '#f43f5e', desc: 'Sanksi telah dijatuhkan ke toko / item' },
-                  { value: 'resolved', label: 'Diselesaikan', color: '#10b981', desc: 'Ditutup tanpa sanksi lanjutan' },
+                  { value: 'action_taken', label: 'Sanksi Ditindak', color: '#f43f5e', desc: 'Sanksi sementara/teguran dijatuhkan' },
+                  { value: 'banned', label: 'Banned Permanen', color: '#ef4444', desc: 'Blokir permanen seluruh akses toko/item' },
+                  { value: 'resolved', label: 'Diselesaikan', color: '#10b981', desc: 'Ditutup/dipulihkan tanpa sanksi lanjutan' },
                   { value: 'dismissed', label: 'Ditolak (Dismiss)', color: '#64748b', desc: 'Laporan tidak valid atau palsu' }
                 ].map(opt => {
                   const isSelected = moderationStatus === opt.value;
@@ -5280,6 +5287,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         badgeColor: '#dc2626',
                         info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
                       };
+                    case 'catalog_banned':
+                      return {
+                        label: 'Blokir / Banned Permanen Toko',
+                        desc: 'Tutup akses publik katalog dan akun pemilik secara permanen',
+                        icon: ShieldAlert,
+                        color: '#b91c1c',
+                        badge: 'BANNED',
+                        badgeColor: '#b91c1c',
+                        info: 'Seketika mengubah status dormansi toko menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
+                      };
                     case 'catalog_reactivated':
                       return {
                         label: 'Pulihkan / Aktifkan Toko',
@@ -5350,6 +5367,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             label: 'Bekukan / Suspend Toko',
                             desc: 'Seluruh etalase toko dan produk dibekukan sementara dari akses publik secara real-time',
                             info: 'Seketika mengubah status dormansi toko menjadi Suspended. Seluruh etalase toko dan produknya dinonaktifkan sementara dari akses publik secara real-time.'
+                          },
+                          {
+                            value: 'catalog_banned',
+                            label: 'Blokir / Banned Permanen Toko',
+                            desc: 'Nonaktifkan akses publik katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
+                            info: 'Seketika mengubah status dormansi toko menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
                           },
                           {
                             value: 'catalog_reactivated',
@@ -5526,13 +5549,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 type="button"
                 disabled={isSubmittingModeration}
                 onClick={() => {
-                  handleUpdateReportStatus(
-                    moderationModalReport.id,
-                    moderationStatus,
-                    moderationAction,
-                    moderationNotes,
-                    true
-                  );
+                  if (moderationAction === 'catalog_banned' || moderationAction === 'account_banned' || moderationStatus === 'banned') {
+                    setBannedConfirmModalReport(moderationModalReport);
+                    setBannedConfirmAcknowledged(false);
+                    setShowModerationConfirmModal(true);
+                  } else {
+                    handleUpdateReportStatus(
+                      moderationModalReport.id,
+                      moderationStatus,
+                      moderationAction,
+                      moderationNotes,
+                      true
+                    );
+                  }
                 }}
                 style={{
                   flex: 2,
@@ -5567,23 +5596,29 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ========================================================================= */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           {/* Quick Metrics Bar */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.55rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.55rem' }}>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Menunggu Review</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f59e0b' }}>
-                {reports.filter(r => r.status === 'pending').length}
+                {reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length}
               </span>
             </div>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Investigasi Aktif</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#38bdf8' }}>
-                {reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
+                {reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
               </span>
             </div>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Tindakan Sanksi</span>
+              <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Sanksi Ditindak</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f43f5e' }}>
-                {reports.filter(r => r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')).length}
+                {reportMetrics ? reportMetrics.action_taken : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
+              </span>
+            </div>
+            <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <span style={{ fontSize: '0.66rem', color: '#ef4444', fontWeight: 700 }}>Banned Permanen</span>
+              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ef4444' }}>
+                {reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
               </span>
             </div>
           </div>
@@ -5614,12 +5649,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {/* Filter Status Chips */}
           <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
             {[
-              { id: 'all', label: 'Semua', count: reports.length },
-              { id: 'pending', label: 'Menunggu', count: reports.filter(r => r.status === 'pending').length },
-              { id: 'investigating', label: 'Investigasi', count: reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
-              { id: 'action_taken', label: 'Ditindak', count: reports.filter(r => r.status === 'action_taken').length },
-              { id: 'dismissed', label: 'Ditolak', count: reports.filter(r => r.status === 'dismissed').length },
-              { id: 'resolved', label: 'Selesai', count: reports.filter(r => r.status === 'resolved').length },
+              { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
+              { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
+              { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
+              { id: 'action_taken', label: 'Ditindak Sanksi', count: reportMetrics ? reportMetrics.action_taken : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+              { id: 'banned', label: 'Banned Permanen', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
+              { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
+              { id: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length },
             ].map(f => (
               <button
                 key={f.id}
@@ -5629,9 +5665,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   borderRadius: '999px',
                   fontSize: '0.72rem',
                   fontWeight: 700,
-                  backgroundColor: reportsFilter === f.id ? '#f43f5e' : theme.chipInactiveBg,
+                  backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : '#f43f5e') : theme.chipInactiveBg,
                   color: reportsFilter === f.id ? '#ffffff' : theme.chipInactiveText,
-                  border: `1px solid ${reportsFilter === f.id ? '#f43f5e' : theme.border}`,
+                  border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : '#f43f5e') : theme.border}`,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'flex',
@@ -5686,6 +5722,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               if (reportsFilter !== 'all') {
                 if (reportsFilter === 'investigating') {
                   if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                } else if (reportsFilter === 'banned') {
+                  if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
+                } else if (reportsFilter === 'action_taken') {
+                  if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
                 } else if (r.status !== reportsFilter) {
                   return false;
                 }
@@ -5722,6 +5762,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 if (reportsFilter !== 'all') {
                   if (reportsFilter === 'investigating') {
                     if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                  } else if (reportsFilter === 'banned') {
+                    if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
+                  } else if (reportsFilter === 'action_taken') {
+                    if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
                   } else if (r.status !== reportsFilter) {
                     return false;
                   }
@@ -5751,10 +5795,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
+                  banned: { label: '🚫 Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
                   dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
                   resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
                 };
-                const currentBadge = statusBadgeMap[r.status] || statusBadgeMap.pending;
+                const currentBadge = (r.status === 'banned' || r.action_taken === 'catalog_banned')
+                  ? statusBadgeMap.banned
+                  : (statusBadgeMap[r.status] || statusBadgeMap.pending);
 
                 const hasAction = r.action_taken && r.action_taken !== 'none';
                 const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
@@ -5762,9 +5809,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   ? 'Item Dinonaktifkan' 
                   : r.action_taken === 'catalog_suspended' 
                   ? 'Katalog Dibekukan' 
+                  : r.action_taken === 'catalog_banned'
+                  ? 'Katalog Dibanned Permanen'
                   : r.action_taken === 'warning_issued' 
                   ? 'Diberi Peringatan' 
                   : (r.action_taken || '');
+
+                const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned';
 
                 return (
                   <div
@@ -5773,10 +5824,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       padding: '0.9rem 1.1rem',
                       borderRadius: '0.95rem',
                       backgroundColor: theme.surface,
-                      border: r.status === 'pending' 
-                        ? '1px solid rgba(245, 158, 11, 0.4)' 
-                        : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`),
-                      boxShadow: theme.cardShadow,
+                      border: isItemBanned
+                        ? '1px solid rgba(239, 68, 68, 0.55)'
+                        : (r.status === 'pending' 
+                            ? '1px solid rgba(245, 158, 11, 0.4)' 
+                            : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`)),
+                      boxShadow: isItemBanned ? '0 4px 14px rgba(239, 68, 68, 0.12)' : theme.cardShadow,
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.65rem',
@@ -5895,16 +5948,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <span style={{
                             padding: '0.22rem 0.55rem',
                             borderRadius: '0.45rem',
-                            backgroundColor: isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
-                            border: `1px solid ${isRestored ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                            backgroundColor: isRestored 
+                              ? 'rgba(16, 185, 129, 0.12)' 
+                              : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(244, 63, 94, 0.12)'),
+                            border: `1px solid ${isRestored 
+                              ? 'rgba(16, 185, 129, 0.3)' 
+                              : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(244, 63, 94, 0.3)')}`,
                             fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: isRestored ? (isDark ? '#34d399' : '#059669') : '#f43f5e',
+                            fontWeight: 800,
+                            color: isRestored 
+                              ? (isDark ? '#34d399' : '#059669') 
+                              : (r.action_taken === 'catalog_banned' ? '#ef4444' : '#f43f5e'),
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.3rem'
                           }}>
-                            <span>⚡ {actionLabel}</span>
+                            <span>{r.action_taken === 'catalog_banned' ? '🚫' : '⚡'} {actionLabel}</span>
                           </span>
                         )}
                       </div>
@@ -14375,6 +14434,235 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
+
+      {/* ========================================================================= */}
+      {/* MODAL KONFIRMASI AKSI BANNED PERMANEN                                     */}
+      {/* ========================================================================= */}
+      {showModerationConfirmModal && (
+        <div 
+          className="animate-fade-in"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmittingModeration) {
+              setShowModerationConfirmModal(false);
+            }
+          }}
+        >
+          <div 
+            style={{
+              width: '100%',
+              maxWidth: '540px',
+              borderRadius: '1.25rem',
+              backgroundColor: isDark ? '#0f172a' : '#ffffff',
+              border: '1px solid rgba(239, 68, 68, 0.45)',
+              boxShadow: '0 25px 65px rgba(239, 68, 68, 0.22), 0 0 0 1px rgba(239, 68, 68, 0.15)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Modal Header Bar */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(225, 29, 72, 0.05) 100%)',
+              borderBottom: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.15)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  boxShadow: '0 0 18px rgba(239, 68, 68, 0.25)'
+                }}>
+                  <ShieldAlert size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                    Konfirmasi Banned Permanen
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>
+                    Tindakan Berdampak Permanen &amp; Tidak Dapat Dibatal Kembali
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSubmittingModeration && setShowModerationConfirmModal(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: 'transparent',
+                  color: theme.textSecondary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Content Body */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+              {/* Target Metadata Card */}
+              <div style={{
+                padding: '1rem 1.15rem',
+                borderRadius: '0.85rem',
+                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(241, 245, 249, 0.8)',
+                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.2)'}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700 }}>Profil Katalog Terlapor:</span>
+                  <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: 800 }}>
+                    #{bannedConfirmModalReport?.report_number || moderationModalReport?.report_number || '-'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Store size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                  <span>{bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Toko Katalog'}</span>
+                </div>
+                {(bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug) && (
+                  <div style={{ fontSize: '0.76rem', color: theme.textSecondary, fontFamily: 'monospace' }}>
+                    catavor.com/{bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug}
+                  </div>
+                )}
+              </div>
+
+              {/* Warning List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Dampak langsung dari eksekusi sanksi banned ini:
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                    <span><strong>Purge Data Profil &amp; Produk:</strong> Seluruh data produk, etalase, galeri foto, dan media fisik katalog akan dihapus/dibersihkan dari platform.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    <Lock size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                    <span><strong>Penguncian Slug Permanen:</strong> Slug <code>{bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug}</code> didaftarkan ke tabel <em>blacklisted_slugs</em> dan tidak dapat didaftarkan ulang.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.78rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    <Globe size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                    <span><strong>Respons 404 Server Publik:</strong> Pengunjung yang membuka alamat URL ini akan menerima tampilan Error 404 Default Platform.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Acknowledgment Checkbox */}
+              <label 
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.65rem',
+                  padding: '0.75rem 0.95rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(254, 242, 242, 0.8)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  cursor: 'pointer',
+                  userSelect: 'none'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={bannedConfirmAcknowledged}
+                  onChange={(e) => setBannedConfirmAcknowledged(e.target.checked)}
+                  style={{ marginTop: '3px', accentColor: '#ef4444', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, lineHeight: 1.45 }}>
+                  Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen ini.
+                </span>
+              </label>
+
+              {/* Modal Buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.35rem' }}>
+                <button
+                  type="button"
+                  disabled={isSubmittingModeration}
+                  onClick={() => setShowModerationConfirmModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '0.8rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: 'transparent',
+                    color: theme.textSecondary,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
+                  onClick={() => {
+                    handleUpdateReportStatus(
+                      moderationModalReport.id,
+                      moderationStatus,
+                      moderationAction,
+                      moderationNotes,
+                      true
+                    );
+                  }}
+                  style={{
+                    flex: 1.8,
+                    padding: '0.8rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: 'none',
+                    backgroundColor: bannedConfirmAcknowledged ? '#ef4444' : (isDark ? '#334155' : '#cbd5e1'),
+                    color: bannedConfirmAcknowledged ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    boxShadow: bannedConfirmAcknowledged ? '0 4px 18px rgba(239, 68, 68, 0.4)' : 'none',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  {isSubmittingModeration ? (
+                    <RefreshCw size={15} className="animate-spin" />
+                  ) : (
+                    <ShieldAlert size={15} />
+                  )}
+                  <span>Ya, Banned &amp; Purge Data</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Scroll to Top Button (Only on ticket queue/dashboard, hidden in chat room, master data, create broadcast form & kelola tindakan) */}
       {showScrollTop && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && !moderationModalReport && (

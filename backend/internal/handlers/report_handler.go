@@ -9,14 +9,17 @@ import (
 	"net/smtp"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
@@ -75,10 +78,11 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	}
 
 	// 2. Direct DB Aggregation fallback
-	var pendingCount, investigatingCount, actionCount, dismissedCount, resolvedCount, totalCount int64
+	var pendingCount, investigatingCount, actionCount, bannedCount, dismissedCount, resolvedCount, totalCount int64
 	db.Model(&models.Report{}).Where("status = ?", "pending").Count(&pendingCount)
 	db.Model(&models.Report{}).Where("status = ?", "investigating").Count(&investigatingCount)
 	db.Model(&models.Report{}).Where("status = ?", "action_taken").Count(&actionCount)
+	db.Model(&models.Report{}).Where("status = ? OR action_taken = 'catalog_banned'", "banned").Count(&bannedCount)
 	db.Model(&models.Report{}).Where("status = ?", "dismissed").Count(&dismissedCount)
 	db.Model(&models.Report{}).Where("status = ?", "resolved").Count(&resolvedCount)
 	db.Model(&models.Report{}).Count(&totalCount)
@@ -87,6 +91,7 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 		"pending":       pendingCount,
 		"investigating": investigatingCount,
 		"action_taken":  actionCount,
+		"banned":        bannedCount,
 		"dismissed":     dismissedCount,
 		"resolved":      resolvedCount,
 		"total":         totalCount,
@@ -472,6 +477,37 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		actionTaken = security.SanitizePlainText(req.ActionTaken, 100)
 	}
 
+	if actionTaken == "catalog_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
+		newStatus = "banned"
+	}
+	if actionTaken == "catalog_suspended" && (newStatus == "" || newStatus == "investigating" || newStatus == "pending") {
+		newStatus = "action_taken"
+	}
+	if actionTaken == "catalog_reactivated" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating") {
+		newStatus = "resolved"
+	}
+
+	// Automatic Failsafe: Promote action_taken if status is banned/resolved/action_taken but action_taken was omitted or none
+	if newStatus == "banned" && (actionTaken == "" || actionTaken == "none") {
+		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
+			actionTaken = "item_hidden"
+		} else {
+			actionTaken = "catalog_banned"
+		}
+	} else if newStatus == "action_taken" && (actionTaken == "" || actionTaken == "none") {
+		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
+			actionTaken = "item_hidden"
+		} else {
+			actionTaken = "catalog_suspended"
+		}
+	} else if newStatus == "resolved" && (actionTaken == "" || actionTaken == "none") {
+		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
+			actionTaken = "item_restored"
+		} else {
+			actionTaken = "catalog_reactivated"
+		}
+	}
+
 	applyEnforcement := true
 	if req.ApplyEnforcement != nil {
 		applyEnforcement = *req.ApplyEnforcement
@@ -497,6 +533,17 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	var notificationCreated *models.Notification
+
+	// Capture merchant owner email beforehand for transactional email dispatch
+	merchantOwnerEmail := ""
+	if report.StoreID > 0 {
+		var s models.Store
+		if err := database.DB.Preload("User").Where("id = ?", report.StoreID).First(&s).Error; err == nil {
+			if s.User != nil && s.User.Email != "" {
+				merchantOwnerEmail = s.User.Email
+			}
+		}
+	}
 
 	// 1. ACID DATABASE TRANSACTION (TRY - CATCH - AUTO-ROLLBACK)
 	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -556,9 +603,16 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				if report.StoreID > 0 {
 					if err := tx.Model(&models.Store{}).Where("id = ?", report.StoreID).Updates(map[string]interface{}{
 						"dormancy_status":       "suspended",
+						"is_suspended":          true,
 						"suspension_reason":     "moderation_violation",
 						"dormancy_suspended_at": &now,
 					}).Error; err != nil {
+						return err
+					}
+				}
+			case "catalog_banned", "account_banned":
+				if report.StoreID > 0 {
+					if err := purgeBannedStore(tx, report.StoreID, report.StoreSlug, report.StoreTitle, report.ReportNumber, report.ReasonLabel, actorName); err != nil {
 						return err
 					}
 				}
@@ -566,6 +620,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				if report.StoreID > 0 {
 					if err := tx.Model(&models.Store{}).Where("id = ?", report.StoreID).Updates(map[string]interface{}{
 						"dormancy_status":       "active",
+						"is_suspended":          false,
 						"suspension_reason":     "none",
 						"dormancy_suspended_at": nil,
 					}).Error; err != nil {
@@ -576,7 +631,8 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 
 		// D. Generate In-App Notification for Merchant (models.Notification)
-		if report.StoreID > 0 && actionTaken != "none" {
+		// For permanently banned catalogs, do NOT generate in-app notification because the store and merchant access have been terminated.
+		if report.StoreID > 0 && actionTaken != "none" && actionTaken != "catalog_banned" {
 			targetEntityName := report.StoreTitle
 			itemTypeLabel := ""
 			rawItemType := report.ItemType
@@ -679,16 +735,16 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	// B. Dispatch Transactional Email via SMTP (in background goroutine)
-	merchantEmail := ""
-	if report.Store != nil && report.Store.User != nil && report.Store.User.Email != "" {
-		merchantEmail = report.Store.User.Email
+	targetRecipientEmail := merchantOwnerEmail
+	if targetRecipientEmail == "" && report.Store != nil && report.Store.User != nil {
+		targetRecipientEmail = report.Store.User.Email
 	}
-	if merchantEmail != "" && actionTaken != "none" {
+	if targetRecipientEmail != "" && actionTaken != "none" {
 		targetEntityName := report.StoreTitle
 		if report.TargetType == "item" && report.ItemName != "" {
 			targetEntityName = report.ItemName
 		}
-		go sendModerationEmail(merchantEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber)
+		go sendModerationEmail(targetRecipientEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber)
 	}
 
 	// C. Invalidate Redis Metrics Cache
@@ -747,6 +803,11 @@ func buildModerationNotificationContent(actionTaken, targetName, reportNumber st
 			fmt.Sprintf("Operasional profil katalog \"%s\" ditangguhkan sementara (#%s). Buka rincian untuk informasi banding.", targetName, reportNumber),
 			"warning",
 			"Ajukan Banding Kepatuhan →"
+	case "catalog_banned":
+		return "Penonaktifan Permanen Akun & Katalog",
+			fmt.Sprintf("Profil katalog \"%s\" telah ditangguhkan secara permanen (#%s). Buka rincian untuk informasi banding kepatuhan.", targetName, reportNumber),
+			"danger",
+			"Ajukan Banding Kepatuhan →"
 	case "catalog_reactivated":
 		return "Pemulihan Operasional Profil Katalog",
 			fmt.Sprintf("Penangguhan untuk profil katalog \"%s\" telah dicabut. Akses kembali normal.", targetName),
@@ -776,6 +837,9 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	case "catalog_suspended":
 		actionHeadline = "Penangguhan Operasional Profil Katalog"
 		actionExplanation = fmt.Sprintf("Operasional profil katalog **%s** telah ditangguhkan sementara terkait indikasi pelanggaran kebijakan komunitas. Seluruh akses publik dan tautan transaksi dijeda sementara.", storeTitle)
+	case "catalog_banned":
+		actionHeadline = "Penonaktifan Permanen Profil Katalog & Akun (Banned)"
+		actionExplanation = fmt.Sprintf("Akses publik ke profil katalog **%s** dan akun pemilik telah ditangguhkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran berat terhadap pedoman platform atau masa sanggahan banding telah kedaluwarsa.", storeTitle)
 	case "catalog_reactivated":
 		actionHeadline = "Pemulihan Operasional Profil Katalog"
 		actionExplanation = fmt.Sprintf("Penangguhan atas profil katalog **%s** telah resmi dicabut setelah peninjauan komprehensif. Operasional profil katalog kini telah kembali normal dan aktif sepenuhnya.", storeTitle)
@@ -851,6 +915,10 @@ func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNote
 		subject = fmt.Sprintf("[Catavor Kepatuhan] PEMBERITAHUAN PENANGGUHAN PROFIL KATALOG - #%s", reportNumber)
 		headline = "Pemberitahuan Penangguhan Operasional Profil Katalog"
 		actionDesc = fmt.Sprintf("Operasional profil katalog <strong>%s</strong> telah ditangguhkan sementara terkait pelanggaran standar komunitas.", storeTitle)
+	case "catalog_banned":
+		subject = fmt.Sprintf("[Catavor Kepatuhan] Keputusan Final: Penonaktifan Permanen Profil Katalog '%s' - #%s", storeTitle, reportNumber)
+		headline = "Pemberitahuan Penonaktifan Permanen Profil Katalog"
+		actionDesc = fmt.Sprintf("Berdasarkan evaluasi menyeluruh atas pelanggaran terhadap Syarat Layanan dan Pedoman Komunitas Catavor, operasional profil katalog <strong>%s</strong> telah <strong>ditutup dan dinonaktifkan secara permanen</strong>. Seluruh data katalog terkait telah dibersihkan secara permanen dan nama profil telah dimasukkan ke dalam daftar terlarang sistem.<br><br><strong>Pemberitahuan Status Akun:</strong> Sanksi ini berlaku khusus untuk profil katalog di atas. Identitas akun Anda beserta <strong>profil katalog Anda yang lain tetap aman, aktif, dan dapat dikelola secara normal</strong> melalui Portal Katalog Catavor.", storeTitle)
 	case "catalog_reactivated":
 		subject = fmt.Sprintf("[Catavor Kepatuhan] Pemulihan Operasional Profil Katalog Berhasil - #%s", reportNumber)
 		headline = "Konfirmasi Pemulihan Akun Profil Katalog"
@@ -905,3 +973,158 @@ Salam hangat,<br>
 			Msg("SMTP not configured in local environment; simulated moderation email logged successfully")
 	}
 }
+
+// extractStorageKeyFromURL parses the object key from standard or local upload URLs
+func extractStorageKeyFromURL(rawURL string) string {
+	clean := strings.TrimSpace(rawURL)
+	if clean == "" {
+		return ""
+	}
+	if idx := strings.Index(clean, "/uploads/"); idx != -1 {
+		return strings.TrimLeft(clean[idx+len("/uploads/"):], "/")
+	}
+	return strings.TrimLeft(clean, "/")
+}
+
+// purgeBannedStore safely and permanently bans a catalog store, deactivates all products,
+// secures the slug in blacklisted_slugs, and cleans media files while preserving database integrity
+// and relational foreign keys (reports, activity_logs, support_tickets).
+func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNumber, reasonLabel, reviewerName string) error {
+	if storeID == 0 {
+		return nil
+	}
+
+	var store models.Store
+	if err := tx.Where("id = ?", storeID).First(&store).Error; err != nil {
+		return err
+	}
+
+	cleanSlug := strings.ToLower(strings.TrimSpace(storeSlug))
+	if cleanSlug == "" && store.Slug != "" {
+		cleanSlug = strings.ToLower(strings.TrimSpace(store.Slug))
+	}
+	if storeTitle == "" && store.StoreTitle != "" {
+		storeTitle = store.StoreTitle
+	}
+
+	now := time.Now().UTC()
+
+	// 1. Fetch Owner Email for Blacklist metadata
+	var ownerEmail string
+	if store.UserID > 0 {
+		var u models.User
+		if err := tx.Select("id, email").Where("id = ?", store.UserID).First(&u).Error; err == nil {
+			ownerEmail = u.Email
+		}
+	}
+
+	// 2. Insert into blacklisted_slugs table (safe check with Count to avoid ErrRecordNotFound in Postgres tx)
+	if cleanSlug != "" {
+		var count int64
+		_ = tx.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanSlug).Count(&count).Error
+		if count == 0 {
+			bannedRecord := models.BlacklistedSlug{
+				Slug:         cleanSlug,
+				StoreTitle:   storeTitle,
+				OwnerEmail:   ownerEmail,
+				Reason:       reasonLabel,
+				BannedBy:     reviewerName,
+				ReportNumber: reportNumber,
+				BannedAt:     now,
+				CreatedAt:    now,
+			}
+			if err := tx.Create(&bannedRecord).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	// 3. Update Store Status in database: mark as banned, blacklisted, and record timestamp
+	if err := tx.Model(&models.Store{}).Where("id = ?", storeID).Updates(map[string]interface{}{
+		"dormancy_status":       "banned",
+		"is_suspended":          true,
+		"is_blacklisted":        true,
+		"dormancy_banned_at":    &now,
+		"suspension_reason":     "moderation_violation",
+	}).Error; err != nil {
+		return err
+	}
+
+	// 4. Deactivate and hide all products of this store in catalog
+	if err := tx.Model(&models.Product{}).Where("store_id = ?", storeID).Updates(map[string]interface{}{
+		"is_active":             false,
+		"moderation_status":     "banned",
+		"moderation_reason":     reasonLabel,
+		"is_shipping_available": false,
+	}).Error; err != nil {
+		return err
+	}
+
+	// 5. Update User Status if owner has no other active stores
+	if store.UserID > 0 {
+		var remainingActiveCount int64
+		_ = tx.Model(&models.Store{}).
+			Where("user_id = ? AND id != ? AND dormancy_status != 'banned' AND is_blacklisted = false", store.UserID, storeID).
+			Count(&remainingActiveCount).Error
+		if remainingActiveCount == 0 {
+			_ = tx.Model(&models.User{}).Where("id = ?", store.UserID).Update("is_blacklisted", true).Error
+		}
+	}
+
+	// 6. Asynchronously Clean Physical Media Files (Logo, Banner, Products images)
+	cfg := config.LoadConfig()
+	strg, _ := storage.NewStorageService(cfg)
+	ctx := context.Background()
+
+	if store.StoreLogoURL != "" && strg != nil {
+		if k := extractStorageKeyFromURL(store.StoreLogoURL); k != "" {
+			_ = strg.Delete(ctx, k)
+		}
+	}
+	if store.PromoBanner != "" && strg != nil {
+		if k := extractStorageKeyFromURL(store.PromoBanner); k != "" {
+			_ = strg.Delete(ctx, k)
+		}
+	}
+
+	// Delete Product images from storage
+	var products []models.Product
+	if err := tx.Preload("Images").Where("store_id = ?", storeID).Find(&products).Error; err == nil {
+		for _, prod := range products {
+			if prod.ImageURL != "" && strg != nil {
+				if k := extractStorageKeyFromURL(prod.ImageURL); k != "" {
+					_ = strg.Delete(ctx, k)
+				}
+			}
+			for _, pImg := range prod.Images {
+				if pImg.ImageURL != "" && strg != nil {
+					if k := extractStorageKeyFromURL(pImg.ImageURL); k != "" {
+						_ = strg.Delete(ctx, k)
+					}
+				}
+			}
+		}
+	}
+
+	// Clean local directory folders on disk if local storage driver is used
+	if cfg.StorageLocalRoot != "" {
+		_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", storeID)))
+		_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", storeID)))
+	}
+	if cfg.StorageDir != "" {
+		_ = os.RemoveAll(filepath.Join(cfg.StorageDir, "stores", fmt.Sprintf("%d", storeID)))
+	}
+
+	log.Info().
+		Uint("store_id", storeID).
+		Str("slug", cleanSlug).
+		Str("report", reportNumber).
+		Msg("Permanently banned store, locked slug in blacklisted_slugs, and purged media files safely.")
+
+	if ownerEmail != "" {
+		go services.SendSingleCatalogBannedEmail(ownerEmail, storeTitle, cleanSlug, reportNumber, reasonLabel, reviewerName)
+	}
+
+	return nil
+}
+

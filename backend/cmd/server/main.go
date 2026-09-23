@@ -214,22 +214,23 @@ func main() {
 
 	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)
 	guarded := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired())
+	// Guarded Mutation Endpoints (Requires Active/Operational Store - Blocks Banned/Suspended Stores)
+	guardedMutations := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
 	{
-
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
-		guarded.Post("/storage/upload", storageHandler.Upload)
-		guarded.Delete("/storage/file", storageHandler.DeleteFile)
-		guarded.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
+		guardedMutations.Post("/storage/upload", storageHandler.Upload)
+		guardedMutations.Delete("/storage/file", storageHandler.DeleteFile)
+		guardedMutations.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
 
 		// CRUD Modern Product & Category
-		guarded.Post("/products", productHandler.Store)
-		guarded.Put("/products/:id", productHandler.Update)
-		guarded.Delete("/products/:id", productHandler.Destroy)
+		guardedMutations.Post("/products", productHandler.Store)
+		guardedMutations.Put("/products/:id", productHandler.Update)
+		guardedMutations.Delete("/products/:id", productHandler.Destroy)
 
 		guarded.Get("/admin/categories", categoryHandler.Index)
-		guarded.Post("/categories", categoryHandler.Store)
-		guarded.Put("/categories/:id", categoryHandler.Update)
-		guarded.Delete("/categories/:id", categoryHandler.Destroy)
+		guardedMutations.Post("/categories", categoryHandler.Store)
+		guardedMutations.Put("/categories/:id", categoryHandler.Update)
+		guardedMutations.Delete("/categories/:id", categoryHandler.Destroy)
 
 		// Support Tickets & Live Chat Conversations (with normalized attachments)
 		guarded.Get("/support/tickets", supportHandler.ListMyTickets)
@@ -255,25 +256,25 @@ func main() {
 		guarded.Post("/admin/support/templates/reset-defaults", supportHandler.ResetDefaultCannedResponses)
 
 		// CRUD Item Catalog (Legacy Aliases)
-		guarded.Post("/fauna", productHandler.Store)
-		guarded.Put("/fauna/:id", productHandler.Update)
-		guarded.Delete("/fauna/:id", productHandler.Destroy)
+		guardedMutations.Post("/fauna", productHandler.Store)
+		guardedMutations.Put("/fauna/:id", productHandler.Update)
+		guardedMutations.Delete("/fauna/:id", productHandler.Destroy)
 
 		// Multi-Tenant Store Settings & Two-Tier Master Data
-		guarded.Post("/stores/update", storeHandler.UpdateStore)
-		guarded.Post("/stores/upgrade-plan", subscriptionHandler.UpgradePlan)
-		guarded.Post("/stores/add-master-option", storeHandler.AddMasterOption)
-		guarded.Post("/stores/rename-master-option", storeHandler.RenameMasterOption)
-		guarded.Post("/stores/delete-master-option", storeHandler.DeleteMasterOption)
-		guarded.Post("/stores/apply-master-preset", storeHandler.ApplyMasterPreset)
+		guardedMutations.Post("/stores/update", storeHandler.UpdateStore)
+		guardedMutations.Post("/stores/upgrade-plan", subscriptionHandler.UpgradePlan)
+		guardedMutations.Post("/stores/add-master-option", storeHandler.AddMasterOption)
+		guardedMutations.Post("/stores/rename-master-option", storeHandler.RenameMasterOption)
+		guardedMutations.Post("/stores/delete-master-option", storeHandler.DeleteMasterOption)
+		guardedMutations.Post("/stores/apply-master-preset", storeHandler.ApplyMasterPreset)
 
 		// Multi-Tier Subscription, Quota & Custom Domain Management
 		guarded.Get("/subscription/my-quota", subscriptionHandler.GetStoreQuota)
-		guarded.Post("/subscription/upgrade", subscriptionHandler.UpgradePlan)
+		guardedMutations.Post("/subscription/upgrade", subscriptionHandler.UpgradePlan)
 		guarded.Post("/subscription/schedule-downgrade", subscriptionHandler.ScheduleDowngrade)
 		guarded.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
-		guarded.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
-		guarded.Post("/subscription/order", subscriptionHandler.CreateOrder)
+		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
+		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 
 		// Merchant Analytics & Store Telemetry
@@ -283,17 +284,17 @@ func main() {
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 
 		// Settings & Policies
-		guarded.Post("/settings", settingHandler.Store)
-		guarded.Post("/settings/policies", settingHandler.UpdatePolicy)
+		guardedMutations.Post("/settings", settingHandler.Store)
+		guardedMutations.Post("/settings/policies", settingHandler.UpdatePolicy)
 		guarded.Get("/settings/policy-audit-logs", settingHandler.GetPolicyAuditLogs)
 
 		// Articles & Moderation
-		guarded.Post("/articles", articleHandler.Store)
-		guarded.Put("/articles/:id", articleHandler.Update)
-		guarded.Delete("/articles/:id", articleHandler.Destroy)
+		guardedMutations.Post("/articles", articleHandler.Store)
+		guardedMutations.Put("/articles/:id", articleHandler.Update)
+		guardedMutations.Delete("/articles/:id", articleHandler.Destroy)
 		guarded.Get("/admin/comments", articleHandler.GetAdminComments)
-		guarded.Post("/admin/comments/:id/approve", articleHandler.ApproveComment)
-		guarded.Delete("/admin/comments/:id", articleHandler.DeleteComment)
+		guardedMutations.Post("/admin/comments/:id/approve", articleHandler.ApproveComment)
+		guardedMutations.Delete("/admin/comments/:id", articleHandler.DeleteComment)
 
 		// Reports & Compliance Moderation
 		guarded.Get("/reports", reportHandler.Index)
