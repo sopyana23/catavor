@@ -119,10 +119,12 @@ func main() {
 	app.Static("/desktop", cfg.DesktopDistDir, fiber.Static{
 		Compress:  true,
 		ByteRange: true,
+		MaxAge:    0,
 	})
 	app.Static("/mobile", cfg.MobileDistDir, fiber.Static{
 		Compress:  true,
 		ByteRange: true,
+		MaxAge:    0,
 	})
 
 	// 8. Register API Endpoints
