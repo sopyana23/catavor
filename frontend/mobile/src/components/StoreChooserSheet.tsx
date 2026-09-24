@@ -139,21 +139,21 @@ export const getStoreChooserTheme = (isFreshLogin: boolean, activeTheme?: string
     case 'ocean':
       return {
         isLight: false,
-        bgDeep: '#081021',
-        bgCard: '#0f1c38',
-        bgCardHover: '#172a52',
-        borderLight: 'rgba(59, 130, 246, 0.2)',
-        borderHover: 'rgba(59, 130, 246, 0.45)',
-        primary: '#3b82f6',
-        primaryHover: '#2563eb',
-        primaryGlow: 'rgba(59, 130, 246, 0.35)',
-        accentLight: '#60a5fa',
+        bgDeep: '#060d1a',
+        bgCard: '#0b172e',
+        bgCardHover: '#122347',
+        borderLight: 'rgba(56, 189, 248, 0.18)',
+        borderHover: 'rgba(56, 189, 248, 0.45)',
+        primary: '#38bdf8',
+        primaryHover: '#0284c7',
+        primaryGlow: 'rgba(56, 189, 248, 0.28)',
+        accentLight: '#7dd3fc',
         textPrimary: '#ffffff',
-        textSecondary: '#cbd5e1',
-        textMuted: '#94a3b8',
-        headerBg: '#0f1c38',
-        headerGradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-        userCardBg: 'rgba(59, 130, 246, 0.1)'
+        textSecondary: '#bae6fd',
+        textMuted: '#38bdf8',
+        headerBg: '#060d1a',
+        headerGradient: 'linear-gradient(135deg, #0284c7 0%, #3b82f6 50%, #1d4ed8 100%)',
+        userCardBg: 'rgba(56, 189, 248, 0.12)'
       };
     case 'nordic':
       return {
@@ -196,24 +196,24 @@ export const getStoreChooserTheme = (isFreshLogin: boolean, activeTheme?: string
       };
     case 'navy':
     default:
-      // Default: Landing Page Catavor "Putih Biru"
+      // Default: Deep Navy Blue Theme (#1e3a8a matching active dashboard controls & soft slate blue tint)
       return {
         isLight: true,
         bgDeep: '#f8fafc',
         bgCard: '#ffffff',
         bgCardHover: '#f1f5f9',
         borderLight: 'rgba(226, 232, 240, 0.9)',
-        borderHover: 'rgba(37, 99, 235, 0.35)',
-        primary: '#2563eb',
-        primaryHover: '#1d4ed8',
-        primaryGlow: 'rgba(37, 99, 235, 0.22)',
+        borderHover: 'rgba(30, 58, 138, 0.35)',
+        primary: '#1e3a8a',
+        primaryHover: '#172554',
+        primaryGlow: 'rgba(30, 58, 138, 0.28)',
         accentLight: '#3b82f6',
         textPrimary: '#0f172a',
-        textSecondary: '#334155',
+        textSecondary: '#1e3a8a',
         textMuted: '#64748b',
         headerBg: '#ffffff',
-        headerGradient: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-        userCardBg: 'rgba(37, 99, 235, 0.05)'
+        headerGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
+        userCardBg: 'rgba(30, 58, 138, 0.08)'
       };
   }
 };
@@ -283,13 +283,13 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
               style={{
                 width: '36px',
                 height: '36px',
-                borderRadius: '10px',
-                backgroundColor: theme.isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
-                border: `1px solid ${theme.borderLight}`,
+                borderRadius: '50%',
+                backgroundColor: theme.userCardBg,
+                border: `1px solid ${theme.borderHover}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: theme.textPrimary,
+                color: theme.primary,
                 cursor: 'pointer',
                 transition: 'all 0.18s ease'
               }}
@@ -444,8 +444,8 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
               fontSize: '0.72rem',
               fontWeight: 800,
               color: theme.primary,
-              backgroundColor: theme.isLight ? 'rgba(37, 99, 235, 0.1)' : 'rgba(16, 185, 129, 0.15)',
-              border: `1px solid ${theme.borderLight}`,
+              backgroundColor: theme.userCardBg,
+              border: `1px solid ${theme.borderHover}`,
               padding: '0.25rem 0.65rem',
               borderRadius: '999px',
               flexShrink: 0
@@ -510,7 +510,7 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
                     ? '1px solid rgba(239, 68, 68, 0.3)'
                     : `1px solid ${theme.borderLight}`,
                   backgroundColor: isCurrent
-                    ? (theme.isLight ? 'rgba(37, 99, 235, 0.06)' : 'rgba(16, 185, 129, 0.08)')
+                    ? theme.userCardBg
                     : isBanned
                     ? (theme.isLight ? 'rgba(239, 68, 68, 0.04)' : 'rgba(15, 23, 42, 0.4)')
                     : theme.bgCard,
@@ -536,9 +536,7 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
                       borderRadius: '10px',
                       backgroundColor: isBanned 
                         ? 'rgba(239, 68, 68, 0.15)' 
-                        : theme.isLight 
-                        ? 'rgba(37, 99, 235, 0.07)' 
-                        : 'rgba(255, 255, 255, 0.06)',
+                        : theme.userCardBg,
                       border: isCurrent ? `1px solid ${theme.primary}` : `1px solid ${theme.borderLight}`,
                       display: 'flex',
                       alignItems: 'center',
@@ -594,7 +592,8 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
                           fontSize: '0.62rem', 
                           fontWeight: 800, 
                           color: theme.primary, 
-                          backgroundColor: theme.isLight ? 'rgba(37, 99, 235, 0.12)' : 'rgba(56, 189, 248, 0.15)', 
+                          backgroundColor: theme.userCardBg, 
+                          border: `1px solid ${theme.borderHover}`, 
                           padding: '0.1rem 0.4rem', 
                           borderRadius: '3px',
                           display: 'inline-flex',
@@ -638,15 +637,20 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
                         alignItems: 'center',
                         gap: '0.35rem',
                         cursor: 'pointer',
-                        border: 'none',
+                        transition: 'all 0.18s ease',
                         ...(isSuspended ? {
                           backgroundColor: 'rgba(245, 158, 11, 0.15)',
                           color: '#d97706',
                           border: '1px solid rgba(245, 158, 11, 0.35)'
-                        } : {
+                        } : isCurrent ? {
                           background: theme.headerGradient,
                           color: '#ffffff',
-                          boxShadow: `0 2px 10px ${theme.primaryGlow}`
+                          border: 'none',
+                          boxShadow: `0 4px 14px ${theme.primaryGlow}`
+                        } : {
+                          backgroundColor: theme.userCardBg,
+                          color: theme.primary,
+                          border: `1px solid ${theme.borderHover}`
                         })
                       }}
                     >
@@ -659,7 +663,7 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
                         </>
                       ) : (
                         <>
-                          <span>Buka</span>
+                          <span>{isCurrent ? 'Dibuka' : 'Buka'}</span>
                           <ArrowRight size={12} />
                         </>
                       )}
