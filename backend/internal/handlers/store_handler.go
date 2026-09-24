@@ -202,7 +202,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,
-			"data":    []models.Fauna{},
+			"data":    []models.Product{},
 		})
 	}
 
@@ -218,11 +218,11 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,
-			"data":    []models.Fauna{},
+			"data":    []models.Product{},
 		})
 	}
 
-	query := database.DB.Model(&models.Fauna{}).Where("store_id = ? AND is_active = ?", store.ID, true)
+	query := database.DB.Model(&models.Product{}).Where("store_id = ? AND is_active = ?", store.ID, true)
 
 	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
@@ -304,7 +304,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		query = query.Offset(offset).Limit(limit)
 	}
 
-	var faunas []models.Fauna
+	var faunas []models.Product
 	if err := query.Find(&faunas).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -589,7 +589,7 @@ func (h *StoreHandler) FeaturedStores(c *fiber.Ctx) error {
 	var result []StoreCard
 	for _, s := range stores {
 		var cnt int64
-		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&cnt)
+		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&cnt)
 		result = append(result, StoreCard{
 			ID:             s.ID,
 			Slug:           s.Slug,
@@ -829,13 +829,13 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 			store.MasterCategories = replaceMasterCategory(store.MasterCategories, prodType, oldVal, newVal)
 		}
 		store.MasterClasses = replaceJSONString(store.MasterClasses, oldVal, newVal)
-		database.DB.Model(&models.Fauna{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
+		database.DB.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, oldVal).Update("class", newVal)
 	case "habitat", "master_habitats":
 		store.MasterHabitats = replaceJSONString(store.MasterHabitats, oldVal, newVal)
-		database.DB.Model(&models.Fauna{}).Where("store_id = ? AND habitat = ?", store.ID, oldVal).Update("habitat", newVal)
+		database.DB.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, oldVal).Update("habitat", newVal)
 	case "conservation_status", "master_statuses":
 		store.MasterStatuses = replaceJSONString(store.MasterStatuses, oldVal, newVal)
-		database.DB.Model(&models.Fauna{}).Where("store_id = ? AND conservation_status = ?", store.ID, oldVal).Update("conservation_status", newVal)
+		database.DB.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, oldVal).Update("conservation_status", newVal)
 	case "shipping_coverage", "master_shipping_coverages":
 		store.MasterShippingCoverages = replaceJSONString(store.MasterShippingCoverages, oldVal, newVal)
 	}
@@ -875,17 +875,17 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 		}
 		store.MasterClasses = removeJSONString(store.MasterClasses, val)
 		if replacement != "" {
-			database.DB.Model(&models.Fauna{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement)
+			database.DB.Model(&models.Product{}).Where("store_id = ? AND class = ?", store.ID, val).Update("class", replacement)
 		}
 	case "habitat", "master_habitats":
 		store.MasterHabitats = removeJSONString(store.MasterHabitats, val)
 		if replacement != "" {
-			database.DB.Model(&models.Fauna{}).Where("store_id = ? AND habitat = ?", store.ID, val).Update("habitat", replacement)
+			database.DB.Model(&models.Product{}).Where("store_id = ? AND habitat = ?", store.ID, val).Update("habitat", replacement)
 		}
 	case "conservation_status", "master_statuses":
 		store.MasterStatuses = removeJSONString(store.MasterStatuses, val)
 		if replacement != "" {
-			database.DB.Model(&models.Fauna{}).Where("store_id = ? AND conservation_status = ?", store.ID, val).Update("conservation_status", replacement)
+			database.DB.Model(&models.Product{}).Where("store_id = ? AND conservation_status = ?", store.ID, val).Update("conservation_status", replacement)
 		}
 	case "shipping_coverage", "master_shipping_coverages":
 		store.MasterShippingCoverages = removeJSONString(store.MasterShippingCoverages, val)
@@ -1126,7 +1126,7 @@ func (h *StoreHandler) GetMyStores(c *fiber.Ctx) error {
 			theme = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 
 		result = append(result, fiber.Map{
 			"id":              s.ID,
@@ -1286,7 +1286,7 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 			theme = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 		storeSummaries = append(storeSummaries, fiber.Map{
 			"id":              s.ID,
 			"slug":            s.Slug,
@@ -1395,7 +1395,7 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 			th = "navy"
 		}
 		var itemCount int64
-		database.DB.Model(&models.Fauna{}).Where("store_id = ?", s.ID).Count(&itemCount)
+		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
 		storeSummaries = append(storeSummaries, fiber.Map{
 			"id":              s.ID,
 			"slug":            s.Slug,

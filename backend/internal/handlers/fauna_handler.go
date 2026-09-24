@@ -204,7 +204,7 @@ func (h *FaunaHandler) Store(c *fiber.Ctx) error {
 
 	// Check plan limits (Free plan max 10 items)
 	var itemCount int64
-	database.DB.Model(&models.Fauna{}).Where("store_id = ?", store.ID).Count(&itemCount)
+	database.DB.Model(&models.Product{}).Where("store_id = ?", store.ID).Count(&itemCount)
 	if store.Plan == "free" && itemCount >= 10 {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
