@@ -295,21 +295,44 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div 
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '12px',
-                background: theme.headerGradient,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                boxShadow: `0 4px 14px ${theme.primaryGlow}`
-              }}
-            >
-              <Layers size={22} />
-            </div>
+            {effectiveActiveSlug ? (
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  backgroundColor: theme.isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
+                  border: `1px solid ${theme.borderLight}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: theme.textPrimary,
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease'
+                }}
+                title="Kembali ke Dashboard"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            ) : (
+              <div 
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: theme.headerGradient,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  boxShadow: `0 4px 14px ${theme.primaryGlow}`
+                }}
+              >
+                <Layers size={22} />
+              </div>
+            )}
             <div>
               <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
                 Pusat Pengelolaan Katalog
@@ -330,54 +353,29 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
               </div>
             </div>
 
-            {/* Tombol Header: "Keluar" jika fresh login (belum memilih toko), atau "Kembali" jika sudah membuka salah satu toko */}
-            {!effectiveActiveSlug ? (
-              <button
-                type="button"
-                onClick={onLogout}
-                style={{
-                  padding: '0.5rem 0.95rem',
-                  borderRadius: '0.65rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer',
-                  backgroundColor: theme.isLight ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)',
-                  color: '#ef4444',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  transition: 'all 0.18s ease'
-                }}
-                title="Keluar Sesi Akun"
-              >
-                <LogOut size={14} />
-                <span>Keluar</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  padding: '0.5rem 0.95rem',
-                  borderRadius: '0.65rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  cursor: 'pointer',
-                  backgroundColor: theme.isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
-                  color: theme.textPrimary,
-                  border: `1px solid ${theme.borderLight}`,
-                  transition: 'all 0.18s ease'
-                }}
-                title="Kembali ke Dashboard"
-              >
-                <ArrowLeft size={14} />
-                <span>Kembali</span>
-              </button>
-            )}
+            {/* Tombol Header Kanan: Selalu Tampilkan Logout Sesi Akun yang Elegan */}
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                padding: '0.5rem 0.95rem',
+                borderRadius: '0.65rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                cursor: 'pointer',
+                backgroundColor: theme.isLight ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.28)',
+                transition: 'all 0.18s ease'
+              }}
+              title="Keluar Sesi Akun"
+            >
+              <LogOut size={14} />
+              <span>Keluar</span>
+            </button>
           </div>
         </div>
 
