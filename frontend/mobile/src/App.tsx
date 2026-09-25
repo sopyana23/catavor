@@ -11747,18 +11747,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               setStoreSlug(null);
                               window.history.pushState({}, '', '/admin');
                             } else {
-                              if (storeSlug) {
+                              const targetSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+                              if (targetSlug) {
+                                setStoreSlug(targetSlug);
                                 setActiveTab('admin');
                                 setAdminSubTab('menu');
-                                window.history.pushState({}, '', `/${storeSlug}/admin`);
-                                loadData(storeSlug);
-                              } else if (userStores && userStores.length === 1) {
-                                const singleSlug = userStores[0].slug;
-                                setStoreSlug(singleSlug);
-                                setActiveTab('admin');
-                                setAdminSubTab('menu');
-                                window.history.pushState({}, '', `/${singleSlug}/admin`);
-                                loadData(singleSlug);
+                                window.history.pushState({}, '', `/${targetSlug}/admin`);
+                                loadData(targetSlug);
                               } else {
                                 openStoreChooserModal();
                               }
