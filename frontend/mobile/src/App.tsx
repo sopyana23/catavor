@@ -6328,19 +6328,18 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     setShowStoreSwitcherModal(false);
     setStoreChooserComplianceAlert(null);
     setIsFirstTimeLogin(false);
-    const activeSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
-    if (activeSlug) {
+    setError(null);
+
+    const activeSlug = (storeSlug && storeSlug !== 'catalogs') ? storeSlug : (resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug));
+
+    if (activeSlug && activeSlug !== 'catalogs') {
       setStoreSlug(activeSlug);
-      setView('tabs');
       setActiveTab('admin');
       setAdminSubTab('menu');
-      setPortalTab('home');
-      const activeStoreTheme = userStores.find(s => s.slug?.toLowerCase() === activeSlug.toLowerCase())?.store_theme || adminUser?.store_theme || (settingsForm as any)?.store_theme || 'navy';
-      document.documentElement.setAttribute('data-theme', activeStoreTheme);
-      document.body.setAttribute('data-theme', activeStoreTheme);
       if (typeof window !== 'undefined') {
         window.history.pushState({}, '', `/${activeSlug}/admin`);
       }
+      loadData(activeSlug);
     } else {
       setView('tabs');
       setActiveTab('catalog');
@@ -11821,7 +11820,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               } else {
                                 setStoreSlug(null);
                                 setShowStoreSwitcherModal(true);
-                                window.history.pushState({ chooser: true }, '', '/catalogs/admin');
+                                window.history.pushState({ chooser: true }, '', '/catalogs');
                               }
                             }
                           }}
