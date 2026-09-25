@@ -248,6 +248,13 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
     const q = searchQuery.toLowerCase();
     return (st.store_title && st.store_title.toLowerCase().includes(q)) ||
            (st.slug && st.slug.toLowerCase().includes(q));
+  }).sort((a, b) => {
+    if (!effectiveActiveSlug) return 0;
+    const aIsActive = a.slug?.toLowerCase() === effectiveActiveSlug.toLowerCase();
+    const bIsActive = b.slug?.toLowerCase() === effectiveActiveSlug.toLowerCase();
+    if (aIsActive && !bIsActive) return -1;
+    if (!aIsActive && bIsActive) return 1;
+    return 0;
   });
 
   return (
