@@ -6343,12 +6343,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
     const activeSlug = 
       (isValid(storeSlug) ? storeSlug : null) ||
-      resolveActiveStoreSlug() ||
+      (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
       (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
       (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
       null;
 
-    if (activeSlug) {
+    if (activeSlug && isValid(activeSlug)) {
       setStoreSlug(activeSlug);
       setView('tabs');
       setActiveTab('admin');
@@ -7941,10 +7941,9 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               window.history.replaceState({}, '', `/admin?${urlParams.toString()}`);
             }
             return;
-          } else if (u.store_slug) {
+          } else if (u.store_slug && !isReservedStoreSlug(u.store_slug)) {
             slug = u.store_slug;
-            const firstSegment = path.split('/').filter(Boolean)[0] || '';
-            if (path === '/' || path === '' || isCatalogChooserRoute(path) || path.includes('/catalogs') || isReservedStoreSlug(firstSegment)) {
+            if ((path === '/' || path === '') && !isCatalogChooserRoute(path)) {
               const queryStr = urlParams.toString() ? `?${urlParams.toString()}` : '';
               window.history.replaceState({}, '', `/${slug}/admin${queryStr}`);
             }
