@@ -8193,7 +8193,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         } else {
           // If store is 404/not found, and currently logged in as this store owner, verify if account was banned
-          const isStoreOwner = Boolean(token && adminUser && slug && (
+          const isStoreOwner = Boolean(token && adminUser && slug && !isReservedStoreSlug(slug) && (
             adminUser.store_slug?.toLowerCase() === slug.toLowerCase() ||
             (adminUser as any).username?.toLowerCase() === slug.toLowerCase() ||
             (userStores && userStores.some(s => s.slug?.toLowerCase() === slug.toLowerCase()))

@@ -395,58 +395,77 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 18px), transparent 100%)'
           }}
         >
-          {/* Compliance Notice Banner */}
-          {complianceAlert && (
-            <div 
-              style={{
-                padding: '1.15rem 1.35rem',
-                borderRadius: '1rem',
-                background: complianceAlert.type === 'banned' 
-                  ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.14) 0%, rgba(185, 28, 28, 0.08) 100%)' 
-                  : 'linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(180, 83, 9, 0.08) 100%)',
-                border: complianceAlert.type === 'banned' 
-                  ? '1px solid rgba(239, 68, 68, 0.4)' 
-                  : '1px solid rgba(245, 158, 11, 0.4)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '1rem',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
-              }}
-            >
+          {/* Compliance Notice Banner - ONLY display when relevant to a REAL banned store */}
+          {(() => {
+            if (!complianceAlert) return null;
+            const bSlug = complianceAlert.bannedSlug;
+            const RESERVED = [
+              'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+              'catavor', 'catafor', 'katavor', 'katafor', 'platform', 'system', 'ops', 'dashboard',
+              'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi',
+              'explore', 'directory', 'settings', 'notifications', 'articles', 'subscription', 'langganan',
+              'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
+            ];
+            if (bSlug && RESERVED.includes(bSlug.toLowerCase())) return null;
+            
+            const targetStore = stores.find(s => s.slug?.toLowerCase() === bSlug?.toLowerCase());
+            const displayTitle = targetStore?.store_title ? `'${targetStore.store_title}' (@${bSlug})` : (bSlug ? `'${bSlug}'` : 'katalog Anda');
+            const alertMessage = complianceAlert.message.includes("'catalogs'") 
+              ? complianceAlert.message.replace("'catalogs'", displayTitle)
+              : complianceAlert.message;
+
+            return (
               <div 
                 style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
-                  backgroundColor: complianceAlert.type === 'banned' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  padding: '1.15rem 1.35rem',
+                  borderRadius: '1rem',
+                  background: complianceAlert.type === 'banned' 
+                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.14) 0%, rgba(185, 28, 28, 0.08) 100%)' 
+                    : 'linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(180, 83, 9, 0.08) 100%)',
+                  border: complianceAlert.type === 'banned' 
+                    ? '1px solid rgba(239, 68, 68, 0.4)' 
+                    : '1px solid rgba(245, 158, 11, 0.4)',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: complianceAlert.type === 'banned' ? '#ef4444' : '#f59e0b',
-                  flexShrink: 0
+                  alignItems: 'flex-start',
+                  gap: '1rem',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
                 }}
               >
-                <ShieldAlert size={22} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <h4 
-                  style={{ 
-                    margin: '0 0 0.35rem 0', 
-                    fontSize: '0.88rem', 
-                    fontWeight: 800, 
-                    letterSpacing: '0.02em',
-                    textTransform: 'uppercase',
-                    color: complianceAlert.type === 'banned' ? '#ef4444' : '#d97706' 
+                <div 
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    backgroundColor: complianceAlert.type === 'banned' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: complianceAlert.type === 'banned' ? '#ef4444' : '#f59e0b',
+                    flexShrink: 0
                   }}
                 >
-                  Pemberitahuan Kepatuhan Platform
-                </h4>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textSecondary, lineHeight: 1.5 }}>
-                  {complianceAlert.message}
-                </p>
+                  <ShieldAlert size={22} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h4 
+                    style={{ 
+                      margin: '0 0 0.35rem 0', 
+                      fontSize: '0.88rem', 
+                      fontWeight: 800, 
+                      letterSpacing: '0.02em',
+                      textTransform: 'uppercase',
+                      color: complianceAlert.type === 'banned' ? '#ef4444' : '#d97706' 
+                    }}
+                  >
+                    Pemberitahuan Kepatuhan Platform
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textSecondary, lineHeight: 1.5 }}>
+                    {alertMessage}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Section Heading & Search Filter */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
