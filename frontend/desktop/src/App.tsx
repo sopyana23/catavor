@@ -5785,9 +5785,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   });
 
   const [showStoreDropdown, setShowStoreDropdown] = useState<boolean>(false);
-  const [isFirstTimeLogin, setIsFirstTimeLogin] = useState<boolean>(() => 
-    typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)
-  );
+  const [isFirstTimeLogin, setIsFirstTimeLogin] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (localStorage.getItem('catavor_token')) return false;
+    return isCatalogChooserRoute(window.location.pathname);
+  });
   const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(() => 
     typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)
   );
@@ -7723,11 +7725,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const urlPlan = urlParams.get('plan');
 
       if (isCatalogChooserRoute(path)) {
-        setStoreSlug(null);
-        setIsFirstTimeLogin(true);
+        const hasToken = Boolean(token || localStorage.getItem('catavor_token'));
+        if (!hasToken) {
+          setStoreSlug(null);
+          setIsFirstTimeLogin(true);
+          document.documentElement.setAttribute('data-theme', 'navy');
+          document.body.setAttribute('data-theme', 'navy');
+        } else {
+          setIsFirstTimeLogin(false);
+          const activeSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+          if (activeSlug) {
+            setStoreSlug(activeSlug);
+            const activeStoreTheme = userStores.find(s => s.slug?.toLowerCase() === activeSlug.toLowerCase())?.store_theme || adminUser?.store_theme || (settingsForm as any)?.store_theme || 'navy';
+            document.documentElement.setAttribute('data-theme', activeStoreTheme);
+            document.body.setAttribute('data-theme', activeStoreTheme);
+          }
+        }
         setShowStoreSwitcherModal(true);
-        document.documentElement.setAttribute('data-theme', 'navy');
-        document.body.setAttribute('data-theme', 'navy');
       } else if (path === '/login') {
         setPortalTab('login');
       } else if (path === '/register' || path === '/register/step-1') {
@@ -23709,7 +23723,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         onClose={handleCloseStoreChooserModal}
         user={adminUser}
         stores={userStores}
-        activeSlug={isFirstTimeLogin ? null : storeSlug}
+        activeSlug={(() => {
+          const hasToken = Boolean(token || (typeof localStorage !== 'undefined' && localStorage.getItem('catavor_token')));
+          if (isFirstTimeLogin && !hasToken) return null;
+          return storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || userStores[0]?.slug || null;
+        })()}
         complianceAlert={storeChooserComplianceAlert}
         onSelectStore={(targetStore) => handleSwitchStore(targetStore.slug)}
         onCreateNewStore={() => {
@@ -23718,8 +23736,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         }}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
-        isFirstTimeLogin={isFirstTimeLogin}
-        activeTheme={storeChooserComplianceAlert ? 'navy' : (isFirstTimeLogin ? 'navy' : (userStores.find(s => s.slug?.toLowerCase() === (storeSlug || resolveActiveStoreSlug())?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy'))}
+        isFirstTimeLogin={isFirstTimeLogin && !Boolean(token || (typeof localStorage !== 'undefined' && localStorage.getItem('catavor_token')))}
+        activeTheme={(() => {
+          if (storeChooserComplianceAlert) return 'navy';
+          const hasToken = Boolean(token || (typeof localStorage !== 'undefined' && localStorage.getItem('catavor_token')));
+          if (isFirstTimeLogin && !hasToken) return 'navy';
+          const currentSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || userStores[0]?.slug;
+          return userStores.find(s => s.slug?.toLowerCase() === currentSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
+        })()}
       />
 
       {/* Create Store Modal */}
