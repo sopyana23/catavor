@@ -10649,15 +10649,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               setStoreSlug(null);
                               window.history.pushState({}, '', '/admin');
                             } else {
-                              const targetSlug = user?.store_slug || userStores[0]?.slug;
-                              if (targetSlug) {
-                                setStoreSlug(targetSlug);
+                              if (storeSlug) {
                                 setView('admin');
                                 setAdminTab('items');
-                                window.history.pushState({}, '', `/${targetSlug}/admin/items`);
-                                loadData(targetSlug);
+                                window.history.pushState({}, '', `/${storeSlug}/admin/items`);
+                                loadData(storeSlug);
+                              } else if (userStores && userStores.length === 1) {
+                                const singleSlug = userStores[0].slug;
+                                setStoreSlug(singleSlug);
+                                setView('admin');
+                                setAdminTab('items');
+                                window.history.pushState({}, '', `/${singleSlug}/admin/items`);
+                                loadData(singleSlug);
                               } else {
-                                window.history.pushState({}, '', '/dashboard');
+                                openStoreChooserModal();
                               }
                             }
                           }}
