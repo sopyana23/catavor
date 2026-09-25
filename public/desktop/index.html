@@ -7,28 +7,70 @@
     <title>Catavor - Platform Katalog Digital</title>
     <!-- Google Identity Services Client SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <!-- Google OAuth Popup Interceptor (Closes popup instantly and passes token back to main window) -->
+    <!-- Google OAuth Popup Interceptor & Communication Bridge -->
     <script>
       (function() {
         try {
-          if (window.opener && window.opener !== window) {
-            var hash = window.location.hash || '';
-            var search = window.location.search || '';
-            if (hash.indexOf('access_token=') !== -1 || hash.indexOf('id_token=') !== -1 || search.indexOf('code=') !== -1) {
-              window.opener.postMessage({
-                type: 'CATAVOR_GOOGLE_AUTH_CALLBACK',
-                hash: hash,
-                search: search
-              }, window.location.origin);
+          var hash = window.location.hash || '';
+          var search = window.location.search || '';
+          var isOAuthCallback = (hash.indexOf('access_token=') !== -1 || hash.indexOf('id_token=') !== -1 || search.indexOf('code=') !== -1);
+          
+          if (isOAuthCallback) {
+            var payload = {
+              type: 'CATAVOR_GOOGLE_AUTH_CALLBACK',
+              hash: hash,
+              search: search,
+              timestamp: Date.now()
+            };
+
+            // 1. Send via BroadcastChannel (Works across all windows/popups on same origin even without opener)
+            try {
+              if (typeof BroadcastChannel !== 'undefined') {
+                var bc = new BroadcastChannel('catavor_oauth_channel');
+                bc.postMessage(payload);
+              }
+            } catch (e) {}
+
+            // 2. Send via localStorage storage event (Cross-window broadcast)
+            try {
+              localStorage.setItem('catavor_oauth_broadcast', JSON.stringify(payload));
+            } catch (e) {}
+
+            // 3. Send via window.opener if available
+            try {
+              if (window.opener && window.opener !== window) {
+                window.opener.postMessage(payload, window.location.origin);
+              }
+            } catch (e) {}
+
+            // 4. Close popup immediately
+            try {
               window.close();
-            }
+            } catch (e) {}
+
+            // 5. If window.close is prevented by browser, show clean minimal success state & stop app mount
+            window.__IS_OAUTH_POPUP_CALLBACK__ = true;
+            document.addEventListener('DOMContentLoaded', function() {
+              if (window.__IS_OAUTH_POPUP_CALLBACK__) {
+                document.body.innerHTML = `
+                  <div style="font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0b1329; color: #f8fafc; text-align: center; padding: 24px; box-sizing: border-box;">
+                    <div style="width: 56px; height: 56px; border-radius: 50%; background: #10b981; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <h2 style="margin: 0 0 8px; font-size: 1.25rem; font-weight: 700;">Login Berhasil!</h2>
+                    <p style="margin: 0 0 20px; font-size: 0.9rem; color: #94a3b8; max-width: 320px; line-height: 1.4;">Autentikasi Google berhasil diproses. Jendela ini dapat Anda tutup.</p>
+                    <button onclick="window.close()" style="background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 0.95rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);">Tutup Jendela Ini</button>
+                  </div>
+                `;
+              }
+            });
           }
         } catch (e) {
-          console.error('OAuth popup message relay error:', e);
+          console.error('OAuth interceptor error:', e);
         }
       })();
     </script>
-    <script type="module" crossorigin src="/desktop/assets/index-BMrxXnk5.js"></script>
+    <script type="module" crossorigin src="/desktop/assets/index-phXX5NsD.js"></script>
     <link rel="stylesheet" crossorigin href="/desktop/assets/index-CS9LElGL.css">
   </head>
   <body>
