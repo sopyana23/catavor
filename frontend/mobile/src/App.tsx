@@ -220,6 +220,36 @@ function getStoreSlug(): string | null {
   return parts[0];
 }
 
+function resolveActiveStoreSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  const fromUrl = getStoreSlug();
+  if (fromUrl) return fromUrl;
+  try {
+    const savedActive = localStorage.getItem('catavor_active_slug');
+    if (savedActive) return savedActive;
+  } catch {}
+  try {
+    const userRaw = localStorage.getItem('catavor_user');
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      if (u.store_slug) return u.store_slug;
+      if (u.active_store?.slug) return u.active_store.slug;
+      if (u.username) return u.username;
+    }
+  } catch {}
+  try {
+    const storesRaw = localStorage.getItem('catavor_stores');
+    if (storesRaw) {
+      const s = JSON.parse(storesRaw);
+      if (Array.isArray(s) && s.length > 0 && s[0]?.slug) {
+        return s[0].slug;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+
 // Fast Base64 Logo Cacher & Resolver for 0ms Instant Rendering
 function getFastStoreLogo(slug: string | null, defaultUrl: string | undefined): string {
   if (!slug) return defaultUrl || '';
@@ -6375,6 +6405,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         document.body.setAttribute('data-theme', newTheme);
         setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
 
+        try { localStorage.setItem('catavor_active_slug', targetSlug); } catch {}
         setStoreSlug(targetSlug);
         setShowStoreSwitcherModal(false);
         setStoreChooserComplianceAlert(null);
@@ -11746,22 +11777,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               setActiveTab('admin');
                               setStoreSlug(null);
                               window.history.pushState({}, '', '/admin');
-                            } else if (storeSlug) {
-                              setActiveTab('admin');
-                              setAdminSubTab('menu');
-                              window.history.pushState({}, '', `/${storeSlug}/admin`);
-                              loadData(storeSlug);
-                            } else if (userStores && userStores.length === 1) {
-                              const singleSlug = userStores[0].slug;
-                              setStoreSlug(singleSlug);
-                              setActiveTab('admin');
-                              setAdminSubTab('menu');
-                              window.history.pushState({}, '', `/${singleSlug}/admin`);
-                              loadData(singleSlug);
                             } else {
-                              setStoreSlug(null);
-                              setShowStoreSwitcherModal(true);
-                              window.history.pushState({ chooser: true }, '', '/catalogs/admin');
+                              const activeTokenStoreSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+                              if (activeTokenStoreSlug) {
+                                setStoreSlug(activeTokenStoreSlug);
+                                setActiveTab('admin');
+                                setAdminSubTab('menu');
+                                window.history.pushState({}, '', `/${activeTokenStoreSlug}/admin`);
+                                loadData(activeTokenStoreSlug);
+                              } else {
+                                setStoreSlug(null);
+                                setShowStoreSwitcherModal(true);
+                                window.history.pushState({ chooser: true }, '', '/catalogs/admin');
+                              }
                             }
                           }}
                           style={{
