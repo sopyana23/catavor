@@ -8774,7 +8774,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   const handleGoogleSSO = () => {
-    const googleClientId = (window as any).GOOGLE_CLIENT_ID || '847403664953-ef7k9h5n99mtlnbdpr4a6300dt83efk5.apps.googleusercontent.com';
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || (window as any).GOOGLE_CLIENT_ID || '847403664953-ef7k9h5n99mtlnbdpr4a6300dt83efk5.apps.googleusercontent.com';
 
     // 1. Try Google Identity Services GSI Token Client SDK
     if ((window as any).google?.accounts?.oauth2) {
