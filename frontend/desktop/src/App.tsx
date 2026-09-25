@@ -4414,8 +4414,18 @@ export function OperationalHoursBuilder({
 }
 
   const isCatalogChooserRoute = (path: string): boolean => {
-    const clean = (path || '').toLowerCase();
-    return clean === '/catalogs' || clean === '/select-catalog' || clean === '/admin/catalogs' || clean === '/admin/stores';
+    if (!path || typeof path !== 'string') return false;
+    const p = path.toLowerCase().trim().replace(/\/+$/, '');
+    return (
+      p === '/catalogs' ||
+      p.startsWith('/catalogs/') ||
+      p === '/select-catalog' ||
+      p.startsWith('/select-catalog/') ||
+      p === '/admin/catalogs' ||
+      p.startsWith('/admin/catalogs/') ||
+      p === '/admin/stores' ||
+      p.startsWith('/admin/stores/')
+    );
   };
 
 function App() {

@@ -164,7 +164,16 @@ export interface UserStoreSummary {
 export const isCatalogChooserRoute = (rawPath?: string | null): boolean => {
   if (!rawPath || typeof rawPath !== 'string') return false;
   const p = rawPath.toLowerCase().trim().replace(/\/+$/, '');
-  return p === '/admin/catalogs' || p === '/admin/stores' || p === '/catalogs' || p === '/select-catalog';
+  return (
+    p === '/catalogs' ||
+    p.startsWith('/catalogs/') ||
+    p === '/select-catalog' ||
+    p.startsWith('/select-catalog/') ||
+    p === '/admin/catalogs' ||
+    p.startsWith('/admin/catalogs/') ||
+    p === '/admin/stores' ||
+    p.startsWith('/admin/stores/')
+  );
 };
 
 export const isReservedStoreSlug = (slug?: string | null): boolean => {
