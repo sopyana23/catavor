@@ -10648,17 +10648,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               setView('admin');
                               setStoreSlug(null);
                               window.history.pushState({}, '', '/admin');
+                            } else if (storeSlug) {
+                              setView('admin');
+                              setAdminTab('items');
+                              window.history.pushState({}, '', `/${storeSlug}/admin/items`);
+                              loadData(storeSlug);
+                            } else if (userStores && userStores.length === 1) {
+                              const singleSlug = userStores[0].slug;
+                              setStoreSlug(singleSlug);
+                              setView('admin');
+                              setAdminTab('items');
+                              window.history.pushState({}, '', `/${singleSlug}/admin/items`);
+                              loadData(singleSlug);
                             } else {
-                              const targetSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
-                              if (targetSlug) {
-                                setStoreSlug(targetSlug);
-                                setView('admin');
-                                setAdminTab('items');
-                                window.history.pushState({}, '', `/${targetSlug}/admin/items`);
-                                loadData(targetSlug);
-                              } else {
-                                openStoreChooserModal();
-                              }
+                              setStoreSlug(null);
+                              setShowStoreSwitcherModal(true);
+                              window.history.pushState({ chooser: true }, '', '/catalogs/admin');
                             }
                           }}
                           style={{
