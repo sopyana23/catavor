@@ -4423,11 +4423,11 @@ export function OperationalHoursBuilder({
   const isCatalogChooserRoute = (path: string): boolean => {
     if (!path || typeof path !== 'string') return false;
     const p = path.toLowerCase().trim().replace(/\/+$/, '');
+    if (p === '/catalogs/admin' || p.startsWith('/catalogs/admin')) return false;
     return (
       p === '/catalogs' ||
-      p.startsWith('/catalogs/') ||
       p === '/select-catalog' ||
-      p.startsWith('/select-catalog/') ||
+      p === '/stores' ||
       p === '/admin/catalogs' ||
       p.startsWith('/admin/catalogs/') ||
       p === '/admin/stores' ||
@@ -14510,10 +14510,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 
                 <button 
                   type="button" 
-                  onClick={() => window.location.href = `/${storeSlug}`}
+                  onClick={() => {
+                    const target = storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}` : '/';
+                    window.location.href = target;
+                  }}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer', marginTop: '0.25rem', textDecoration: 'underline' }}
                 >
-                  Kembali ke Katalog Publik {storeSlug}
+                  Kembali ke Katalog Publik {storeSlug && !isReservedStoreSlug(storeSlug) ? storeSlug : ''}
                 </button>
               </div>
             </div>

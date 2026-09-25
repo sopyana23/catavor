@@ -164,11 +164,11 @@ export interface UserStoreSummary {
 export const isCatalogChooserRoute = (rawPath?: string | null): boolean => {
   if (!rawPath || typeof rawPath !== 'string') return false;
   const p = rawPath.toLowerCase().trim().replace(/\/+$/, '');
+  if (p === '/catalogs/admin' || p.startsWith('/catalogs/admin')) return false;
   return (
     p === '/catalogs' ||
-    p.startsWith('/catalogs/') ||
     p === '/select-catalog' ||
-    p.startsWith('/select-catalog/') ||
+    p === '/stores' ||
     p === '/admin/catalogs' ||
     p.startsWith('/admin/catalogs/') ||
     p === '/admin/stores' ||
@@ -17761,10 +17761,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 
                 <button 
                   type="button" 
-                  onClick={() => window.location.href = `/${storeSlug}`}
+                  onClick={() => {
+                    const target = storeSlug && !isReservedStoreSlug(storeSlug) ? `/${storeSlug}` : '/';
+                    window.location.href = target;
+                  }}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', marginTop: '0.25rem', textDecoration: 'underline' }}
                 >
-                  Kembali ke Katalog Publik {storeSlug}
+                  Kembali ke Katalog Publik {storeSlug && !isReservedStoreSlug(storeSlug) ? storeSlug : ''}
                 </button>
               </div>
             </div>
