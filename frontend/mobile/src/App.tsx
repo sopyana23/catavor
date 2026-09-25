@@ -212,7 +212,7 @@ function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
   if (reservedPortal.includes(parts[0])) return null;
@@ -222,27 +222,34 @@ function getStoreSlug(): string | null {
 
 function resolveActiveStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
+  const isInvalid = (s?: string | null) => {
+    if (!s) return true;
+    const clean = s.toLowerCase().trim();
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    return reserved.includes(clean);
+  };
   const fromUrl = getStoreSlug();
-  if (fromUrl) return fromUrl;
+  if (fromUrl && !isInvalid(fromUrl)) return fromUrl;
   try {
     const savedActive = localStorage.getItem('catavor_active_slug');
-    if (savedActive) return savedActive;
+    if (savedActive && !isInvalid(savedActive)) return savedActive;
   } catch {}
   try {
     const userRaw = localStorage.getItem('catavor_user');
     if (userRaw) {
       const u = JSON.parse(userRaw);
-      if (u.store_slug) return u.store_slug;
-      if (u.active_store?.slug) return u.active_store.slug;
-      if (u.username) return u.username;
+      if (u.store_slug && !isInvalid(u.store_slug)) return u.store_slug;
+      if (u.active_store?.slug && !isInvalid(u.active_store.slug)) return u.active_store.slug;
+      if (u.username && !isInvalid(u.username)) return u.username;
     }
   } catch {}
   try {
     const storesRaw = localStorage.getItem('catavor_stores');
     if (storesRaw) {
       const s = JSON.parse(storesRaw);
-      if (Array.isArray(s) && s.length > 0 && s[0]?.slug) {
-        return s[0].slug;
+      if (Array.isArray(s) && s.length > 0) {
+        const validStore = s.find((st: any) => st?.slug && !isInvalid(st.slug));
+        if (validStore?.slug) return validStore.slug;
       }
     }
   } catch {}
@@ -6328,14 +6335,18 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     setShowStoreSwitcherModal(false);
     setStoreChooserComplianceAlert(null);
     setIsFirstTimeLogin(false);
-    setError(null);
+    const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+    const activeSlug = 
+      (isValid(storeSlug) ? storeSlug : null) ||
+      resolveActiveStoreSlug() ||
+      (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
+      (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
+      null;
 
-    const activeSlug = (storeSlug && storeSlug !== 'catalogs') ? storeSlug : (resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug));
-
-    if (activeSlug && activeSlug !== 'catalogs') {
+    if (activeSlug) {
       setStoreSlug(activeSlug);
+      setView('tabs');
       setActiveTab('admin');
-      setAdminSubTab('menu');
       if (typeof window !== 'undefined') {
         window.history.pushState({}, '', `/${activeSlug}/admin`);
       }
@@ -11810,7 +11821,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               setStoreSlug(null);
                               window.history.pushState({}, '', '/admin');
                             } else {
-                              const activeTokenStoreSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+                              const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+                              const activeTokenStoreSlug = (isValid(storeSlug) ? storeSlug : null) || resolveActiveStoreSlug() || (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) || (userStores && userStores.find(s => isValid(s.slug))?.slug) || null;
                               if (activeTokenStoreSlug) {
                                 setStoreSlug(activeTokenStoreSlug);
                                 setActiveTab('admin');
@@ -11818,7 +11830,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 window.history.pushState({}, '', `/${activeTokenStoreSlug}/admin`);
                                 loadData(activeTokenStoreSlug);
                               } else {
-                                setStoreSlug(null);
                                 setShowStoreSwitcherModal(true);
                                 window.history.pushState({ chooser: true }, '', '/catalogs');
                               }
