@@ -6328,17 +6328,24 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     setShowStoreSwitcherModal(false);
     setStoreChooserComplianceAlert(null);
     setIsFirstTimeLogin(false);
-    const activeSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+    const activeSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
     if (activeSlug) {
       setStoreSlug(activeSlug);
-      if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+      setView('tabs');
+      setActiveTab('admin');
+      setAdminSubTab('menu');
+      setPortalTab('home');
+      const activeStoreTheme = userStores.find(s => s.slug?.toLowerCase() === activeSlug.toLowerCase())?.store_theme || adminUser?.store_theme || (settingsForm as any)?.store_theme || 'navy';
+      document.documentElement.setAttribute('data-theme', activeStoreTheme);
+      document.body.setAttribute('data-theme', activeStoreTheme);
+      if (typeof window !== 'undefined') {
         window.history.pushState({}, '', `/${activeSlug}/admin`);
       }
     } else {
       setView('tabs');
       setActiveTab('catalog');
       setPortalTab('home');
-      if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+      if (typeof window !== 'undefined') {
         window.history.pushState({}, '', '/');
       }
     }
