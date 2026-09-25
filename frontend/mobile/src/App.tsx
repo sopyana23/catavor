@@ -6275,11 +6275,39 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
+  const openStoreChooserModal = () => {
+    fetchMyStores();
+    setShowStoreSwitcherModal(true);
+    if (typeof window !== 'undefined' && !isCatalogChooserRoute(window.location.pathname)) {
+      window.history.pushState({ chooser: true }, '', '/catalogs');
+    }
+  };
+
+  const handleCloseStoreChooserModal = () => {
+    setShowStoreSwitcherModal(false);
+    setStoreChooserComplianceAlert(null);
+    setIsFirstTimeLogin(false);
+    const activeSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+    if (activeSlug) {
+      setStoreSlug(activeSlug);
+      if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+        window.history.pushState({}, '', `/${activeSlug}/admin`);
+      }
+    } else {
+      setView('tabs');
+      setActiveTab('catalog');
+      setPortalTab('home');
+      if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+        window.history.pushState({}, '', '/');
+      }
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchMyStores();
     }
-  }, [token]);
+  }, [token, showStoreSwitcherModal]);
 
   // Analytics triggers & telemetry
   useEffect(() => {
@@ -8711,7 +8739,15 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           const data = await res.json().catch(() => ({}));
           if (data.success) {
             if (data.stores && Array.isArray(data.stores)) {
-              setUserStores(data.stores);
+              setUserStores(prev => {
+                return data.stores.map((st: any) => {
+                  const existing = prev.find((p: any) => p.id === st.id || p.slug === st.slug);
+                  return {
+                    ...st,
+                    item_count: st.item_count ?? existing?.item_count ?? 0
+                  };
+                });
+              });
               localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
             }
             if (data.user) {
@@ -10028,8 +10064,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     } catch (err) {
       console.error(err)
     } finally {
+      setShowStoreSwitcherModal(false)
+      setStoreSlug(null)
       handleUnauthorized('Sesi telah ditutup.', false)
-      goToCatalog()
+      setPortalTab('login')
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ tab: 'login' }, '', '/login')
+      }
     }
   }
 
@@ -15973,10 +16014,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     {/* Left: Tappable Store Selector */}
                     <button
                       type="button"
-                      onClick={() => {
-                        fetchMyStores();
-                        setShowStoreSwitcherModal(true);
-                      }}
+                      onClick={openStoreChooserModal}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -18011,10 +18049,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          fetchMyStores();
-                          setShowStoreSwitcherModal(true);
-                        }}
+                        onClick={openStoreChooserModal}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -26413,17 +26448,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           setShowStoreSwitcherModal(false);
           setShowCreateStoreModal(true);
         }}
-        onClose={() => {
-          setShowStoreSwitcherModal(false);
-          setStoreChooserComplianceAlert(null);
-          setIsFirstTimeLogin(false);
-          if (!storeSlug) {
-            setView('tabs');
-            setActiveTab('catalog');
-            setPortalTab('home');
-            window.history.pushState({}, '', '/');
-          }
-        }}
+        onClose={handleCloseStoreChooserModal}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
         isFirstTimeLogin={isFirstTimeLogin}

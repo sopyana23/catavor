@@ -5838,11 +5838,38 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
+  const openStoreChooserModal = () => {
+    fetchMyStores();
+    setShowStoreSwitcherModal(true);
+    if (typeof window !== 'undefined' && !isCatalogChooserRoute(window.location.pathname)) {
+      window.history.pushState({ chooser: true }, '', '/catalogs');
+    }
+  };
+
+  const handleCloseStoreChooserModal = () => {
+    setShowStoreSwitcherModal(false);
+    setStoreChooserComplianceAlert(null);
+    setIsFirstTimeLogin(false);
+    const activeSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+    if (activeSlug) {
+      setStoreSlug(activeSlug);
+      if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+        window.history.pushState({}, '', `/${activeSlug}/admin`);
+      }
+    } else {
+      setView('catalog');
+      setPortalTab('home');
+      if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
+        window.history.pushState({}, '', '/');
+      }
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchMyStores();
     }
-  }, [token]);
+  }, [token, showStoreSwitcherModal]);
 
   // Analytics & Traffic Telemetry States (Desktop)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d' | '90d'>('7d');
@@ -7974,7 +8001,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
             return;
           }
         }
-        if (res.status === 401) {
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.success) {
+            if (data.stores && Array.isArray(data.stores)) {
+              setUserStores(prev => {
+                return data.stores.map((st: any) => {
+                  const existing = prev.find((p: any) => p.id === st.id || p.slug === st.slug);
+                  return {
+                    ...st,
+                    item_count: st.item_count ?? existing?.item_count ?? 0
+                  };
+                });
+              });
+              localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+            }
+            if (data.user) {
+              setAdminUser(data.user);
+              localStorage.setItem('catavor_user', JSON.stringify(data.user));
+            }
+          }
+        } else if (res.status === 401) {
           const data = await res.json().catch(() => ({}));
           const msg = data.code === 'TOKEN_EXPIRED'
             ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
@@ -9178,8 +9225,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
     } catch (err) {
       console.error(err)
     } finally {
+      setShowStoreSwitcherModal(false)
+      setStoreSlug(null)
       handleUnauthorized('Sesi telah ditutup.', false)
-      goToCatalog()
+      setPortalTab('login')
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ tab: 'login' }, '', '/login')
+      }
     }
   }
 
@@ -14865,7 +14917,33 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         })()}
                         </div>
 
-                        <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem' }}>
+                        <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem', display: 'flex', gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowStoreDropdown(false);
+                              openStoreChooserModal();
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '0.55rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontWeight: 700,
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Store size={14} />
+                            <span>Pusat Katalog</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -14873,24 +14951,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               setShowCreateStoreModal(true);
                             }}
                             style={{
-                              width: '100%',
-                              padding: '0.6rem',
+                              flex: 1,
+                              padding: '0.55rem',
                               borderRadius: '0.5rem',
                               backgroundColor: 'var(--primary-glow)',
                               border: '1px dashed var(--primary)',
                               color: 'var(--primary)',
                               fontWeight: 700,
-                              fontSize: '0.78rem',
+                              fontSize: '0.75rem',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: '0.45rem',
+                              gap: '0.35rem',
                               transition: 'all 0.2s ease'
                             }}
                           >
-                            <Plus size={15} />
-                            <span>Buat Profil Katalog Baru</span>
+                            <Plus size={14} />
+                            <span>Buat Baru</span>
                           </button>
                         </div>
                       </div>
@@ -23615,16 +23693,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
       {/* Multi-Catalog Store Chooser Hub Modal */}
       <StoreChooserModal
         isOpen={showStoreSwitcherModal}
-        onClose={() => {
-          setShowStoreSwitcherModal(false);
-          setStoreChooserComplianceAlert(null);
-          setIsFirstTimeLogin(false);
-          if (!storeSlug) {
-            setView('catalog');
-            setPortalTab('home');
-            window.history.pushState({}, '', '/');
-          }
-        }}
+        onClose={handleCloseStoreChooserModal}
         user={adminUser}
         stores={userStores}
         activeSlug={isFirstTimeLogin ? null : storeSlug}
