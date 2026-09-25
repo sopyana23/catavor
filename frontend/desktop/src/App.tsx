@@ -5998,6 +5998,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         document.body.setAttribute('data-theme', newTheme);
         setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
 
+        try { localStorage.setItem('catavor_active_slug', targetSlug); } catch {}
         setStoreSlug(targetSlug);
         setShowStoreDropdown(false);
         setShowStoreSwitcherModal(false);
@@ -10648,22 +10649,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               setView('admin');
                               setStoreSlug(null);
                               window.history.pushState({}, '', '/admin');
-                            } else if (storeSlug) {
-                              setView('admin');
-                              setAdminTab('items');
-                              window.history.pushState({}, '', `/${storeSlug}/admin/items`);
-                              loadData(storeSlug);
-                            } else if (userStores && userStores.length === 1) {
-                              const singleSlug = userStores[0].slug;
-                              setStoreSlug(singleSlug);
-                              setView('admin');
-                              setAdminTab('items');
-                              window.history.pushState({}, '', `/${singleSlug}/admin/items`);
-                              loadData(singleSlug);
                             } else {
-                              setStoreSlug(null);
-                              setShowStoreSwitcherModal(true);
-                              window.history.pushState({ chooser: true }, '', '/catalogs/admin');
+                              const activeTokenStoreSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
+                              if (activeTokenStoreSlug) {
+                                setStoreSlug(activeTokenStoreSlug);
+                                setView('admin');
+                                setAdminTab('items');
+                                window.history.pushState({}, '', `/${activeTokenStoreSlug}/admin/items`);
+                                loadData(activeTokenStoreSlug);
+                              } else {
+                                setStoreSlug(null);
+                                setShowStoreSwitcherModal(true);
+                                window.history.pushState({ chooser: true }, '', '/catalogs/admin');
+                              }
                             }
                           }}
                           style={{
