@@ -75,15 +75,16 @@ type UpdateProfileRequest struct {
 }
 
 type StoreSummary struct {
-	ID             uint   `json:"id"`
-	Slug           string `json:"slug"`
-	StoreTitle     string `json:"store_title"`
-	StoreSlogan    string `json:"store_slogan"`
-	StoreTheme     string `json:"store_theme"`
-	StoreLogoURL   string `json:"store_logo_url"`
-	Plan           string `json:"plan"`
-	PaymentStatus  string `json:"payment_status"`
+	ID               uint   `json:"id"`
+	Slug             string `json:"slug"`
+	StoreTitle       string `json:"store_title"`
+	StoreSlogan      string `json:"store_slogan"`
+	StoreTheme       string `json:"store_theme"`
+	StoreLogoURL     string `json:"store_logo_url"`
+	Plan             string `json:"plan"`
+	PaymentStatus    string `json:"payment_status"`
 	WhatsappNumber   string `json:"whatsapp_number"`
+	ItemCount        int64  `json:"item_count"`
 	DormancyStatus   string `json:"dormancy_status,omitempty"`
 	SuspensionReason string `json:"suspension_reason,omitempty"`
 	IsSuspended      bool   `json:"is_suspended"`
@@ -100,6 +101,9 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 		if theme == "" {
 			theme = "navy"
 		}
+		var itemCount int64
+		database.DB.Model(&models.Product{}).Where("store_id = ?", s.ID).Count(&itemCount)
+
 		list = append(list, StoreSummary{
 			ID:               s.ID,
 			Slug:             s.Slug,
@@ -110,6 +114,7 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			Plan:             s.Plan,
 			PaymentStatus:    s.PaymentStatus,
 			WhatsappNumber:   s.WhatsappNumber,
+			ItemCount:        itemCount,
 			DormancyStatus:   s.DormancyStatus,
 			SuspensionReason: s.SuspensionReason,
 			IsSuspended:      s.IsSuspended || s.DormancyStatus == "suspended",
@@ -121,6 +126,9 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 		if theme == "" {
 			theme = "navy"
 		}
+		var itemCount int64
+		database.DB.Model(&models.Product{}).Where("store_id = ?", singleStore.ID).Count(&itemCount)
+
 		summary := StoreSummary{
 			ID:               singleStore.ID,
 			Slug:             singleStore.Slug,
@@ -131,6 +139,7 @@ func buildStoreSummaries(stores []models.Store, singleStore *models.Store, targe
 			Plan:             singleStore.Plan,
 			PaymentStatus:    singleStore.PaymentStatus,
 			WhatsappNumber:   singleStore.WhatsappNumber,
+			ItemCount:        itemCount,
 			DormancyStatus:   singleStore.DormancyStatus,
 			SuspensionReason: singleStore.SuspensionReason,
 			IsSuspended:      singleStore.IsSuspended || singleStore.DormancyStatus == "suspended",
