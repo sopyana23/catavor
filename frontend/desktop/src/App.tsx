@@ -23758,8 +23758,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         activeSlug={(() => {
           if (storeChooserComplianceAlert) return null;
           if (isFirstTimeLogin) return null;
-          if (!storeSlug || isReservedStoreSlug(storeSlug)) return null;
-          return storeSlug;
+          const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+          if (isValid(storeSlug)) return storeSlug;
+          const resolved = resolveActiveStoreSlug();
+          if (isValid(resolved)) return resolved;
+          if (isValid(adminUser?.store_slug)) return adminUser?.store_slug;
+          if (userStores && userStores.length > 0) {
+            const st = userStores.find(s => isValid(s.slug));
+            if (st?.slug) return st.slug;
+          }
+          return null;
         })()}
         complianceAlert={storeChooserComplianceAlert}
         onSelectStore={(targetStore) => handleSwitchStore(targetStore.slug)}
@@ -23769,11 +23777,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         }}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
-        isFirstTimeLogin={isFirstTimeLogin || !storeSlug || isReservedStoreSlug(storeSlug || '')}
+        isFirstTimeLogin={isFirstTimeLogin || (!storeSlug && !resolveActiveStoreSlug() && !adminUser?.store_slug)}
         activeTheme={(() => {
           if (storeChooserComplianceAlert) return 'navy';
-          if (isFirstTimeLogin || !storeSlug || isReservedStoreSlug(storeSlug || '')) return 'navy';
-          return userStores.find(s => s.slug?.toLowerCase() === storeSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
+          const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+          const targetSlug = (isValid(storeSlug) ? storeSlug : null) || (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) || (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null);
+          return userStores.find(s => s.slug?.toLowerCase() === targetSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
         })()}
       />
 
