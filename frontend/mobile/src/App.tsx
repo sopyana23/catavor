@@ -8923,39 +8923,46 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         } else {
           setError(settingsData.message || 'Katalog / Store tidak ditemukan.');
           // If 404 and user is logged in, proactively check if account was banned or offer store switch
-          if (settingsRes.status === 404 && token) {
-            try {
-              const verifyRes = await fetch(`${API_BASE}/auth/verify`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Accept': 'application/json'
+          if (settingsRes.status === 404 && token && slug && !isReservedStoreSlug(slug)) {
+            const isStoreOwner = Boolean(
+              adminUser?.store_slug?.toLowerCase() === slug.toLowerCase() ||
+              (adminUser as any)?.username?.toLowerCase() === slug.toLowerCase() ||
+              (userStores && userStores.some(s => s.slug?.toLowerCase() === slug.toLowerCase()))
+            );
+            if (isStoreOwner) {
+              try {
+                const verifyRes = await fetch(`${API_BASE}/auth/verify`, {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                  }
+                });
+                if (verifyRes.status === 403) {
+                  const vData = await verifyRes.json().catch(() => ({}));
+                  if (vData?.code === 'ACCOUNT_BANNED' || vData?.code === 'USER_BLACKLISTED' || vData?.code === 'ALL_STORES_BANNED') {
+                    handleAccountBanned(vData?.message);
+                    return;
+                  }
+                } else if (verifyRes.ok) {
+                  const vData = await verifyRes.json().catch(() => ({}));
+                  if (vData?.success && Array.isArray(vData?.stores) && vData.stores.length > 0) {
+                    setUserStores(vData.stores);
+                    setStoreChooserComplianceAlert({
+                      type: 'banned',
+                      message: `Profil katalog '${slug}' tidak dapat diakses atau telah dinonaktifkan oleh Tim Kepatuhan. Rincian telah dikirimkan ke email akun Anda. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
+                      bannedSlug: slug || undefined
+                    });
+                    // RULE: Toko sebelumnya dibanned -> reset tema ke default landing page navy & reset active slug
+                    document.documentElement.setAttribute('data-theme', 'navy');
+                    document.body.setAttribute('data-theme', 'navy');
+                    setStoreSlug(null);
+                    window.history.pushState({}, '', '/catalogs');
+                    setShowStoreSwitcherModal(true);
+                    return;
+                  }
                 }
-              });
-              if (verifyRes.status === 403) {
-                const vData = await verifyRes.json().catch(() => ({}));
-                if (vData?.code === 'ACCOUNT_BANNED' || vData?.code === 'USER_BLACKLISTED' || vData?.code === 'ALL_STORES_BANNED') {
-                  handleAccountBanned(vData?.message);
-                  return;
-                }
-              } else if (verifyRes.ok) {
-                const vData = await verifyRes.json().catch(() => ({}));
-                if (vData?.success && Array.isArray(vData?.stores) && vData.stores.length > 0) {
-                  setUserStores(vData.stores);
-                  setStoreChooserComplianceAlert({
-                    type: 'banned',
-                    message: `Profil katalog '${slug}' tidak dapat diakses atau telah dinonaktifkan oleh Tim Kepatuhan. Rincian telah dikirimkan ke email akun Anda. Anda dapat melanjutkan pengelolaan profil katalog Anda yang lain di bawah ini.`,
-                    bannedSlug: slug || undefined
-                  });
-                  // RULE: Toko sebelumnya dibanned -> reset tema ke default landing page navy & reset active slug
-                  document.documentElement.setAttribute('data-theme', 'navy');
-                  document.body.setAttribute('data-theme', 'navy');
-                  setStoreSlug(null);
-                  window.history.pushState({}, '', '/catalogs');
-                  setShowStoreSwitcherModal(true);
-                  return;
-                }
-              }
-            } catch (e) {}
+              } catch (e) {}
+            }
           }
         }
       } else {
