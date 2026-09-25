@@ -237,8 +237,8 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
 
   if (!isOpen) return null;
 
-  // RULE: Jika user memiliki activeSlug dan sesi aktif, tampilkan tombol back & tema toko aktif
-  const isFreshLogin = (isFirstTimeLogin && !activeSlug) || Boolean(complianceAlert);
+  // RULE: Jika user pertama kali login atau belum terdeteksi slug dari profile tertentu (atau complianceAlert), tampilkan icon katalog dan sembunyikan tombol back. Hanya tampilkan tombol back jika user sudah memilih/berada di profile katalog tertentu.
+  const isFreshLogin = isFirstTimeLogin || !activeSlug || Boolean(complianceAlert);
   const effectiveActiveSlug = isFreshLogin ? null : activeSlug;
 
   const theme = getStoreChooserTheme(isFreshLogin, activeTheme);
