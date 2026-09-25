@@ -5,7 +5,30 @@
     <link rel="icon" type="image/png" href="/mobile/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Catavor - Katalog Bisnis & Usaha</title>
-    <script type="module" crossorigin src="/mobile/assets/index-Dg5gGTph.js"></script>
+    <!-- Google Identity Services Client SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google OAuth Popup Interceptor (Closes popup instantly and passes token back to main window) -->
+    <script>
+      (function() {
+        try {
+          if (window.opener && window.opener !== window) {
+            var hash = window.location.hash || '';
+            var search = window.location.search || '';
+            if (hash.indexOf('access_token=') !== -1 || hash.indexOf('id_token=') !== -1 || search.indexOf('code=') !== -1) {
+              window.opener.postMessage({
+                type: 'CATAVOR_GOOGLE_AUTH_CALLBACK',
+                hash: hash,
+                search: search
+              }, window.location.origin);
+              window.close();
+            }
+          }
+        } catch (e) {
+          console.error('OAuth popup message relay error:', e);
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/mobile/assets/index-BAvEMeo4.js"></script>
     <link rel="stylesheet" crossorigin href="/mobile/assets/index-BGgfAE8N.css">
   </head>
   <body>

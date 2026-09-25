@@ -141,6 +141,7 @@ import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './u
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
+import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
 
 export interface UserStoreSummary {
   id: number;
@@ -3099,8 +3100,6 @@ interface Article {
   updated_at: string
 }
 
-const API_BASE = 'http://localhost:8000/api'
-
 const stripHtml = (html: string) => {
   return html.replace(/<[^>]*>/g, '')
 }
@@ -4817,17 +4816,22 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Realtime Notifications Synchronizer & API Handlers (Mobile)
   const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false, activeFilter: 'all' | 'unread' = notifFilter) => {
     try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!token) {
+        setNotifInitialLoading(false);
+        setNotifLoadingMore(false);
+        return;
+      }
       if (pageToFetch === 1 && !append) {
         setNotifInitialLoading(true);
       } else {
         setNotifLoadingMore(true);
       }
-      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
       const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=10&filter=${activeFilter}`, {
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Authorization': `Bearer ${token}`,
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
@@ -4942,8 +4946,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const fetchActivityLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false, category: string = activityCategory, search: string = activitySearch) => {
     try {
-      setActivityLoading(true);
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!token) {
+        setActivityLoading(false);
+        return;
+      }
+      setActivityLoading(true);
       const slug = storeSlug || getStoreSlug() || '';
       const endpoint = '/api/activity-logs';
       
@@ -4957,7 +4965,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const res = await fetch(`${endpoint}?${queryParams.toString()}`, {
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Authorization': `Bearer ${token}`,
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
@@ -4991,9 +4999,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Hook for initial load and SSE real-time stream subscription (Mobile)
   useEffect(() => {
+    const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+    if (!token) return;
+
     fetchNotificationsFromBackend(1, false, 'all');
 
-    const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
     const slug = storeSlug || getStoreSlug() || '';
     if (!token) return;
 
@@ -5752,11 +5762,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         } else {
           // If not in first batch of state, attempt to fetch directly from backend API
           const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+          if (!token) return;
           const slug = storeSlug || getStoreSlug() || '';
           fetch(`/api/notifications/${encodeURIComponent(notifId)}`, {
             headers: {
               'Accept': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+              'Authorization': `Bearer ${token}`,
               ...(slug ? { 'X-Store-Slug': slug } : {})
             }
           })
@@ -6155,7 +6166,6 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const [isFirstTimeLogin, setIsFirstTimeLogin] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    if (localStorage.getItem('catavor_token')) return false;
     return isCatalogChooserRoute(window.location.pathname);
   });
   const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(() => 
@@ -6283,20 +6293,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.stores)) {
-        setUserStores(data.stores);
+        const normalizedStores: UserStoreSummary[] = data.stores.map((st: any) => ({
+          ...st,
+          item_count: typeof st.item_count === 'number' ? st.item_count : Number(st.products_count ?? st.product_count ?? st.total_items ?? st.total_products ?? 0)
+        }));
+        setUserStores(normalizedStores);
         try {
-          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+          localStorage.setItem('catavor_stores', JSON.stringify(normalizedStores));
         } catch {}
-
-        const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
-        const currentActive = (isValid(storeSlug) ? storeSlug : null) || (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null);
-        if (!currentActive && data.stores.length > 0) {
-          const firstValid = data.stores.find((st: any) => isValid(st.slug))?.slug;
-          if (firstValid) {
-            setStoreSlug(firstValid);
-            try { localStorage.setItem('catavor_active_slug', firstValid); } catch {}
-          }
-        }
       }
     } catch (err) {
       console.error('Failed to fetch user stores:', err);
@@ -6304,6 +6308,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   };
 
   const openStoreChooserModal = () => {
+    setIsFirstTimeLogin(false);
     fetchMyStores();
     setShowStoreSwitcherModal(true);
     if (typeof window !== 'undefined' && !isCatalogChooserRoute(window.location.pathname)) {
@@ -8468,22 +8473,19 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           document.documentElement.setAttribute('data-theme', 'navy');
           document.body.setAttribute('data-theme', 'navy');
         } else {
-          setIsFirstTimeLogin(false);
           fetchMyStores();
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
-          const activeSlug = 
-            (isValid(storeSlug) ? storeSlug : null) ||
-            (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
-            (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
-            (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
-            null;
-
-          if (activeSlug && isValid(activeSlug)) {
-            setStoreSlug(activeSlug);
-            try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
-            const activeStoreTheme = userStores.find(s => s.slug?.toLowerCase() === activeSlug.toLowerCase())?.store_theme || adminUser?.store_theme || (settingsForm as any)?.store_theme || 'navy';
+          const currentStoreSlug = isValid(storeSlug) ? storeSlug : null;
+          if (currentStoreSlug && !isFirstTimeLogin) {
+            setStoreSlug(currentStoreSlug);
+            const activeStoreTheme = userStores.find(s => s.slug?.toLowerCase() === currentStoreSlug.toLowerCase())?.store_theme || adminUser?.store_theme || (settingsForm as any)?.store_theme || 'navy';
             document.documentElement.setAttribute('data-theme', activeStoreTheme);
             document.body.setAttribute('data-theme', activeStoreTheme);
+          } else {
+            setStoreSlug(null);
+            setIsFirstTimeLogin(true);
+            document.documentElement.setAttribute('data-theme', 'navy');
+            document.body.setAttribute('data-theme', 'navy');
           }
         }
         setShowStoreSwitcherModal(true);
@@ -8663,11 +8665,18 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   };
 
-  const fetchSubscriptionPlans = async () => {
+  const fetchSubscriptionPlans = async (forceFresh: boolean = false) => {
     try {
-      const res = await fetch(`${API_BASE}/subscription/plans`);
-      const data = await res.json();
-      if (data.success && data.data) {
+      const { data } = await apiClient.swr<any>('/subscription/plans', {
+        ttlMs: 30 * 60 * 1000,
+        forceFresh,
+        onFresh: (freshData) => {
+          if (freshData?.success && freshData.data) {
+            setSubscriptionPlans(freshData.data);
+          }
+        }
+      });
+      if (data?.success && data.data) {
         setSubscriptionPlans(data.data);
       }
     } catch (err) {
@@ -8681,6 +8690,14 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       fetchMyQuota();
     }
   }, [token]);
+
+  // Global API Unauthorized session interception
+  useEffect(() => {
+    const unsub = onApiUnauthorized((msg) => {
+      handleUnauthorized(msg);
+    });
+    return unsub;
+  }, []);
 
   // Industry-standard centralized authFetch wrapper with pre-flight check and 401 interception
   const authFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -8900,11 +8917,51 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     try {
       if (slug && !isReservedStoreSlug(slug)) {
         try { localStorage.setItem('catavor_active_slug', slug); } catch {}
-        // Fetch store-specific profile
-        const settingsRes = await fetch(`${API_BASE}/u/${slug}`);
-        const settingsData = await settingsRes.json();
+        // Fetch store-specific profile using SWR (instant 0ms render if cached)
+        const { data: settingsData } = await apiClient.swr<any>(`/u/${slug}`, {
+          ttlMs: 2 * 60 * 1000,
+          slug,
+          onFresh: (freshSettings) => {
+            if (freshSettings?.success && freshSettings.data) {
+              const store = freshSettings.data;
+              const fetched = {
+                plan: store.plan || 'free',
+                enable_wa_direct: store.enable_wa_direct !== undefined ? store.enable_wa_direct : true,
+                enable_wa_rekber: store.enable_wa_rekber !== undefined ? store.enable_wa_rekber : true,
+                whatsapp_number: store.whatsapp_number || '',
+                store_slogan: store.store_slogan || 'Memudahkan pelanggan menjelajahi produk dan informasi bisnis.',
+                promo_banner: store.promo_banner || '',
+                articles_enabled: '0',
+                about_title: store.about_title || '',
+                about_slogan: store.about_slogan || '',
+                about_description: store.about_description || '',
+                about_cards: store.about_cards ? JSON.stringify(store.about_cards) : '',
+                about_location: store.about_location || '',
+                about_hours: store.about_hours || '',
+                show_hours: store.show_hours !== undefined ? Boolean(store.show_hours) : false,
+                about_disclaimer: store.about_disclaimer || '',
+                social_links: store.social_links ? JSON.stringify(store.social_links) : '',
+                official_website: store.official_website || '',
+                store_title: store.store_title || 'Catavor',
+                store_logo_url: store.store_logo_url || '',
+                store_theme: store.store_theme || 'navy',
+                dormancy_status: store.dormancy_status || 'active',
+                is_suspended: Boolean(store.is_suspended || freshSettings.is_suspended || store.dormancy_status === 'suspended'),
+                suspension_reason: store.suspension_reason || 'none',
+                dormancy_suspended_at: store.dormancy_suspended_at || '',
+                last_activity_at: store.last_activity_at || '',
+                default_is_comments_enabled: '0',
+                default_require_comment_approval: '0',
+                default_require_comment_email: '0',
+                default_verify_comment_email_domain: '0'
+              };
+              setSettings(fetched);
+              setSettingsForm(fetched);
+            }
+          }
+        });
         
-        if (settingsData.success && settingsData.data) {
+        if (settingsData && settingsData.success && settingsData.data) {
           const store = settingsData.data;
           const fetchedSettings = {
             plan: store.plan || 'free',
@@ -8983,22 +9040,29 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           if (store.master_statuses) setMasterStatuses(store.master_statuses);
           if (store.master_shipping_coverages) setMasterShippingCoverages(store.master_shipping_coverages);
 
-          // Fetch store-scoped products catalog (Load complete store inventory into master state if active)
+          // Fetch store-scoped products catalog with SWR
           if (settingsData.is_suspended || store.dormancy_status === 'suspended') {
             setFaunas([]);
           } else {
-            const faunaRes = await fetch(`${API_BASE}/u/${slug}/products`);
-            const faunaData = await faunaRes.json();
-            if (faunaData.success) {
+            const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products`, {
+              ttlMs: 2 * 60 * 1000,
+              slug,
+              onFresh: (freshFauna) => {
+                if (freshFauna?.success && Array.isArray(freshFauna.data)) {
+                  setFaunas(freshFauna.data);
+                }
+              }
+            });
+            if (faunaData && faunaData.success) {
               setFaunas(faunaData.data);
             } else {
-              setError(faunaData.message || 'Gagal memuat produk.');
+              setError(faunaData?.message || 'Gagal memuat produk.');
             }
           }
         } else {
-          setError(settingsData.message || 'Katalog / Store tidak ditemukan.');
+          setError(settingsData?.message || 'Katalog / Store tidak ditemukan.');
           // If 404 and user is logged in, proactively check if account was banned or offer store switch
-          if (settingsRes.status === 404 && token && slug && !isReservedStoreSlug(slug)) {
+          if (token && slug && !isReservedStoreSlug(slug)) {
             const isStoreOwner = Boolean(
               adminUser?.store_slug?.toLowerCase() === slug.toLowerCase() ||
               (adminUser as any)?.username?.toLowerCase() === slug.toLowerCase() ||
@@ -9041,10 +9105,16 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           }
         }
       } else {
-        // Portal mode: Fetch featured stores
-        const featuredRes = await fetch(`${API_BASE}/stores/featured`);
-        const featuredData = await featuredRes.json();
-        if (featuredData.success) {
+        // Portal mode: Fetch featured stores with SWR
+        const { data: featuredData } = await apiClient.swr<any>('/stores/featured', {
+          ttlMs: 5 * 60 * 1000,
+          onFresh: (freshFeatured) => {
+            if (freshFeatured?.success && Array.isArray(freshFeatured.data)) {
+              setFeaturedStores(freshFeatured.data);
+            }
+          }
+        });
+        if (featuredData && featuredData.success) {
           setFeaturedStores(featuredData.data);
         }
       }
@@ -9645,15 +9715,33 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     const checkPopup = setInterval(() => {
       try {
-        if (!popup || popup.closed) {
+        if (!popup) {
           clearInterval(checkPopup);
           return;
         }
-        if (popup.location.href.includes('access_token=')) {
+
+        let isClosed = false;
+        try {
+          isClosed = popup.closed;
+        } catch (_) {}
+
+        if (isClosed) {
+          clearInterval(checkPopup);
+          return;
+        }
+
+        let currentHref = '';
+        try {
+          currentHref = popup.location?.href || '';
+        } catch (_) {
+          // Cross-origin restriction while on accounts.google.com is normal
+        }
+
+        if (currentHref && currentHref.includes('access_token=')) {
           const hash = popup.location.hash.substring(1);
           const params = new URLSearchParams(hash);
           const accessToken = params.get('access_token');
-          popup.close();
+          try { popup.close(); } catch (_) {}
           clearInterval(checkPopup);
 
           if (accessToken) {
@@ -9698,6 +9786,85 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       }
     }, 400);
   };
+
+  // Listen for Google OAuth callback from popup message or direct hash redirect
+  useEffect(() => {
+    const handleAuthMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
+        const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        if (accessToken) {
+          try {
+            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (res.ok) {
+              const googleUser = await res.json();
+              if (googleUser && googleUser.email) {
+                processGoogleUserPayload({
+                  email: googleUser.email,
+                  name: googleUser.name,
+                  google_id: googleUser.sub,
+                  avatar: googleUser.picture,
+                  token: accessToken
+                });
+                return;
+              }
+            }
+          } catch (err) {
+            console.error('Failed to fetch userinfo from Google token:', err);
+          }
+          processGoogleUserPayload({
+            email: '',
+            name: '',
+            google_id: '',
+            token: accessToken
+          });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+
+    // Also handle case where main window itself was redirected with hash #access_token=...
+    if (window.location.hash && window.location.hash.includes('access_token=')) {
+      const hash = window.location.hash.replace(/^#/, '');
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      // Clean hash from URL bar
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      if (accessToken) {
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+        .then(async (res) => {
+          if (res.ok) {
+            const googleUser = await res.json();
+            if (googleUser && googleUser.email) {
+              processGoogleUserPayload({
+                email: googleUser.email,
+                name: googleUser.name,
+                google_id: googleUser.sub,
+                avatar: googleUser.picture,
+                token: accessToken
+              });
+              return;
+            }
+          }
+          processGoogleUserPayload({ email: '', name: '', google_id: '', token: accessToken });
+        })
+        .catch(() => {
+          processGoogleUserPayload({ email: '', name: '', google_id: '', token: accessToken });
+        });
+      }
+    }
+
+    return () => {
+      window.removeEventListener('message', handleAuthMessage);
+    };
+  }, []);
 
   // Handle Login Submit
   
@@ -26541,14 +26708,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         user={adminUser}
         stores={userStores}
         activeSlug={(() => {
-          if (storeChooserComplianceAlert) return null;
+          if (isFirstTimeLogin || storeChooserComplianceAlert) return null;
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
           const resolved = 
             (isValid(storeSlug) ? storeSlug : null) ||
             (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
-            (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
-            (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
-            null;
+            (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null);
           if (resolved && isValid(resolved)) return resolved;
           return null;
         })()}
@@ -26561,9 +26726,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         onClose={handleCloseStoreChooserModal}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
-        isFirstTimeLogin={Boolean(isFirstTimeLogin || (!token && !localStorage.getItem('catavor_token')))}
+        isFirstTimeLogin={isFirstTimeLogin}
         activeTheme={(() => {
-          if (storeChooserComplianceAlert) return 'navy';
+          if (isFirstTimeLogin || storeChooserComplianceAlert) return 'navy';
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
           const targetSlug = (isValid(storeSlug) ? storeSlug : null) || (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) || (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null);
           return userStores.find(s => s.slug?.toLowerCase() === targetSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';

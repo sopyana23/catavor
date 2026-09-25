@@ -31,9 +31,12 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
   }
 
   // 1. Read from localStorage cache for instant zero-latency boot
+  let lastFetchTime = 0;
   if (typeof window !== 'undefined') {
     try {
       const cached = localStorage.getItem('catavor_safe_domains');
+      const cachedTime = localStorage.getItem('catavor_safe_domains_time');
+      if (cachedTime) lastFetchTime = parseInt(cachedTime, 10) || 0;
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -43,6 +46,12 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
     } catch {
       // ignore
     }
+  }
+
+  // 30 Minutes Cache TTL: Skip network hit if cached within 30 minutes
+  const now = Date.now();
+  if (dynamicSafeDomainsCache.length > 0 && (now - lastFetchTime < 30 * 60 * 1000)) {
+    return dynamicSafeDomainsCache;
   }
 
   if (isFetchingDomains) return dynamicSafeDomainsCache;
@@ -57,6 +66,7 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('catavor_safe_domains', JSON.stringify(json.data));
+            localStorage.setItem('catavor_safe_domains_time', String(Date.now()));
           } catch {
             // ignore
           }
@@ -76,7 +86,7 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     loadDynamicSafeDomains();
-  }, 100);
+  }, 300);
 }
 
 /**

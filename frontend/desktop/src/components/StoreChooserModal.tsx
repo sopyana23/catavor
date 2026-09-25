@@ -237,10 +237,8 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
 
   if (!isOpen) return null;
 
-  const fallbackSlug = stores && stores.length > 0 ? stores.find(st => st.slug && st.dormancy_status !== 'banned' && !st.is_blacklisted)?.slug || stores[0].slug : null;
-  const targetActiveSlug = activeSlug || fallbackSlug;
-  const isFreshLogin = Boolean(complianceAlert) || (isFirstTimeLogin && !targetActiveSlug);
-  const effectiveActiveSlug = isFreshLogin ? null : targetActiveSlug;
+  const isFreshLogin = Boolean(isFirstTimeLogin || complianceAlert || !activeSlug);
+  const effectiveActiveSlug = isFreshLogin ? null : activeSlug;
 
   const theme = getStoreChooserTheme(isFreshLogin, activeTheme);
 
@@ -670,7 +668,7 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
                         </span>
                         <span style={{ opacity: 0.5, flexShrink: 0 }}>•</span>
                         <span style={{ whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 600, color: theme.textSecondary }}>
-                          {store.item_count ?? 0} Item
+                          {Number(store.item_count ?? (store as any).products_count ?? (store as any).product_count ?? (store as any).total_items ?? (store as any).total_products ?? 0)} Item
                         </span>
                       </div>
                     </div>

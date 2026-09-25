@@ -26,6 +26,7 @@ func (h *SubscriptionHandler) GetPlans(c *fiber.Ctx) error {
 		})
 	}
 
+	c.Set("Cache-Control", "public, max-age=600, stale-while-revalidate=86400")
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    plans,
