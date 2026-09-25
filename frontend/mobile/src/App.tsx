@@ -26501,7 +26501,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
         isFirstTimeLogin={isFirstTimeLogin}
-        activeTheme={storeChooserComplianceAlert ? 'navy' : (isFirstTimeLogin ? 'navy' : (userStores.find(s => s.slug?.toLowerCase() === storeSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy'))}
+        activeTheme={storeChooserComplianceAlert ? 'navy' : (isFirstTimeLogin ? 'navy' : (userStores.find(s => s.slug?.toLowerCase() === (storeSlug || resolveActiveStoreSlug())?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy'))}
       />
 
       {/* ==========================================================
