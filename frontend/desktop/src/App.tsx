@@ -5826,11 +5826,16 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       isPlatformAdmin(adminUser) ||
       (
         storeSlug &&
+        !isReservedStoreSlug(storeSlug) &&
         (
           (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
           ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
           (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
         )
+      ) ||
+      (
+        (!storeSlug || isReservedStoreSlug(storeSlug || '')) &&
+        Boolean(adminUser.store_slug || resolveActiveStoreSlug() || (userStores && userStores.length > 0))
       )
     )
   );
@@ -5983,6 +5988,13 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     if (storeSlug && targetSlug.toLowerCase() === storeSlug.toLowerCase() && !isFirstTimeLogin) {
       setShowStoreDropdown(false);
       setShowStoreSwitcherModal(false);
+      setView('admin');
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname.toLowerCase();
+        if (isCatalogChooserRoute(path) || path.includes('/catalogs') || !path.startsWith(`/${targetSlug.toLowerCase()}`)) {
+          window.history.pushState({}, '', `/${targetSlug}/admin`);
+        }
+      }
       return;
     }
     setSwitchingStoreSlug(targetSlug);
@@ -7381,8 +7393,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
             return;
           } else if (u.store_slug) {
             slug = u.store_slug;
-            if (path === '/' || path === '') {
-              window.history.replaceState({}, '', `/${slug}/admin?${urlParams.toString()}`);
+            const firstSegment = path.split('/').filter(Boolean)[0] || '';
+            if (path === '/' || path === '' || isCatalogChooserRoute(path) || path.includes('/catalogs') || isReservedStoreSlug(firstSegment)) {
+              const queryStr = urlParams.toString() ? `?${urlParams.toString()}` : '';
+              window.history.replaceState({}, '', `/${slug}/admin${queryStr}`);
             }
           }
         } catch {}
