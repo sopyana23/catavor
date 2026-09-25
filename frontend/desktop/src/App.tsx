@@ -23757,9 +23757,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         user={adminUser}
         stores={userStores}
         activeSlug={(() => {
-          const hasToken = Boolean(token || (typeof localStorage !== 'undefined' && localStorage.getItem('catavor_token')));
-          if (isFirstTimeLogin && !hasToken) return null;
-          return storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || userStores[0]?.slug || null;
+          if (storeChooserComplianceAlert) return null;
+          if (isFirstTimeLogin) return null;
+          if (!storeSlug || isReservedStoreSlug(storeSlug)) return null;
+          return storeSlug;
         })()}
         complianceAlert={storeChooserComplianceAlert}
         onSelectStore={(targetStore) => handleSwitchStore(targetStore.slug)}
@@ -23769,13 +23770,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         }}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
-        isFirstTimeLogin={isFirstTimeLogin && !Boolean(token || (typeof localStorage !== 'undefined' && localStorage.getItem('catavor_token')))}
+        isFirstTimeLogin={isFirstTimeLogin || !storeSlug || isReservedStoreSlug(storeSlug || '')}
         activeTheme={(() => {
           if (storeChooserComplianceAlert) return 'navy';
-          const hasToken = Boolean(token || (typeof localStorage !== 'undefined' && localStorage.getItem('catavor_token')));
-          if (isFirstTimeLogin && !hasToken) return 'navy';
-          const currentSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || userStores[0]?.slug;
-          return userStores.find(s => s.slug?.toLowerCase() === currentSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
+          if (isFirstTimeLogin || !storeSlug || isReservedStoreSlug(storeSlug || '')) return 'navy';
+          return userStores.find(s => s.slug?.toLowerCase() === storeSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
         })()}
       />
 
