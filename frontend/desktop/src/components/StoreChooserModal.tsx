@@ -196,24 +196,24 @@ export const getStoreChooserTheme = (isFreshLogin: boolean, activeTheme?: string
       };
     case 'navy':
     default:
-      // Default: Deep Navy Blue Theme (#1e3a8a matching active dashboard controls & soft slate blue tint)
+      // Default: Deep Navy Blue Dark Theme (#060d1a matching Catavor dark mode design)
       return {
-        isLight: true,
-        bgDeep: '#f8fafc',
-        bgCard: '#ffffff',
-        bgCardHover: '#f1f5f9',
-        borderLight: 'rgba(226, 232, 240, 0.9)',
-        borderHover: 'rgba(30, 58, 138, 0.35)',
-        primary: '#1e3a8a',
-        primaryHover: '#172554',
-        primaryGlow: 'rgba(30, 58, 138, 0.28)',
-        accentLight: '#3b82f6',
-        textPrimary: '#0f172a',
-        textSecondary: '#1e3a8a',
-        textMuted: '#64748b',
-        headerBg: '#ffffff',
-        headerGradient: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
-        userCardBg: 'rgba(30, 58, 138, 0.08)'
+        isLight: false,
+        bgDeep: '#060d1a',
+        bgCard: '#0b172c',
+        bgCardHover: '#132342',
+        borderLight: 'rgba(59, 130, 246, 0.18)',
+        borderHover: 'rgba(59, 130, 246, 0.4)',
+        primary: '#3b82f6',
+        primaryHover: '#2563eb',
+        primaryGlow: 'rgba(59, 130, 246, 0.28)',
+        accentLight: '#60a5fa',
+        textPrimary: '#ffffff',
+        textSecondary: '#93c5fd',
+        textMuted: '#60a5fa',
+        headerBg: '#060d1a',
+        headerGradient: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+        userCardBg: 'rgba(59, 130, 246, 0.12)'
       };
   }
 };
