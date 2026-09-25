@@ -237,9 +237,10 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
 
   if (!isOpen) return null;
 
-  // RULE: Jika user pertama kali login atau belum terdeteksi slug dari profile tertentu (atau complianceAlert), tampilkan icon katalog dan sembunyikan tombol back. Hanya tampilkan tombol back jika user sudah memilih/berada di profile katalog tertentu.
-  const isFreshLogin = isFirstTimeLogin || !activeSlug || Boolean(complianceAlert);
-  const effectiveActiveSlug = isFreshLogin ? null : activeSlug;
+  const fallbackSlug = stores && stores.length > 0 ? stores.find(st => st.slug && st.dormancy_status !== 'banned' && !st.is_blacklisted)?.slug || stores[0].slug : null;
+  const targetActiveSlug = activeSlug || fallbackSlug;
+  const isFreshLogin = Boolean(complianceAlert) || (isFirstTimeLogin && !targetActiveSlug);
+  const effectiveActiveSlug = isFreshLogin ? null : targetActiveSlug;
 
   const theme = getStoreChooserTheme(isFreshLogin, activeTheme);
 

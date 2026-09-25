@@ -166,7 +166,7 @@ export function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
   if (reservedPortal.includes(parts[0])) return null;
@@ -179,7 +179,7 @@ export function resolveActiveStoreSlug(): string | null {
   const isInvalid = (s?: string | null) => {
     if (!s) return true;
     const clean = s.toLowerCase().trim();
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     return reserved.includes(clean);
   };
   const fromUrl = getStoreSlug();
@@ -4442,7 +4442,6 @@ function App() {
     const clean = slug.toLowerCase().trim();
     const reserved = [
       'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
-      'catavor', 'catafor', 'katavor', 'katafor', 'catabor', 'katabor',
       'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
       'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
       'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
@@ -4451,30 +4450,6 @@ function App() {
       'catalogs', 'select-catalog', 'stores'
     ];
     if (reserved.includes(clean)) return true;
-
-    // Leetspeak & normalized similarity checks
-    const normalized = clean
-      .replace(/[-_.\s/]/g, '')
-      .replace(/0/g, 'o')
-      .replace(/1/g, 'i')
-      .replace(/3/g, 'e')
-      .replace(/4/g, 'a')
-      .replace(/5/g, 's')
-      .replace(/8/g, 'b')
-      .replace(/@/g, 'a')
-      .replace(/\$/g, 's');
-
-    const brandVariations = [
-      'catavor', 'catafor', 'katavor', 'katafor',
-      'catabor', 'katabor', 'cataphor', 'kataphor',
-      'catavr', 'katafr'
-    ];
-
-    for (const b of brandVariations) {
-      if (normalized.includes(b) || clean.startsWith(b) || clean.endsWith(b)) {
-        return true;
-      }
-    }
 
     return false;
   };
@@ -4491,22 +4466,11 @@ function App() {
     return null;
   };
   const [storeSlug, setStoreSlug] = useState<string | null>(() => {
-    const slug = getStoreSlug();
-    if (slug) return slug;
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname.toLowerCase();
-      if (path.includes('/admin')) {
-        try {
-          const userRaw = localStorage.getItem('catavor_user');
-          if (userRaw) {
-            const u = JSON.parse(userRaw);
-            if (!isPlatformAdmin(u) && u.store_slug) {
-              return u.store_slug;
-            }
-          }
-        } catch {}
-      }
-    }
+    const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+    const urlSlug = getStoreSlug();
+    if (urlSlug && isValid(urlSlug)) return urlSlug;
+    const activeResolved = resolveActiveStoreSlug();
+    if (activeResolved && isValid(activeResolved)) return activeResolved;
     return null;
   });
 
@@ -5856,6 +5820,16 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         try {
           localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
         } catch {}
+
+        const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+        const currentActive = (isValid(storeSlug) ? storeSlug : null) || (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null);
+        if (!currentActive && data.stores.length > 0) {
+          const firstValid = data.stores.find((st: any) => isValid(st.slug))?.slug;
+          if (firstValid) {
+            setStoreSlug(firstValid);
+            try { localStorage.setItem('catavor_active_slug', firstValid); } catch {}
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to fetch user stores:', err);
@@ -5884,6 +5858,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
     if (activeSlug && isValid(activeSlug)) {
       setStoreSlug(activeSlug);
+      try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
       setView('admin');
       if (typeof window !== 'undefined') {
         window.history.pushState({}, '', `/${activeSlug}/admin`);
@@ -7364,7 +7339,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return;
     }
 
-    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
+    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
 
     if (isPlatformAdminPath) {
       if (token && isPlatformAdmin(adminUser)) {
@@ -7379,7 +7354,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const isSupportTab = ['support', 'help', 'bantuan'].includes((urlParams.get('tab') || '').toLowerCase());
 
     let slug = getStoreSlug();
-    if (!slug && (path.includes('/admin') || hasTicketParam || isSupportTab)) {
+    if (!slug && (path.includes('/admin') || hasTicketParam || isSupportTab || isCatalogChooserRoute(path))) {
+      const activeSaved = resolveActiveStoreSlug();
+      if (activeSaved && !isReservedStoreSlug(activeSaved)) {
+        slug = activeSaved;
+      }
       const savedUserStr = localStorage.getItem('catavor_user');
       if (savedUserStr) {
         try {
@@ -7391,7 +7370,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               window.history.replaceState({}, '', `/admin?${urlParams.toString()}`);
             }
             return;
-          } else if (u.store_slug && !isReservedStoreSlug(u.store_slug)) {
+          } else if (u.store_slug && !isReservedStoreSlug(u.store_slug) && !slug) {
             slug = u.store_slug;
             if ((path === '/' || path === '') && !isCatalogChooserRoute(path)) {
               const queryStr = urlParams.toString() ? `?${urlParams.toString()}` : '';
@@ -7625,7 +7604,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const handlePopState = (event: PopStateEvent) => {
       isPopStateRef.current = true;
       const path = window.location.pathname.toLowerCase();
-      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/'));
+      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
       if (isPlatformAdminPath) {
         if (token && isPlatformAdmin(adminUser)) {
           setView('admin');
@@ -7762,9 +7741,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
           document.body.setAttribute('data-theme', 'navy');
         } else {
           setIsFirstTimeLogin(false);
-          const activeSlug = storeSlug || resolveActiveStoreSlug() || adminUser?.store_slug || (userStores && userStores[0]?.slug);
-          if (activeSlug) {
+          fetchMyStores();
+          const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+          const activeSlug = 
+            (isValid(storeSlug) ? storeSlug : null) ||
+            (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
+            (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
+            (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
+            null;
+
+          if (activeSlug && isValid(activeSlug)) {
             setStoreSlug(activeSlug);
+            try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
             const activeStoreTheme = userStores.find(s => s.slug?.toLowerCase() === activeSlug.toLowerCase())?.store_theme || adminUser?.store_theme || (settingsForm as any)?.store_theme || 'navy';
             document.documentElement.setAttribute('data-theme', activeStoreTheme);
             document.body.setAttribute('data-theme', activeStoreTheme);
@@ -8110,11 +8098,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const isInvalidRoute = () => {
     const path = window.location.pathname.toLowerCase();
     if (isCatalogChooserRoute(path)) return false;
-    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) {
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) {
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'catavor', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -8139,7 +8127,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setIsAppInitializing(false);
       return;
     }
-    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/catavor/admin' || path.startsWith('/catavor/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
+    const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
     if (isPlatformAdminPath && isPlatformAdmin(adminUser)) {
       setLoading(false);
       setIsAppInitializing(false);
@@ -8152,7 +8140,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const slug = overrideSlug || getStoreSlug() || storeSlug || adminUser?.store_slug;
     
     try {
-      if (slug) {
+      if (slug && !isReservedStoreSlug(slug)) {
+        try { localStorage.setItem('catavor_active_slug', slug); } catch {}
         // Fetch store-specific profile
         const settingsRes = await fetch(`${API_BASE}/u/${slug}`);
         const settingsData = await settingsRes.json();
@@ -8345,8 +8334,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useEffect(() => {
     if (!storeSlug || error || isInvalidRoute()) return;
     const path = window.location.pathname.toLowerCase();
-    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) return;
-    if (isPlatformAdmin(adminUser)) return;
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
+    if (isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
 
     let targetPath = `/${storeSlug}`;
     const params = new URLSearchParams();
@@ -8438,8 +8427,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (storeSlug || error || isInvalidRoute()) return;
     const path = window.location.pathname.toLowerCase();
     if (isCatalogChooserRoute(path)) return;
-    if (path === '/admin' || path.startsWith('/admin/') || path === '/catavor/admin' || path.startsWith('/catavor/admin/')) return;
-    if (token && isPlatformAdmin(adminUser)) return;
+    if (path === '/admin' || path.startsWith('/admin/') || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/')) return;
+    if (token && isPlatformAdmin(adminUser) && (!storeSlug || path === '/admin' || path.startsWith('/admin/'))) return;
 
     sessionStorage.setItem('catavor_portal_tab', portalTab);
     sessionStorage.setItem('catavor_register_step', String(registerStep ?? 1));
@@ -10327,8 +10316,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Render Dedicated Platform Administration Console for Platform Admins (Superadmin, Compliance, Support, Finance, Content)
   const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-  const isPlatformAdminPath = !isCatalogChooserRoute(currentPath) && (currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/catavor/admin' || currentPath.startsWith('/catavor/admin/') || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/'));
-  if (token && isPlatformAdmin(adminUser) && (view === 'admin' || isPlatformAdminPath)) {
+  const isPlatformAdminPath = !isCatalogChooserRoute(currentPath) && (currentPath === '/admin' || (currentPath.startsWith('/admin/') && !isCatalogChooserRoute(currentPath)) || currentPath === '/platform' || currentPath.startsWith('/platform/') || currentPath === '/ops' || currentPath.startsWith('/ops/'));
+  if (token && isPlatformAdmin(adminUser) && isPlatformAdminPath) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc', padding: '2rem 1.5rem 5rem 1.5rem', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
@@ -23757,16 +23746,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         stores={userStores}
         activeSlug={(() => {
           if (storeChooserComplianceAlert) return null;
-          if (isFirstTimeLogin) return null;
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
-          if (isValid(storeSlug)) return storeSlug;
-          const resolved = resolveActiveStoreSlug();
-          if (isValid(resolved)) return resolved;
-          if (isValid(adminUser?.store_slug)) return adminUser?.store_slug;
-          if (userStores && userStores.length > 0) {
-            const st = userStores.find(s => isValid(s.slug));
-            if (st?.slug) return st.slug;
-          }
+          const resolved = 
+            (isValid(storeSlug) ? storeSlug : null) ||
+            (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) ||
+            (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null) ||
+            (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
+            null;
+          if (resolved && isValid(resolved)) return resolved;
           return null;
         })()}
         complianceAlert={storeChooserComplianceAlert}
@@ -23777,7 +23764,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         }}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
-        isFirstTimeLogin={isFirstTimeLogin || (!storeSlug && !resolveActiveStoreSlug() && !adminUser?.store_slug)}
+        isFirstTimeLogin={Boolean(isFirstTimeLogin || (!token && !localStorage.getItem('catavor_token')))}
         activeTheme={(() => {
           if (storeChooserComplianceAlert) return 'navy';
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
