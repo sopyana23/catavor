@@ -223,7 +223,6 @@ function getStoreSlug(): string | null {
 
 function resolveActiveStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
-  if (isCatalogChooserRoute(window.location.pathname)) return null;
   const isInvalid = (s?: string | null) => {
     if (!s) return true;
     const clean = s.toLowerCase().trim();
@@ -232,6 +231,10 @@ function resolveActiveStoreSlug(): string | null {
   };
   const fromUrl = getStoreSlug();
   if (fromUrl && !isInvalid(fromUrl)) return fromUrl;
+  try {
+    const sessionActive = sessionStorage.getItem('catavor_active_slug_selected');
+    if (sessionActive && !isInvalid(sessionActive)) return sessionActive;
+  } catch {}
   try {
     const savedActive = localStorage.getItem('catavor_active_slug');
     if (savedActive && !isInvalid(savedActive)) return savedActive;
@@ -243,16 +246,6 @@ function resolveActiveStoreSlug(): string | null {
       if (u.store_slug && !isInvalid(u.store_slug)) return u.store_slug;
       if (u.active_store?.slug && !isInvalid(u.active_store.slug)) return u.active_store.slug;
       if (u.username && !isInvalid(u.username)) return u.username;
-    }
-  } catch {}
-  try {
-    const storesRaw = localStorage.getItem('catavor_stores');
-    if (storesRaw) {
-      const s = JSON.parse(storesRaw);
-      if (Array.isArray(s) && s.length > 0) {
-        const validStore = s.find((st: any) => st?.slug && !isInvalid(st.slug));
-        if (validStore?.slug) return validStore.slug;
-      }
     }
   } catch {}
   return null;
@@ -6170,6 +6163,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const [isFirstTimeLogin, setIsFirstTimeLogin] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
+    const hasActiveSlug = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
+    if (hasActiveSlug) return false;
     return isCatalogChooserRoute(window.location.pathname);
   });
   const [showStoreSwitcherModal, setShowStoreSwitcherModal] = useState<boolean>(() => 
@@ -6317,7 +6312,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
       if (isCatalogChooserRoute(path)) {
         setShowStoreSwitcherModal(true);
-        setIsFirstTimeLogin(true);
+        const hasActiveSlug = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
+        setIsFirstTimeLogin(!hasActiveSlug);
         const curToken = token || localStorage.getItem('catavor_token');
         if (curToken) {
           fetchMyStores();
@@ -7954,12 +7950,18 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         return;
       }
 
+      const hasSavedActive = Boolean(localStorage.getItem('catavor_active_slug') || sessionStorage.getItem('catavor_active_slug_selected'));
       setStoreSlug(null);
-      setIsFirstTimeLogin(true);
+      setIsFirstTimeLogin(!hasSavedActive);
       setShowStoreSwitcherModal(true);
       fetchMyStores();
-      document.documentElement.setAttribute('data-theme', 'navy');
-      document.body.setAttribute('data-theme', 'navy');
+      const resolvedTheme = (() => {
+        if (!hasSavedActive) return 'navy';
+        const activeSlug = resolveActiveStoreSlug();
+        return userStores.find(s => s.slug?.toLowerCase() === activeSlug?.toLowerCase())?.store_theme || 'navy';
+      })();
+      document.documentElement.setAttribute('data-theme', resolvedTheme);
+      document.body.setAttribute('data-theme', resolvedTheme);
       return;
     }
 
@@ -13712,7 +13714,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         user={adminUser}
         stores={userStores}
         activeSlug={(() => {
-          if (isFirstTimeLogin || storeChooserComplianceAlert) return null;
+          if (storeChooserComplianceAlert) return null;
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
           const resolved = 
             (isValid(storeSlug) ? storeSlug : null) ||
@@ -13724,20 +13726,25 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         complianceAlert={storeChooserComplianceAlert}
         onSelectStore={(targetStore) => handleSwitchStore(targetStore.slug)}
         onCreateNewStore={() => {
-          setShowStoreSwitcherModal(false);
           setShowCreateStoreModal(true);
         }}
         onClose={handleCloseStoreChooserModal}
         onLogout={handleLogout}
         switchingSlug={switchingStoreSlug}
         isFirstTimeLogin={isFirstTimeLogin}
-        activeTheme="navy"
+        activeTheme={(() => {
+          if (storeChooserComplianceAlert) return 'navy';
+          const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
+          const targetSlug = (isValid(storeSlug) ? storeSlug : null) || (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) || (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null);
+          return userStores.find(s => s.slug?.toLowerCase() === targetSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
+        })()}
       />
 
       {/* CREATE NEW STORE BOTTOM SHEET (MOBILE STANDARD WITH DRAG) */}
       {showCreateStoreModal && (
         <div 
           className="bottom-sheet-backdrop" 
+          style={{ zIndex: 100005 }}
           onClick={() => {
             if (!createStoreLoading) setShowCreateStoreModal(false);
           }}
@@ -27155,7 +27162,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         user={adminUser}
         stores={userStores}
         activeSlug={(() => {
-          if (isFirstTimeLogin || storeChooserComplianceAlert) return null;
+          if (storeChooserComplianceAlert) return null;
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
           const resolved = 
             (isValid(storeSlug) ? storeSlug : null) ||
@@ -27167,7 +27174,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         complianceAlert={storeChooserComplianceAlert}
         onSelectStore={(targetStore) => handleSwitchStore(targetStore.slug)}
         onCreateNewStore={() => {
-          setShowStoreSwitcherModal(false);
           setShowCreateStoreModal(true);
         }}
         onClose={handleCloseStoreChooserModal}
@@ -27175,7 +27181,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         switchingSlug={switchingStoreSlug}
         isFirstTimeLogin={isFirstTimeLogin}
         activeTheme={(() => {
-          if (isFirstTimeLogin || storeChooserComplianceAlert) return 'navy';
+          if (storeChooserComplianceAlert) return 'navy';
           const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
           const targetSlug = (isValid(storeSlug) ? storeSlug : null) || (isValid(resolveActiveStoreSlug()) ? resolveActiveStoreSlug() : null) || (isValid(adminUser?.store_slug) ? adminUser?.store_slug : null);
           return userStores.find(s => s.slug?.toLowerCase() === targetSlug?.toLowerCase())?.store_theme || (settingsForm as any)?.store_theme || (settings as any)?.store_theme || (adminUser as any)?.store_theme || 'navy';
@@ -27188,6 +27194,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       {showCreateStoreModal && (
         <div 
           className="bottom-sheet-backdrop" 
+          style={{ zIndex: 100005 }}
           onClick={() => {
             if (!createStoreLoading) setShowCreateStoreModal(false);
           }}
