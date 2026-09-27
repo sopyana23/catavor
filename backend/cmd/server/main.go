@@ -212,6 +212,16 @@ func main() {
 		authOnly.Post("/user/stores", storeHandler.CreateStore)
 		authOnly.Post("/user/stores/create", storeHandler.CreateStore)
 		authOnly.Post("/user/stores/switch", storeHandler.SwitchStore)
+
+		// Dynamic Notifications & Real-Time SSE (User-Level Rights: Available during suspension/appeal)
+		authOnly.Get("/notifications", notificationHandler.GetNotifications)
+		authOnly.Post("/notifications/read-all", notificationHandler.MarkAllAsRead)
+		authOnly.Post("/notifications/clear-read", notificationHandler.ClearReadNotifications)
+		authOnly.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
+		authOnly.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
+		authOnly.Get("/notifications/stream", notificationHandler.Stream)
+		authOnly.Get("/v1/notifications/stream", notificationHandler.Stream)
+		authOnly.Get("/v1/notifications", notificationHandler.GetNotifications)
 	}
 
 	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)
@@ -220,9 +230,9 @@ func main() {
 	guardedMutations := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
 	{
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
-		guardedMutations.Post("/storage/upload", storageHandler.Upload)
+		guarded.Post("/storage/upload", storageHandler.Upload)
 		guardedMutations.Delete("/storage/file", storageHandler.DeleteFile)
-		guardedMutations.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
+		guarded.Post("/upload-image", storageHandler.Upload) // Backward compatibility alias
 
 		// CRUD Modern Product & Category
 		guardedMutations.Post("/products", productHandler.Store)
@@ -303,15 +313,6 @@ func main() {
 		guarded.Get("/reports/:id", reportHandler.Show)
 		guarded.Put("/reports/:id", reportHandler.UpdateStatus)
 
-		// Dynamic Notifications & Real-Time SSE
-		guarded.Get("/notifications", notificationHandler.GetNotifications)
-		guarded.Post("/notifications/read-all", notificationHandler.MarkAllAsRead)
-		guarded.Post("/notifications/clear-read", notificationHandler.ClearReadNotifications)
-		guarded.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
-		guarded.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
-		guarded.Get("/notifications/stream", notificationHandler.Stream)
-		guarded.Get("/v1/notifications/stream", notificationHandler.Stream)
-		guarded.Get("/v1/notifications", notificationHandler.GetNotifications)
 
 		// Superadmin Broadcast Notifications (Backward Compatibility Alias)
 		guarded.Get("/notifications/:id", notificationHandler.SuperadminGetOne)

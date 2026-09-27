@@ -82,6 +82,7 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
+import { apiClient } from '../utils/apiClient';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -2673,6 +2674,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       });
       if (res.ok) {
         showToast('Tindakan moderasi berhasil diterapkan dan audit trail tercatat', 'success');
+        apiClient.invalidate();
+        try {
+          if (moderationModalReport?.store_slug) {
+            localStorage.removeItem(`catavor_store_${moderationModalReport.store_slug.toLowerCase()}`);
+          }
+          localStorage.removeItem('catavor_settings');
+        } catch {}
         fetchReportsList(reportsPagination.page);
         setShowModerationConfirmModal(false);
         setBannedConfirmInput('');

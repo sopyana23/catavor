@@ -95,6 +95,24 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		category = "products"
 	}
 
+	// Check if store is suspended/banned: allow support & billing proofs, block catalog changes
+	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
+		if store.DormancyStatus == "banned" || store.IsBlacklisted {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "STORE_BANNED",
+				"message": "Operasional toko telah ditangguhkan secara permanen.",
+			})
+		}
+		if (store.DormancyStatus == "suspended" || store.IsSuspended) && category != "support" && category != "billing" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "STORE_SUSPENDED",
+				"message": "Operasional toko sedang dibekukan sementara. Unggah file produk atau branding ditangguhkan. Silakan ajukan banding melalui Pusat Bantuan.",
+			})
+		}
+	}
+
 	// 2. Anti-MIME Spoofing Magic Number Validation & Processing
 	sampleSize := len(fileBytes)
 	if sampleSize > 512 {

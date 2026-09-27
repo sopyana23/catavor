@@ -4852,8 +4852,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (typeof json.total === 'number') {
           setNotifTotal(json.total);
         }
+      } else {
+        // Safe Circuit Breaker: Stop infinite scroll immediately on 403 or non-200 responses
+        setNotifHasMore(false);
       }
     } catch (err) {
+      setNotifHasMore(false);
       console.warn('Silent fallback for notifications API:', err);
     } finally {
       setNotifInitialLoading(false);
@@ -5884,11 +5888,72 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   }, [])
 
   // Notifications Count & Filtered View (Mobile)
-  const unreadCount = useMemo(() => notifUnreadCount, [notifUnreadCount]);
+  const isStoreSuspended = Boolean(settings.is_suspended || settings.dormancy_status === 'suspended');
+  const suspendedFilteredList = useMemo(() => {
+    let list = notifications;
+    if (isStoreSuspended) {
+      list = list.filter(n => {
+        const cat = (n.category || '').toUpperCase();
+        const title = (n.title || '').toLowerCase();
+        const msg = (n.message || '').toLowerCase();
+        const subTab = (n.link_sub_tab || n.linkSubTab || '').toLowerCase();
+        return (
+          cat === 'MODERASI' ||
+          cat === 'KEPATUHAN' ||
+          cat === 'SUSPEND' ||
+          cat === 'TIKET' ||
+          n.type === 'ticket' ||
+          subTab === 'help' ||
+          subTab === 'support' ||
+          title.includes('suspend') ||
+          title.includes('dibekukan') ||
+          title.includes('pelanggaran') ||
+          title.includes('banding') ||
+          title.includes('tiket') ||
+          title.includes('moderasi') ||
+          msg.includes('suspend') ||
+          msg.includes('dibekukan') ||
+          msg.includes('pelanggaran') ||
+          msg.includes('banding')
+        );
+      });
+      if (list.length === 0) {
+        list = [{
+          id: 'system_suspended_notice',
+          title: 'Operasional Katalog Sedang Dibekukan Sementara',
+          category: 'KEPATUHAN',
+          message: settings.suspension_reason === 'moderation_violation'
+            ? 'Akses publik ke etalase Anda dinonaktifkan sementara oleh Tim Kepatuhan platform sehubungan dengan peninjauan kebijakan komunitas.'
+            : 'Katalog toko ini dinonaktifkan sementara. Silakan pelajari rincian keputusan dan ajukan banding kepatuhan resmi.',
+          detail_content: `### Pemberitahuan Resmi: Status Pembekuan Operasional Katalog\n\nPemberitahuan resmi ini diterbitkan untuk pengelola profil katalog **${settings.store_title || storeSlug || 'Katalog'}** sehubungan dengan kepatuhan kebijakan komunitas, integritas data, dan standar operasional Platform Catavor.\n\n#### 1. Ringkasan Status Akun\n- **Status Operasional:** Dibekukan Sementara (*Suspended*)\n- **Kategori Peninjauan:** ${settings.suspension_reason === 'moderation_violation' ? 'Pelanggaran Kebijakan Komunitas & Standar Konten' : 'Masa Aktif Operasional Katalog Memerlukan Pembaruan'}\n- **Tingkat Prioritas:** Kepatuhan Utama (*High Priority*)\n\n#### 2. Latar Belakang & Alasan Penangguhan\nPenonaktifan sementara dilakukan sebagai prosedur perlindungan ekosistem platform Catavor. Berdasarkan analisis kepatuhan terkini:\n- ${settings.suspension_reason === 'moderation_violation' ? 'Sistem mendeteksi materi visual atau data item yang memerlukan verifikasi kepatuhan terhadap pedoman komunitas platform.' : 'Katalog toko ini mencapai batas waktu keaktifan dan memerlukan konfirmasi pembaruan status pengelola.'}\n- Seluruh data produk, informasi toko, dan riwayat transaksi Anda **tetap tersimpan aman** di dalam basis data dan tidak dihapus.\n\n#### 3. Batasan Operasional yang Berlaku\nSelama masa pembekuan sementara berlangsung:\n1. **Etalase Publik:** Dinonaktifkan sementara dari akses pengunjung publik dan mesin pencari.\n2. **Manajemen Produk:** Penambahan produk baru, pengeditan item, atau perubahan harga ditangguhkan demi integritas data.\n3. **Pusat Bantuan & Komunikasi:** Tetap dibuka penuh bagi Anda untuk mengajukan klarifikasi dan berkonsultasi langsung dengan Tim Kepatuhan.\n\n#### 4. Panduan & Hak Pengajuan Banding\nAnda memiliki hak penuh untuk mengajukan permohonan peninjauan kembali (*Banding Kepatuhan*) tanpa dipungut biaya:\n- Klik tombol di bawah ini untuk membuka ruang permohonan banding.\n- Sampaikan klarifikasi secara jelas, disertai bukti kepatuhan atau komitmen perbaikan katalog bila relevan.\n- Tim Kepatuhan Catavor akan meninjau dan memberikan balasan resmi langsung di ruang pesan dukungan.`,
+          type: 'warning',
+          read: false,
+          action_type: 'detail',
+          link_sub_tab: 'help',
+          action_label: 'Lihat Rincian Selengkapnya',
+          timestamp: 'Hari ini'
+        }];
+      }
+    }
+    return list;
+  }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, storeSlug]);
+
   const filteredNotifications = useMemo(() => {
-    if (notifFilter === 'unread') return notifications.filter(n => !n.read);
-    return notifications;
-  }, [notifications, notifFilter]);
+    if (notifFilter === 'unread') return suspendedFilteredList.filter(n => !n.read);
+    return suspendedFilteredList;
+  }, [suspendedFilteredList, notifFilter]);
+
+  const totalNotificationsCount = useMemo(() => {
+    if (isStoreSuspended) return suspendedFilteredList.length;
+    return notifTotal > 0 ? notifTotal : notifications.length;
+  }, [isStoreSuspended, suspendedFilteredList.length, notifTotal, notifications.length]);
+
+  const unreadCount = useMemo(() => {
+    if (isStoreSuspended) {
+      return suspendedFilteredList.filter(n => !n.read).length;
+    }
+    return notifUnreadCount;
+  }, [notifUnreadCount, isStoreSuspended, suspendedFilteredList]);
 
   // Articles state
   const [articles, setArticles] = useState<Article[]>([])
@@ -6294,12 +6359,24 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (data.success && Array.isArray(data.stores)) {
         const normalizedStores: UserStoreSummary[] = data.stores.map((st: any) => ({
           ...st,
+          is_suspended: Boolean(st.is_suspended || st.dormancy_status === 'suspended'),
           item_count: typeof st.item_count === 'number' ? st.item_count : Number(st.products_count ?? st.product_count ?? st.total_items ?? st.total_products ?? 0)
         }));
         setUserStores(normalizedStores);
         try {
           localStorage.setItem('catavor_stores', JSON.stringify(normalizedStores));
         } catch {}
+        const currentSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
+        const activeMatch = normalizedStores.find(st => st.slug.toLowerCase() === currentSlug);
+        if (activeMatch) {
+          const isSusp = Boolean(activeMatch.is_suspended || activeMatch.dormancy_status === 'suspended');
+          setSettings(prev => ({
+            ...prev,
+            dormancy_status: activeMatch.dormancy_status || (isSusp ? 'suspended' : 'active'),
+            is_suspended: isSusp,
+            suspension_reason: activeMatch.suspension_reason || prev.suspension_reason
+          }));
+        }
       }
     } catch (err) {
       console.error('Failed to fetch user stores:', err);
@@ -7462,10 +7539,30 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     };
   };
 
-  // Best Practice: Membuka tiket banding resmi secara otomatis dengan draf lengkap dan relevan
+  // Best Practice: Membuka tiket banding resmi secara otomatis atau langsung ke chat jika sudah aktif
   const handleOpenAppealTicket = (notifItem: any) => {
-    const modCase = parseModerationCase(notifItem);
     const slug = getStoreSlug();
+
+    // SaaS Best Practice: Jika permohonan banding sudah diajukan dan sedang aktif, langsung arahkan ke ruang obrolan tiket tersebut
+    const existingAppeal = tickets.find(t => 
+      (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
+      t.status !== 'closed' && t.status !== 'resolved'
+    );
+
+    if (existingAppeal) {
+      setSelectedTicket(existingAppeal);
+      fetchTicketDetails(existingAppeal.id);
+      setAdminSubTab('help');
+      setIsCreatingTicket(false);
+      setSelectedNotification(null);
+      showToast(`Permohonan banding Anda sedang aktif diproses (Tiket #${existingAppeal.id}).`, 'info');
+      if (slug) {
+        window.history.pushState({}, '', `/${slug}/admin/help?ticket=${existingAppeal.id}`);
+      }
+      return;
+    }
+
+    const modCase = parseModerationCase(notifItem);
     const reportCode = modCase.reportNumber || 'RPT-MODERASI';
     const entityLabel = modCase.targetName || (modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog');
 
@@ -7592,9 +7689,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         formData.append('image', file);
         formData.append('category', 'support');
 
+        const currentSlug = storeSlug || getStoreSlug() || '';
         const res = await fetch(`${API_BASE}/storage/upload?category=support`, {
           method: 'POST',
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
+          },
           body: formData
         });
         const data = await res.json();
@@ -9036,13 +9137,16 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     try {
       if (slug && !isReservedStoreSlug(slug)) {
         try { localStorage.setItem('catavor_active_slug', slug); } catch {}
-        // Fetch store-specific profile using SWR (instant 0ms render if cached)
+        const isMerchantAdmin = Boolean(token || window.location.pathname.toLowerCase().includes('/admin'));
+        // Fetch store-specific profile using SWR (instant fresh fetch if admin to avoid stale cached suspension states)
         const { data: settingsData } = await apiClient.swr<any>(`/u/${slug}`, {
-          ttlMs: 2 * 60 * 1000,
+          ttlMs: isMerchantAdmin ? 0 : 2 * 60 * 1000,
+          forceFresh: isMerchantAdmin,
           slug,
           onFresh: (freshSettings) => {
             if (freshSettings?.success && freshSettings.data) {
               const store = freshSettings.data;
+              const isSuspended = Boolean(store.is_suspended || freshSettings.is_suspended || store.dormancy_status === 'suspended');
               const fetched = {
                 plan: store.plan || 'free',
                 enable_wa_direct: store.enable_wa_direct !== undefined ? store.enable_wa_direct : true,
@@ -9064,8 +9168,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
                 store_title: store.store_title || 'Catavor',
                 store_logo_url: store.store_logo_url || '',
                 store_theme: store.store_theme || 'navy',
-                dormancy_status: store.dormancy_status || 'active',
-                is_suspended: Boolean(store.is_suspended || freshSettings.is_suspended || store.dormancy_status === 'suspended'),
+                dormancy_status: store.dormancy_status || (isSuspended ? 'suspended' : 'active'),
+                is_suspended: isSuspended,
                 suspension_reason: store.suspension_reason || 'none',
                 dormancy_suspended_at: store.dormancy_suspended_at || '',
                 last_activity_at: store.last_activity_at || '',
@@ -9076,12 +9180,23 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               };
               setSettings(fetched);
               setSettingsForm(fetched);
+              try {
+                localStorage.setItem(`catavor_store_${slug.toLowerCase()}`, JSON.stringify(fetched));
+                localStorage.setItem('catavor_settings', JSON.stringify(fetched));
+              } catch {}
+              if (isSuspended) {
+                setFaunas([]);
+                if (adminSubTab !== 'help' && adminSubTab !== 'notifications') {
+                  setAdminSubTab('menu');
+                }
+              }
             }
           }
         });
         
         if (settingsData && settingsData.success && settingsData.data) {
           const store = settingsData.data;
+          const isSuspended = Boolean(store.is_suspended || settingsData.is_suspended || store.dormancy_status === 'suspended');
           const fetchedSettings = {
             plan: store.plan || 'free',
             enable_wa_direct: store.enable_wa_direct !== undefined ? store.enable_wa_direct : true,
@@ -9103,8 +9218,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             store_title: store.store_title || 'Catavor',
             store_logo_url: store.store_logo_url || '',
             store_theme: store.store_theme || 'navy',
-            dormancy_status: store.dormancy_status || 'active',
-            is_suspended: Boolean(store.is_suspended || settingsData.is_suspended || store.dormancy_status === 'suspended'),
+            dormancy_status: store.dormancy_status || (isSuspended ? 'suspended' : 'active'),
+            is_suspended: isSuspended,
             suspension_reason: store.suspension_reason || 'none',
             dormancy_suspended_at: store.dormancy_suspended_at || '',
             last_activity_at: store.last_activity_at || '',
@@ -9160,11 +9275,15 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           if (store.master_shipping_coverages) setMasterShippingCoverages(store.master_shipping_coverages);
 
           // Fetch store-scoped products catalog with SWR
-          if (settingsData.is_suspended || store.dormancy_status === 'suspended') {
+          if (isSuspended) {
             setFaunas([]);
+            if (adminSubTab !== 'help' && adminSubTab !== 'notifications') {
+              setAdminSubTab('menu');
+            }
           } else {
             const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products`, {
-              ttlMs: 2 * 60 * 1000,
+              ttlMs: isMerchantAdmin ? 0 : 2 * 60 * 1000,
+              forceFresh: isMerchantAdmin,
               slug,
               onFresh: (freshFauna) => {
                 if (freshFauna?.success && Array.isArray(freshFauna.data)) {
@@ -16509,6 +16628,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       if (mobileSettingsTab === 'master') return { title: 'Master Data Katalog', subtitle: 'Opsi Kategori, Status & Wilayah' };
                       return { title: 'Pengaturan Toko', subtitle: 'Konfigurasi & Branding Katalog' };
                     case 'help':
+                      if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+                        if (isCreatingTicket) return { title: 'Banding Kepatuhan', subtitle: 'Formulir Peninjauan Pembekuan' };
+                        if (selectedTicket) return { title: `Banding #${selectedTicket.id}`, subtitle: selectedTicket.subject };
+                        return { title: 'Banding Kepatuhan', subtitle: 'Peninjauan Status Toko' };
+                      }
                       if (isCreatingTicket) return { title: 'Buat Tiket Baru', subtitle: 'Hubungi Tim Support 24/7' };
                       if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: selectedTicket.subject };
                       return { title: 'Pusat Bantuan & Support', subtitle: 'Tiket CS & Panduan Fitur' };
@@ -16543,7 +16667,25 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         onClick={() => {
                           const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
                           if (adminSubTab === 'help') {
-                            if (isCreatingTicket) {
+                            const isStoreSuspended = settings.dormancy_status === 'suspended' || settings.is_suspended;
+                            if (isStoreSuspended) {
+                              setIsCreatingTicket(false);
+                              setSelectedTicket(null);
+                              setTicketNewAttachments([]);
+                              setAdminSubTab('menu');
+                              try {
+                                sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                              } catch {}
+                              try {
+                                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                              } catch {
+                                window.scrollTo(0, 0);
+                              }
+                              if (slug) {
+                                window.history.pushState({}, '', `/${slug}/admin`);
+                              }
+                            } else if (isCreatingTicket) {
                               setIsCreatingTicket(false);
                               setTicketNewAttachments([]);
                             } else if (selectedTicket) {
@@ -18555,86 +18697,251 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           ) : (
             /* ADMIN DASHBOARD (MOBILE - LOGGED IN & PASSWORD CHANGED) */
             <div className="animate-fade-in" style={{ marginTop: '1rem' }}>
-              {/* Suspended Store Warning & Appeal Banner (Mobile) */}
-              {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
-                <div 
-                  className="glass-panel animate-fade-in"
-                  style={{
-                    padding: '1.1rem 1rem',
-                    marginBottom: '1rem',
-                    borderRadius: '0.85rem',
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.1) 100%)',
-                    border: '1px solid rgba(239, 68, 68, 0.45)',
-                    boxShadow: '0 6px 20px rgba(239, 68, 68, 0.12)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.85rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ef4444',
-                      flexShrink: 0,
-                      marginTop: '2px'
-                    }}>
-                      <ShieldAlert size={20} />
+              {adminSubTab === 'menu' && (
+                (settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
+                  /* DEDICATED SUSPENDED STORE RESOLUTION HUB (ISOLATION MODE) */
+                  <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+                    {/* Top Identity & Store Switcher Row */}
+                    <div 
+                      className="glass-panel" 
+                      style={{ 
+                        padding: '1rem 1.15rem', 
+                        borderRadius: '1rem', 
+                        border: '1px solid var(--border-light)', 
+                        background: 'var(--card-bg-gradient)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        gap: '0.75rem'
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                          Toko Terpilih
+                        </span>
+                        <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {settings.store_title || 'Katalog Merchant'}
+                        </h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={openStoreChooserModal}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.7rem',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          backgroundColor: 'var(--primary-glow)',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--border-light)',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                      >
+                        <Layers size={13} />
+                        <span>Ganti ▾</span>
+                      </button>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#ef4444', display: 'block', marginBottom: '0.2rem' }}>
-                        Status: Dibekukan Sementara (Suspended)
-                      </span>
-                      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                        {settings.suspension_reason === 'moderation_violation'
-                          ? 'Katalog publik Anda dinonaktifkan sementara oleh Tim Kepatuhan platform. Fitur penambahan/pengubahan katalog dibekukan.'
-                          : 'Katalog toko ini dibekukan sementara karena masa aktif belum diperpanjang. Pengelolaan data dinonaktifkan.'}
-                      </p>
+
+                    {/* Dedicated Resolution Card */}
+                    <div 
+                      className="glass-panel animate-fade-in"
+                      style={{
+                        padding: '1.5rem 1.25rem',
+                        borderRadius: '1.15rem',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        borderTop: '3px solid #ef4444',
+                        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.08), 0 0 20px rgba(239, 68, 68, 0.06)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        textAlign: 'center',
+                        gap: '1.1rem'
+                      }}
+                    >
+                      {/* Shield Icon Badge */}
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                        border: '1.5px solid rgba(239, 68, 68, 0.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ef4444',
+                        boxShadow: '0 4px 16px rgba(239, 68, 68, 0.15)'
+                      }}>
+                        <ShieldAlert size={28} />
+                      </div>
+
+                      {/* Title & Status Badge */}
+                      <div>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '20px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          marginBottom: '0.5rem',
+                          border: '1px solid rgba(239, 68, 68, 0.25)'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                          Status: Dibekukan Sementara
+                        </div>
+                        <h3 style={{ fontSize: '1.18rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem 0', letterSpacing: '-0.01em' }}>
+                          Operasional Toko Sedang Terkunci
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55, maxWidth: '320px' }}>
+                          {settings.suspension_reason === 'moderation_violation'
+                            ? 'Akses publik ke katalog dinonaktifkan sementara oleh Tim Kepatuhan platform sehubungan dengan peninjauan kebijakan komunitas.'
+                            : 'Katalog toko ini dibekukan sementara karena masa aktif belum diperpanjang.'}
+                        </p>
+                      </div>
+
+                      {/* Impact / Constraints Info Box */}
+                      <div style={{
+                        width: '100%',
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--bg-card-hover, rgba(125, 125, 125, 0.05))',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.55rem',
+                        textAlign: 'left'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                          <Lock size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                          <span>Etalase publik disembunyikan dari pengunjung</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                          <Lock size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                          <span>Penambahan dan pengubahan produk ditangguhkan</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                          <Scale size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span>Pusat permohonan banding & klarifikasi dibuka</span>
+                        </div>
+                      </div>
+
+                      {/* Resolution CTA Action */}
+                      {(() => {
+                        const activeAppeal = tickets.find(t => 
+                          (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
+                          t.status !== 'closed' && t.status !== 'resolved'
+                        ) || (tickets.length > 0 ? tickets[0] : null);
+
+                        if (activeAppeal) {
+                          return (
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                              <div style={{
+                                padding: '0.75rem 0.9rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-card-hover, rgba(125, 125, 125, 0.05))',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.65rem',
+                                textAlign: 'left'
+                              }}>
+                                <Clock size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                    {activeAppeal.status === 'resolved' || activeAppeal.status === 'closed' ? 'Riwayat Obrolan Banding' : 'Permohonan Banding Sedang Diproses'}
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    Tiket #{activeAppeal.id}: {activeAppeal.subject}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={() => {
+                                  setSelectedTicket(activeAppeal);
+                                  fetchTicketDetails(activeAppeal.id);
+                                  setAdminSubTab('help');
+                                  const slug = storeSlug || getStoreSlug();
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '0.85rem 1.25rem',
+                                  borderRadius: '0.75rem',
+                                  fontSize: '0.86rem',
+                                  fontWeight: 800,
+                                  backgroundColor: 'var(--primary)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.5rem',
+                                  boxShadow: '0 4px 16px var(--primary-glow)'
+                                }}
+                              >
+                                <MessageSquare size={16} />
+                                <span>Buka Ruang Obrolan Banding (Tiket #{activeAppeal.id})</span>
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => {
+                              setAdminSubTab('help');
+                              setNewTicketForm({
+                                subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || 'Toko'})`,
+                                category: 'catalog_help',
+                                priority: 'high',
+                                message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                              });
+                              setIsCreatingTicket(true);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '0.85rem 1.25rem',
+                              borderRadius: '0.75rem',
+                              fontSize: '0.86rem',
+                              fontWeight: 800,
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 18px var(--primary-glow)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <Scale size={16} />
+                            <span>Ajukan Banding Kepatuhan</span>
+                            <ArrowRight size={15} />
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAdminSubTab('help');
-                      setNewTicketForm({
-                        subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || 'Toko'})`,
-                        category: 'catalog_help',
-                        priority: 'high',
-                        message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
-                      });
-                      setIsCreatingTicket(true);
-                    }}
-                    style={{
-                      padding: '0.65rem 1rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      backgroundColor: '#dc2626',
-                      color: '#fff',
-                      border: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.45rem',
-                      cursor: 'pointer',
-                      width: '100%',
-                      boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)'
-                    }}
-                  >
-                    <ShieldAlert size={15} />
-                    <span>Ajukan Banding Kepatuhan</span>
-                  </button>
-                </div>
-              )}
-
-              {adminSubTab === 'menu' && (
-                /* CLEAN NATIVE MOBILE MERCHANT ADMIN DASHBOARD */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                ) : (
+                  /* CLEAN NATIVE MOBILE MERCHANT ADMIN DASHBOARD */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   
                   {/* Dormancy Inactivity Warning Banner (Free Tier Mobile - Dynamic Luxury Theme) */}
                   {settings.plan === 'free' && (settings.dormancy_status === 'warning_1' || settings.dormancy_status === 'warning_2') && (
@@ -19448,7 +19755,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     }}
                   />
                 </div>
-              )}
+              ))}
 
               {adminSubTab === 'items' && (
                 /* TAB 1: ADMIN INVENTORY MANAGEMENT (SEARCH, MULTI-TYPE PILLS, RICH CARDS, SERVER-SIDE PAGINATION) */
@@ -21639,33 +21946,72 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   </div>
                                 )}
 
-                                {modCase.isAppealEligible && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenAppealTicket(selectedNotification)}
-                                    style={{
-                                      padding: '0.9rem 1.25rem',
-                                      borderRadius: '0.75rem',
-                                      fontSize: '0.92rem',
-                                      fontWeight: 800,
-                                      cursor: 'pointer',
-                                      border: 'none',
-                                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                                      color: '#ffffff',
-                                      boxShadow: '0 4px 18px rgba(239, 68, 68, 0.4)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '0.55rem',
-                                      width: '100%',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                  >
-                                    <Scale size={18} />
-                                    <span>Ajukan Banding Kepatuhan</span>
-                                    <ArrowRight size={16} />
-                                  </button>
-                                )}
+                                {modCase.isAppealEligible && (() => {
+                                  const activeAppeal = tickets.find(t => 
+                                    (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
+                                    t.status !== 'closed' && t.status !== 'resolved'
+                                  );
+
+                                  if (activeAppeal) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={() => handleOpenAppealTicket(selectedNotification)}
+                                        style={{
+                                          padding: '0.85rem 1.25rem',
+                                          borderRadius: '0.75rem',
+                                          fontSize: '0.88rem',
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                          border: 'none',
+                                          backgroundColor: 'var(--primary)',
+                                          color: '#ffffff',
+                                          boxShadow: '0 4px 16px var(--primary-glow)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.55rem',
+                                          width: '100%',
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                      >
+                                        <MessageSquare size={17} />
+                                        <span>Buka Obrolan Banding (Tiket #{activeAppeal.id})</span>
+                                        <ArrowRight size={15} />
+                                      </button>
+                                    );
+                                  }
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      className="btn-primary"
+                                      onClick={() => handleOpenAppealTicket(selectedNotification)}
+                                      style={{
+                                        padding: '0.85rem 1.25rem',
+                                        borderRadius: '0.75rem',
+                                        fontSize: '0.88rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        border: 'none',
+                                        backgroundColor: 'var(--primary)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 4px 16px var(--primary-glow)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.55rem',
+                                        width: '100%',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                    >
+                                      <Scale size={17} />
+                                      <span>Ajukan Banding Kepatuhan</span>
+                                      <ArrowRight size={15} />
+                                    </button>
+                                  );
+                                })()}
 
                                 <button
                                   type="button"
@@ -21877,6 +22223,120 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 };
                               })();
 
+                              const isSuspensionNotif = selectedNotification.id === 'system_suspended_notice' || 
+                                (selectedNotification.category || '').toUpperCase() === 'KEPATUHAN' ||
+                                (selectedNotification.title || '').toLowerCase().includes('dibekukan') ||
+                                (selectedNotification.title || '').toLowerCase().includes('suspend');
+
+                              const activeAppeal = tickets.find(t => 
+                                (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
+                                t.status !== 'closed' && t.status !== 'resolved'
+                              ) || (tickets.length > 0 ? tickets[0] : null);
+
+                              if (isSuspensionNotif) {
+                                return (
+                                  <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.75rem',
+                                    marginTop: '0.5rem',
+                                    paddingTop: '1.15rem',
+                                    borderTop: '1px solid var(--border-light)'
+                                  }}>
+                                    {activeAppeal ? (
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={() => {
+                                          setSelectedTicket(activeAppeal);
+                                          fetchTicketDetails(activeAppeal.id);
+                                          setSelectedNotification(null);
+                                          setIsCreatingTicket(false);
+                                          setAdminSubTab('help');
+                                          const slug = storeSlug || getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
+                                        }}
+                                        style={{
+                                          padding: '0.85rem 1.25rem',
+                                          borderRadius: '0.75rem',
+                                          fontSize: '0.9rem',
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                          boxShadow: '0 4px 14px var(--primary-glow)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.45rem',
+                                          width: '100%'
+                                        }}
+                                      >
+                                        <MessageSquare size={16} />
+                                        <span>Buka Obrolan Banding (#{activeAppeal.id})</span>
+                                        <ArrowRight size={15} />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={() => {
+                                          setSelectedNotification(null);
+                                          setAdminSubTab('help');
+                                          setNewTicketForm({
+                                            subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
+                                            category: 'catalog_help',
+                                            priority: 'high',
+                                            message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                                          });
+                                          setIsCreatingTicket(true);
+                                          const slug = storeSlug || getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                                        }}
+                                        style={{
+                                          padding: '0.85rem 1.25rem',
+                                          borderRadius: '0.75rem',
+                                          fontSize: '0.9rem',
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                          boxShadow: '0 4px 14px var(--primary-glow)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: '0.45rem',
+                                          width: '100%'
+                                        }}
+                                      >
+                                        <Scale size={16} />
+                                        <span>Ajukan Banding Kepatuhan</span>
+                                        <ArrowRight size={15} />
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      onClick={() => {
+                                        setSelectedNotification(null);
+                                        const slug = getStoreSlug();
+                                        if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                                      }}
+                                      style={{
+                                        padding: '0.7rem 1rem',
+                                        borderRadius: '0.75rem',
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        width: '100%',
+                                        textAlign: 'center',
+                                        border: '1px solid var(--border-light)',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.04)'
+                                      }}
+                                    >
+                                      ← Kembali ke Daftar Notifikasi
+                                    </button>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div style={{
                                   display: 'flex',
@@ -22003,7 +22463,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               transition: 'all 0.15s ease'
                             }}
                           >
-                            Semua ({notifTotal > 0 ? notifTotal : notifications.length})
+                            Semua ({totalNotificationsCount})
                           </button>
                           <button
                             type="button"
@@ -22195,12 +22655,30 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   // Mark as read in state & persist to backend database
                                   handleMarkAsRead(item.id);
 
+                                  const isSuspensionNotice = item.id === 'system_suspended_notice' || 
+                                    (item.category || '').toUpperCase() === 'KEPATUHAN' ||
+                                    (item.title || '').toLowerCase().includes('dibekukan') ||
+                                    (item.title || '').toLowerCase().includes('suspend');
+
+                                  if (isSuspensionNotice) {
+                                    setSelectedNotification(item);
+                                    const slug = getStoreSlug();
+                                    if (slug) {
+                                      window.history.pushState({}, '', `/${slug}/admin/notifications?id=${item.id}`);
+                                    }
+                                    return;
+                                  }
+
                                   if (norm.isTicketNotif) {
                                     handleNavigateToTicketFromNotif(item);
                                     return;
                                   }
 
                                   if (norm.isDirectNav && norm.subTab) {
+                                    if ((settings.is_suspended || settings.dormancy_status === 'suspended') && norm.subTab !== 'help') {
+                                      showToast('Aksi dinonaktifkan sementara karena status operasional toko sedang dibekukan.', 'error');
+                                      return;
+                                    }
                                     setAdminSubTab(norm.subTab as any);
                                     if (norm.mobileSettingsTab) {
                                       setMobileSettingsTab(norm.mobileSettingsTab as any);
@@ -23451,40 +23929,156 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </div>
                   ) : isCreatingTicket ? (
                     /* VIEW B: CREATE TICKET FULL PAGE (HALAMAN BUKAN MODAL) */
-                    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', paddingBottom: '2rem' }}>
-                      {/* Minimalist Info Card (Icon, Title, Subtitle Only) */}
-                      <div className="glass-panel" style={{
-                        padding: '1rem 1.15rem',
-                        borderRadius: '0.9rem',
-                        border: '1px solid var(--border-light)',
-                        background: 'var(--card-bg-gradient)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem'
-                      }}>
-                        <div style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--primary-glow)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--border-light)',
-                          flexShrink: 0
-                        }}>
-                          <MessageSquare size={19} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0', letterSpacing: '-0.01em' }}>
-                            Formulir Bantuan & Kendala
-                          </h3>
-                          <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-                            Sampaikan detail pertanyaan atau kendala seputar pengelolaan katalog Anda.
-                          </p>
-                        </div>
-                      </div>
+                    (() => {
+                      const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
+                      const activeAppeal = isSuspendedAccount ? tickets.find(t => 
+                        (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
+                        t.status !== 'closed' && t.status !== 'resolved'
+                      ) : null;
+
+                      if (isSuspendedAccount && activeAppeal) {
+                        return (
+                          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }}>
+                            <div className="glass-panel" style={{
+                              padding: '1.75rem 1.25rem',
+                              borderRadius: '1.25rem',
+                              border: '1px solid var(--border-light)',
+                              borderTop: '3px solid var(--primary)',
+                              background: 'var(--bg-card)',
+                              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              textAlign: 'center',
+                              gap: '1rem'
+                            }}>
+                              <div style={{
+                                width: '56px',
+                                height: '56px',
+                                borderRadius: '50%',
+                                backgroundColor: 'var(--bg-card-hover, rgba(125, 125, 125, 0.08))',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--primary)',
+                                boxShadow: '0 4px 16px var(--primary-glow)'
+                              }}>
+                                <Clock size={28} />
+                              </div>
+
+                              <div>
+                                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.4rem 0' }}>
+                                  Permohonan Banding Sedang Diproses
+                                </h3>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, maxWidth: '400px' }}>
+                                  Anda telah memiliki tiket banding aktif (<strong>Tiket #{activeAppeal.id}</strong>) untuk katalog ini. Untuk memastikan proses peninjauan berjalan tertib, pembuatan tiket banding baru ditangguhkan.
+                                </p>
+                              </div>
+
+                              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.5rem' }}>
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={() => {
+                                    setSelectedTicket(activeAppeal);
+                                    fetchTicketDetails(activeAppeal.id);
+                                    setIsCreatingTicket(false);
+                                    const slug = storeSlug || getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.85rem 1.25rem',
+                                    borderRadius: '0.85rem',
+                                    fontSize: '0.88rem',
+                                    fontWeight: 800,
+                                    backgroundColor: 'var(--primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.5rem',
+                                    boxShadow: '0 4px 16px var(--primary-glow)'
+                                  }}
+                                >
+                                  <MessageSquare size={16} />
+                                  <span>Buka Obrolan Banding (Tiket #{activeAppeal.id})</span>
+                                  <ArrowRight size={15} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  onClick={() => {
+                                    setIsCreatingTicket(false);
+                                    setAdminSubTab('menu');
+                                    const slug = storeSlug || getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.75rem 1rem',
+                                    borderRadius: '0.85rem',
+                                    fontSize: '0.84rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    textAlign: 'center'
+                                  }}
+                                >
+                                  Kembali ke Dashboard
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', paddingBottom: '2rem' }}>
+                          {/* Minimalist Info Card (Icon, Title, Subtitle Only) */}
+                          <div className="glass-panel" style={{
+                            padding: '1rem 1.15rem',
+                            borderRadius: '0.9rem',
+                            border: '1px solid var(--border-light)',
+                            background: 'var(--card-bg-gradient)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem'
+                          }}>
+                            <div style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '0.65rem',
+                              backgroundColor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'rgba(239, 68, 68, 0.15)' : 'var(--primary-glow)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '#ef4444' : 'var(--primary)',
+                              border: '1px solid var(--border-light)',
+                              flexShrink: 0
+                            }}>
+                              {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
+                                <Scale size={19} />
+                              ) : (
+                                <MessageSquare size={19} />
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.15rem 0', letterSpacing: '-0.01em' }}>
+                                {(settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                  ? 'Formulir Banding Kepatuhan'
+                                  : 'Formulir Bantuan & Kendala'}
+                              </h3>
+                              <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
+                                {(settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                  ? 'Sampaikan klarifikasi atau permohonan pemulihan status operasional katalog Anda.'
+                                  : 'Sampaikan detail pertanyaan atau kendala seputar pengelolaan katalog Anda.'}
+                              </p>
+                            </div>
+                          </div>
 
                       {/* Form Card */}
                       <div className="glass-panel" style={{
@@ -23815,6 +24409,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               onClick={() => {
                                 setIsCreatingTicket(false);
                                 setTicketNewAttachments([]);
+                                if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+                                  setAdminSubTab('menu');
+                                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                                  if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                                }
                               }}
                               style={{ flex: 1, height: '44px', borderRadius: '0.65rem', fontSize: '0.84rem', fontWeight: 700 }}
                             >
@@ -23833,7 +24432,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </form>
                       </div>
                     </div>
-                  ) : (
+                  );
+                })()
+              ) : (
                     /* VIEW C: TICKET LIST & HERO STATS */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {/* Hero Header Card */}

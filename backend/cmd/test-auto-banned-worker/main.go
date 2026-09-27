@@ -107,8 +107,7 @@ func main() {
 
 	fmt.Println("================================================================================")
 	fmt.Println("  PENETRATION & INTEGRITY TEST SUITE: WORKER AUTO-BANNED BOT (MODERATION)")
-	fmt.Println("  Target: moderation_escalator & RunModerationEscalationCycle")
-	fmt.Println("================================================================================\n")
+	fmt.Println("================================================================================")
 
 	// -------------------------------------------------------------------------
 	// TEST 1: Baseline Inactive Grace Period Expired (> 30 days, no appeal)
