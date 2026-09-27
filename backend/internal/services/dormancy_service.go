@@ -148,6 +148,8 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 	now := time.Now().UTC()
 	store.LastActivityAt = now
 	store.DormancyStatus = "active"
+	store.IsSuspended = false
+	store.SuspensionReason = "none"
 	store.DormancyWarning1SentAt = nil
 	store.DormancyWarning2SentAt = nil
 	store.DormancySuspendedAt = nil
@@ -582,7 +584,7 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 				}
 			}
 
-			actionURL := fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=catalog&target_name=%s&item_type=%s&reason=%s&notes=%s",
+			actionURL := fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=%s&target_name=%s&item_type=%s&reason=%s&notes=%s",
 				store.Slug,
 				reportNum,
 				url.QueryEscape("catalog"),

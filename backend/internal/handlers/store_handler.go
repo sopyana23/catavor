@@ -159,8 +159,12 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// 4. If store is temporarily suspended (dormancy_status == 'suspended'), return firm suspension metadata for dynamic UI
+	// 4. If store is temporarily suspended (dormancy_status == 'suspended' or is_suspended == true), return firm suspension metadata for dynamic UI
 	if store.DormancyStatus == "suspended" || store.IsSuspended {
+		reason := store.SuspensionReason
+		if reason == "" || reason == "none" {
+			reason = "moderation_violation"
+		}
 		return c.JSON(fiber.Map{
 			"success":      true,
 			"is_suspended": true,
@@ -170,9 +174,10 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 				"store_title":           store.StoreTitle,
 				"store_logo_url":        store.StoreLogoURL,
 				"dormancy_status":       "suspended",
-				"suspension_reason":     "moderation_violation",
+				"is_suspended":          true,
+				"suspension_reason":     reason,
 				"dormancy_suspended_at": store.DormancySuspendedAt,
-				"moderation_notes":      store.SuspensionReason,
+				"moderation_notes":      reason,
 			},
 		})
 	}

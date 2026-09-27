@@ -298,6 +298,14 @@ func StoreOwnerRequired() fiber.Handler {
 // OperationalStoreRequired blocks mutation actions if store is suspended or banned
 func OperationalStoreRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		path := strings.ToLower(c.Path())
+		category := strings.ToLower(c.Query("category", c.FormValue("category", "")))
+		// Always allow support tickets, appeals, support attachments, and notifications even if store is suspended
+		if strings.Contains(path, "/support") || strings.Contains(path, "/notifications") ||
+			(strings.Contains(path, "/storage/upload") && (category == "support" || category == "billing")) {
+			return c.Next()
+		}
+
 		user, _ := c.Locals("user").(*models.User)
 		isStaff := user != nil && (strings.EqualFold(user.PlatformRole, "superadmin") ||
 			strings.EqualFold(user.PlatformRole, "support") ||

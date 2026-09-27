@@ -534,6 +534,14 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	var notificationCreated *models.Notification
 
+	// Ensure report.StoreID is populated if StoreSlug exists
+	if report.StoreID <= 0 && report.StoreSlug != "" {
+		var s models.Store
+		if err := database.DB.Select("id").Where("LOWER(slug) = ?", strings.ToLower(report.StoreSlug)).First(&s).Error; err == nil {
+			report.StoreID = s.ID
+		}
+	}
+
 	// Capture merchant owner email beforehand for transactional email dispatch
 	merchantOwnerEmail := ""
 	if report.StoreID > 0 {
