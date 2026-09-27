@@ -617,6 +617,13 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					}).Error; err != nil {
 						return err
 					}
+					// Clean/dismiss older suspension notifications for this store so only this new incident notification is active
+					tx.Exec(`
+						DELETE FROM notifications 
+						WHERE target_type = 'single_store' AND target_id = ? 
+						  AND category = 'KEAMANAN' 
+						  AND (title LIKE '%Dibekukan%' OR title LIKE '%Suspensi%' OR message LIKE '%dibekukan%' OR message LIKE '%penangguhan%')
+					`, report.StoreID)
 				}
 			case "catalog_banned", "account_banned":
 				if report.StoreID > 0 {
@@ -634,6 +641,21 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					}).Error; err != nil {
 						return err
 					}
+					// Auto-dismiss/clean previous suspension notifications for this store
+					tx.Exec(`
+						DELETE FROM notifications 
+						WHERE target_type = 'single_store' AND target_id = ? 
+						  AND category = 'KEAMANAN' 
+						  AND (title LIKE '%Dibekukan%' OR title LIKE '%Suspensi%' OR message LIKE '%dibekukan%' OR message LIKE '%penangguhan%')
+					`, report.StoreID)
+
+					// Mark any active appeal/compliance tickets from the past suspension as resolved
+					tx.Model(&models.SupportTicket{}).
+						Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", report.StoreID).
+						Updates(map[string]interface{}{
+							"status":      "resolved",
+							"resolved_at": now,
+						})
 				}
 			}
 		}

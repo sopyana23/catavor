@@ -4825,7 +4825,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         setNotifLoadingMore(true);
       }
       const slug = storeSlug || getStoreSlug() || '';
-      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=10&filter=${activeFilter}`, {
+      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=10&filter=${activeFilter}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -5889,17 +5889,34 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Notifications Count & Filtered View (Mobile)
   const isStoreSuspended = Boolean(settings.is_suspended || settings.dormancy_status === 'suspended');
+
   const suspendedFilteredList = useMemo(() => {
     let list = notifications;
     if (isStoreSuspended) {
+      const suspendedTime = settings.dormancy_suspended_at ? new Date(settings.dormancy_suspended_at).getTime() : 0;
       list = list.filter(n => {
         const cat = (n.category || '').toUpperCase();
         const title = (n.title || '').toLowerCase();
         const msg = (n.message || '').toLowerCase();
         const subTab = (n.link_sub_tab || n.linkSubTab || '').toLowerCase();
-        return (
+
+        // 1. Strict Incident Scoping: If suspendedTime is known, hide ANY notification from prior to this incident!
+        if (suspendedTime > 0 && n.created_at) {
+          const notifTime = new Date(n.created_at).getTime();
+          if (notifTime < suspendedTime - 2 * 60 * 1000) {
+            return false;
+          }
+        }
+
+        // 2. Hide past restoration / recovery notices completely while in suspended state
+        const isRestoration = title.includes('pemulihan') || title.includes('dipulihkan') || title.includes('diaktifkan kembali') || msg.includes('pemulihan') || msg.includes('dipulihkan');
+        if (isRestoration) return false;
+
+        // 3. Only keep compliance / suspension / ticket / moderation notices
+        const isComplianceNotif = (
           cat === 'MODERASI' ||
           cat === 'KEPATUHAN' ||
+          cat === 'KEAMANAN' ||
           cat === 'SUSPEND' ||
           cat === 'TIKET' ||
           n.type === 'ticket' ||
@@ -5916,7 +5933,22 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           msg.includes('pelanggaran') ||
           msg.includes('banding')
         );
+        return isComplianceNotif;
       });
+
+      // Deduplicate suspension notices: only keep the single latest suspension notice for current incident
+      let seenSuspensionNotice = false;
+      list = list.filter(n => {
+        const title = (n.title || '').toLowerCase();
+        const msg = (n.message || '').toLowerCase();
+        const isSuspensionNotice = title.includes('dibekukan') || title.includes('suspend') || msg.includes('dibekukan') || msg.includes('penangguhan');
+        if (isSuspensionNotice) {
+          if (seenSuspensionNotice) return false;
+          seenSuspensionNotice = true;
+        }
+        return true;
+      });
+
       if (list.length === 0) {
         list = [{
           id: 'system_suspended_notice',
@@ -5934,9 +5966,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           timestamp: 'Hari ini'
         }];
       }
+    } else {
+      // Store is active: suppress historical suspension notices so the notification feed remains clean
+      list = list.filter(n => {
+        const title = (n.title || '').toLowerCase();
+        const msg = (n.message || '').toLowerCase();
+        const isSuspensionNotice = (n.category || '').toUpperCase() === 'KEAMANAN' && (title.includes('dibekukan') || title.includes('suspend') || msg.includes('dibekukan') || msg.includes('penangguhan'));
+        return !isSuspensionNotice;
+      });
     }
     return list;
-  }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, storeSlug]);
+  }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, settings.dormancy_suspended_at, storeSlug]);
 
   const filteredNotifications = useMemo(() => {
     if (notifFilter === 'unread') return suspendedFilteredList.filter(n => !n.read);
@@ -7540,14 +7580,56 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   };
 
   // Best Practice: Membuka tiket banding resmi secara otomatis atau langsung ke chat jika sudah aktif
-  const handleOpenAppealTicket = (notifItem: any) => {
-    const slug = getStoreSlug();
+  const handleOpenAppealTicket = async (notifItem: any) => {
+    const slug = storeSlug || getStoreSlug() || '';
+    const currentStoreSlug = slug.toLowerCase();
+    const currentStoreObj = userStores?.find(s => s.slug?.toLowerCase() === currentStoreSlug);
+    const currentStoreId = currentStoreObj?.id;
 
     // SaaS Best Practice: Jika permohonan banding sudah diajukan dan sedang aktif, langsung arahkan ke ruang obrolan tiket tersebut
-    const existingAppeal = tickets.find(t => 
-      (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
-      t.status !== 'closed' && t.status !== 'resolved'
-    );
+    let existingAppeal = tickets.find(t => {
+      const isCurrentStore = (!t.store_id && !currentStoreId) || 
+        (currentStoreId && t.store_id === currentStoreId) || 
+        (t.store?.slug || '').toLowerCase() === currentStoreSlug;
+      if (!isCurrentStore) return false;
+      if (t.status === 'closed' || t.status === 'resolved') return false;
+      return t.category === 'catalog_help' || 
+        t.category === 'compliance' ||
+        (t.subject || '').toLowerCase().includes('banding') || 
+        (t.subject || '').toLowerCase().includes('pembekuan') || 
+        (t.subject || '').toLowerCase().includes('suspend');
+    });
+
+    // Fallback Eager Check: Jika tickets di memori belum selesai dimuat, ambil langsung dari backend tanpa menunda
+    if (!existingAppeal && token) {
+      try {
+        const queryParams = new URLSearchParams();
+        queryParams.set('page', '1');
+        queryParams.set('limit', '20');
+        if (slug) queryParams.set('store_slug', slug);
+        const res = await fetch(`${API_BASE}/support/tickets?${queryParams.toString()}`, {
+          headers: getAuthHeaders()
+        });
+        const resJson = await res.json();
+        if (resJson.success && Array.isArray(resJson.data)) {
+          existingAppeal = resJson.data.find((t: any) => {
+            const isCurrentStore = (!t.store_id && !currentStoreId) || 
+              (currentStoreId && t.store_id === currentStoreId) || 
+              (t.store?.slug || '').toLowerCase() === currentStoreSlug;
+            if (!isCurrentStore) return false;
+            if (t.status === 'closed' || t.status === 'resolved') return false;
+            return t.category === 'catalog_help' || 
+              t.category === 'compliance' ||
+              (t.subject || '').toLowerCase().includes('banding') || 
+              (t.subject || '').toLowerCase().includes('pembekuan') || 
+              (t.subject || '').toLowerCase().includes('suspend');
+          });
+          if (existingAppeal) {
+            fetchSupportTickets(true);
+          }
+        }
+      } catch {}
+    }
 
     if (existingAppeal) {
       setSelectedTicket(existingAppeal);
@@ -7555,7 +7637,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       setAdminSubTab('help');
       setIsCreatingTicket(false);
       setSelectedNotification(null);
-      showToast(`Permohonan banding Anda sedang aktif diproses (Tiket #${existingAppeal.id}).`, 'info');
+      showToast('Membuka obrolan banding kepatuhan...', 'info');
       if (slug) {
         window.history.pushState({}, '', `/${slug}/admin/help?ticket=${existingAppeal.id}`);
       }
@@ -7604,11 +7686,14 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   };
 
-  // Trigger fetch ketika filter status, kata kunci debounced search, atau halaman paginasi berubah (HANYA saat tab bantuan aktif)
+  // Trigger fetch ketika tab bantuan aktif ATAU ketika toko berstatus suspended (eager fetch status banding)
+  const isSuspendedAccountState = Boolean(settings.is_suspended || settings.dormancy_status === 'suspended');
   useEffect(() => {
-    if (!token || adminSubTab !== 'help') return;
-    fetchSupportTickets(tickets.length > 0, ticketPage);
-  }, [adminSubTab, token, debouncedTicketSearch, ticketFilter, ticketStoreScope, ticketPage]);
+    if (!token) return;
+    if (adminSubTab === 'help' || isSuspendedAccountState) {
+      fetchSupportTickets(tickets.length > 0, ticketPage);
+    }
+  }, [adminSubTab, isSuspendedAccountState, token, debouncedTicketSearch, ticketFilter, ticketStoreScope, ticketPage]);
 
   // Polling santai fallback (45 detik saat tab bantuan aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
@@ -9138,10 +9223,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       if (slug && !isReservedStoreSlug(slug)) {
         try { localStorage.setItem('catavor_active_slug', slug); } catch {}
         const isMerchantAdmin = Boolean(token || window.location.pathname.toLowerCase().includes('/admin'));
-        // Fetch store-specific profile using SWR (instant fresh fetch if admin to avoid stale cached suspension states)
+        // Fetch store-specific profile: ALWAYS force fresh (ttlMs: 0, forceFresh: true) so public viewers immediately see suspension / compliance lockdown with ZERO delay!
         const { data: settingsData } = await apiClient.swr<any>(`/u/${slug}`, {
-          ttlMs: isMerchantAdmin ? 0 : 2 * 60 * 1000,
-          forceFresh: isMerchantAdmin,
+          ttlMs: 0,
+          forceFresh: true,
           slug,
           onFresh: (freshSettings) => {
             if (freshSettings?.success && freshSettings.data) {
@@ -9185,10 +9270,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
                 localStorage.setItem('catavor_settings', JSON.stringify(fetched));
               } catch {}
               if (isSuspended) {
+                apiClient.invalidate(`/u/${slug}`);
                 setFaunas([]);
                 if (adminSubTab !== 'help' && adminSubTab !== 'notifications') {
                   setAdminSubTab('menu');
                 }
+                // Eagerly fetch support tickets so dashboard immediately knows if an appeal ticket exists
+                mobileFetchSupportTicketsRef.current?.(true);
               }
             }
           }
@@ -9280,6 +9368,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             if (adminSubTab !== 'help' && adminSubTab !== 'notifications') {
               setAdminSubTab('menu');
             }
+            // Eagerly fetch support tickets so dashboard immediately knows if an appeal ticket exists
+            mobileFetchSupportTicketsRef.current?.(true);
           } else {
             const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products`, {
               ttlMs: isMerchantAdmin ? 0 : 2 * 60 * 1000,
@@ -18837,10 +18927,38 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                       {/* Resolution CTA Action */}
                       {(() => {
-                        const activeAppeal = tickets.find(t => 
-                          (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
-                          t.status !== 'closed' && t.status !== 'resolved'
-                        ) || (tickets.length > 0 ? tickets[0] : null);
+                        const currentStoreSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
+                        const currentStoreObj = userStores?.find(s => s.slug?.toLowerCase() === currentStoreSlug);
+                        const currentStoreId = currentStoreObj?.id;
+
+                        const activeAppeal = tickets.find(t => {
+                          // Scope to current store
+                          const isCurrentStore = (!t.store_id && !currentStoreId) || 
+                            (currentStoreId && t.store_id === currentStoreId) || 
+                            (t.store?.slug || '').toLowerCase() === currentStoreSlug;
+                          if (!isCurrentStore) return false;
+
+                          // Must NOT be closed or resolved
+                          if (t.status === 'closed' || t.status === 'resolved') return false;
+
+                          // Must be compliance/appeal category or subject
+                          const isAppealTicket = t.category === 'catalog_help' || 
+                            t.category === 'compliance' ||
+                            (t.subject || '').toLowerCase().includes('banding') || 
+                            (t.subject || '').toLowerCase().includes('pembekuan') || 
+                            (t.subject || '').toLowerCase().includes('suspend');
+                          if (!isAppealTicket) return false;
+
+                          // Must be created on or after current suspension incident (with 2-min clock skew tolerance)
+                          if (settings.dormancy_suspended_at) {
+                            const suspendedTime = new Date(settings.dormancy_suspended_at).getTime();
+                            const ticketTime = new Date(t.created_at).getTime();
+                            if (ticketTime < suspendedTime - 2 * 60 * 1000) {
+                              return false; // ticket belongs to an older suspension incident
+                            }
+                          }
+                          return true;
+                        });
 
                         if (activeAppeal) {
                           return (
@@ -18858,10 +18976,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 <Clock size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)' }}>
-                                    {activeAppeal.status === 'resolved' || activeAppeal.status === 'closed' ? 'Riwayat Obrolan Banding' : 'Permohonan Banding Sedang Diproses'}
+                                    Permohonan Banding Sedang Diproses
                                   </div>
-                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    Tiket #{activeAppeal.id}: {activeAppeal.subject}
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                    Permohonan banding sedang ditinjau oleh tim kepatuhan. Respon akan tampil di obrolan.
                                   </div>
                                 </div>
                               </div>
@@ -18871,6 +18989,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 onClick={() => {
                                   setSelectedTicket(activeAppeal);
                                   fetchTicketDetails(activeAppeal.id);
+                                  setIsCreatingTicket(false);
                                   setAdminSubTab('help');
                                   const slug = storeSlug || getStoreSlug();
                                   if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
@@ -18889,11 +19008,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   gap: '0.5rem',
-                                  boxShadow: '0 4px 16px var(--primary-glow)'
+                                  boxShadow: '0 4px 16px var(--primary-glow)',
+                                  transition: 'all 0.2s ease'
                                 }}
                               >
                                 <MessageSquare size={16} />
-                                <span>Buka Ruang Obrolan Banding (Tiket #{activeAppeal.id})</span>
+                                <span>Buka Obrolan Banding</span>
+                                <ArrowRight size={15} />
                               </button>
                             </div>
                           );
@@ -21977,7 +22098,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                         }}
                                       >
                                         <MessageSquare size={17} />
-                                        <span>Buka Obrolan Banding (Tiket #{activeAppeal.id})</span>
+                                        <span>Buka Obrolan Banding</span>
                                         <ArrowRight size={15} />
                                       </button>
                                     );
@@ -22271,7 +22392,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                         }}
                                       >
                                         <MessageSquare size={16} />
-                                        <span>Buka Obrolan Banding (#{activeAppeal.id})</span>
+                                        <span>Buka Obrolan Banding</span>
                                         <ArrowRight size={15} />
                                       </button>
                                     ) : (
@@ -23937,100 +24058,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       ) : null;
 
                       if (isSuspendedAccount && activeAppeal) {
+                        // SaaS Best Practice: Langsung alihkan ke obrolan tiket banding aktif tanpa kartu pemblokir
+                        setTimeout(() => {
+                          setSelectedTicket(activeAppeal);
+                          fetchTicketDetails(activeAppeal.id);
+                          setIsCreatingTicket(false);
+                          const slug = storeSlug || getStoreSlug();
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
+                        }, 20);
+
                         return (
-                          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }}>
-                            <div className="glass-panel" style={{
-                              padding: '1.75rem 1.25rem',
-                              borderRadius: '1.25rem',
-                              border: '1px solid var(--border-light)',
-                              borderTop: '3px solid var(--primary)',
-                              background: 'var(--bg-card)',
-                              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              textAlign: 'center',
-                              gap: '1rem'
-                            }}>
-                              <div style={{
-                                width: '56px',
-                                height: '56px',
-                                borderRadius: '50%',
-                                backgroundColor: 'var(--bg-card-hover, rgba(125, 125, 125, 0.08))',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--primary)',
-                                boxShadow: '0 4px 16px var(--primary-glow)'
-                              }}>
-                                <Clock size={28} />
-                              </div>
-
-                              <div>
-                                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.4rem 0' }}>
-                                  Permohonan Banding Sedang Diproses
-                                </h3>
-                                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, maxWidth: '400px' }}>
-                                  Anda telah memiliki tiket banding aktif (<strong>Tiket #{activeAppeal.id}</strong>) untuk katalog ini. Untuk memastikan proses peninjauan berjalan tertib, pembuatan tiket banding baru ditangguhkan.
-                                </p>
-                              </div>
-
-                              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.5rem' }}>
-                                <button
-                                  type="button"
-                                  className="btn-primary"
-                                  onClick={() => {
-                                    setSelectedTicket(activeAppeal);
-                                    fetchTicketDetails(activeAppeal.id);
-                                    setIsCreatingTicket(false);
-                                    const slug = storeSlug || getStoreSlug();
-                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${activeAppeal.id}`);
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    padding: '0.85rem 1.25rem',
-                                    borderRadius: '0.85rem',
-                                    fontSize: '0.88rem',
-                                    fontWeight: 800,
-                                    backgroundColor: 'var(--primary)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '0.5rem',
-                                    boxShadow: '0 4px 16px var(--primary-glow)'
-                                  }}
-                                >
-                                  <MessageSquare size={16} />
-                                  <span>Buka Obrolan Banding (Tiket #{activeAppeal.id})</span>
-                                  <ArrowRight size={15} />
-                                </button>
-
-                                <button
-                                  type="button"
-                                  className="btn-secondary"
-                                  onClick={() => {
-                                    setIsCreatingTicket(false);
-                                    setAdminSubTab('menu');
-                                    const slug = storeSlug || getStoreSlug();
-                                    if (slug) window.history.pushState({}, '', `/${slug}/admin`);
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    padding: '0.75rem 1rem',
-                                    borderRadius: '0.85rem',
-                                    fontSize: '0.84rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    textAlign: 'center'
-                                  }}
-                                >
-                                  Kembali ke Dashboard
-                                </button>
-                              </div>
+                          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1rem', textAlign: 'center', gap: '0.75rem' }}>
+                            <div className="spinner" style={{ width: '28px', height: '28px' }} />
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              Membuka obrolan banding kepatuhan...
                             </div>
                           </div>
                         );
