@@ -28,17 +28,9 @@ func NewNotificationHandler(db *gorm.DB) *NotificationHandler {
 	return &NotificationHandler{DB: db}
 }
 
-// resolveStoreContext accurately extracts and resolves the store context from c.Locals, query slug, or X-Store-Slug header.
-func (h *NotificationHandler) resolveStoreContext(c *fiber.Ctx, user *models.User) (storeID uint, storePlan string, storeCreatedAt time.Time) {
+// resolveStoreContext accurately extracts and resolves the store context from query slug, X-Store-Slug header, or c.Locals.
+func (h *NotificationHandler) resolveStoreContext(c *fiber.Ctx, user *models.User) (storeID uint, storePlan string, storeCreatedAt time.Time, isSuspended bool, dormancySuspendedAt *time.Time) {
 	storePlan = "free"
-	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
-		storeID = store.ID
-		storeCreatedAt = store.CreatedAt
-		if store.Plan != "" {
-			storePlan = store.Plan
-		}
-		return
-	}
 
 	requestedSlug := strings.TrimSpace(c.Query("slug"))
 	if requestedSlug == "" {
@@ -46,14 +38,29 @@ func (h *NotificationHandler) resolveStoreContext(c *fiber.Ctx, user *models.Use
 	}
 	if requestedSlug != "" && user != nil {
 		var matchedStore models.Store
-		if err := h.DB.Where("slug = ? AND user_id = ?", requestedSlug, user.ID).First(&matchedStore).Error; err == nil {
+		if err := h.DB.Where("LOWER(slug) = ? AND user_id = ?", strings.ToLower(requestedSlug), user.ID).First(&matchedStore).Error; err == nil {
 			storeID = matchedStore.ID
 			storeCreatedAt = matchedStore.CreatedAt
 			if matchedStore.Plan != "" {
 				storePlan = matchedStore.Plan
 			}
+			isSuspended = matchedStore.IsSuspended || matchedStore.DormancyStatus == "suspended"
+			dormancySuspendedAt = matchedStore.DormancySuspendedAt
+			return
 		}
 	}
+
+	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
+		storeID = store.ID
+		storeCreatedAt = store.CreatedAt
+		if store.Plan != "" {
+			storePlan = store.Plan
+		}
+		isSuspended = store.IsSuspended || store.DormancyStatus == "suspended"
+		dormancySuspendedAt = store.DormancySuspendedAt
+		return
+	}
+
 	return
 }
 
@@ -65,7 +72,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		userID = user.ID
 	}
 
-	storeID, storePlan, storeCreatedAt := h.resolveStoreContext(c, user)
+	storeID, storePlan, storeCreatedAt, isSuspended, dormancySuspendedAt := h.resolveStoreContext(c, user)
 
 	// 1. Seed initial standard guide notifications if store has none
 	if storeID > 0 {
@@ -172,6 +179,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	// 3. Process, filter, and calculate unread count
 	var filtered []models.Notification
 	unreadCount := 0
+	hasSeenCurrentSuspensionNotif := false
 
 	for _, res := range allResults {
 		notif := res.Notification
@@ -179,6 +187,64 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		notif.ReadAt = res.ReadAtTime
 		notif.DismissedAt = res.DismissedAt
 		notif.Timestamp = formatRelativeTime(notif.CreatedAt)
+
+		isSuspensionNotif := notif.Category == "KEAMANAN" && (strings.Contains(notif.Title, "Dibekukan") || strings.Contains(notif.Title, "Suspensi") || strings.Contains(notif.Message, "dibekukan") || strings.Contains(notif.Message, "penangguhan"))
+		titleLower := strings.ToLower(notif.Title)
+		msgLower := strings.ToLower(notif.Message)
+
+		// Strict Incident Scoping & SaaS Best Practice Rules:
+		if isSuspended {
+			// 1. When store is suspended: ALL notifications created prior to the current suspension incident MUST BE HIDDEN.
+			if dormancySuspendedAt != nil {
+				if notif.CreatedAt.Before(dormancySuspendedAt.Add(-2 * time.Minute)) {
+					continue
+				}
+			}
+
+			// 2. Hide past restoration / recovery notices completely while in suspended state
+			if strings.Contains(titleLower, "pemulihan") ||
+				strings.Contains(titleLower, "dipulihkan") ||
+				strings.Contains(titleLower, "diaktifkan kembali") ||
+				strings.Contains(msgLower, "pemulihan") ||
+				strings.Contains(msgLower, "dipulihkan") ||
+				strings.Contains(msgLower, "diaktifkan kembali") {
+				continue
+			}
+
+			// 3. Only keep notifications relevant to compliance, suspension, moderation, and appeals
+			isRelevantToSuspension := notif.Category == "MODERASI" ||
+				notif.Category == "KEPATUHAN" ||
+				notif.Category == "KEAMANAN" ||
+				notif.Category == "SUSPEND" ||
+				notif.Category == "TIKET" ||
+				notif.Type == "ticket" ||
+				notif.LinkSubTab == "help" ||
+				strings.Contains(titleLower, "suspend") ||
+				strings.Contains(titleLower, "dibekukan") ||
+				strings.Contains(titleLower, "pelanggaran") ||
+				strings.Contains(titleLower, "banding") ||
+				strings.Contains(titleLower, "tiket") ||
+				strings.Contains(msgLower, "suspend") ||
+				strings.Contains(msgLower, "dibekukan") ||
+				strings.Contains(msgLower, "banding")
+
+			if !isRelevantToSuspension {
+				continue
+			}
+
+			// 4. Only allow the single latest suspension notification for the current incident
+			if isSuspensionNotif {
+				if hasSeenCurrentSuspensionNotif {
+					continue
+				}
+				hasSeenCurrentSuspensionNotif = true
+			}
+		} else {
+			// When store is active: hide all historical suspension and penalty notifications so the operational feed remains clean
+			if isSuspensionNotif || strings.Contains(titleLower, "dibekukan") || strings.Contains(titleLower, "pembekuan") || strings.Contains(titleLower, "suspensi") {
+				continue
+			}
+		}
 
 		if !notif.IsRead {
 			unreadCount++
@@ -229,7 +295,7 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 	}
-	storeID, _, _ := h.resolveStoreContext(c, user)
+	storeID, _, _, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 
@@ -270,7 +336,7 @@ func (h *NotificationHandler) MarkAllAsRead(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 	}
-	storeID, storePlan, storeCreatedAt := h.resolveStoreContext(c, user)
+	storeID, storePlan, storeCreatedAt, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
@@ -349,7 +415,7 @@ func (h *NotificationHandler) Dismiss(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 	}
-	storeID, _, _ := h.resolveStoreContext(c, user)
+	storeID, _, _, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 
@@ -389,7 +455,7 @@ func (h *NotificationHandler) ClearReadNotifications(c *fiber.Ctx) error {
 	if user != nil {
 		userID = user.ID
 	}
-	storeID, _, _ := h.resolveStoreContext(c, user)
+	storeID, _, _, _, _ := h.resolveStoreContext(c, user)
 
 	now := time.Now().UTC()
 
@@ -430,7 +496,7 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 		}
 	}
 
-	storeID, storePlan, _ := h.resolveStoreContext(c, user)
+	storeID, storePlan, _, _, _ := h.resolveStoreContext(c, user)
 
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache, no-transform")

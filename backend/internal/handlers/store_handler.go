@@ -219,7 +219,7 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		})
 	}
 
-	if store.DormancyStatus == "suspended" || store.DormancyStatus == "banned" || store.IsBlacklisted {
+	if store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,
