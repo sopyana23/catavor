@@ -599,7 +599,124 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 	return
 }
 
+// BuildItemTakedownEmail creates an official notification when an item is taken down/hidden by moderation.
+func BuildItemTakedownEmail(storeTitle, targetEntityName, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Penonaktifan Item Katalog - %s (#%s)", targetEntityName, reportNumber)
+	title := "Item Katalog Dinonaktifkan oleh Tim Kepatuhan"
+	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penonaktifan Produk Berkas #%s", reportNumber)
+
+	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
+	if storeSlug == "" {
+		itemsURL = "/admin/items"
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan Tim Kepatuhan Catavor terhadap laporan masyarakat, produk Anda berikut ini telah <strong>dinonaktifkan dan disembunyikan dari katalog publik</strong>:</p>
+
+	<!-- Takedown Details Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.65;">
+				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
+					<tr>
+						<td width="33%%" style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Nama Produk</td>
+						<td width="67%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Kategori Dugaan</td>
+						<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top;">Alasan Moderator</td>
+						<td style="padding: 5px 0 5px 10px; color: #7f1d1d; font-size: 12px; font-style: italic; vertical-align: top;">"%s"</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Timeline & Action Notice -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
+				<strong style="color: #1e40af; display: block; margin-bottom: 4px;">Masa Tenggang 30 Hari & Opsi Penyelesaian:</strong>
+				1. <strong>Hapus Produk Mandiri</strong>: Jika Anda mengakui ketidaksesuaian barang, Anda dapat langsung menghapusnya dari menu Inventaris.<br>
+				2. <strong>Klarifikasi / Bantuan</strong>: Jika terjadi kekeliruan atau Anda memiliki izin/dokumen resmi, hubungi Tim CS kami melalui tombol di bawah.<br>
+				3. <strong>Pembersihan Otomatis</strong>: Jika tidak ada tindakan atau klarifikasi dalam <strong>30 hari</strong>, sistem akan otomatis menghapus produk ini dari daftar inventaris Anda.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
+
+	bodyHTML = wrapEmailLayout("PENONAKTIFAN ITEM", "#dc2626", title, subtitle, mainContent, "Kelola Inventaris Toko →", itemsURL)
+	return
+}
+
+// BuildItemRetentionReminderEmail creates an H-7 deadline warning before automated soft-deletion.
+func BuildItemRetentionReminderEmail(storeTitle, targetEntityName, reportNumber, storeSlug string, remainingDays int) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Peringatan] Item '%s' Akan Dihapus Otomatis dalam %d Hari (#%s)", targetEntityName, remainingDays, reportNumber)
+	title := fmt.Sprintf("Peringatan Batas Waktu: Produk Dihapus dalam %d Hari", remainingDays)
+	subtitle := fmt.Sprintf("Masa Retensi Produk Pelanggaran Berkas #%s Segera Berakhir", reportNumber)
+
+	helpURL := fmt.Sprintf("/%s/admin/help", storeSlug)
+	if storeSlug == "" {
+		helpURL = "/admin/help"
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kami mengingatkan kembali bahwa produk <strong>%s</strong> yang dinonaktifkan oleh Tim Kepatuhan Catavor akan <strong>dihapus secara otomatis oleh sistem dalam waktu %d hari ke depan</strong>.</p>
+
+	<!-- Reminder Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border: 1px solid #fde047; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #854d0e;">
+				<strong style="color: #713f12; display: block; margin-bottom: 4px;">⚠️ Perhatian:</strong>
+				Jika produk ini masih memerlukan peninjauan kembali atau Anda telah melengkapi berkas legalitas, mohon segera ajukan klarifikasi melalui formulir Tiket Bantuan sebelum batas waktu retensi berakhir.
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">Apabila Anda memang tidak berniat memperdagangkan produk ini lagi, Anda dapat mengabaikan email ini dan sistem akan membersihkan item dari katalog Anda secara tertib.</p>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), remainingDays)
+
+	bodyHTML = wrapEmailLayout("PENGINGAT BATAS WAKTU", "#d97706", title, subtitle, mainContent, "Buka Pusat Bantuan CS →", helpURL)
+	return
+}
+
+// BuildItemRetentionSoftDeletedEmail notifies merchant that the item has been auto-purged from inventory.
+func BuildItemRetentionSoftDeletedEmail(storeTitle, targetEntityName, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Sistem] Produk '%s' Telah Otomatis Dipindahkan dari Katalog (#%s)", targetEntityName, reportNumber)
+	title := "Produk Otomatis Dipindahkan dari Katalog"
+	subtitle := fmt.Sprintf("Penyelesaian Masa Retensi Produk Kepatuhan Berkas #%s", reportNumber)
+
+	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
+	if storeSlug == "" {
+		itemsURL = "/admin/items"
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Produk <strong>%s</strong> telah resmi <strong>dihapus dari inventaris katalog digital Anda</strong> oleh sistem otomatisasi Catavor karena telah melewati masa retensi 30 hari tanpa klarifikasi.</p>
+
+	<!-- Auto-Deleted Notice Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #64748b; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #334155;">
+				<strong style="color: #1e293b; display: block; margin-bottom: 4px;">Informasi Pengelolaan:</strong>
+				Item tersebut kini telah dibersihkan dari daftar inventaris aktif Anda sehingga kuota produk katalog Anda tetap optimal. Berkas nomor <strong>#%s</strong> telah ditutup secara permanen.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(reportNumber))
+
+	bodyHTML = wrapEmailLayout("PEMBERSIHAN SISTEM", "#475569", title, subtitle, mainContent, "Lihat Inventaris Toko →", itemsURL)
+	return
+}
+
 func nl2br(text string) string {
 	return strings.ReplaceAll(text, "\n", "<br>")
 }
+
 

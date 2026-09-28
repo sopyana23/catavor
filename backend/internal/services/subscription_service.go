@@ -262,7 +262,12 @@ func CanEditOrReactivateProduct(db *gorm.DB, storeID uint, productID uint, willB
 		return false, "Produk tidak ditemukan."
 	}
 
-	// If product was archived and user tries to set it active (or edit it)
+	// 1. Compliance Takedown Guard: If product was hidden/moderated by platform, merchant CANNOT activate it
+	if product.ModerationStatus == "hidden" && willBeActive {
+		return false, "Produk ini dinonaktifkan oleh Tim Kepatuhan/Moderasi platform dan tidak dapat diaktifkan kembali secara mandiri. Silakan hubungi tim bantuan CS jika Anda membutuhkan klarifikasi."
+	}
+
+	// 2. If product was archived and user tries to set it active (or edit it)
 	if !product.IsActive && willBeActive {
 		quota, err := GetStoreQuotaInfo(db, storeID)
 		if err != nil {

@@ -112,6 +112,33 @@ func main() {
 		}
 	}()
 
+	// Start Background Item Moderation Retention Worker (Runs on boot and every 24 hours: H-7 reminder, H-30 soft delete, H-90 hard delete)
+	go func() {
+		time.Sleep(30 * time.Second) // Stagger startup
+		if stats, err := services.ProcessItemRetentionCycle(database.DB, cfg); err != nil {
+			log.Warn().Err(err).Msg("Initial item retention cycle check failed")
+		} else if stats != nil && (stats.RemindersSent > 0 || stats.SoftDeleted > 0 || stats.HardDeleted > 0) {
+			log.Info().
+				Int("reminders", stats.RemindersSent).
+				Int("soft_deleted", stats.SoftDeleted).
+				Int("hard_deleted", stats.HardDeleted).
+				Msg("Item retention cycle completed on boot")
+		}
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if stats, err := services.ProcessItemRetentionCycle(database.DB, cfg); err != nil {
+				log.Warn().Err(err).Msg("Item retention periodic check failed")
+			} else if stats != nil && (stats.RemindersSent > 0 || stats.SoftDeleted > 0 || stats.HardDeleted > 0) {
+				log.Info().
+					Int("reminders", stats.RemindersSent).
+					Int("soft_deleted", stats.SoftDeleted).
+					Int("hard_deleted", stats.HardDeleted).
+					Msg("Periodic item retention cycle completed")
+			}
+		}
+	}()
+
 	// 7. Static Asset Directories with Hardened Security Headers
 	app.Static("/storage", cfg.StorageLocalRoot, fiber.Static{
 		Compress:  true,

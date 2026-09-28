@@ -641,10 +641,18 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"is_active":             false,
 						"moderation_status":     "hidden",
 						"moderation_reason":     adminNotes,
+						"moderated_at":          &now,
 						"is_shipping_available": false,
 					}).Error; err != nil {
 						return err
 					}
+					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+						"is_active":             false,
+						"moderation_status":     "hidden",
+						"moderation_reason":     adminNotes,
+						"moderated_at":          &now,
+						"is_shipping_available": false,
+					}).Error
 				}
 			case "item_restored":
 				if report.FaunaID != nil && *report.FaunaID > 0 {
@@ -652,10 +660,18 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"is_active":             true,
 						"moderation_status":     "none",
 						"moderation_reason":     "",
+						"moderated_at":          nil,
 						"is_shipping_available": true,
 					}).Error; err != nil {
 						return err
 					}
+					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+						"is_active":             true,
+						"moderation_status":     "none",
+						"moderation_reason":     "",
+						"moderated_at":          nil,
+						"is_shipping_available": true,
+					}).Error
 				}
 			case "catalog_suspended":
 				if report.StoreID > 0 {
@@ -1037,8 +1053,8 @@ func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNote
 		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
 		category = "compliance_warning"
 	case "item_hidden":
-		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, "Penonaktifan Item (Takedown)", adminNotes, reportNumber, storeSlug)
-		category = "compliance_warning"
+		subject, bodyHTML = services.BuildItemTakedownEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_item_hidden"
 	case "item_restored":
 		subject, bodyHTML = services.BuildRestoredEmail(storeTitle, reportNumber, storeSlug)
 		category = "compliance_restored"

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type Fauna struct {
@@ -27,6 +28,9 @@ type Fauna struct {
 	Attributes          datatypes.JSON `gorm:"type:jsonb" json:"attributes"`
 	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
 	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"`
+	ModerationReason    string         `gorm:"type:text" json:"moderation_reason,omitempty"`
+	ModeratedAt         *time.Time     `gorm:"index" json:"moderated_at,omitempty"`
+	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 

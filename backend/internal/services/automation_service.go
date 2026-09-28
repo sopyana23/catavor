@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/storage"
@@ -162,6 +163,16 @@ func InitAutomationTracker(db *gorm.DB, strg storage.StorageService) *Automation
 					IntervalDesc: "Persistent Web Streaming",
 					LastRunAt:    now,
 					LastSummary:  "Melayani transmisi siaran, status tiket, dan event tanpa polling.",
+				},
+				"item_retention_worker": {
+					Name:         "item_retention_worker",
+					Title:        "Bot Retensi & Pembersihan Item Moderasi",
+					Category:     "compliance",
+					Status:       "running",
+					IntervalDesc: "Setiap 24 Jam (Retensi 30-90 Hari)",
+					LastRunAt:    now,
+					NextRunAt:    now.Add(24 * time.Hour),
+					LastSummary:  "Memproses pengingat H-7, soft-delete hari ke-30, dan hard-delete total hari ke-90.",
 				},
 			},
 			runningBots: make(map[string]bool),
@@ -951,3 +962,61 @@ func (t *AutomationTracker) TriggerSandboxTestGuide(db *gorm.DB, adminUser *mode
 
 	return &testNotif, nil
 }
+
+// TriggerItemRetentionManual executes the item retention and purge cycle manually.
+func (t *AutomationTracker) TriggerItemRetentionManual(db *gorm.DB, cfg *config.Config) (*ItemRetentionStats, error) {
+	t.mu.Lock()
+	if t.runningBots["item_retention_worker"] {
+		t.mu.Unlock()
+		return nil, fmt.Errorf("bot pembersihan item moderasi sedang berjalan")
+	}
+	t.runningBots["item_retention_worker"] = true
+	t.mu.Unlock()
+
+	defer func() {
+		t.mu.Lock()
+		t.runningBots["item_retention_worker"] = false
+		t.mu.Unlock()
+	}()
+
+	targetDB := db
+	if targetDB == nil {
+		targetDB = t.db
+	}
+
+	stats, err := ProcessItemRetentionCycle(targetDB, cfg)
+	now := time.Now().UTC()
+	status := "success"
+	summary := ""
+	if stats != nil {
+		summary = fmt.Sprintf("Retensi selesai: %d pengingat H-7, %d di-soft delete (H-30), %d di-hard delete (H-90).", stats.RemindersSent, stats.SoftDeleted, stats.HardDeleted)
+	}
+	errStr := ""
+	if err != nil {
+		status = "error"
+		errStr = err.Error()
+		summary = "Gagal memproses siklus retensi item: " + errStr
+	}
+
+	affected := int64(0)
+	if stats != nil {
+		affected = int64(stats.SoftDeleted + stats.HardDeleted)
+	}
+
+	t.RecordWorkerHeartbeat("item_retention_worker", status, summary, errStr, affected, now.Add(24*time.Hour))
+	t.RecordLog(AutomationLogEntry{
+		ID:          fmt.Sprintf("log_%d_item_retention", now.UnixNano()),
+		BotName:     "item_retention_worker",
+		BotTitle:    "Bot Retensi & Pembersihan Item Moderasi",
+		Target:      "Katalog Produk & Moderasi",
+		Action:      "manual_execution",
+		TriggerType: "manual",
+		TriggeredBy: "Admin / Operator",
+		Status:      status,
+		Details:     summary,
+		Timestamp:   now,
+	})
+
+	return stats, err
+}
+
