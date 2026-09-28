@@ -14539,29 +14539,47 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               {/* Target Metadata Card */}
               <div style={{
-                padding: '1rem 1.15rem',
+                padding: '0.9rem 1.1rem',
                 borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(241, 245, 249, 0.8)',
-                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.2)'}`,
+                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(254, 242, 242, 0.65)',
+                border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.22)'}`,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.45rem'
+                gap: '0.55rem'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700 }}>Profil Katalog Terlapor:</span>
-                  <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: 800 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Profil Katalog Terlapor</span>
+                  <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', fontWeight: 800, fontFamily: 'monospace' }}>
                     #{bannedConfirmModalReport?.report_number || moderationModalReport?.report_number || '-'}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <Store size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  <span>{bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Toko Katalog'}</span>
-                </div>
-                {(bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug) && (
-                  <div style={{ fontSize: '0.76rem', color: theme.textSecondary, fontFamily: 'monospace' }}>
-                    catavor.com/{bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem' }}>
+                  <div style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                    flexShrink: 0,
+                    marginTop: '2px'
+                  }}>
+                    <Store size={18} />
                   </div>
-                )}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'break-word', letterSpacing: '-0.01em' }}>
+                      {bannedConfirmModalReport?.store_title || moderationModalReport?.store_title || 'Toko Katalog'}
+                    </div>
+                    {(bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug) && (
+                      <div style={{ fontSize: '0.76rem', color: theme.textSecondary, fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.3 }}>
+                        catavor.com/{bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Warning List */}
@@ -14643,7 +14661,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     );
                   }}
                   style={{
-                    flex: 1.8,
+                    flex: 1.2,
                     padding: '0.8rem 1.15rem',
                     borderRadius: '0.75rem',
                     border: 'none',
@@ -14656,6 +14674,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.45rem',
+                    whiteSpace: 'nowrap',
                     boxShadow: bannedConfirmAcknowledged ? '0 4px 18px rgba(239, 68, 68, 0.4)' : 'none',
                     transition: 'all 0.18s ease'
                   }}
@@ -14665,7 +14684,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   ) : (
                     <ShieldAlert size={15} />
                   )}
-                  <span>Ya, Banned &amp; Purge Data</span>
+                  <span>Ya, Banned</span>
                 </button>
               </div>
             </div>
