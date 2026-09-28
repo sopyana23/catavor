@@ -9529,6 +9529,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           default_require_comment_email: '0',
           default_verify_comment_email_domain: '0'
         };
+        document.documentElement.setAttribute('data-theme', 'navy');
+        document.body.setAttribute('data-theme', 'navy');
         setSettings(emptySettings);
         setSettingsForm(emptySettings);
         setFaunas([]);
@@ -17190,87 +17192,135 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       <main className="container" style={{ marginTop: '0.65rem' }}>
         {error ? (
           <div 
-            className="glass-panel animate-fade-in" 
+            className="animate-fade-in" 
             style={{ 
-              padding: '3.5rem 1.5rem 2.5rem 1.5rem', 
+              padding: '2.75rem 1.5rem 2rem 1.5rem', 
               textAlign: 'center', 
-              borderRadius: '1.5rem',
-              border: '1px solid rgba(245, 158, 11, 0.35)',
-              background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(9, 14, 12, 0.95) 100%)',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
+              borderRadius: '1.25rem',
+              backgroundColor: 'var(--bg-card, #ffffff)',
+              border: '1px solid var(--border-light, #e2e8f0)',
+              boxShadow: '0 10px 30px -5px rgba(15, 23, 42, 0.05), 0 4px 6px -2px rgba(15, 23, 42, 0.03)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '1.25rem',
-              margin: '1rem 0',
-              position: 'relative',
-              overflow: 'hidden'
+              gap: '1.15rem',
+              margin: '1.25rem 0 2rem 0',
+              position: 'relative'
             }}
           >
-            {/* Ambient Glow Background */}
-            <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', bottom: '-40px', left: '-40px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
-
-            {/* 404 Status Pill */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.85rem', borderRadius: '20px', backgroundColor: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+            {/* Status Badge */}
+            <div style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '0.45rem', 
+              padding: '0.28rem 0.85rem', 
+              borderRadius: '9999px', 
+              backgroundColor: 'rgba(30, 58, 138, 0.06)', 
+              border: '1px solid rgba(30, 58, 138, 0.14)', 
+              color: 'var(--primary, #1e3a8a)', 
+              fontSize: '0.72rem', 
+              fontWeight: 700, 
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase'
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary, #1e3a8a)' }} />
               404 • Halaman / Katalog Tidak Ditemukan
             </div>
 
-            {/* Glowing Icon Container */}
+            {/* Premium Icon Badge */}
             <div 
               style={{ 
-                width: '80px', 
-                height: '80px', 
-                borderRadius: '50%', 
-                backgroundColor: 'rgba(245, 158, 11, 0.12)', 
-                border: '2px solid rgba(245, 158, 11, 0.35)', 
+                width: '76px', 
+                height: '76px', 
+                borderRadius: '1.25rem', 
+                backgroundColor: 'rgba(30, 58, 138, 0.05)', 
+                border: '1px solid rgba(30, 58, 138, 0.12)', 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center', 
-                color: '#f59e0b',
-                boxShadow: '0 0 30px rgba(245, 158, 11, 0.25)'
+                color: 'var(--primary, #1e3a8a)',
+                boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 4px 12px rgba(30, 58, 138, 0.05)'
               }}
             >
-              {storeSlug ? <Store size={40} /> : <Globe size={40} />}
+              {storeSlug ? <Store size={36} strokeWidth={1.75} /> : <Compass size={36} strokeWidth={1.75} />}
             </div>
 
             {/* Text Content */}
-            <div>
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>
+            <div style={{ maxWidth: '320px', margin: '0 auto' }}>
+              <h3 style={{ 
+                fontSize: '1.35rem', 
+                fontWeight: 800, 
+                color: 'var(--text-primary, #0f172a)', 
+                marginBottom: '0.45rem', 
+                letterSpacing: '-0.02em',
+                fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
+              }}>
                 {storeSlug ? 'Katalog Tidak Ditemukan' : 'Halaman Tidak Ditemukan'}
               </h3>
-              <p style={{ fontSize: '0.84rem', color: '#9ca3af', maxWidth: '320px', margin: '0 auto', lineHeight: 1.6 }}>
+              <p style={{ 
+                fontSize: '0.85rem', 
+                color: 'var(--text-muted, #64748b)', 
+                lineHeight: 1.6, 
+                margin: 0 
+              }}>
                 {storeSlug 
-                  ? <>Tautan atau username katalog <strong style={{ color: '#e5e7eb' }}>catavor.com/{storeSlug}</strong> tidak terdaftar atau belum diaktifkan di platform Catavor.</>
-                  : <>Alamat tautan URL <strong style={{ color: '#e5e7eb' }}>{window.location.pathname}</strong> tidak terdaftar atau salah ketik.</>}
+                  ? <>Tautan atau identitas katalog <strong style={{ color: 'var(--text-primary, #0f172a)', fontWeight: 700 }}>catavor.com/{storeSlug}</strong> tidak terdaftar atau belum aktif di platform Catavor.</>
+                  : <>Alamat URL <strong style={{ color: 'var(--text-primary, #0f172a)', fontWeight: 700 }}>{window.location.pathname}</strong> tidak ditemukan atau salah penulisan.</>}
               </p>
             </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', maxWidth: '290px', marginTop: '0.5rem' }}>
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', width: '100%', maxWidth: '290px', marginTop: '0.25rem' }}>
               <button 
+                type="button"
                 className="btn-primary" 
                 onClick={() => { window.location.href = window.location.origin; }}
-                style={{ padding: '0.8rem 1.25rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)' }}
+                style={{ 
+                  padding: '0.78rem 1.25rem', 
+                  fontSize: '0.86rem', 
+                  fontWeight: 700, 
+                  borderRadius: '0.75rem', 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem', 
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(30, 58, 138, 0.2)'
+                }}
               >
-                <Sparkles size={16} />
-                Buat Katalog Anda Gratis ⚡
+                <Compass size={17} />
+                Ke Halaman Utama Portal
               </button>
               <button 
+                type="button"
                 className="btn-secondary" 
-                onClick={() => { window.location.href = window.location.origin; }}
-                style={{ padding: '0.7rem 1.25rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)' }}
+                onClick={() => { window.location.href = `${window.location.origin}/register`; }}
+                style={{ 
+                  padding: '0.72rem 1.25rem', 
+                  fontSize: '0.84rem', 
+                  fontWeight: 700, 
+                  borderRadius: '0.75rem', 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.45rem', 
+                  backgroundColor: 'var(--bg-card, #ffffff)', 
+                  border: '1px solid var(--border-light, #cbd5e1)',
+                  color: 'var(--text-primary, #0f172a)',
+                  cursor: 'pointer'
+                }}
               >
-                <Globe size={15} />
-                Ke Halaman Utama Portal
+                <Plus size={16} />
+                Buat Katalog Anda
               </button>
             </div>
 
             {/* Brand Platform Footer */}
-            <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', paddingTop: '0.85rem', width: '100%', marginTop: '0.5rem' }}>
-              <p style={{ fontSize: '0.72rem', color: '#6b7280', margin: 0 }}>
-                Powered by <strong style={{ color: '#9ca3af' }}>Catavor</strong> • Multi-Tenant Digital Catalog Platform
+            <div style={{ borderTop: '1px solid var(--border-light, #f1f5f9)', paddingTop: '0.85rem', width: '100%', marginTop: '0.25rem' }}>
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)', margin: 0, fontWeight: 500 }}>
+                Powered by <strong style={{ color: 'var(--text-secondary, #64748b)', fontWeight: 700 }}>Catavor</strong> • Multi-Tenant Digital Catalog Platform
               </p>
             </div>
           </div>
