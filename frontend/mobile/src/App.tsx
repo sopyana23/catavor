@@ -9420,7 +9420,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             // Eagerly fetch support tickets so dashboard immediately knows if an appeal ticket exists
             mobileFetchSupportTicketsRef.current?.(true);
           } else {
-            const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products`, {
+            const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products${isMerchantAdmin ? '?view=merchant' : ''}`, {
               ttlMs: isMerchantAdmin ? 0 : 2 * 60 * 1000,
               forceFresh: isMerchantAdmin,
               slug,

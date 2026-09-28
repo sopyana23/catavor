@@ -54,6 +54,40 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 	return token.SignedString([]byte(cfg.JWTSecret))
 }
 
+// ExtractOptionalClaims safely parses a Bearer token or token query without throwing HTTP 401.
+// Returns nil if token is missing or invalid.
+func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
+	if cfg == nil || cfg.JWTSecret == "" {
+		return nil
+	}
+	var tokenString string
+	authHeader := c.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+			tokenString = strings.TrimSpace(parts[1])
+		}
+	}
+	if tokenString == "" {
+		tokenString = strings.TrimSpace(c.Query("token"))
+	}
+	if tokenString == "" {
+		return nil
+	}
+
+	claims := &JWTClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing algorithm")
+		}
+		return []byte(cfg.JWTSecret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil
+	}
+	return claims
+}
+
 // AuthRequired validates the JWT Bearer token (supports Authorization header and ?token= query param for SSE EventSource)
 func AuthRequired(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {

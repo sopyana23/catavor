@@ -8660,7 +8660,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               setAdminTab('items');
             }
           } else {
-            const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products`, {
+            const { data: faunaData } = await apiClient.swr<any>(`/u/${slug}/products${isMerchantAdmin ? '?view=merchant' : ''}`, {
               ttlMs: isMerchantAdmin ? 0 : 2 * 60 * 1000,
               forceFresh: isMerchantAdmin,
               slug,
