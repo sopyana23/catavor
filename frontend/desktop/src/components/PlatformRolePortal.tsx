@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { compactToastMessage } from './SwipeableToast';
 import {
   Shield,
   ShieldAlert,
@@ -1688,7 +1689,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   });
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToastMsg({ text, type });
+    setToastMsg({ text: compactToastMessage(text), type });
     setTimeout(() => setToastMsg(null), 3000);
   };
 
@@ -3780,7 +3781,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 99999,
-          padding: '0.65rem 1.2rem',
+          padding: '0.52rem 1.05rem',
           borderRadius: '999px',
           backgroundColor: toastMsg.type === 'success' ? '#10b981' : toastMsg.type === 'error' ? '#ef4444' : '#3b82f6',
           color: '#ffffff',
@@ -3791,11 +3792,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           alignItems: 'center',
           gap: '0.45rem',
           maxWidth: '92%',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
           backdropFilter: 'blur(8px)',
           animation: 'fadeInDown 0.25s ease-out'
         }}>
-          {toastMsg.type === 'success' ? <CheckCircle2 size={15} /> : toastMsg.type === 'error' ? <AlertTriangle size={15} /> : <AlertCircle size={15} />}
-          <span>{toastMsg.text}</span>
+          {toastMsg.type === 'success' ? <CheckCircle2 size={15} style={{ flexShrink: 0 }} /> : toastMsg.type === 'error' ? <AlertTriangle size={15} style={{ flexShrink: 0 }} /> : <AlertCircle size={15} style={{ flexShrink: 0 }} />}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toastMsg.text}</span>
         </div>
       )}
 
