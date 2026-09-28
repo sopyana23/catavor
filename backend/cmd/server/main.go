@@ -79,7 +79,7 @@ func main() {
 	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
 	rbacHandler := handlers.NewRBACHandler()
 	safeDomainHandler := handlers.NewSafeDomainHandler()
-	spaHandler := handlers.NewSPAHandler(cfg)
+	spaHandler := handlers.NewSPAHandler(cfg, database.DB)
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
 

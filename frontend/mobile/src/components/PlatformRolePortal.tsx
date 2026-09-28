@@ -1004,6 +1004,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [bannedConfirmModalReport, setBannedConfirmModalReport] = useState<any | null>(null);
   const [bannedConfirmInput, setBannedConfirmInput] = useState<string>('');
   const [bannedConfirmAcknowledged, setBannedConfirmAcknowledged] = useState<boolean>(false);
+
+  // Swipe & Drag Bottom Sheet State for Banned Confirmation Modal (Mobile Standard)
+  const [bannedConfirmDragY, setBannedConfirmDragY] = useState(0);
+  const [isBannedConfirmDragging, setIsBannedConfirmDragging] = useState(false);
+  const bannedConfirmDragStartY = useRef(0);
+
+  const handleBannedConfirmDragStart = (clientY: number) => {
+    bannedConfirmDragStartY.current = clientY;
+    setIsBannedConfirmDragging(true);
+  };
+
+  const handleBannedConfirmDragMove = (clientY: number) => {
+    if (!isBannedConfirmDragging) return;
+    const delta = clientY - bannedConfirmDragStartY.current;
+    if (delta > 0) {
+      setBannedConfirmDragY(delta);
+    } else {
+      setBannedConfirmDragY(delta * 0.18);
+    }
+  };
+
+  const handleBannedConfirmDragEnd = () => {
+    if (!isBannedConfirmDragging) return;
+    setIsBannedConfirmDragging(false);
+    if (bannedConfirmDragY > 75 && !isSubmittingModeration) {
+      setShowModerationConfirmModal(false);
+    }
+    setBannedConfirmDragY(0);
+  };
+
+  useEffect(() => {
+    if (!showModerationConfirmModal) {
+      setBannedConfirmDragY(0);
+      setIsBannedConfirmDragging(false);
+    }
+  }, [showModerationConfirmModal]);
   const [reportsPagination, setReportsPagination] = useState<{ page: number; limit: number; total: number; total_pages: number }>({ page: 1, limit: 20, total: 0, total_pages: 1 });
   const [reportMetrics, setReportMetrics] = useState<any | null>(null);
   const [reportActiveEvidence, setReportActiveEvidence] = useState<any[]>([]);
@@ -14182,7 +14218,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
 
       {/* ========================================================================= */}
-      {/* MODAL KONFIRMASI AKSI BANNED PERMANEN                                     */}
+      {/* MODAL KONFIRMASI AKSI BANNED PERMANEN (Standard Mobile Bottom Sheet)       */}
       {/* ========================================================================= */}
       {showModerationConfirmModal && (
         <div 
@@ -14192,98 +14228,131 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             inset: 0,
             zIndex: 10000,
             backgroundColor: 'rgba(0, 0, 0, 0.78)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem'
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget && !isSubmittingModeration) {
               setShowModerationConfirmModal(false);
+              setBannedConfirmDragY(0);
             }
           }}
         >
           <div 
+            onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: '500px',
               maxHeight: '90vh',
-              overflowY: 'auto',
-              borderRadius: '1.25rem',
+              transform: `translateY(${Math.max(0, bannedConfirmDragY)}px)`,
+              transition: isBannedConfirmDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              borderTopLeftRadius: '1.6rem',
+              borderTopRightRadius: '1.6rem',
               backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              border: '1px solid rgba(239, 68, 68, 0.45)',
-              boxShadow: '0 25px 65px rgba(239, 68, 68, 0.22), 0 0 0 1px rgba(239, 68, 68, 0.15)',
+              borderTop: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.45)' : 'rgba(239, 68, 68, 0.25)'}`,
+              boxShadow: isDark 
+                ? '0 -14px 48px rgba(0, 0, 0, 0.65), 0 -4px 20px rgba(239, 68, 68, 0.2)' 
+                : '0 -10px 40px rgba(0, 0, 0, 0.16)',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxSizing: 'border-box'
             }}
           >
-            {/* Modal Header Bar */}
-            <div style={{
-              padding: '1.15rem 1.25rem',
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(225, 29, 72, 0.05) 100%)',
-              borderBottom: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.15)'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.85rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ef4444',
-                  boxShadow: '0 0 16px rgba(239, 68, 68, 0.25)'
-                }}>
-                  <ShieldAlert size={20} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
-                    Konfirmasi Banned Permanen
-                  </h3>
-                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: '#ef4444', fontWeight: 700 }}>
-                    Tindakan Berdampak Permanen &amp; Tidak Dapat Dibatalkan
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => !isSubmittingModeration && setShowModerationConfirmModal(false)}
-                style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: 'transparent',
-                  color: theme.textSecondary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <X size={15} />
-              </button>
+            {/* Smooth Drag Handle Area (Touch & Mouse Drag to Dismiss) */}
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.45rem 0 0.55rem',
+                flexShrink: 0,
+                cursor: isBannedConfirmDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                userSelect: 'none'
+              }}
+              onTouchStart={(e) => handleBannedConfirmDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleBannedConfirmDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleBannedConfirmDragEnd}
+              onMouseDown={(e) => handleBannedConfirmDragStart(e.clientY)}
+              onMouseMove={(e) => handleBannedConfirmDragMove(e.clientY)}
+              onMouseUp={handleBannedConfirmDragEnd}
+            >
+              <div style={{
+                width: '44px',
+                height: '5px',
+                borderRadius: '999px',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)'
+              }} />
             </div>
 
-            {/* Modal Content Body */}
-            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Modal Header Bar (Clean draggable header WITHOUT X close icon, matching platform standard) */}
+            <div 
+              style={{
+                padding: '0.2rem 1.25rem 0.85rem',
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(225, 29, 72, 0.04) 100%)',
+                borderBottom: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.15)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                flexShrink: 0,
+                cursor: isBannedConfirmDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                userSelect: 'none'
+              }}
+              onTouchStart={(e) => handleBannedConfirmDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleBannedConfirmDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleBannedConfirmDragEnd}
+              onMouseDown={(e) => handleBannedConfirmDragStart(e.clientY)}
+              onMouseMove={(e) => handleBannedConfirmDragMove(e.clientY)}
+              onMouseUp={handleBannedConfirmDragEnd}
+            >
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444',
+                boxShadow: '0 0 16px rgba(239, 68, 68, 0.25)',
+                flexShrink: 0
+              }}>
+                <ShieldAlert size={20} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                  Konfirmasi Banned Permanen
+                </h3>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: '#ef4444', fontWeight: 700 }}>
+                  Tindakan Berdampak Permanen &amp; Tidak Dapat Dibatalkan
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Content Body (Scrollable) */}
+            <div style={{ 
+              padding: '1.15rem 1.25rem', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '1rem',
+              overflowY: 'auto',
+              flex: 1
+            }}>
               {/* Target Metadata Card */}
               <div style={{
-                padding: '0.9rem 1rem',
+                padding: '0.85rem 1rem',
                 borderRadius: '0.85rem',
                 backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(241, 245, 249, 0.8)',
                 border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.2)'}`,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.4rem'
+                gap: '0.35rem'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.7rem', color: theme.textMuted, fontWeight: 700 }}>Profil Terlapor:</span>
@@ -14347,65 +14416,75 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen ini.
                 </span>
               </label>
+            </div>
 
-              {/* Modal Buttons */}
-              <div style={{ display: 'flex', gap: '0.65rem', paddingTop: '0.25rem' }}>
-                <button
-                  type="button"
-                  disabled={isSubmittingModeration}
-                  onClick={() => setShowModerationConfirmModal(false)}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem 1rem',
-                    borderRadius: '0.75rem',
-                    border: `1px solid ${theme.border}`,
-                    backgroundColor: 'transparent',
-                    color: theme.textSecondary,
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
-                  onClick={() => {
-                    handleUpdateReportStatus(
-                      moderationModalReport.id,
-                      moderationStatus,
-                      moderationAction,
-                      moderationNotes,
-                      true
-                    );
-                  }}
-                  style={{
-                    flex: 1.8,
-                    padding: '0.75rem 1rem',
-                    borderRadius: '0.75rem',
-                    border: 'none',
-                    backgroundColor: bannedConfirmAcknowledged ? '#ef4444' : (isDark ? '#334155' : '#cbd5e1'),
-                    color: bannedConfirmAcknowledged ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
-                    fontSize: '0.8rem',
-                    fontWeight: 800,
-                    cursor: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    boxShadow: bannedConfirmAcknowledged ? '0 4px 16px rgba(239, 68, 68, 0.4)' : 'none',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  {isSubmittingModeration ? (
-                    <RefreshCw size={14} className="animate-spin" />
-                  ) : (
-                    <ShieldAlert size={14} />
-                  )}
-                  <span>Ya, Banned &amp; Purge Data</span>
-                </button>
-              </div>
+            {/* Modal Bottom Buttons (Clean footer without X icon on top) */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.65rem', 
+              padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px))', 
+              borderTop: `1px solid ${theme.border}`,
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              flexShrink: 0
+            }}>
+              <button
+                type="button"
+                disabled={isSubmittingModeration}
+                onClick={() => {
+                  setShowModerationConfirmModal(false);
+                  setBannedConfirmDragY(0);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.78rem 1rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: 'transparent',
+                  color: theme.textSecondary,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: isSubmittingModeration ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!bannedConfirmAcknowledged || isSubmittingModeration}
+                onClick={() => {
+                  handleUpdateReportStatus(
+                    moderationModalReport.id,
+                    moderationStatus,
+                    moderationAction,
+                    moderationNotes,
+                    true
+                  );
+                }}
+                style={{
+                  flex: 1.8,
+                  padding: '0.78rem 1rem',
+                  borderRadius: '0.75rem',
+                  border: 'none',
+                  backgroundColor: bannedConfirmAcknowledged ? '#ef4444' : (isDark ? '#334155' : '#cbd5e1'),
+                  color: bannedConfirmAcknowledged ? '#ffffff' : (isDark ? '#94a3b8' : '#64748b'),
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  cursor: (!bannedConfirmAcknowledged || isSubmittingModeration) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  boxShadow: bannedConfirmAcknowledged ? '0 4px 16px rgba(239, 68, 68, 0.4)' : 'none',
+                  transition: 'all 0.18s ease'
+                }}
+              >
+                {isSubmittingModeration ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <ShieldAlert size={14} />
+                )}
+                <span>Ya, Banned &amp; Purge Data</span>
+              </button>
             </div>
           </div>
         </div>

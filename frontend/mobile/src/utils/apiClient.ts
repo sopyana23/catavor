@@ -266,7 +266,20 @@ export async function swrGet<T = any>(
         onFresh(freshData);
       }
       return freshData;
-    } catch (err) {
+    } catch (err: any) {
+      // If resource is explicitly 404 Not Found (e.g., store was banned or purged),
+      // NEVER return stale cached data! Invalidate cache immediately so banned stores do not linger.
+      if (err?.status === 404 || err?.statusCode === 404) {
+        memoryCache.delete(cacheKey);
+        try {
+          localStorage.removeItem(`catavor_swr_${cacheKey}`);
+          if (slug) {
+            localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
+          }
+        } catch {}
+        throw err;
+      }
+
       // If fresh fetch fails but we had stale data, don't throw to caller
       if (hasCachedData) {
         console.warn(`[SWR] Background refresh failed for ${endpoint}, using cached data.`);

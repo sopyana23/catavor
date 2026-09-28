@@ -8714,6 +8714,25 @@ Terima kasih atas perhatian dan kerja samanya.`;
               }
             } catch {}
           }
+          const emptySettings: ShopSettings = {
+            whatsapp_number: '',
+            store_slogan: '',
+            promo_banner: '',
+            store_title: 'Catavor',
+            store_logo_url: '',
+            store_theme: 'navy',
+            default_is_comments_enabled: '1',
+            default_require_comment_approval: '0',
+            default_require_comment_email: '0',
+            default_verify_comment_email_domain: '0'
+          };
+          setSettings(emptySettings);
+          setSettingsForm(emptySettings);
+          setFaunas([]);
+          try {
+            if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
+            localStorage.removeItem('catavor_settings');
+          } catch {}
           setError(settingsData?.message || 'Katalog / Store tidak ditemukan.');
         }
       } else {
@@ -8730,9 +8749,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setFeaturedStores(featuredData.data);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Koneksi terputus. Pastikan server backend Laravel berjalan di http://localhost:8000.');
+      if (err?.status === 404 || err?.message?.toLowerCase().includes('tidak ditemukan') || err?.message?.includes('404')) {
+        const emptySettings: ShopSettings = {
+          whatsapp_number: '',
+          store_slogan: '',
+          promo_banner: '',
+          store_title: 'Catavor',
+          store_logo_url: '',
+          store_theme: 'navy',
+          default_is_comments_enabled: '1',
+          default_require_comment_approval: '0',
+          default_require_comment_email: '0',
+          default_verify_comment_email_domain: '0'
+        };
+        setSettings(emptySettings);
+        setSettingsForm(emptySettings);
+        setFaunas([]);
+        try {
+          if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
+          localStorage.removeItem('catavor_settings');
+        } catch {}
+        setError(err?.message || 'Katalog / Store tidak ditemukan.');
+      } else {
+        setError('Koneksi terputus. Pastikan server backend Catavor berjalan di http://localhost:8000.');
+      }
     } finally {
       setLoading(false);
       setTimeout(() => setIsAppInitializing(false), 200);
@@ -14288,11 +14330,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               <div className="logo-area">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   {(() => {
-                    const titleText = settings.store_title || 'Catavor';
+                    const titleText = (!error && settings?.store_title) || 'Catavor';
                     const scale = getDesktopHeaderScale(titleText);
                     return (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
-                        {renderStoreLogo(settings.store_logo_url, 'logo-icon', scale.iconSize)}
+                        {renderStoreLogo(!error ? settings?.store_logo_url : undefined, 'logo-icon', scale.iconSize)}
                         <h1 
                           className="logo-text" 
                           style={{ margin: 0, fontSize: scale.titleFontSize, fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: scale.maxWidth, transition: 'font-size 0.2s ease' }} 
@@ -14300,7 +14342,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         >
                           {titleText}
                         </h1>
-                        {settings.plan === 'free' && (
+                        {!error && settings?.plan === 'free' && (
                           <span style={{ fontSize: scale.badgeFontSize, fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--primary)', border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                             Free by Catavor
                           </span>
@@ -14308,7 +14350,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                     );
                   })()}
-                  {!error && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
+                  {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
                     view === 'admin' ? (
                       <button
                         type="button"
@@ -14373,7 +14415,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   )}
                 </div>
               </div>
-              {!error && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
+              {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
                 <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 {view === 'catalog' ? (
                   <>
@@ -14422,6 +14464,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 )}
               </div>
             )}
+            {error && (
+              <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => { window.location.href = window.location.origin; }}
+                  style={{ padding: '0.45rem 1rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border-light)' }}
+                >
+                  <Globe size={14} />
+                  Portal Utama
+                </button>
+              </div>
+            )}
             </div>
           </header>
         )}
@@ -14429,7 +14484,96 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
       {/* Main Container */}
       <main className="container" style={{ paddingBottom: '4rem' }}>
-        {view === 'catalog' ? (
+        {error ? (
+          <div 
+            className="glass-panel animate-fade-in" 
+            style={{ 
+              padding: '5rem 2.5rem 3.5rem 2.5rem', 
+              textAlign: 'center', 
+              borderRadius: '1.5rem',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(9, 14, 12, 0.95) 100%)',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1.35rem',
+              position: 'relative',
+              overflow: 'hidden',
+              maxWidth: '680px',
+              margin: '2rem auto'
+            }}
+          >
+            {/* Ambient Glow Background */}
+            <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '180px', height: '180px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.12)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: '-60px', left: '-60px', width: '180px', height: '180px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.12)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+
+            {/* 404 Status Pill */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.35rem 1rem', borderRadius: '20px', backgroundColor: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f59e0b', boxShadow: '0 0 10px #f59e0b' }} />
+              404 • Halaman / Katalog Tidak Ditemukan
+            </div>
+
+            {/* Glowing Icon Container */}
+            <div 
+              style={{ 
+                width: '92px', 
+                height: '92px', 
+                borderRadius: '50%', 
+                backgroundColor: 'rgba(245, 158, 11, 0.12)', 
+                border: '2px solid rgba(245, 158, 11, 0.35)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                color: '#f59e0b',
+                boxShadow: '0 0 36px rgba(245, 158, 11, 0.28)'
+              }}
+            >
+              {storeSlug ? <Store size={46} /> : <Globe size={46} />}
+            </div>
+
+            {/* Text Content */}
+            <div>
+              <h3 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.6rem', letterSpacing: '-0.02em' }}>
+                {storeSlug ? 'Katalog Tidak Ditemukan' : 'Halaman Tidak Ditemukan'}
+              </h3>
+              <p style={{ fontSize: '0.94rem', color: '#9ca3af', maxWidth: '480px', margin: '0 auto', lineHeight: 1.65 }}>
+                {storeSlug 
+                  ? <>Tautan atau username katalog <strong style={{ color: '#e5e7eb' }}>catavor.com/{storeSlug}</strong> tidak terdaftar atau belum diaktifkan di platform Catavor.</>
+                  : <>Alamat tautan URL <strong style={{ color: '#e5e7eb' }}>{window.location.pathname}</strong> tidak terdaftar atau salah ketik.</>}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+              <button 
+                className="btn-primary" 
+                onClick={() => { window.location.href = window.location.origin; }}
+                style={{ padding: '0.85rem 1.75rem', fontSize: '0.9rem', fontWeight: 800, borderRadius: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 18px rgba(16, 185, 129, 0.35)' }}
+              >
+                <Sparkles size={18} />
+                Buat Katalog Anda Gratis ⚡
+              </button>
+              <button 
+                className="btn-secondary" 
+                onClick={() => { window.location.href = window.location.origin; }}
+                style={{ padding: '0.85rem 1.5rem', fontSize: '0.88rem', fontWeight: 700, borderRadius: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)' }}
+              >
+                <Globe size={16} />
+                Ke Halaman Utama Portal
+              </button>
+            </div>
+
+            {/* Brand Platform Footer */}
+            <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', paddingTop: '1rem', width: '100%', marginTop: '0.75rem' }}>
+              <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+                Powered by <strong style={{ color: '#9ca3af' }}>Catavor</strong> • Multi-Tenant Digital Catalog Platform
+              </p>
+            </div>
+          </div>
+        ) : (
+        view === 'catalog' ? (
           /* ========================================================
              CUSTOMER VIEW
              ======================================================== */
@@ -14661,96 +14805,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '1rem' }}>
                 <Loader className="animate-spin" size={40} style={{ color: 'var(--primary)' }} />
                 <p style={{ color: 'var(--text-secondary)' }}>Memuat katalog produk...</p>
-              </div>
-            )}
-
-            {error && (
-              <div 
-                className="glass-panel animate-fade-in" 
-                style={{ 
-                  padding: '5rem 2.5rem 3.5rem 2.5rem', 
-                  textAlign: 'center', 
-                  borderRadius: '1.5rem',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
-                  background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(9, 14, 12, 0.95) 100%)',
-                  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.6)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '1.35rem',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  maxWidth: '680px',
-                  margin: '2rem auto'
-                }}
-              >
-                {/* Ambient Glow Background */}
-                <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '180px', height: '180px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.12)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', bottom: '-60px', left: '-60px', width: '180px', height: '180px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.12)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-
-                {/* 404 Status Pill */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.35rem 1rem', borderRadius: '20px', backgroundColor: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f59e0b', boxShadow: '0 0 10px #f59e0b' }} />
-                  404 • Halaman / Katalog Tidak Ditemukan
-                </div>
-
-                {/* Glowing Icon Container */}
-                <div 
-                  style={{ 
-                    width: '92px', 
-                    height: '92px', 
-                    borderRadius: '50%', 
-                    backgroundColor: 'rgba(245, 158, 11, 0.12)', 
-                    border: '2px solid rgba(245, 158, 11, 0.35)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    color: '#f59e0b',
-                    boxShadow: '0 0 36px rgba(245, 158, 11, 0.28)'
-                  }}
-                >
-                  {storeSlug ? <Store size={46} /> : <Globe size={46} />}
-                </div>
-
-                {/* Text Content */}
-                <div>
-                  <h3 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.6rem', letterSpacing: '-0.02em' }}>
-                    {storeSlug ? 'Katalog Tidak Ditemukan' : 'Halaman Tidak Ditemukan'}
-                  </h3>
-                  <p style={{ fontSize: '0.94rem', color: '#9ca3af', maxWidth: '480px', margin: '0 auto', lineHeight: 1.65 }}>
-                    {storeSlug 
-                      ? <>Tautan atau username katalog <strong style={{ color: '#e5e7eb' }}>catavor.com/{storeSlug}</strong> tidak terdaftar atau belum diaktifkan di platform Catavor.</>
-                      : <>Alamat tautan URL <strong style={{ color: '#e5e7eb' }}>{window.location.pathname}</strong> tidak terdaftar atau salah ketik.</>}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <button 
-                    className="btn-primary" 
-                    onClick={() => { window.location.href = window.location.origin; }}
-                    style={{ padding: '0.85rem 1.75rem', fontSize: '0.9rem', fontWeight: 800, borderRadius: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 4px 18px rgba(16, 185, 129, 0.35)' }}
-                  >
-                    <Sparkles size={18} />
-                    Buat Katalog Anda Gratis ⚡
-                  </button>
-                  <button 
-                    className="btn-secondary" 
-                    onClick={() => { window.location.href = window.location.origin; }}
-                    style={{ padding: '0.85rem 1.5rem', fontSize: '0.88rem', fontWeight: 700, borderRadius: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)' }}
-                  >
-                    <Globe size={16} />
-                    Ke Halaman Utama Portal
-                  </button>
-                </div>
-
-                {/* Brand Platform Footer */}
-                <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', paddingTop: '1rem', width: '100%', marginTop: '0.75rem' }}>
-                  <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
-                    Powered by <strong style={{ color: '#9ca3af' }}>Catavor</strong> • Multi-Tenant Digital Catalog Platform
-                  </p>
-                </div>
               </div>
             )}
 
@@ -22365,7 +22419,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             )}
             </div>
           )
-        ) : null}
+        ) : null
+        )}
       </main>
     </div>
     )}

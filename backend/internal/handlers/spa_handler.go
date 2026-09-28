@@ -9,16 +9,18 @@ import (
 	"catavor-backend/internal/config"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 var mobileUARegex = regexp.MustCompile(`(?i)(android|bb\d+|meego).+mobile|avantgo|bada/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino`)
 
 type SPAHandler struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewSPAHandler(cfg *config.Config) *SPAHandler {
-	return &SPAHandler{cfg: cfg}
+func NewSPAHandler(cfg *config.Config, db *gorm.DB) *SPAHandler {
+	return &SPAHandler{cfg: cfg, db: db}
 }
 
 func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
@@ -30,6 +32,28 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 			"success": false,
 			"message": "API endpoint tidak ditemukan.",
 		})
+	}
+
+	// Check if the root slug in path is blacklisted
+	isBlacklistedSlug := false
+	if h.db != nil {
+		cleanPath := strings.Trim(path, "/")
+		parts := strings.Split(cleanPath, "/")
+		if len(parts) > 0 && parts[0] != "" {
+			firstSegment := strings.ToLower(parts[0])
+			// Ignore known system routes
+			reserved := map[string]bool{
+				"api": true, "assets": true, "auth": true, "login": true, "register": true,
+				"dashboard": true, "catalogs": true, "admin": true, "superadmin": true,
+				"moderator": true, "support": true, "static": true, "help": true, "terms": true, "privacy": true,
+			}
+			if !reserved[firstSegment] {
+				var count int64
+				if err := h.db.Table("blacklisted_slugs").Where("LOWER(slug) = ?", firstSegment).Count(&count).Error; err == nil && count > 0 {
+					isBlacklistedSlug = true
+				}
+			}
+		}
 	}
 
 	userAgent := c.Get("User-Agent")
@@ -64,6 +88,10 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.Set("Pragma", "no-cache")
 	c.Set("Expires", "0")
+
+	if isBlacklistedSlug {
+		return c.Status(fiber.StatusNotFound).SendFile(indexPath)
+	}
 
 	return c.SendFile(indexPath)
 }
