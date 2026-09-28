@@ -177,6 +177,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	}
 
 	// 3. Process, filter, and calculate unread count
+	var allVisible []models.Notification
 	var filtered []models.Notification
 	unreadCount := 0
 	hasSeenCurrentSuspensionNotif := false
@@ -239,16 +240,14 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 				}
 				hasSeenCurrentSuspensionNotif = true
 			}
-		} else {
-			// When store is active: hide all historical suspension and penalty notifications so the operational feed remains clean
-			if isSuspensionNotif || strings.Contains(titleLower, "dibekukan") || strings.Contains(titleLower, "pembekuan") || strings.Contains(titleLower, "suspensi") {
-				continue
-			}
 		}
+		// When store is active: all notifications (including restoration and historical events) are fully visible
 
 		if !notif.IsRead {
 			unreadCount++
 		}
+
+		allVisible = append(allVisible, notif)
 
 		if filter == "unread" && notif.IsRead {
 			continue
@@ -257,6 +256,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		filtered = append(filtered, notif)
 	}
 
+	totalAll := len(allVisible)
 	totalFiltered := len(filtered)
 
 	// Apply pagination slice
@@ -274,12 +274,14 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	hasMore := (offset + len(pagedData)) < totalFiltered
 
 	return c.JSON(fiber.Map{
-		"data":         pagedData,
-		"unread_count": unreadCount,
-		"total":        totalFiltered,
-		"page":         page,
-		"limit":        limit,
-		"has_more":     hasMore,
+		"data":           pagedData,
+		"unread_count":   unreadCount,
+		"total":          totalAll,
+		"total_all":      totalAll,
+		"total_filtered": totalFiltered,
+		"page":           page,
+		"limit":          limit,
+		"has_more":       hasMore,
 	})
 }
 

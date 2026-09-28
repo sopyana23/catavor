@@ -2,12 +2,8 @@ package services
 
 import (
 	"fmt"
-	"net/smtp"
-	"os"
 	"strings"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 // SendSingleCatalogBannedEmail dispatches an official compliance notification email to the merchant
@@ -111,50 +107,8 @@ Hormat kami,<br>
 	sendHTMLEmail(toEmail, subject, headline, bodyContent)
 }
 
-// sendHTMLEmail executes SMTP delivery or logs output gracefully if SMTP is unconfigured
+// sendHTMLEmail executes SMTP delivery via persistent queue
 func sendHTMLEmail(toEmail, subject, headline, bodyContent string) {
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
-	smtpUser := os.Getenv("SMTP_USER")
-	smtpPass := os.Getenv("SMTP_PASSWORD")
-	fromEmail := os.Getenv("SMTP_FROM")
-	if fromEmail == "" {
-		fromEmail = "compliance@catavor.com"
-	}
-
-	htmlMessage := fmt.Sprintf(`<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; padding: 20px;">`+
-		`<div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">`+
-		`<div style="background-color: #0f172a; padding: 24px; text-align: center; color: #ffffff;">`+
-		`<h2 style="margin: 0; font-size: 1.25rem;">%s</h2>`+
-		`</div>`+
-		`<div style="padding: 24px;">`+
-		`%s`+
-		`</div>`+
-		`<div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 0.75rem; color: #64748b;">`+
-		`Email ini dikirim secara otomatis oleh Sistem Kepatuhan Platform Catavor. Mohon tidak membalas email ini secara langsung.`+
-		`</div></div></body></html>`, headline, bodyContent)
-
-	msg := []byte(fmt.Sprintf("From: Catavor Trust & Safety <%s>\r\n"+
-		"To: %s\r\n"+
-		"Subject: %s\r\n"+
-		"MIME-Version: 1.0\r\n"+
-		"Content-Type: text/html; charset=UTF-8\r\n\r\n"+
-		"%s", fromEmail, toEmail, subject, htmlMessage))
-
-	if smtpHost != "" && smtpPort != "" {
-		addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
-		var auth smtp.Auth
-		if smtpUser != "" && smtpPass != "" {
-			auth = smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
-		}
-		go func() {
-			if err := smtp.SendMail(addr, auth, fromEmail, []string{toEmail}, msg); err != nil {
-				log.Warn().Err(err).Str("to", toEmail).Str("subject", subject).Msg("Failed to dispatch compliance email via SMTP")
-			} else {
-				log.Info().Str("to", toEmail).Str("subject", subject).Msg("Compliance notification email successfully delivered via SMTP")
-			}
-		}()
-	} else {
-		log.Info().Str("to", toEmail).Str("subject", subject).Msg("Compliance email simulated (SMTP not configured in local environment)")
-	}
+	htmlMessage := wrapEmailLayout("KEPUTUSAN KEPATUHAN", "#be123c", headline, subject, bodyContent, "Buka Portal Katalog Catavor", "/catalogs")
+	_, _ = EnqueueEmail(toEmail, "", "Catavor Trust & Safety", subject, htmlMessage, "compliance_banned", "")
 }

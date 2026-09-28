@@ -83,6 +83,9 @@ func main() {
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
 
+	// Start Background Transactional Email Queue Worker (Outbox Pattern with Exponential Retry)
+	services.InitEmailQueue(database.DB)
+
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
 

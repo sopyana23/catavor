@@ -1079,6 +1079,46 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		if err := database.DB.Create(&notif).Error; err == nil {
 			services.GetNotificationHub().Broadcast(&notif)
 		}
+
+		// Transactional Outbox Email Dispatch: Enqueue professional notification email for merchant
+		var ticketUser models.User
+		if err := database.DB.Select("id, name, email").Where("id = ?", ticket.UserID).First(&ticketUser).Error; err == nil && ticketUser.Email != "" {
+			recipientName := ticketUser.Name
+			if recipientName == "" {
+				recipientName = "Pengelola Katalog"
+			}
+			agentName := user.Name
+			if agentName == "" {
+				agentName = "Tim Layanan Pelanggan"
+			}
+			ticketStoreSlug := ""
+			ticketStoreTitle := ""
+			if ticket.StoreID != nil && *ticket.StoreID > 0 {
+				var st models.Store
+				if err := database.DB.Select("slug, store_title").Where("id = ?", *ticket.StoreID).First(&st).Error; err == nil {
+					ticketStoreSlug = st.Slug
+					ticketStoreTitle = st.StoreTitle
+				}
+			}
+			mailSub, mailBody := services.BuildSupportReplyEmail(
+				recipientName,
+				ticketStoreTitle,
+				ticket.TicketNumber,
+				ticket.Subject,
+				agentName,
+				messageText,
+				ticketStoreSlug,
+			)
+			_, _ = services.EnqueueEmail(
+				ticketUser.Email,
+				recipientName,
+				"Catavor Customer Support",
+				mailSub,
+				mailBody,
+				"support_reply",
+				ticket.TicketNumber,
+			)
+		}
 	}
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now

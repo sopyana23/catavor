@@ -429,6 +429,12 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_status ON automation_logs(status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_automation_logs_created_at ON automation_logs(created_at DESC);").Error
 
+	// 8.1 Auto-Migrate Transactional Outbox Email Queue Jobs
+	_ = db.AutoMigrate(&models.EmailJob{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_status_retry ON email_jobs (status, next_retry_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_recipient ON email_jobs (recipient_email);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_reference ON email_jobs (reference_id);").Error
+
 	// 9. Auto-populate categories from store master_classes if categories table is empty
 	var catCount int64
 	db.Model(&models.Category{}).Count(&catCount)

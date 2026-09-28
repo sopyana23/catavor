@@ -4806,8 +4806,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [notifHasMore, setNotifHasMore] = useState<boolean>(true);
   const [notifLoadingMore, setNotifLoadingMore] = useState<boolean>(false);
   const [notifInitialLoading, setNotifInitialLoading] = useState<boolean>(false);
-  const [notifTotal, setNotifTotal] = useState<number>(5);
-  const [notifUnreadCount, setNotifUnreadCount] = useState<number>(3);
+  const [notifTotal, setNotifTotal] = useState<number>(0);
+  const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
   const notifSentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Realtime Notifications Synchronizer & API Handlers (Mobile)
@@ -5814,15 +5814,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return () => window.removeEventListener('popstate', handlePopState);
   }, [notifications]);
 
-  // Smart default tab: Saat membuka notifikasi, prioritaskan 'unread' jika ada yang belum dibaca
+  // Smart default tab: Saat membuka notifikasi, prioritaskan 'unread' jika ada yang belum dibaca saat tab pertama kali dibuka
+  const prevAdminSubTabForNotifRef = useRef<string>(adminSubTab);
   useEffect(() => {
-    if (adminSubTab === 'notifications') {
+    if (adminSubTab === 'notifications' && prevAdminSubTabForNotifRef.current !== 'notifications') {
       if (notifUnreadCount > 0) {
         setNotifFilter('unread');
       } else {
         setNotifFilter('all');
       }
     }
+    prevAdminSubTabForNotifRef.current = adminSubTab;
   }, [adminSubTab, notifUnreadCount]);
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
@@ -5967,13 +5969,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         }];
       }
     } else {
-      // Store is active: suppress historical suspension notices so the notification feed remains clean
-      list = list.filter(n => {
-        const title = (n.title || '').toLowerCase();
-        const msg = (n.message || '').toLowerCase();
-        const isSuspensionNotice = (n.category || '').toUpperCase() === 'KEAMANAN' && (title.includes('dibekukan') || title.includes('suspend') || msg.includes('dibekukan') || msg.includes('penangguhan'));
-        return !isSuspensionNotice;
-      });
+      // Store is active / restored: all notifications are fully visible
+      return notifications;
     }
     return list;
   }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, settings.dormancy_suspended_at, storeSlug]);
