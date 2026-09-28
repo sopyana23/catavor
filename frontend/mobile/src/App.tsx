@@ -11091,10 +11091,58 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   }
 
+  // Open Item Clarification Ticket for Moderated/Hidden Items
+  const handleOpenItemClarificationTicket = (item: any) => {
+    const slug = getStoreSlug();
+    const itemId = item.id;
+    const itemName = item.name;
+    const reason = item.moderation_reason || 'Penonaktifan oleh Tim Kepatuhan Platform';
+    const reportCode = `ITM-${itemId}`;
+
+    const appealSubject = `[Klarifikasi Produk] Penonaktifan Item ${itemName} (#${itemId})`;
+    const appealMessage = `Yth. Tim Kepatuhan & Dukungan Catavor,
+
+Saya bermaksud mengajukan permohonan klarifikasi / peninjauan kembali terkait produk katalog kami yang dinonaktifkan oleh moderasi:
+• ID Produk: #${itemId}
+• Nama Produk: ${itemName}
+• Alasan Moderasi: "${reason}"
+
+---
+Penjelasan / Klarifikasi dari Pengelola Toko:
+[Silakan tuliskan penjelasan, kepemilikan izin resmi, atau klarifikasi Anda di sini...]
+
+Dokumen Pendukung:
+[Saya bersedia melampirkan foto fisik produk asli / bukti sertifikasi resmi pada tiket ini jika diperlukan]
+
+Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian dan kerjasamanya.`;
+
+    setNewTicketForm({
+      subject: appealSubject,
+      category: 'compliance',
+      priority: 'high',
+      message: appealMessage
+    });
+
+    setIsDetailActive(false);
+    setActiveTab('admin');
+    setAdminSubTab('help');
+    setIsCreatingTicket(true);
+    setSelectedTicket(null);
+    setSelectedNotification(null);
+    showToast('Formulir klarifikasi produk telah disiapkan.', 'success');
+    if (slug) {
+      window.history.pushState({}, '', `/${slug}/admin/help?action=appeal&report=${reportCode}`);
+    }
+  };
+
   // Open Edit Form with Anti-Cheat Protection
   const openEditSheet = (item: Fauna) => {
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
       alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Pengeditan produk dinonaktifkan.');
+      return;
+    }
+    if ((item as any).moderation_status === 'hidden') {
+      showToast('Item ini dinonaktifkan oleh Tim Kepatuhan platform dan tidak dapat diaktifkan kembali secara mandiri. Silakan hubungi CS jika Anda membutuhkan klarifikasi.', 'error');
       return;
     }
     if ((item as any).is_active === false) {
@@ -14348,6 +14396,30 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
           {/* Scrollable Content */}
           <div style={{ flex: 1, paddingBottom: '90px', overflowY: 'auto' }}>
+            {/* Moderation Status Banner (if hidden by platform) */}
+            {(selectedFauna as any).moderation_status === 'hidden' && (
+              <div style={{
+                margin: '0.75rem 1rem 0.25rem 1rem',
+                padding: '0.85rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                display: 'flex',
+                gap: '0.65rem',
+                alignItems: 'flex-start'
+              }}>
+                <ShieldAlert size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.2rem' }}>
+                    Item Dinonaktifkan oleh Tim Moderasi
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Item ini dinonaktifkan sementara dari katalog publik karena terindikasi melanggar Pedoman Komunitas atau Ketentuan Layanan. Hubungi tim dukungan untuk mengajukan peninjauan kembali.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Large Center Image */}
             <img 
               src={
@@ -14779,58 +14851,83 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <span>Edit</span>
                   </button>
                 )}
-                <button 
-                  type="button"
-                  onClick={() => {
-                    if (selectedFauna.product_type === 'property') {
-                      if (settings.whatsapp_number && settings.whatsapp_number.trim()) {
-                        if (isStoreOwner) {
-                          showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                {(selectedFauna as any).moderation_status === 'hidden' ? (
+                  <button 
+                    type="button"
+                    disabled
+                    style={{
+                      flex: 1,
+                      height: '44px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      borderRadius: '0.6rem',
+                      gap: '0.45rem',
+                      cursor: 'not-allowed'
+                    }}
+                  >
+                    <ShieldAlert size={16} />
+                    <span>Item Dinonaktifkan Platform</span>
+                  </button>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (selectedFauna.product_type === 'property') {
+                        if (settings.whatsapp_number && settings.whatsapp_number.trim()) {
+                          if (isStoreOwner) {
+                            showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                          }
+                          const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai kelengkapan dokumen/legalitas serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
+                          window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+                        } else {
+                          alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
                         }
-                        const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai kelengkapan dokumen/legalitas serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
-                        window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
-                      } else {
-                        alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
+                        return;
                       }
-                      return;
-                    }
-                    setShowMarketplacesSubMenu(false);
-                    setShowPurchaseOptions(true);
-                  }}
-                  className="btn-primary"
-                  style={{
-                    flex: 1,
-                    height: '44px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'var(--primary)',
-                    borderColor: 'var(--primary)',
-                    color: '#ffffff',
-                    fontSize: isStoreOwner ? '0.84rem' : '0.88rem',
-                    fontWeight: 700,
-                    borderRadius: '0.6rem',
-                    gap: '0.45rem',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    boxShadow: '0 4px 14px var(--primary-glow)'
-                  }}
-                >
-                  {(() => {
-                    const actionConfig = getItemActionConfig(selectedFauna);
-                    const ActionIcon = actionConfig.Icon;
-                    return (
-                      <>
-                        <ActionIcon size={16} style={{ flexShrink: 0 }} />
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {isStoreOwner ? actionConfig.shortLabel : actionConfig.fullLabel}
-                        </span>
-                      </>
-                    );
-                  })()}
-                </button>
+                      setShowMarketplacesSubMenu(false);
+                      setShowPurchaseOptions(true);
+                    }}
+                    className="btn-primary"
+                    style={{
+                      flex: 1,
+                      height: '44px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'var(--primary)',
+                      borderColor: 'var(--primary)',
+                      color: '#ffffff',
+                      fontSize: isStoreOwner ? '0.84rem' : '0.88rem',
+                      fontWeight: 700,
+                      borderRadius: '0.6rem',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      boxShadow: '0 4px 14px var(--primary-glow)'
+                    }}
+                  >
+                    {(() => {
+                      const actionConfig = getItemActionConfig(selectedFauna);
+                      const ActionIcon = actionConfig.Icon;
+                      return (
+                        <>
+                          <ActionIcon size={16} style={{ flexShrink: 0 }} />
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {isStoreOwner ? actionConfig.shortLabel : actionConfig.fullLabel}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -20286,7 +20383,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   }}>
                                     {item.name}
                                   </h4>
-                                  {(item as any).is_active === false && (
+                                  {(item as any).moderation_status === 'hidden' ? (
+                                    <span style={{ 
+                                      display: 'inline-flex', 
+                                      alignItems: 'center', 
+                                      gap: '0.2rem', 
+                                      fontSize: '0.58rem', 
+                                      fontWeight: 800, 
+                                      padding: '0.1rem 0.35rem', 
+                                      borderRadius: '3px', 
+                                      backgroundColor: 'rgba(239, 68, 68, 0.18)', 
+                                      color: '#ef4444', 
+                                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                                      flexShrink: 0
+                                    }}>
+                                      <ShieldAlert size={9} /> Dinonaktifkan
+                                    </span>
+                                  ) : (item as any).is_active === false && (
                                     <span style={{ 
                                       display: 'inline-flex', 
                                       alignItems: 'center', 

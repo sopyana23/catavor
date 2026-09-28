@@ -1308,6 +1308,17 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 			"message": "Pembersihan notifikasi kedaluwarsa & retensi 30 hari berhasil dijalankan.",
 		})
 
+	case "item_retention_worker", "item_retention", "moderation_cleanup", "item_cleanup":
+		stats, err := tracker.TriggerItemRetentionManual(h.DB, nil)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": fmt.Sprintf("Bot Retensi Item Moderasi berhasil diproses: %d pengingat H-7 dikirim, %d item di-soft delete (H-30), %d item di-hard delete total (H-90).", stats.RemindersSent, stats.SoftDeleted, stats.HardDeleted),
+			"stats":   stats,
+		})
+
 	case "test_guide", "sandbox_test", "test_sandbox", "guide":
 		notif, err := tracker.TriggerSandboxTestGuide(h.DB, user)
 		if err != nil {

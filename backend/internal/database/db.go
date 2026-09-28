@@ -528,7 +528,14 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_user ON notification_reads(user_id, notification_id);").Error
 	_ = db.Exec("UPDATE notifications SET action_type = 'detail', link_sub_tab = '' WHERE category = 'KEAMANAN' AND (link_sub_tab = 'help' OR action_type = 'navigate');").Error
 
-	// 9. Seed Default Support Canned Responses if table is empty
+	// 10. Ensure Product Moderation & Retention Columns
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_reason TEXT;").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_moderation ON products(moderation_status, moderated_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at);").Error
+
+	// 11. Seed Default Support Canned Responses if table is empty
 	var cannedCount int64
 	db.Model(&models.SupportCannedResponse{}).Count(&cannedCount)
 	if cannedCount == 0 {

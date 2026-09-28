@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // Category represents a structured category taxonomy for a store.
@@ -47,7 +48,9 @@ type Product struct {
 	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
 	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"` // none | warning | hidden | suspended
 	ModerationReason    string         `gorm:"type:text" json:"moderation_reason,omitempty"`
+	ModeratedAt         *time.Time     `gorm:"index" json:"moderated_at,omitempty"`
 	ArchivedAt          *time.Time     `gorm:"index" json:"archived_at,omitempty"`
+	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	ViewCount              int64          `gorm:"default:0" json:"view_count"`
 	WaClicksCount          int64          `gorm:"default:0" json:"wa_clicks_count"`
 	MarketplaceClicksCount int64          `gorm:"default:0" json:"marketplace_clicks_count"`
