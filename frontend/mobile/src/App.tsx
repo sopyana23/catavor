@@ -9437,6 +9437,25 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             }
           }
         } else {
+          const emptySettings: ShopSettings = {
+            whatsapp_number: '',
+            store_slogan: '',
+            promo_banner: '',
+            store_title: 'Catavor',
+            store_logo_url: '',
+            store_theme: 'navy',
+            default_is_comments_enabled: '1',
+            default_require_comment_approval: '0',
+            default_require_comment_email: '0',
+            default_verify_comment_email_domain: '0'
+          };
+          setSettings(emptySettings);
+          setSettingsForm(emptySettings);
+          setFaunas([]);
+          try {
+            if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
+            localStorage.removeItem('catavor_settings');
+          } catch {}
           setError(settingsData?.message || 'Katalog / Store tidak ditemukan.');
           // If 404 and user is logged in, proactively check if account was banned or offer store switch
           if (token && slug && !isReservedStoreSlug(slug)) {
@@ -9495,9 +9514,32 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           setFeaturedStores(featuredData.data);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Koneksi terputus. Pastikan server backend Laravel aktif.');
+      if (err?.status === 404 || err?.message?.toLowerCase().includes('tidak ditemukan') || err?.message?.includes('404')) {
+        const emptySettings: ShopSettings = {
+          whatsapp_number: '',
+          store_slogan: '',
+          promo_banner: '',
+          store_title: 'Catavor',
+          store_logo_url: '',
+          store_theme: 'navy',
+          default_is_comments_enabled: '1',
+          default_require_comment_approval: '0',
+          default_require_comment_email: '0',
+          default_verify_comment_email_domain: '0'
+        };
+        setSettings(emptySettings);
+        setSettingsForm(emptySettings);
+        setFaunas([]);
+        try {
+          if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
+          localStorage.removeItem('catavor_settings');
+        } catch {}
+        setError(err?.message || 'Katalog tidak ditemukan.');
+      } else {
+        setError('Koneksi terputus. Pastikan server backend aktif.');
+      }
     } finally {
       setLoading(false);
       setTimeout(() => setIsAppInitializing(false), 200);
@@ -14208,9 +14250,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
   // Native App Standard: Show bottom nav at top-level merchant pages (menu, items, settings), hide on modal/detail views
   const isBottomNavVisible = Boolean(
     !error &&
-    settings.dormancy_status !== 'suspended' &&
-    !settings.is_suspended &&
-    settings.dormancy_status !== 'banned' &&
+    settings?.dormancy_status !== 'suspended' &&
+    !settings?.is_suspended &&
+    settings?.dormancy_status !== 'banned' &&
     !showLightbox &&
     !selectedFauna &&
     !isDetailActive &&
@@ -17146,8 +17188,96 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       <div className="animate-fade-in" style={{ paddingBottom: isBottomNavVisible ? '80px' : (activeTab === 'admin' && adminSubTab === 'help' && selectedTicket ? '0px' : '24px') }}>
       {/* Tabs Content */}
       <main className="container" style={{ marginTop: '0.65rem' }}>
-        {/* Free Plan Branding Banner (Mobile) */}
-        {activeTab === 'catalog' && settings.plan === 'free' && settings.dormancy_status !== 'suspended' && (
+        {error ? (
+          <div 
+            className="glass-panel animate-fade-in" 
+            style={{ 
+              padding: '3.5rem 1.5rem 2.5rem 1.5rem', 
+              textAlign: 'center', 
+              borderRadius: '1.5rem',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(9, 14, 12, 0.95) 100%)',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1.25rem',
+              margin: '1rem 0',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Ambient Glow Background */}
+            <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: '-40px', left: '-40px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
+
+            {/* 404 Status Pill */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.85rem', borderRadius: '20px', backgroundColor: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+              404 • Halaman / Katalog Tidak Ditemukan
+            </div>
+
+            {/* Glowing Icon Container */}
+            <div 
+              style={{ 
+                width: '80px', 
+                height: '80px', 
+                borderRadius: '50%', 
+                backgroundColor: 'rgba(245, 158, 11, 0.12)', 
+                border: '2px solid rgba(245, 158, 11, 0.35)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                color: '#f59e0b',
+                boxShadow: '0 0 30px rgba(245, 158, 11, 0.25)'
+              }}
+            >
+              {storeSlug ? <Store size={40} /> : <Globe size={40} />}
+            </div>
+
+            {/* Text Content */}
+            <div>
+              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>
+                {storeSlug ? 'Katalog Tidak Ditemukan' : 'Halaman Tidak Ditemukan'}
+              </h3>
+              <p style={{ fontSize: '0.84rem', color: '#9ca3af', maxWidth: '320px', margin: '0 auto', lineHeight: 1.6 }}>
+                {storeSlug 
+                  ? <>Tautan atau username katalog <strong style={{ color: '#e5e7eb' }}>catavor.com/{storeSlug}</strong> tidak terdaftar atau belum diaktifkan di platform Catavor.</>
+                  : <>Alamat tautan URL <strong style={{ color: '#e5e7eb' }}>{window.location.pathname}</strong> tidak terdaftar atau salah ketik.</>}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', maxWidth: '290px', marginTop: '0.5rem' }}>
+              <button 
+                className="btn-primary" 
+                onClick={() => { window.location.href = window.location.origin; }}
+                style={{ padding: '0.8rem 1.25rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)' }}
+              >
+                <Sparkles size={16} />
+                Buat Katalog Anda Gratis ⚡
+              </button>
+              <button 
+                className="btn-secondary" 
+                onClick={() => { window.location.href = window.location.origin; }}
+                style={{ padding: '0.7rem 1.25rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)' }}
+              >
+                <Globe size={15} />
+                Ke Halaman Utama Portal
+              </button>
+            </div>
+
+            {/* Brand Platform Footer */}
+            <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', paddingTop: '0.85rem', width: '100%', marginTop: '0.5rem' }}>
+              <p style={{ fontSize: '0.72rem', color: '#6b7280', margin: 0 }}>
+                Powered by <strong style={{ color: '#9ca3af' }}>Catavor</strong> • Multi-Tenant Digital Catalog Platform
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Free Plan Branding Banner (Mobile) */}
+            {activeTab === 'catalog' && settings?.plan === 'free' && settings?.dormancy_status !== 'suspended' && (
           <div 
             className="glass-panel animate-fade-in"
             style={{
@@ -17673,88 +17803,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </div>
             )}
 
-            {error && (
-              <div 
-                className="glass-panel animate-fade-in" 
-                style={{ 
-                  padding: '3.5rem 1.5rem 2.5rem 1.5rem', 
-                  textAlign: 'center', 
-                  borderRadius: '1.5rem',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
-                  background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(9, 14, 12, 0.95) 100%)',
-                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '1.25rem',
-                  margin: '1rem 0',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-              >
-                {/* Ambient Glow Background */}
-                <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', bottom: '-40px', left: '-40px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
-
-                {/* 404 Status Pill */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.85rem', borderRadius: '20px', backgroundColor: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
-                  404 • Halaman Tidak Ditemukan
-                </div>
-
-                {/* Glowing Icon Container */}
-                <div 
-                  style={{ 
-                    width: '80px', 
-                    height: '80px', 
-                    borderRadius: '50%', 
-                    backgroundColor: 'rgba(245, 158, 11, 0.12)', 
-                    border: '2px solid rgba(245, 158, 11, 0.35)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    color: '#f59e0b',
-                    boxShadow: '0 0 30px rgba(245, 158, 11, 0.25)'
-                  }}
-                >
-                  {storeSlug ? <Store size={40} /> : <Globe size={40} />}
-                </div>
-
-                {/* Text Content */}
-                <div>
-                  <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>
-                    {storeSlug ? 'Katalog Tidak Ditemukan' : 'Halaman Tidak Ditemukan'}
-                  </h3>
-                  <p style={{ fontSize: '0.84rem', color: '#9ca3af', maxWidth: '320px', margin: '0 auto', lineHeight: 1.6 }}>
-                    {storeSlug 
-                      ? <>Tautan atau username katalog <strong style={{ color: '#e5e7eb' }}>catavor.com/{storeSlug}</strong> tidak terdaftar di sistem Catavor.</>
-                      : <>Alamat tautan URL <strong style={{ color: '#e5e7eb' }}>{window.location.pathname}</strong> tidak terdaftar atau salah ketik.</>}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', maxWidth: '290px', marginTop: '0.5rem' }}>
-                  <button 
-                    className="btn-primary" 
-                    onClick={() => { window.location.href = window.location.origin; }}
-                    style={{ padding: '0.8rem 1.25rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)' }}
-                  >
-                    <Sparkles size={16} />
-                    Buat Katalog Anda Gratis ⚡
-                  </button>
-                  <button 
-                    className="btn-secondary" 
-                    onClick={() => { window.location.href = window.location.origin; }}
-                    style={{ padding: '0.7rem 1.25rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)' }}
-                  >
-                    <Globe size={15} />
-                    Ke Halaman Utama Portal
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!loading && !error && (settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
+            {!loading && !error && (settings?.dormancy_status === 'suspended' || settings?.is_suspended) ? (
               /* DORMANT / SUSPENDED CATALOG STATE (Mobile) */
               <div 
                 className="glass-panel animate-fade-in" 
@@ -25252,6 +25301,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
           )
         )}
+        </>
+      )}
       </main>
     </div>
 
@@ -25463,7 +25514,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <BookOpen size={20} />
                 <span>Katalog</span>
               </button>
-              {settings.plan !== 'free' && (
+              {settings?.plan !== 'free' && (
                 <button 
                   type="button"
                   className={`nav-item ${activeTab === 'about' ? 'active' : ''}`}
