@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/smtp"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -774,7 +773,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		if report.TargetType == "item" && report.ItemName != "" {
 			targetEntityName = report.ItemName
 		}
-		go sendModerationEmail(targetRecipientEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber)
+		sendModerationEmail(targetRecipientEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber, report.ReasonLabel, report.StoreSlug)
 	}
 
 	// C. Invalidate Redis Metrics Cache
@@ -908,100 +907,40 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 		actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
 }
 
-// sendModerationEmail dispatches official transactional email to merchant owner via SMTP with safe fallback
-func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNotes, reportNumber string) {
+// sendModerationEmail dispatches official transactional email to merchant owner via persistent queue
+func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNotes, reportNumber, reasonLabel, storeSlug string) {
 	toEmail = strings.TrimSpace(toEmail)
 	if toEmail == "" {
 		return
 	}
 
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
-	smtpUser := os.Getenv("SMTP_USER")
-	smtpPass := os.Getenv("SMTP_PASSWORD")
-	fromEmail := os.Getenv("SMTP_FROM")
-	if fromEmail == "" {
-		fromEmail = "compliance@catavor.com"
-	}
-
-	subject := fmt.Sprintf("[Catavor Kepatuhan] Pemberitahuan Moderasi Konten - #%s", reportNumber)
-	headline := "Pemberitahuan Tim Kepatuhan Catavor"
-	actionDesc := ""
+	var subject, bodyHTML, category string
 
 	switch actionTaken {
-	case "warning_issued":
-		subject = fmt.Sprintf("[Catavor Kepatuhan] Peringatan Resmi Pelanggaran Konten - #%s", reportNumber)
-		headline = "Surat Peringatan Resmi Kepatuhan"
-		actionDesc = fmt.Sprintf("Tim Kepatuhan kami telah meninjau laporan masyarakat dan menemukan indikasi ketidaksesuaian kebijakan pada <strong>%s</strong>.", targetName)
-	case "item_hidden":
-		subject = fmt.Sprintf("[Catavor Kepatuhan] Pemberitahuan Penurunan Item Katalog - #%s", reportNumber)
-		headline = "Pemberitahuan Penonaktifan Item Katalog (Takedown)"
-		actionDesc = fmt.Sprintf("Item katalog <strong>%s</strong> telah kami nonaktifkan sementara dari etalase publik untuk menjaga keamanan ekosistem niaga.", targetName)
-	case "item_restored":
-		subject = fmt.Sprintf("[Catavor Kepatuhan] Pemulihan Item Katalog Selesai - #%s", reportNumber)
-		headline = "Konfirmasi Pemulihan Item Katalog"
-		actionDesc = fmt.Sprintf("Peninjauan atas item katalog <strong>%s</strong> telah selesai. Item telah diaktifkan kembali di etalase katalog Anda.", targetName)
+	case "catalog_banned", "account_banned":
+		subject, bodyHTML = services.BuildBannedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, toEmail)
+		category = "compliance_banned"
 	case "catalog_suspended":
-		subject = fmt.Sprintf("[Catavor Kepatuhan] PEMBERITAHUAN PENANGGUHAN PROFIL KATALOG - #%s", reportNumber)
-		headline = "Pemberitahuan Penangguhan Operasional Profil Katalog"
-		actionDesc = fmt.Sprintf("Operasional profil katalog <strong>%s</strong> telah ditangguhkan sementara terkait pelanggaran standar komunitas.", storeTitle)
-	case "catalog_banned":
-		subject = fmt.Sprintf("[Catavor Kepatuhan] Keputusan Final: Penonaktifan Permanen Profil Katalog '%s' - #%s", storeTitle, reportNumber)
-		headline = "Pemberitahuan Penonaktifan Permanen Profil Katalog"
-		actionDesc = fmt.Sprintf("Berdasarkan evaluasi menyeluruh atas pelanggaran terhadap Syarat Layanan dan Pedoman Komunitas Catavor, operasional profil katalog <strong>%s</strong> telah <strong>ditutup dan dinonaktifkan secara permanen</strong>. Seluruh data katalog terkait telah dibersihkan secara permanen dan nama profil telah dimasukkan ke dalam daftar terlarang sistem.<br><br><strong>Pemberitahuan Status Akun:</strong> Sanksi ini berlaku khusus untuk profil katalog di atas. Identitas akun Anda beserta <strong>profil katalog Anda yang lain tetap aman, aktif, dan dapat dikelola secara normal</strong> melalui Portal Katalog Catavor.", storeTitle)
+		subject, bodyHTML = services.BuildSuspendedEmail(storeTitle, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_suspended"
 	case "catalog_reactivated":
-		subject = fmt.Sprintf("[Catavor Kepatuhan] Pemulihan Operasional Profil Katalog Berhasil - #%s", reportNumber)
-		headline = "Konfirmasi Pemulihan Akun Profil Katalog"
-		actionDesc = fmt.Sprintf("Penangguhan atas profil katalog <strong>%s</strong> telah resmi dicabut. Profil Anda kini telah dapat diakses kembali oleh publik.", storeTitle)
+		subject, bodyHTML = services.BuildRestoredEmail(storeTitle, reportNumber, storeSlug)
+		category = "compliance_restored"
+	case "warning_issued":
+		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_warning"
+	case "item_hidden":
+		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, "Penonaktifan Item (Takedown)", adminNotes, reportNumber, storeSlug)
+		category = "compliance_warning"
+	case "item_restored":
+		subject, bodyHTML = services.BuildRestoredEmail(storeTitle, reportNumber, storeSlug)
+		category = "compliance_restored"
+	default:
+		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_warning"
 	}
 
-	bodyContent := fmt.Sprintf(`
-Halo Mitra Pengelola <strong>%s</strong>,<br><br>
-%s<br><br>
-<strong>Rincian Kasus:</strong><br>
-• Nomor Tiket: <strong>%s</strong><br>
-• Entitas Terkait: <strong>%s</strong><br>
-• Catatan Resmi Kepatuhan: <em>"%s"</em><br><br>
-Jika Anda merasa terdapat kekeliruan atau ingin mengajukan klarifikasi / perbaikan, Anda dapat menghubungi tim kami melalui menu Pusat Bantuan di Portal Mitra Catavor.<br><br>
-Salam hangat,<br>
-<strong>Tim Kepatuhan & Keamanan Catavor (Trust & Safety)</strong>
-`, storeTitle, actionDesc, reportNumber, targetName, adminNotes)
-
-	msg := []byte(fmt.Sprintf("From: Catavor Trust & Safety <%s>\r\n"+
-		"To: %s\r\n"+
-		"Subject: %s\r\n"+
-		"MIME-Version: 1.0\r\n"+
-		"Content-Type: text/html; charset=UTF-8\r\n\r\n"+
-		`<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; padding: 20px;">`+
-		`<div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">`+
-		`<div style="background-color: #0f172a; padding: 24px; text-align: center; color: #ffffff;">`+
-		`<h2 style="margin: 0; font-size: 1.25rem;">%s</h2>`+
-		`</div>`+
-		`<div style="padding: 24px;">`+
-		`%s`+
-		`</div>`+
-		`<div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 0.75rem; color: #64748b;">`+
-		`Email ini dikirim secara otomatis oleh Sistem Kepatuhan Platform Catavor. Mohon tidak membalas email ini secara langsung.`+
-		`</div></div></body></html>`, fromEmail, toEmail, subject, headline, bodyContent))
-
-	if smtpHost != "" && smtpPort != "" {
-		addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
-		var auth smtp.Auth
-		if smtpUser != "" && smtpPass != "" {
-			auth = smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
-		}
-		if err := smtp.SendMail(addr, auth, fromEmail, []string{toEmail}, msg); err != nil {
-			log.Warn().Err(err).Str("to", toEmail).Msg("Failed to dispatch moderation email via SMTP")
-		} else {
-			log.Info().Str("to", toEmail).Str("subject", subject).Msg("Moderation email successfully dispatched via SMTP")
-		}
-	} else {
-		log.Info().
-			Str("to", toEmail).
-			Str("subject", subject).
-			Str("action", actionTaken).
-			Msg("SMTP not configured in local environment; simulated moderation email logged successfully")
-	}
+	_, _ = services.EnqueueEmail(toEmail, storeTitle, "Catavor Trust & Safety", subject, bodyHTML, category, reportNumber)
 }
 
 // extractStorageKeyFromURL parses the object key from standard or local upload URLs

@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"net/smtp"
+	"html"
 	"net/url"
 	"os"
 	"strings"
@@ -838,108 +838,78 @@ func sendDormancyEmail(toEmail, storeTitle, subject string, stage int, daysRemai
 		return
 	}
 
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
-	smtpUser := os.Getenv("SMTP_USER")
-	smtpPass := os.Getenv("SMTP_PASSWORD")
-	fromEmail := os.Getenv("SMTP_FROM")
-	if fromEmail == "" {
-		fromEmail = "no-reply@catavor.com"
-	}
+	badgeText := "PERINGATAN INAKTIVITAS"
+	badgeColor := "#d97706"
+	title := "Perpanjangan Masa Aktif Katalog Toko"
+	subtitle := "Pemberitahuan Siklus Hidup Katalog Catavor"
+	ctaLabel := ""
+	ctaURL := ""
+	var bodyContent string
 
-	bodyContent := ""
 	switch stage {
 	case 1:
+		badgeText = "PERINGATAN INAKTIVITAS"
+		badgeColor = "#d97706"
+		title = "Perpanjangan Masa Aktif Katalog Toko"
+		subtitle = fmt.Sprintf("Masa Tenggang Otomatis Tersisa %d Hari", daysRemaining)
+		ctaLabel = "Perpanjang Masa Aktif Gratis (1-Klik) →"
+		ctaURL = actionURL
 		bodyContent = fmt.Sprintf(`
-Halo Pemilik Toko <strong>%s</strong>,<br><br>
-Sistem kami mendeteksi bahwa profil katalog toko Anda belum memiliki aktivitas atau kunjungan dalam <strong>30 hari terakhir</strong>.<br><br>
-Untuk menjaga kualitas server dan memastikan katalog Anda tetap aktif di publik, silakan klik tombol di bawah ini untuk <strong>memperpanjang masa aktif gratis</strong> Anda:<br><br>
-<div style="text-align: center; margin: 25px 0;">
-  <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Perpanjang Masa Aktif (1-Klik)</a>
-</div>
-Jika tidak ada aktivitas dalam %d hari ke depan, katalog akan dinonaktifkan sementara.<br><br>
-Salam hangat,<br>
-<strong>Tim Catavor</strong>
-`, storeTitle, actionURL, daysRemaining)
+		<p style="margin: 0 0 14px 0;">Halo Pemilik Toko <strong>%s</strong>,</p>
+		<p style="margin: 0 0 14px 0;">Sistem kami mendeteksi bahwa profil katalog toko Anda belum memiliki aktivitas atau kunjungan dalam <strong>30 hari terakhir</strong>.</p>
+		<p style="margin: 0 0 14px 0;">Untuk menjaga performa server dan memastikan tautan katalog publik Anda tetap dapat diakses pelanggan, silakan klik tombol konfirmasi di bawah ini untuk memperpanjang masa aktif:</p>
+		<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #64748b;">Jika tidak ada aktivitas dalam <strong>%d hari ke depan</strong>, status katalog akan dialihkan ke mode penangguhan inaktivitas sementara.</p>
+		`, html.EscapeString(storeTitle), daysRemaining)
 
 	case 2:
+		badgeText = "PERINGATAN TERAKHIR"
+		badgeColor = "#ea580c"
+		title = "Peringatan Terakhir Masa Aktif Katalog"
+		subtitle = fmt.Sprintf("Katalog Akan Dinonaktifkan Dalam %d Hari", daysRemaining)
+		ctaLabel = "Pertahankan Toko Saya Sekarang (1-Klik) →"
+		ctaURL = actionURL
 		bodyContent = fmt.Sprintf(`
-Halo Pemilik Toko <strong>%s</strong>,<br><br>
-<strong style="color: #d97706;">⚠️ Peringatan Penting: Tersisa %d Hari!</strong><br><br>
-Katalog toko Anda akan dinonaktifkan sementara dalam <strong>%d hari</strong> karena belum ada aktivitas. Semua tautan publik dan WhatsApp checkout akan dijeda.<br><br>
-Klik tombol di bawah sekarang untuk mempertahankan katalog dan data produk Anda:<br><br>
-<div style="text-align: center; margin: 25px 0;">
-  <a href="%s" style="background-color: #d97706; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Pertahankan Toko Saya Sekarang (1-Klik)</a>
-</div>
-Salam hangat,<br>
-<strong>Tim Catavor</strong>
-`, storeTitle, daysRemaining, daysRemaining, actionURL)
+		<p style="margin: 0 0 14px 0;">Halo Pemilik Toko <strong>%s</strong>,</p>
+		<p style="margin: 0 0 14px 0;">Masa aktif katalog toko Anda akan segera berakhir dalam <strong>%d hari</strong> karena belum ada aktivitas pembaruan atau transaksi.</p>
+		<p style="margin: 0 0 14px 0;">Setelah batas waktu terlewati, etalase publik dan tautan checkout WhatsApp akan dinonaktifkan sementara. Segera klik tombol di bawah untuk mempertahankan katalog dan data produk Anda:</p>
+		`, html.EscapeString(storeTitle), daysRemaining)
 
 	case 3:
+		badgeText = "PENANGGUHAN INAKTIVITAS"
+		badgeColor = "#dc2626"
+		title = "Katalog Toko Dinonaktifkan Sementara"
+		subtitle = fmt.Sprintf("Masa Tenggang Penyimpanan Data: Tersisa %d Hari", daysRemaining)
+		ctaLabel = "Aktifkan Kembali Katalog Toko →"
+		ctaURL = actionURL
 		bodyContent = fmt.Sprintf(`
-Halo Pemilik Toko <strong>%s</strong>,<br><br>
-Katalog toko Anda saat ini telah <strong>dinonaktifkan sementara</strong> (mode istirahat) karena tidak ada aktivitas selama 45 hari.<br><br>
-<strong style="color: #059669;">Data dan foto produk Anda masih tersimpan aman</strong> selama masa tenggang <strong>%d hari ke depan</strong>.<br><br>
-Anda dapat mengaktifkan kembali katalog Anda kapan saja dengan mengklik tautan berikut:<br><br>
-<div style="text-align: center; margin: 25px 0;">
-  <a href="%s" style="background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Aktifkan Kembali Katalog Toko</a>
-</div>
-Jika tidak diaktifkan dalam %d hari, seluruh data dan media akan dibersihkan permanen dari server.<br><br>
-Salam hangat,<br>
-<strong>Tim Catavor</strong>
-`, storeTitle, daysRemaining, actionURL, daysRemaining)
+		<p style="margin: 0 0 14px 0;">Halo Pemilik Toko <strong>%s</strong>,</p>
+		<p style="margin: 0 0 14px 0;">Katalog toko Anda saat ini telah <strong>dinonaktifkan sementara</strong> (mode istirahat) karena tidak ada aktivitas selama 45 hari.</p>
+		
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #ecfdf5; border-radius: 8px; border: 1px solid #a7f3d0; margin-bottom: 16px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; color: #065f46; line-height: 1.6;">
+					<strong style="display: block; font-size: 13px; margin-bottom: 4px; color: #047857;">Data & Media Aman:</strong>
+					Seluruh data produk dan galeri foto Anda masih tersimpan aman selama masa tenggang <strong>%d hari ke depan</strong>. Anda dapat memulihkannya kapan saja melalui tautan di bawah.
+				</td>
+			</tr>
+		</table>
+		`, html.EscapeString(storeTitle), daysRemaining)
 
 	case 4:
+		badgeText = "PENGHAPUSAN DATA"
+		badgeColor = "#475569"
+		title = "Penghapusan Permanen Katalog Inaktif"
+		subtitle = "Masa Tenggang 60 Hari Telah Berakhir"
+		ctaLabel = "Buka Beranda Catavor"
+		ctaURL = "/"
 		bodyContent = fmt.Sprintf(`
-Halo Pemilik Toko <strong>%s</strong>,<br><br>
-Pemberitahuan resmi bahwa akun dan seluruh data katalog toko Anda telah <strong>dihapus secara permanen dari server</strong> karena melewati batas inaktivitas 60 hari.<br><br>
-Seluruh kapasitas penyimpanan file gambar dan database telah dibersihkan. Jika di masa mendatang Anda ingin kembali membuka katalog digital, Anda selalu dapat mendaftarkan akun baru di Catavor.<br><br>
-Terima kasih telah menggunakan Catavor.<br><br>
-Salam hangat,<br>
-<strong>Tim Catavor</strong>
-`, storeTitle)
+		<p style="margin: 0 0 14px 0;">Halo Rekan <strong>%s</strong>,</p>
+		<p style="margin: 0 0 14px 0;">Pemberitahuan resmi bahwa akun dan seluruh data katalog toko Anda telah <strong>dibersihkan dari server</strong> karena telah melampaui batas inaktivitas maksimal 60 hari.</p>
+		<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #64748b;">Terima kasih telah menggunakan Catavor. Jika di masa mendatang Anda ingin kembali membuka katalog digital, Anda dapat membuat profil katalog baru kapan saja.</p>
+		`, html.EscapeString(storeTitle))
 	}
 
-	htmlMessage := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; padding: 20px;">
-  <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-    <div style="border-bottom: 2px solid #2563eb; padding-bottom: 15px; margin-bottom: 20px;">
-      <h2 style="color: #0f172a; margin: 0; font-size: 20px;">Catavor Notification</h2>
-    </div>
-    %s
-    <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">
-      Email ini dikirim otomatis oleh sistem Catavor Multi-Channel Commerce Engine.<br>
-      © %d Catavor. Hak cipta dilindungi.
-    </div>
-  </div>
-</body>
-</html>`, bodyContent, time.Now().Year())
+	htmlMessage := wrapEmailLayout(badgeText, badgeColor, title, subtitle, bodyContent, ctaLabel, ctaURL)
 
-	// If SMTP is configured, send email via SMTP; otherwise log to system console
-	if smtpHost != "" && smtpPort != "" {
-		go func() {
-			addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
-			mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-			msg := []byte(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s%s", fromEmail, toEmail, subject, mime, htmlMessage))
-
-			var auth smtp.Auth
-			if smtpUser != "" && smtpPass != "" {
-				auth = smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
-			}
-			err := smtp.SendMail(addr, auth, fromEmail, []string{toEmail}, msg)
-			if err != nil {
-				log.Warn().Err(err).Str("to", toEmail).Msg("Failed to dispatch dormancy email via SMTP")
-			} else {
-				log.Info().Str("to", toEmail).Str("subject", subject).Msg("Dormancy email successfully dispatched via SMTP")
-			}
-		}()
-	} else {
-		log.Info().
-			Str("to", toEmail).
-			Str("subject", subject).
-			Int("stage", stage).
-			Msg("SMTP not configured in local environment; simulated dormancy email logged successfully")
-	}
+	_, _ = EnqueueEmail(toEmail, storeTitle, "Catavor Lifecycle", subject, htmlMessage, "dormancy_alert", "")
 }
