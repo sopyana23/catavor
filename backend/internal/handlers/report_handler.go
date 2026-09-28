@@ -273,6 +273,32 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	// Purge Redis Metrics Cache so dashboard count immediately increases
 	InvalidateReportMetricsCache()
 
+	// Dispatch Transactional Confirmation Email to Reporter (if email was provided)
+	if reporterEmail != "" {
+		targetName := report.StoreTitle
+		if report.TargetType == "item" && report.ItemName != "" {
+			targetName = report.ItemName
+		}
+		reportedAtStr := report.CreatedAt.Format("02 Jan 2006 15:04 WIB")
+		repSubject, repHTML := services.BuildReporterReceivedEmail(
+			report.ReportNumber,
+			report.TargetType,
+			targetName,
+			report.StoreTitle,
+			report.ReasonLabel,
+			reportedAtStr,
+		)
+		_, _ = services.EnqueueEmail(
+			reporterEmail,
+			"Pelapor Komunitas",
+			"Catavor Trust & Safety",
+			repSubject,
+			repHTML,
+			"reporter_receipt",
+			report.ReportNumber,
+		)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": fmt.Sprintf("Laporan pelanggaran berhasil dikirim dengan nomor tiket #%s. Tim integritas Catavor akan segera menindaklanjuti.", reportNumber),
@@ -552,6 +578,31 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 	}
 
+	// Capture all unique reporter emails for post-decision resolution dispatch (including multi-reporters)
+	reporterMap := make(map[string]string) // email -> reportNumber
+	if strings.TrimSpace(report.ReporterEmail) != "" {
+		reporterMap[strings.ToLower(strings.TrimSpace(report.ReporterEmail))] = report.ReportNumber
+	}
+
+	var relatedReports []models.Report
+	relQ := database.DB.Select("id, report_number, reporter_email").
+		Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating')", report.StoreID, report.ID)
+	if report.TargetType == "item" && report.FaunaID != nil {
+		relQ = relQ.Where("fauna_id = ?", *report.FaunaID)
+	} else {
+		relQ = relQ.Where("target_type = 'catalog'")
+	}
+	if err := relQ.Find(&relatedReports).Error; err == nil {
+		for _, rr := range relatedReports {
+			em := strings.ToLower(strings.TrimSpace(rr.ReporterEmail))
+			if em != "" {
+				if _, exists := reporterMap[em]; !exists {
+					reporterMap[em] = rr.ReportNumber
+				}
+			}
+		}
+	}
+
 	// 1. ACID DATABASE TRANSACTION (TRY - CATCH - AUTO-ROLLBACK)
 	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
 		// A. Update current report
@@ -777,7 +828,38 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		sendModerationEmail(targetRecipientEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber, report.ReasonLabel, report.StoreSlug)
 	}
 
-	// C. Invalidate Redis Metrics Cache
+	// C. Dispatch Resolution / Outcome Notification to Reporter(s) via persistent queue
+	if len(reporterMap) > 0 {
+		targetEntityName := report.StoreTitle
+		if report.TargetType == "item" && report.ItemName != "" {
+			targetEntityName = report.ItemName
+		}
+		for repEmail, repNumber := range reporterMap {
+			repSubject, repHTML := services.BuildReporterOutcomeEmail(
+				repNumber,
+				report.TargetType,
+				targetEntityName,
+				report.StoreTitle,
+				report.ReasonLabel,
+				actionTaken,
+			)
+			category := "reporter_enforced"
+			if actionTaken == "none" || newStatus == "rejected" || newStatus == "dismissed" {
+				category = "reporter_dismissed"
+			}
+			_, _ = services.EnqueueEmail(
+				repEmail,
+				"Pelapor Komunitas",
+				"Catavor Trust & Safety",
+				repSubject,
+				repHTML,
+				category,
+				repNumber,
+			)
+		}
+	}
+
+	// D. Invalidate Redis Metrics Cache
 	InvalidateReportMetricsCache()
 
 	return c.JSON(fiber.Map{

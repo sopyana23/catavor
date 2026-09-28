@@ -405,6 +405,201 @@ func BuildSupportReplyEmail(recipientName, storeTitle, ticketNumber, ticketSubje
 	return
 }
 
+// BuildReporterReceivedEmail generates a professional confirmation email sent to the reporter acknowledging report submission
+func BuildReporterReceivedEmail(reportNumber, targetType, targetName, storeTitle, reasonLabel, reportedAt string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Integritas] Tanda Terima Laporan #%s: %s", reportNumber, targetName)
+	title := "Laporan Anda Telah Kami Terima"
+	subtitle := fmt.Sprintf("Tiket Peninjauan Tim Integritas Komunitas #%s", reportNumber)
+
+	targetTypeLabel := "Item / Produk"
+	if targetType == "catalog" {
+		targetTypeLabel = "Katalog Toko"
+	}
+
+	entityContext := html.EscapeString(targetName)
+	if targetType == "item" && storeTitle != "" && storeTitle != targetName {
+		entityContext = fmt.Sprintf("%s (pada katalog <em>%s</em>)", html.EscapeString(targetName), html.EscapeString(storeTitle))
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengguna Komunitas Catavor,</p>
+	<p style="margin: 0 0 16px 0;">Terima kasih telah meluangkan waktu untuk menyampaikan laporan. Laporan Anda telah berhasil dicatat dalam sistem integritas dan kepatuhan Catavor dengan rincian berikut:</p>
+
+	<!-- Report Summary Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
+				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
+					<tr>
+						<td width="34%%" style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Nomor Tiket</td>
+						<td width="66%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">#%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Objek Terlapor</td>
+						<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">%s <span style="font-size: 11px; color: #64748b; font-weight: normal;">(%s)</span></td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Dugaan Pelanggaran</td>
+						<td style="padding: 5px 0 5px 10px; color: #dc2626; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Waktu Laporan</td>
+						<td style="padding: 5px 0 5px 10px; color: #334155; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top;">Status Tiket</td>
+						<td style="padding: 5px 0 5px 10px; color: #0284c7; font-size: 12.5px; font-weight: 700; vertical-align: top;">Sedang Dalam Antrean Peninjauan</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Privacy Guarantee Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #16a34a; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #166534;">
+				<strong style="display: block; font-size: 12px; margin-bottom: 4px; color: #15803d;">🛡️ Jaminan Perlindungan Privasi Pelapor:</strong>
+				Identitas dan alamat email Anda sepenuhnya dirahasiakan oleh sistem. Kami tidak akan pernah membagikan data pribadi Anda kepada pihak yang dilaporkan.
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #475569; line-height: 1.6;">
+		Tim Trust & Safety Catavor akan segera meneliti laporan ini secara objektif dalam waktu <strong>1x24 jam kerja</strong>. Anda akan menerima email pembaruan resmi ketika status pemeriksaan telah ditetapkan.
+	</p>
+	`, html.EscapeString(reportNumber), entityContext, targetTypeLabel, html.EscapeString(reasonLabel), html.EscapeString(reportedAt))
+
+	bodyHTML = wrapEmailLayout("TANDA TERIMA LAPORAN", "#0284c7", title, subtitle, mainContent, "", "")
+	return
+}
+
+// BuildReporterOutcomeEmail generates an update email sent to the reporter once moderation action is finalized
+func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle, reasonLabel, actionTaken string) (subject string, bodyHTML string) {
+	isEnforced := actionTaken == "item_hidden" || actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" || actionTaken == "warning_issued" || actionTaken == "action_taken" || actionTaken == "banned"
+
+	targetTypeLabel := "item"
+	if targetType == "catalog" {
+		targetTypeLabel = "katalog"
+	}
+
+	entityName := html.EscapeString(targetName)
+	if targetType == "item" && storeTitle != "" && storeTitle != targetName {
+		entityName = fmt.Sprintf("%s (pada katalog <em>%s</em>)", html.EscapeString(targetName), html.EscapeString(storeTitle))
+	}
+
+	if isEnforced {
+		subject = fmt.Sprintf("[Catavor Integritas] Pembaruan Laporan #%s: Tindakan Telah Diambil", reportNumber)
+		title := "Tindakan Penegakan Telah Diberlakukan"
+		subtitle := fmt.Sprintf("Pemberitahuan Resmi atas Laporan Komunitas #%s", reportNumber)
+
+		actionDesc := "tindakan moderasi dan penonaktifan konten telah diberlakukan"
+		if actionTaken == "item_hidden" {
+			actionDesc = "item terkait telah dinonaktifkan dan diturunkan dari katalog publik"
+		} else if actionTaken == "catalog_suspended" {
+			actionDesc = "katalog toko terkait telah dibekukan sementara hingga proses kepatuhan diselesaikan"
+		} else if actionTaken == "catalog_banned" {
+			actionDesc = "akses katalog dan akun terkait telah dihentikan secara permanen dari ekosistem Catavor"
+		} else if actionTaken == "warning_issued" {
+			actionDesc = "surat peringatan kepatuhan resmi telah diterbitkan kepada pemilik katalog"
+		}
+
+		mainContent := fmt.Sprintf(`
+		<p style="margin: 0 0 14px 0;">Halo Pengguna Komunitas Catavor,</p>
+		<p style="margin: 0 0 16px 0;">Kami ingin menyampaikan kabar terbaru mengenai laporan Anda terhadap %s <strong>%s</strong> dengan nomor tiket <strong>#%s</strong>.</p>
+
+		<!-- Outcome Result Box -->
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #16a34a; margin-bottom: 18px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.65; color: #14532d;">
+					<strong style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; margin-bottom: 6px;">Hasil Peninjauan Tim Kepatuhan:</strong>
+					Setelah melalui pemeriksaan bukti dan investigasi menyeluruh, laporan Anda <strong>terbukti melanggar Pedoman Komunitas Catavor</strong>. Saat ini, <strong>%s</strong>.
+				</td>
+			</tr>
+		</table>
+
+		<!-- Summary Meta Box -->
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
+					<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
+						<tr>
+							<td width="34%%" style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Nomor Tiket</td>
+							<td width="66%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">#%s</td>
+						</tr>
+						<tr>
+							<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Kategori Laporan</td>
+							<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">%s</td>
+						</tr>
+						<tr>
+							<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top;">Status Akhir</td>
+							<td style="padding: 5px 0 5px 10px; color: #16a34a; font-size: 12.5px; font-weight: 700; vertical-align: top;">Selesai - Sanksi Telah Diberlakukan</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+
+		<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #334155; line-height: 1.6;">
+			Kami mengucapkan terima kasih yang sebesar-besarnya atas kepedulian Anda. Partisipasi Anda sangat berharga dalam menjaga ekosistem transaksi dan informasi digital di Catavor tetap aman, jujur, dan tepercaya bagi seluruh masyarakat.
+		</p>
+		`, targetTypeLabel, entityName, html.EscapeString(reportNumber), actionDesc, html.EscapeString(reportNumber), html.EscapeString(reasonLabel))
+
+		bodyHTML = wrapEmailLayout("TINDAKAN DIAMBIL", "#059669", title, subtitle, mainContent, "", "")
+		return
+	}
+
+	// Skenario B: Dismissed / No Direct Violation Proven
+	subject = fmt.Sprintf("[Catavor Integritas] Pembaruan Laporan #%s: Hasil Peninjauan Selesai", reportNumber)
+	title := "Hasil Peninjauan Laporan Komunitas"
+	subtitle := fmt.Sprintf("Pemberitahuan Resmi atas Laporan Komunitas #%s", reportNumber)
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengguna Komunitas Catavor,</p>
+	<p style="margin: 0 0 16px 0;">Kami telah menyelesaikan peninjauan menyeluruh terhadap laporan Anda terkait %s <strong>%s</strong> (Tiket <strong>#%s</strong>).</p>
+
+	<!-- Outcome Result Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #64748b; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.65; color: #1e293b;">
+				<strong style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; margin-bottom: 6px;">Catatan Peninjauan:</strong>
+				Berdasarkan bukti yang tersedia dan Pedoman Komunitas saat ini, tim kami <strong>belum menemukan pelanggaran yang memerlukan tindakan moderasi langsung</strong> terhadap konten tersebut.
+			</td>
+		</tr>
+	</table>
+
+	<!-- Summary Meta Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6;">
+				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
+					<tr>
+						<td width="34%%" style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Nomor Tiket</td>
+						<td width="66%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">#%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #e2e8f0;">Kategori Laporan</td>
+						<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #e2e8f0;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #64748b; font-size: 12px; font-weight: 600; vertical-align: top;">Status Tiket</td>
+						<td style="padding: 5px 0 5px 10px; color: #64748b; font-size: 12.5px; font-weight: 700; vertical-align: top;">Ditutup - Tersimpan untuk Pemantauan</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #334155; line-height: 1.6;">
+		Meskipun tidak ada penindakan langsung yang diambil saat ini, laporan Anda tetap dicatat dalam basis data sistem kepatuhan kami sebagai bahan pemantauan rutin. Terima kasih atas partisipasi aktif Anda dalam menjaga kualitas dan keamanan komunitas Catavor.
+	</p>
+	`, targetTypeLabel, entityName, html.EscapeString(reportNumber), html.EscapeString(reportNumber), html.EscapeString(reasonLabel))
+
+	bodyHTML = wrapEmailLayout("HASIL PENINJAUAN", "#475569", title, subtitle, mainContent, "", "")
+	return
+}
+
 func nl2br(text string) string {
 	return strings.ReplaceAll(text, "\n", "<br>")
 }
+
