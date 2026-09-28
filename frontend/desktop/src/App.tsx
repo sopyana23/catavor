@@ -138,6 +138,7 @@ import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChoo
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
+import { SwipeableToast } from './components/SwipeableToast'
 import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
@@ -11123,70 +11124,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     return (
       <>
         {/* Floating Toast Notification Desktop Portal */}
-        {toast && (
-          <div 
-            onClick={() => {
-              if (toast.onAction) {
-                toast.onAction();
-                setToast(null);
-              }
-            }}
-            style={{
-              position: 'fixed',
-              top: '20px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 999999,
-              padding: '0.55rem 1.25rem',
-              borderRadius: '999px',
-              backgroundColor: toast.type === 'success' 
-                ? 'rgba(10, 20, 16, 0.94)' 
-                : toast.type === 'info' 
-                  ? 'rgba(15, 23, 42, 0.94)' 
-                  : 'rgba(24, 12, 12, 0.94)',
-              color: '#f8fafc',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              boxShadow: toast.type === 'success' 
-                ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(16, 185, 129, 0.25)' 
-                : toast.type === 'info' 
-                  ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.25)' 
-                  : '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(239, 68, 68, 0.25)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: toast.type === 'success' 
-                ? '1px solid rgba(16, 185, 129, 0.35)' 
-                : toast.type === 'info' 
-                  ? '1px solid rgba(56, 189, 248, 0.35)' 
-                  : '1px solid rgba(239, 68, 68, 0.35)',
-              maxWidth: '85%',
-              cursor: toast.onAction ? 'pointer' : 'default',
-              animation: 'toast-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-              boxSizing: 'border-box',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {toast.type === 'success' ? (
-              <ShieldCheck size={16} style={{ color: '#10b981', flexShrink: 0 }} /> 
-            ) : toast.type === 'info' ? (
-              <MessageSquare size={16} style={{ color: '#38bdf8', flexShrink: 0 }} />
-            ) : (
-              <AlertTriangle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
-            )}
-            <span style={{ 
-              letterSpacing: '0.01em', 
-              lineHeight: 1.3, 
-              overflow: 'hidden', 
-              textOverflow: 'ellipsis', 
-              whiteSpace: 'nowrap' 
-            }}>
-              {toast.message}
-            </span>
-          </div>
-        )}
+        <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
 
         <div className="portal-container" style={{ minHeight: '100vh', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", position: 'relative' }}>
         {/* Toast Notification for WhatsApp Simulator */}
@@ -25629,70 +25567,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
       />
 
       {/* Floating Toast Notification */}
-      {toast && (
-        <div 
-          onClick={() => {
-            if (toast.onAction) {
-              toast.onAction();
-              setToast(null);
-            }
-          }}
-          style={{
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 9999,
-            padding: '0.55rem 1.25rem',
-            borderRadius: '999px',
-            backgroundColor: toast.type === 'success' 
-              ? 'rgba(10, 20, 16, 0.94)' 
-              : toast.type === 'info' 
-                ? 'rgba(15, 23, 42, 0.94)' 
-                : 'rgba(24, 12, 12, 0.94)',
-            color: '#f8fafc',
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            boxShadow: toast.type === 'success' 
-              ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(16, 185, 129, 0.25)' 
-              : toast.type === 'info'
-                ? '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.25)'
-                : '0 10px 25px -4px rgba(0,0,0,0.5), 0 0 14px rgba(239, 68, 68, 0.25)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: toast.type === 'success' 
-              ? '1px solid rgba(16, 185, 129, 0.35)' 
-              : toast.type === 'info'
-                ? '1px solid rgba(56, 189, 248, 0.35)'
-                : '1px solid rgba(239, 68, 68, 0.35)',
-            maxWidth: '85%',
-            cursor: toast.onAction ? 'pointer' : 'default',
-            animation: 'toast-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-            boxSizing: 'border-box',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          {toast.type === 'success' ? (
-            <ShieldCheck size={16} style={{ color: '#10b981', flexShrink: 0 }} /> 
-          ) : toast.type === 'info' ? (
-            <MessageSquare size={16} style={{ color: '#38bdf8', flexShrink: 0 }} />
-          ) : (
-            <AlertTriangle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
-          )}
-          <span style={{ 
-            letterSpacing: '0.01em', 
-            lineHeight: 1.3, 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            whiteSpace: 'nowrap' 
-          }}>
-            {toast.message}
-          </span>
-        </div>
-      )}
+      <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
     </>
   )
 }
