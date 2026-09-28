@@ -692,10 +692,11 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				)
 				targetSubTab := ""
 				actionType := "detail"
-				if actionTaken == "catalog_reactivated" {
-					actionURL = fmt.Sprintf("/%s/admin/settings", report.StoreSlug)
-					targetSubTab = "settings"
-					actionType = "navigate"
+				notifCategory := "KEAMANAN"
+				if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
+					notifCategory = "PEMULIHAN"
+					actionURL = fmt.Sprintf("/%s/admin", report.StoreSlug)
+					targetSubTab = "items"
 				}
 
 				notif := models.Notification{
@@ -704,7 +705,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					TargetID:      report.StoreID,
 					TargetName:    report.StoreTitle,
 					Title:         notifTitle,
-					Category:      "KEAMANAN",
+					Category:      notifCategory,
 					Message:       notifMsg,
 					DetailContent: detailArticle,
 					Type:          notifType,
@@ -838,10 +839,10 @@ func buildModerationNotificationContent(actionTaken, targetName, reportNumber st
 			"danger",
 			"Ajukan Banding Kepatuhan →"
 	case "catalog_reactivated":
-		return "Pemulihan Operasional Profil Katalog",
-			fmt.Sprintf("Penangguhan untuk profil katalog \"%s\" telah dicabut. Akses kembali normal.", targetName),
+		return "Pemulihan Operasional Profil Katalog Berhasil",
+			fmt.Sprintf("Penangguhan untuk profil katalog \"%s\" telah resmi dicabut. Etalase publik dan seluruh fitur operasional Anda kini telah aktif kembali secara normal.", targetName),
 			"success",
-			"Buka Pengaturan Katalog →"
+			"Lihat Status Pemulihan →"
 	default:
 		return "", "", "", ""
 	}
@@ -870,8 +871,8 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 		actionHeadline = "Penonaktifan Permanen Profil Katalog & Akun (Banned)"
 		actionExplanation = fmt.Sprintf("Akses publik ke profil katalog **%s** dan akun pemilik telah ditangguhkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran berat terhadap pedoman platform atau masa sanggahan banding telah kedaluwarsa.", storeTitle)
 	case "catalog_reactivated":
-		actionHeadline = "Pemulihan Operasional Profil Katalog"
-		actionExplanation = fmt.Sprintf("Penangguhan atas profil katalog **%s** telah resmi dicabut setelah peninjauan komprehensif. Operasional profil katalog kini telah kembali normal dan aktif sepenuhnya.", storeTitle)
+		actionHeadline = "Keputusan Resmi Pemulihan Operasional Profil Katalog"
+		actionExplanation = fmt.Sprintf("Berdasarkan verifikasi komprehensif dan klarifikasi kepatuhan, penangguhan atas profil katalog **%s** telah **resmi dicabut**. Seluruh etalase publik, fitur manajemen produk, dan kanal pemesanan WhatsApp kini telah kembali aktif normal sepenuhnya.", storeTitle)
 	}
 
 	notesBlock := ""
@@ -882,6 +883,30 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	itemTypeRow := ""
 	if targetType == "item" && itemTypeLabel != "" {
 		itemTypeRow = fmt.Sprintf("\n• Jenis / Tipe Katalog: **%s**", itemTypeLabel)
+	}
+
+	if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
+		return fmt.Sprintf(`### %s
+Pemberitahuan Resmi Pencabutan Sanksi & Pemulihan Akses Platform Catavor.
+
+---
+### Rincian Pemulihan Resmi:
+• Nomor Berkas: **#%s**
+• Tanggal Pemulihan: **%s**
+• Nama Profil Katalog: **%s**
+• Entitas Terkait: **%s**%s
+• Kategori Evaluasi: **%s**%s
+
+---
+### Penjelasan Keputusan Pemulihan:
+%s
+
+---
+### Status Layanan & Fitur Pasca-Pemulihan:
+1. **Etalase Publik Aktif**: Pengunjung umum kini dapat kembali mengakses tautan katalog digital dan melakukan pemesanan langsung melalui WhatsApp.
+2. **Katalog Produk Terbuka Penuh**: Anda dapat mengelola produk, memperbarui stok, serta mengubah informasi katalog tanpa hambatan.
+3. **Integritas Akun Terjaga**: Status kepatuhan akun Anda telah kembali normal dan berkas peninjauan telah ditutup secara tertib.`,
+			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
 	}
 
 	return fmt.Sprintf(`### %s

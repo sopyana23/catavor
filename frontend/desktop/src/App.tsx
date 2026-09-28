@@ -6962,7 +6962,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Helper: Ekstraksi data komprehensif dari notifikasi kasus moderasi Trust & Safety (Desktop)
   const parseModerationCase = (notif: any) => {
-    if (!notif) return { isModeration: false, reportNumber: '', targetType: 'item', targetName: '', reason: '', notes: '', actionTaken: '', isAppealEligible: false, statusBadge: '', statusColor: '#f43f5e', issuedDateStr: '' };
+    if (!notif) return { isModeration: false, isRestored: false, isStoreRestored: false, categoryBadge: '', reportNumber: '', targetType: 'item', targetName: '', reason: '', notes: '', actionTaken: '', isAppealEligible: false, statusBadge: '', statusHeadline: '', statusColor: '#f43f5e', issuedDateStr: '' };
 
     const category = String(notif.category || '').toUpperCase();
     const actionUrl = String(notif.action_url || notif.actionUrl || '');
@@ -6970,19 +6970,26 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const message = String(notif.message || '');
     const detail = String(notif.detail_content || notif.detailContent || '');
     const combined = `${title} ${message} ${detail}`;
+    const titleLower = title.toLowerCase();
+    const msgLower = message.toLowerCase();
 
     const isSecurityOrMod = category === 'KEAMANAN' || 
+      category === 'PEMULIHAN' ||
+      category === 'KEPATUHAN' ||
       actionUrl.includes('report=') || 
-      title.includes('Penangguhan Item') || 
-      title.includes('Pembekuan Item') || 
-      title.includes('Item Dihapus') || 
-      title.includes('Toko Dibekukan') || 
-      title.includes('Peringatan Konten') || 
-      title.includes('Pemulihan Item') ||
+      titleLower.includes('penonaktifan') ||
+      titleLower.includes('penangguhan') || 
+      titleLower.includes('pembekuan') || 
+      titleLower.includes('dihapus') || 
+      titleLower.includes('banned') || 
+      titleLower.includes('peringatan') || 
+      titleLower.includes('pemulihan') ||
+      msgLower.includes('dipulihkan') ||
+      msgLower.includes('telah dicabut') ||
       combined.includes('#RPT-');
 
     if (!isSecurityOrMod) {
-      return { isModeration: false, reportNumber: '', targetType: 'item', targetName: '', reason: '', notes: '', actionTaken: '', isAppealEligible: false, statusBadge: '', statusColor: '#f43f5e', issuedDateStr: '' };
+      return { isModeration: false, isRestored: false, isStoreRestored: false, categoryBadge: '', reportNumber: '', targetType: 'item', targetName: '', reason: '', notes: '', actionTaken: '', isAppealEligible: false, statusBadge: '', statusHeadline: '', statusColor: '#f43f5e', issuedDateStr: '' };
     }
 
     let reportNumber = '';
@@ -7029,34 +7036,80 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const nameMatch = combined.match(/produk\s+"([^"]+)"/i) || 
                         combined.match(/item\s+"([^"]+)"/i) || 
                         combined.match(/toko\s+"([^"]+)"/i) ||
+                        combined.match(/katalog\s+"([^"]+)"/i) ||
                         combined.match(/"([^"]+)"/);
       if (nameMatch) targetName = nameMatch[1].trim();
+      else if (notif.target_name || notif.targetName) targetName = notif.target_name || notif.targetName;
     }
+
+    const isRestoredCase = category === 'PEMULIHAN' || 
+      category.includes('PULIH') ||
+      titleLower.includes('pemulihan') || 
+      titleLower.includes('pulih') || 
+      titleLower.includes('restored') || 
+      msgLower.includes('dipulihkan') || 
+      msgLower.includes('resmi dicabut') ||
+      msgLower.includes('telah dicabut') ||
+      msgLower.includes('aktif kembali');
+
+    const isStoreLevel = targetType === 'store' || 
+      notif.target_type === 'single_store' || 
+      titleLower.includes('profil') || 
+      titleLower.includes('toko') || 
+      titleLower.includes('katalog') ||
+      msgLower.includes('profil katalog') ||
+      msgLower.includes('toko anda');
 
     let actionTaken = 'item_hidden';
     let statusBadge = 'Item Dibekukan (Takedown)';
+    let statusHeadline = 'Penonaktifan Sementara Item Katalog';
     let statusColor = '#f43f5e';
     let isAppealEligible = true;
+    let categoryBadge = 'KEAMANAN';
 
-    if (title.includes('Penangguhan') || combined.includes('ditangguhkan')) {
-      actionTaken = 'catalog_suspended';
-      statusBadge = 'Katalog Ditangguhkan';
-      statusColor = '#ef4444';
-      isAppealEligible = true;
-    } else if (title.includes('Pemulihan') || combined.includes('dipulihkan')) {
-      actionTaken = 'item_restored';
-      statusBadge = 'Telah Dipulihkan';
+    if (isRestoredCase) {
+      if (isStoreLevel) {
+        actionTaken = 'catalog_restored';
+        targetType = 'store';
+        statusBadge = 'TOKO AKTIF & PULIH';
+        statusHeadline = 'Pemulihan Operasional Profil Katalog Berhasil';
+      } else {
+        actionTaken = 'item_restored';
+        statusBadge = 'ITEM AKTIF KEMBALI';
+        statusHeadline = 'Pemulihan Visibilitas Item Katalog';
+      }
       statusColor = '#10b981';
+      categoryBadge = 'PEMULIHAN';
       isAppealEligible = false;
-    } else if (title.includes('Peringatan') || combined.includes('peringatan')) {
+    } else if (titleLower.includes('banned') || msgLower.includes('banned') || titleLower.includes('permanen') || msgLower.includes('permanen')) {
+      actionTaken = 'account_banned';
+      targetType = 'store';
+      statusBadge = 'DITANGGUHKAN PERMANEN (BANNED)';
+      statusHeadline = 'Penonaktifan Permanen Akun & Profil Katalog';
+      statusColor = '#991b1b';
+      categoryBadge = 'KEAMANAN';
+      isAppealEligible = false;
+    } else if (titleLower.includes('penangguhan') || msgLower.includes('penangguhan') || titleLower.includes('suspend')) {
+      actionTaken = 'catalog_suspended';
+      targetType = 'store';
+      statusBadge = 'TOKO DIBEKUKAN SEMENTARA';
+      statusHeadline = 'Penangguhan Operasional Profil Katalog';
+      statusColor = '#ef4444';
+      categoryBadge = 'KEAMANAN';
+      isAppealEligible = true;
+    } else if (titleLower.includes('peringatan') || msgLower.includes('peringatan')) {
       actionTaken = 'warning_issued';
       statusBadge = 'Peringatan Pelanggaran';
+      statusHeadline = 'Peringatan Resmi Kepatuhan Konten';
       statusColor = '#f59e0b';
+      categoryBadge = 'KEAMANAN';
       isAppealEligible = true;
-    } else if (title.includes('Dihapus') || combined.includes('dihapus permanen')) {
+    } else if (titleLower.includes('dihapus') || combined.includes('dihapus permanen')) {
       actionTaken = 'item_deleted';
       statusBadge = 'Item Dihapus';
+      statusHeadline = 'Penghapusan Item Katalog';
       statusColor = '#dc2626';
+      categoryBadge = 'KEAMANAN';
       isAppealEligible = true;
     }
 
@@ -7072,6 +7125,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
     return {
       isModeration: true,
+      isRestored: isRestoredCase,
+      isStoreRestored: isRestoredCase && isStoreLevel,
+      categoryBadge,
       reportNumber,
       targetType,
       targetName,
@@ -7080,6 +7136,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       actionTaken,
       isAppealEligible,
       statusBadge,
+      statusHeadline,
       statusColor,
       issuedDateStr
     };
@@ -16411,6 +16468,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
                           const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
                           const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
+                          const dropdownModCase = isModerationNotif ? parseModerationCase(n) : null;
+                          const isDropdownRestored = Boolean(dropdownModCase?.isRestored);
 
                           return (
                             <div 
@@ -16454,8 +16513,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               style={{ 
                                 padding: '0.85rem 1rem', 
                                 borderRadius: '0.75rem', 
-                                backgroundColor: n.read ? 'rgba(255,255,255,0.03)' : 'rgba(16, 185, 129, 0.08)', 
-                                border: n.read ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(16, 185, 129, 0.25)', 
+                                backgroundColor: n.read 
+                                  ? 'rgba(255,255,255,0.03)' 
+                                  : isDropdownRestored 
+                                    ? 'rgba(16, 185, 129, 0.08)' 
+                                    : isModerationNotif 
+                                      ? 'rgba(244, 63, 94, 0.08)' 
+                                      : 'rgba(16, 185, 129, 0.08)', 
+                                border: n.read 
+                                  ? '1px solid rgba(255,255,255,0.08)' 
+                                  : isDropdownRestored 
+                                    ? '1px solid rgba(16, 185, 129, 0.35)' 
+                                    : isModerationNotif 
+                                      ? '1px solid rgba(244, 63, 94, 0.3)' 
+                                      : '1px solid rgba(16, 185, 129, 0.25)', 
                                 display: 'flex', 
                                 gap: '0.75rem', 
                                 alignItems: 'center',
@@ -16463,8 +16534,31 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 transition: 'all 0.2s ease'
                               }}
                             >
-                              <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: n.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                {n.type === 'success' ? <CheckCircle size={16} style={{ color: '#10b981' }} /> : <Clock size={16} style={{ color: '#f59e0b' }} />}
+                              <div style={{ 
+                                width: '32px', 
+                                height: '32px', 
+                                borderRadius: '50%', 
+                                backgroundColor: isDropdownRestored 
+                                  ? 'rgba(16, 185, 129, 0.18)' 
+                                  : isModerationNotif 
+                                    ? 'rgba(244, 63, 94, 0.18)' 
+                                    : n.type === 'success' 
+                                      ? 'rgba(16, 185, 129, 0.15)' 
+                                      : 'rgba(245, 158, 11, 0.15)', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                flexShrink: 0 
+                              }}>
+                                {isDropdownRestored ? (
+                                  <CheckCircle size={16} style={{ color: '#10b981' }} />
+                                ) : isModerationNotif ? (
+                                  <ShieldAlert size={16} style={{ color: '#f43f5e' }} />
+                                ) : n.type === 'success' ? (
+                                  <CheckCircle size={16} style={{ color: '#10b981' }} />
+                                ) : (
+                                  <Clock size={16} style={{ color: '#f59e0b' }} />
+                                )}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
@@ -16474,7 +16568,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.message}</p>
                               </div>
                               {(isDirectNav || isExternal || isDetail) && (
-                                <div style={{ color: isExternal ? '#3b82f6' : isDirectNav ? 'var(--primary)' : '#f59e0b', flexShrink: 0 }}>
+                                <div style={{ color: isDropdownRestored ? '#10b981' : isExternal ? '#3b82f6' : isDirectNav ? 'var(--primary)' : isModerationNotif ? '#f43f5e' : '#f59e0b', flexShrink: 0 }}>
                                   {isExternal ? <ExternalLink size={14} /> : isDirectNav ? <ArrowRight size={14} /> : <ChevronRight size={14} />}
                                 </div>
                               )}
@@ -18988,19 +19082,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div className="glass-panel" style={{
                             padding: '2.25rem',
                             borderRadius: '1.25rem',
-                            border: '1px solid rgba(244, 63, 94, 0.28)',
-                            background: 'radial-gradient(ellipse at top left, rgba(244, 63, 94, 0.08) 0%, var(--card-bg-gradient) 70%)',
-                            boxShadow: '0 12px 35px rgba(0, 0, 0, 0.35)',
+                            border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(244, 63, 94, 0.28)',
+                            background: modCase.isRestored 
+                              ? 'radial-gradient(ellipse at top left, rgba(16, 185, 129, 0.12) 0%, var(--card-bg-gradient) 70%)'
+                              : 'radial-gradient(ellipse at top left, rgba(244, 63, 94, 0.08) 0%, var(--card-bg-gradient) 70%)',
+                            boxShadow: modCase.isRestored 
+                              ? '0 12px 35px rgba(0, 0, 0, 0.35), 0 0 20px rgba(16, 185, 129, 0.12)'
+                              : '0 12px 35px rgba(0, 0, 0, 0.35)',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '1.75rem'
                           }}>
-                            {/* Incident Header Banner */}
+                            {/* Incident or Recovery Header Banner */}
                             <div style={{
                               padding: '1.35rem 1.5rem',
                               borderRadius: '0.9rem',
-                              background: 'rgba(244, 63, 94, 0.1)',
-                              border: '1px solid rgba(244, 63, 94, 0.25)',
+                              background: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.1)',
+                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.28)' : '1px solid rgba(244, 63, 94, 0.25)',
                               display: 'flex',
                               alignItems: 'flex-start',
                               gap: '1.25rem'
@@ -19009,15 +19107,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 width: '48px',
                                 height: '48px',
                                 borderRadius: '0.8rem',
-                                backgroundColor: 'rgba(244, 63, 94, 0.2)',
-                                border: '1px solid rgba(244, 63, 94, 0.35)',
+                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
+                                border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(244, 63, 94, 0.35)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 flexShrink: 0,
-                                color: '#f43f5e'
+                                color: modCase.isRestored ? '#10b981' : '#f43f5e'
                               }}>
-                                <ShieldAlert size={26} style={{ strokeWidth: 2.3 }} />
+                                {modCase.isRestored ? <CheckCircle2 size={26} style={{ strokeWidth: 2.3 }} /> : <ShieldAlert size={26} style={{ strokeWidth: 2.3 }} />}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
@@ -19026,12 +19124,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     fontWeight: 800,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.06em',
-                                    color: '#f43f5e',
-                                    backgroundColor: 'rgba(244, 63, 94, 0.18)',
+                                    color: modCase.isRestored ? '#10b981' : '#f43f5e',
+                                    backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.18)',
                                     padding: '0.2rem 0.6rem',
                                     borderRadius: '0.35rem'
                                   }}>
-                                    Trust &amp; Safety • Lembar Kasus Kepatuhan
+                                    {modCase.isRestored ? 'Trust & Safety • Surat Resmi Pemulihan Operasional' : 'Trust & Safety • Lembar Kasus Kepatuhan'}
                                   </span>
                                   <span style={{
                                     fontSize: '0.72rem',
@@ -19041,7 +19139,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     alignItems: 'center',
                                     gap: '0.35rem'
                                   }}>
-                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: modCase.statusColor }} />
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: modCase.statusColor, boxShadow: `0 0 8px ${modCase.statusColor}` }} />
                                     Status: {modCase.statusBadge}
                                   </span>
                                 </div>
@@ -19060,7 +19158,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   margin: 0,
                                   lineHeight: 1.5
                                 }}>
-                                  Pemberitahuan resmi hasil audit penegakan kepatuhan ekosistem pasar Catavor. Data di bawah ini bersifat valid dan tercatat dalam sistem audit integritas platform.
+                                  {modCase.isRestored 
+                                    ? 'Pemberitahuan resmi pencabutan sanksi penangguhan operasional. Seluruh layanan profil katalog dan etalase publik toko Anda telah aktif normal.'
+                                    : 'Pemberitahuan resmi hasil audit penegakan kepatuhan ekosistem pasar Catavor. Data di bawah ini bersifat valid dan tercatat dalam sistem audit integritas platform.'}
                                 </p>
                               </div>
                             </div>
@@ -19079,7 +19179,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                                 <FileText size={16} color="var(--primary)" />
-                                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>ID Kasus Resmi:</span>
+                                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>ID Berkas Resmi:</span>
                                 <span style={{
                                   fontFamily: 'monospace',
                                   fontSize: '0.92rem',
@@ -19098,7 +19198,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       navigator.clipboard?.writeText(modCase.reportNumber);
-                                      showToast(`Nomor laporan #${modCase.reportNumber} disalin!`);
+                                      showToast(`Nomor berkas #${modCase.reportNumber} disalin!`);
                                     }}
                                     style={{
                                       background: 'none',
@@ -19109,7 +19209,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       display: 'flex',
                                       alignItems: 'center'
                                     }}
-                                    title="Salin Nomor Laporan"
+                                    title="Salin Nomor Berkas"
                                   >
                                     <Copy size={13} />
                                   </button>
@@ -19118,7 +19218,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                                 <span>Tanggal Terbit: <strong style={{ color: 'var(--text-primary)' }}>{modCase.issuedDateStr}</strong></span>
-                                <span>Kategori: <strong style={{ color: 'var(--text-primary)' }}>Audit Moderasi Katalog</strong></span>
+                                <span>Kategori: <strong style={{ color: modCase.isRestored ? '#10b981' : 'var(--text-primary)' }}>{modCase.isRestored ? 'Pemulihan Layanan' : 'Audit Moderasi Katalog'}</strong></span>
                               </div>
                             </div>
 
@@ -19139,20 +19239,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 gap: '0.4rem'
                               }}>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                  Entitas Terdampak
+                                  Entitas Terkait
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                  <Package size={17} color="var(--primary)" style={{ flexShrink: 0 }} />
+                                  <Package size={17} color={modCase.isRestored ? '#10b981' : 'var(--primary)'} style={{ flexShrink: 0 }} />
                                   <span style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
-                                    {modCase.targetName || 'Item Katalog Terkait'}
+                                    {modCase.targetName || 'Profil Katalog Toko'}
                                   </span>
                                 </div>
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Tipe: {modCase.targetType === 'store' ? 'Profil Toko' : 'Item Katalog'}
+                                  Tipe: {modCase.targetType === 'store' ? 'Profil Toko (Katalog Publik)' : 'Item Katalog'}
                                 </span>
                               </div>
 
-                              {/* Card 2: Pelanggaran */}
+                              {/* Card 2: Pelanggaran / Status Peninjauan */}
                               <div style={{
                                 padding: '1.1rem 1.25rem',
                                 borderRadius: '0.85rem',
@@ -19163,16 +19263,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 gap: '0.4rem'
                               }}>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                  Kategori Pelanggaran
+                                  {modCase.isRestored ? 'Status Evaluasi' : 'Kategori Pelanggaran'}
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                  <AlertTriangle size={17} color="#f59e0b" style={{ flexShrink: 0 }} />
-                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
-                                    {modCase.reason}
+                                  {modCase.isRestored ? (
+                                    <CheckCircle size={17} color="#10b981" style={{ flexShrink: 0 }} />
+                                  ) : (
+                                    <AlertTriangle size={17} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                  )}
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : 'var(--text-primary)', wordBreak: 'break-word' }}>
+                                    {modCase.isRestored ? 'Lulus Kepatuhan & Dipulihkan' : modCase.reason}
                                   </span>
                                 </div>
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Kepatuhan Regulasi &amp; Komunitas
+                                  {modCase.isRestored ? 'Verifikasi Berkas Selesai' : 'Kepatuhan Regulasi & Komunitas'}
                                 </span>
                               </div>
 
@@ -19190,17 +19294,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   Status Visibilitas
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                  <Lock size={17} color={modCase.statusColor} style={{ flexShrink: 0 }} />
+                                  {modCase.isRestored ? (
+                                    <Eye size={17} color="#10b981" style={{ flexShrink: 0 }} />
+                                  ) : (
+                                    <Lock size={17} color={modCase.statusColor} style={{ flexShrink: 0 }} />
+                                  )}
                                   <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.statusColor }}>
-                                    {modCase.statusBadge}
+                                    {modCase.isRestored ? 'Aktif & Terbuka Publik' : modCase.statusBadge}
                                   </span>
                                 </div>
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Disembunyikan dari Publik
+                                  {modCase.isRestored ? 'Dapat Diakses Seluruh Pengunjung' : 'Disembunyikan dari Publik'}
                                 </span>
                               </div>
 
-                              {/* Card 4: Hak Banding */}
+                              {/* Card 4: Hak Banding / Kanal Transaksi */}
                               <div style={{
                                 padding: '1.1rem 1.25rem',
                                 borderRadius: '0.85rem',
@@ -19211,16 +19319,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 gap: '0.4rem'
                               }}>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                  Hak Banding Mitra
+                                  {modCase.isRestored ? 'Kanal Transaksi & Fitur' : 'Hak Banding Mitra'}
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                  <Scale size={17} color={modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
-                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)' }}>
-                                    {modCase.isAppealEligible ? 'Terbuka & Dijamin' : 'Telah Selesai'}
+                                  {modCase.isRestored ? (
+                                    <Sparkles size={17} color="#10b981" style={{ flexShrink: 0 }} />
+                                  ) : (
+                                    <Scale size={17} color={modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+                                  )}
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : (modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)') }}>
+                                    {modCase.isRestored ? 'Normal & Berfungsi Penuh' : (modCase.isAppealEligible ? 'Terbuka & Dijamin' : 'Telah Selesai')}
                                   </span>
                                 </div>
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  Maksimal 14 hari kalender
+                                  {modCase.isRestored ? 'Checkout WhatsApp & Katalog Aktif' : 'Maksimal 14 hari kalender'}
                                 </span>
                               </div>
                             </div>
@@ -19236,9 +19348,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               gap: '0.75rem'
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                <BadgeCheck size={18} color="var(--primary)" />
+                                <BadgeCheck size={18} color={modCase.isRestored ? '#10b981' : 'var(--primary)'} />
                                 <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                  Temuan Audit &amp; Catatan Resmi Tim Trust &amp; Safety
+                                  {modCase.isRestored ? 'Pernyataan Resmi Pemulihan & Catatan Kepatuhan' : 'Temuan Audit & Catatan Resmi Tim Trust & Safety'}
                                 </span>
                               </div>
 
@@ -19246,36 +19358,44 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 padding: '1rem 1.25rem',
                                 borderRadius: '0.65rem',
                                 backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                borderLeft: '3.5px solid #f43f5e',
+                                borderLeft: modCase.isRestored ? '3.5px solid #10b981' : '3.5px solid #f43f5e',
                                 fontSize: '0.88rem',
                                 color: 'var(--text-primary)',
                                 lineHeight: 1.65,
                                 fontStyle: 'italic'
                               }}>
-                                "{modCase.notes}"
+                                "{modCase.notes || (modCase.isRestored ? 'Penangguhan operasional resmi dicabut. Seluruh akses katalog dan manajemen toko Anda telah dipulihkan secara penuh.' : 'Penonaktifan sementara atas dasar kepatuhan kebijakan.')}"
                               </div>
 
                               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                                Sesuai Peraturan Perlindungan Ekosistem Pasar Satwa &amp; Flora Catavor Pasal 4 (Standar Verifikasi &amp; Izin Edar), tindakan penghentian tayang sementara diberlakukan guna melindungi pembeli dan reputasi seluruh mitra penjual.
+                                {modCase.isRestored 
+                                  ? 'Berdasarkan peninjauan komprehensif, profil toko dan katalog digital Anda telah dinyatakan selaras dengan Standar Komunitas Catavor dan diizinkan beroperasi secara normal.'
+                                  : 'Sesuai Peraturan Perlindungan Ekosistem Pasar Satwa & Flora Catavor Pasal 4 (Standar Verifikasi & Izin Edar), tindakan penghentian tayang sementara diberlakukan guna melindungi pembeli dan reputasi seluruh mitra penjual.'}
                               </div>
                             </div>
 
-                            {/* Right to Appeal Advisory Guide */}
+                            {/* Advisory Guide Box */}
                             <div style={{
                               padding: '1.1rem 1.35rem',
                               borderRadius: '0.85rem',
-                              backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                              border: '1px solid rgba(59, 130, 246, 0.22)',
+                              backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.08)' : 'rgba(59, 130, 246, 0.08)',
+                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(59, 130, 246, 0.22)',
                               display: 'flex',
                               alignItems: 'flex-start',
                               gap: '0.85rem'
                             }}>
-                              <LifeBuoy size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                              {modCase.isRestored ? (
+                                <Sparkles size={20} color="#10b981" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                              ) : (
+                                <LifeBuoy size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                              )}
                               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-                                <strong style={{ color: '#3b82f6', display: 'block', marginBottom: '0.2rem', fontSize: '0.84rem' }}>
-                                  Panduan Pengajuan Banding Kepatuhan:
+                                <strong style={{ color: modCase.isRestored ? '#10b981' : '#3b82f6', display: 'block', marginBottom: '0.2rem', fontSize: '0.84rem' }}>
+                                  {modCase.isRestored ? 'Panduan Operasional Pasca-Pemulihan:' : 'Panduan Pengajuan Banding Kepatuhan:'}
                                 </strong>
-                                Jika Anda meyakini terdapat kekeliruan klasifikasi atau telah memperbarui dokumen legalitas/izin penangkaran resmi, silakan gunakan tombol <strong>"Ajukan Banding Kepatuhan"</strong> di bawah. Permohonan Anda akan diteruskan langsung ke antrean prioritas tim verifikasi kepatuhan Catavor dengan template data yang telah terisi otomatis.
+                                {modCase.isRestored 
+                                  ? 'Selamat! Toko dan etalase digital Anda kini telah aktif kembali. Anda dapat langsung mengelola produk, menyelaraskan informasi toko, serta membagikan tautan etalase publik kepada pelanggan tanpa batasan.'
+                                  : 'Jika Anda meyakini terdapat kekeliruan klasifikasi atau telah memperbarui dokumen legalitas/izin penangkaran resmi, silakan gunakan tombol "Ajukan Banding Kepatuhan" di bawah. Permohonan Anda akan diteruskan langsung ke antrean prioritas tim verifikasi kepatuhan Catavor dengan template data yang telah terisi otomatis.'}
                               </div>
                             </div>
 
@@ -19304,7 +19424,62 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 Tutup Rincian
                               </button>
 
-                              {modCase.isAppealEligible && (() => {
+                              {modCase.isRestored && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => {
+                                      setSelectedNotificationDetail(null);
+                                      setAdminTab('items');
+                                      const slug = storeSlug || getStoreSlug();
+                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                                    }}
+                                    style={{
+                                      padding: '0.65rem 1.35rem',
+                                      borderRadius: '0.65rem',
+                                      fontSize: '0.85rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.45rem'
+                                    }}
+                                  >
+                                    <PackageCheck size={16} color="#10b981" />
+                                    <span>Kelola Produk Katalog</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => {
+                                      const slug = storeSlug || getStoreSlug();
+                                      if (slug) window.open(`/${slug}`, '_blank');
+                                      else showToast('Toko telah aktif');
+                                    }}
+                                    style={{
+                                      padding: '0.65rem 1.5rem',
+                                      borderRadius: '0.65rem',
+                                      fontSize: '0.88rem',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      backgroundColor: '#10b981',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      boxShadow: '0 4px 18px rgba(16, 185, 129, 0.35)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem'
+                                    }}
+                                  >
+                                    <ExternalLink size={16} />
+                                    <span>Lihat Etalase Toko Publik</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {!modCase.isRestored && modCase.isAppealEligible && (() => {
                                 const activeAppeal = tickets.find(t => 
                                   (t.category === 'catalog_help' || (t.subject || '').toLowerCase().includes('banding') || (t.subject || '').toLowerCase().includes('pembekuan') || (t.subject || '').toLowerCase().includes('suspend') || (t.category || '').toLowerCase() === 'compliance') &&
                                   t.status !== 'closed' && t.status !== 'resolved'
@@ -19358,9 +19533,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       gap: '0.5rem'
                                     }}
                                   >
-                                    <Scale size={16} style={{ strokeWidth: 2.5 }} />
+                                    <Scale size={16} />
                                     <span>Ajukan Banding Kepatuhan</span>
-                                    <ArrowRight size={15} style={{ strokeWidth: 2.5 }} />
+                                    <ArrowRight size={15} />
                                   </button>
                                 );
                               })()}
@@ -19965,15 +20140,33 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 style={{
                                   padding: '1.15rem 1.35rem',
                                   borderRadius: '0.85rem',
-                                  border: item.read ? '1px solid var(--border-light)' : '1.5px solid var(--primary)',
-                                  borderLeft: !item.read ? '4px solid var(--primary)' : '1px solid var(--border-light)',
+                                  border: item.read 
+                                    ? '1px solid var(--border-light)' 
+                                    : norm.modCase.isRestored
+                                      ? '1.5px solid #10b981'
+                                      : norm.isModerationNotif 
+                                        ? '1.5px solid #f43f5e' 
+                                        : '1.5px solid var(--primary)',
+                                  borderLeft: !item.read 
+                                    ? norm.modCase.isRestored 
+                                      ? '4px solid #10b981' 
+                                      : norm.isModerationNotif 
+                                        ? '4px solid #f43f5e' 
+                                        : '4px solid var(--primary)' 
+                                    : '1px solid var(--border-light)',
                                   background: 'var(--card-bg-gradient)',
                                   cursor: 'pointer',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'space-between',
                                   gap: '1rem',
-                                  boxShadow: item.read ? '0 1px 3px rgba(0,0,0,0.04)' : '0 4px 18px var(--primary-glow)',
+                                  boxShadow: item.read 
+                                    ? '0 1px 3px rgba(0,0,0,0.04)' 
+                                    : norm.modCase.isRestored
+                                      ? '0 4px 18px rgba(16, 185, 129, 0.25)'
+                                      : norm.isModerationNotif
+                                        ? '0 4px 18px rgba(244, 63, 94, 0.22)'
+                                        : '0 4px 18px var(--primary-glow)',
                                   transition: 'all 0.15s ease'
                                 }}
                               >
@@ -19986,7 +20179,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                           width: '7px',
                                           height: '7px',
                                           borderRadius: '50%',
-                                          backgroundColor: norm.isModerationNotif ? '#f43f5e' : 'var(--primary)',
+                                          backgroundColor: norm.modCase.isRestored ? '#10b981' : norm.isModerationNotif ? '#f43f5e' : 'var(--primary)',
                                           display: 'inline-block'
                                         }} />
                                       )}
@@ -19997,11 +20190,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         letterSpacing: '0.04em',
                                         padding: '0.15rem 0.5rem',
                                         borderRadius: '0.35rem',
-                                        color: norm.isModerationNotif ? '#f43f5e' : item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
-                                        backgroundColor: norm.isModerationNotif ? 'rgba(244, 63, 94, 0.12)' : item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
+                                        color: norm.modCase.isRestored ? '#10b981' : norm.isModerationNotif ? '#f43f5e' : item.type === 'warning' ? '#d97706' : item.type === 'success' ? '#059669' : item.type === 'order' ? '#2563eb' : 'var(--primary)',
+                                        backgroundColor: norm.modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : norm.isModerationNotif ? 'rgba(244, 63, 94, 0.12)' : item.type === 'warning' ? 'rgba(217, 119, 6, 0.12)' : item.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : item.type === 'order' ? 'rgba(37, 99, 235, 0.12)' : 'var(--primary-glow)',
                                         border: '1px solid currentColor'
                                       }}>
-                                        {norm.isModerationNotif ? 'KEAMANAN' : (item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM'))}
+                                        {norm.modCase.isRestored ? 'PEMULIHAN AKUN' : norm.isModerationNotif ? 'KEAMANAN' : (item.category || (item.type === 'warning' ? 'PANDUAN' : item.type === 'success' ? 'PROMOSI' : item.type === 'order' ? 'INVENTARIS' : 'SISTEM'))}
                                       </span>
                                     </div>
 
@@ -20036,7 +20229,28 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   </p>
 
                                   {/* Action Hint Micro-Pill (Only when actionable) */}
-                                  {norm.isModerationNotif && norm.modCase.isAppealEligible ? (
+                                  {norm.modCase.isRestored ? (
+                                    <div
+                                      style={{
+                                        marginTop: '0.65rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem',
+                                        padding: '0.22rem 0.65rem',
+                                        borderRadius: '0.45rem',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 800,
+                                        backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                                        color: '#10b981',
+                                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                                        width: 'fit-content'
+                                      }}
+                                    >
+                                      <CheckCircle2 size={12} style={{ strokeWidth: 2.5 }} />
+                                      <span>Lihat Status Pemulihan</span>
+                                      <ArrowRight size={12} style={{ strokeWidth: 2.5 }} />
+                                    </div>
+                                  ) : norm.isModerationNotif && norm.modCase.isAppealEligible ? (
                                     <div
                                       onClick={(e) => {
                                         e.stopPropagation();
