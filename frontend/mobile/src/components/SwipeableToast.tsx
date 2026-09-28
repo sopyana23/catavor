@@ -9,6 +9,101 @@ export interface ToastItem {
   duration?: number;
 }
 
+export function compactToastMessage(msg: string): string {
+  if (!msg || typeof msg !== 'string') return '';
+  let text = msg.trim();
+
+  const replacements: [RegExp, string][] = [
+    [/^Item ini berstatus DIARSIPKAN\. Kuota aktif katalog Anda \(\d+\/\d+\) sudah penuh\..*$/i, 'Kuota penuh, arsipkan item lain'],
+    [/^Batas katalog aktif \(\d+ item\) telah tercapai\..*$/i, 'Batas kuota item tercapai'],
+    [/^Terima kasih\. Laporan #([A-Za-z0-9\-]+).*ke tim kepatuhan\.*$/i, 'Laporan #$1 terkirim'],
+    [/^Terima kasih! Ulasan kepuasan Anda berhasil disimpan\.*$/i, 'Ulasan kepuasan tersimpan'],
+    [/^Selamat! Katalog Anda berhasil diaktifkan kembali.*$/i, 'Katalog aktif kembali (45 hari)'],
+    [/^Selamat! Katalog Anda telah berhasil di-upgrade.*$/i, 'Katalog di-upgrade ke Pro'],
+    [/^Masa aktif katalog berhasil diperpanjang 45 hari!*$/i, 'Masa aktif diperpanjang 45 hari'],
+    [/^Aksi dinonaktifkan sementara karena status operasional toko sedang dibekukan\.*$/i, 'Aksi nonaktif: toko dibekukan'],
+    [/^Mode Pratinjau: Menguji tautan WhatsApp katalog Anda\.\.\.*$/i, 'Menguji tautan WhatsApp...'],
+    [/^Otentikasi Google Berhasil! Silakan lengkapi Informasi Katalog.*$/i, 'Google terhubung, lengkapi data'],
+    [/^Gagal mendapatkan informasi email dari Google\..*$/i, 'Gagal akses akun Google'],
+    [/^Silakan centang persetujuan Syarat & Ketentuan serta Kebijakan Privasi.*$/i, 'Setujui Syarat & Ketentuan'],
+    [/^Formulir banding kepatuhan telah disiapkan secara otomatis\.*$/i, 'Formulir banding disiapkan'],
+    [/^Maksimum 5 file screenshot\/gambar per pengiriman\.*$/i, 'Maksimal 5 screenshot'],
+    [/^Terjadi kesalahan saat mengunggah gambar screenshot\.*$/i, 'Gagal unggah screenshot'],
+    [/^Tautan produk berhasil disalin ke papan klip!*$/i, 'Tautan produk disalin'],
+    [/^Nomor kasus #([A-Za-z0-9\-]+) disalin ke clipboard\.*$/i, 'Nomor kasus #$1 disalin'],
+    [/^Baris ads\.txt disalin ke clipboard$/i, 'ads.txt disalin'],
+    [/^Pengaturan Google AdSense & Analytics berhasil disimpan!*$/i, 'Pengaturan Google disimpan'],
+    [/^Pengaturan custom domain berhasil disimpan!*$/i, 'Custom domain disimpan'],
+    [/^Tindakan moderasi berhasil diterapkan dan audit trail tercatat$/i, 'Moderasi berhasil diterapkan'],
+    [/^Siaran berhasil dihapus dari riwayat publikasi$/i, 'Siaran berhasil dihapus'],
+    [/^Siaran pengumuman berhasil disebarkan!$/i, 'Siaran berhasil dikirim'],
+    [/^Template preset industri berhasil diterapkan ke profil katalog!$/i, 'Preset industri diterapkan'],
+    [/^Nama kategori\/opsi berhasil diubah dan disinkronkan!$/i, 'Nama kategori diubah'],
+    [/^Logo berhasil dipilih! Klik "Simpan Pengaturan".*$/i, 'Logo dipilih, klik simpan'],
+    [/^⚠️ Logo\/Ikon harus berukuran persegi.*$/i, 'Logo harus persegi (1:1)'],
+    [/^Akses ditolak atau sesi Anda telah habis.*$/i, 'Sesi habis, login ulang'],
+    [/^Sesi Anda berakhir\. Silakan login kembali.*$/i, 'Sesi habis, login ulang'],
+    [/^Koneksi internet terputus\. Gagal memperbarui profil\.*$/i, 'Gagal perbarui profil'],
+    [/^Koneksi internet bermasalah\. Gagal menyimpan pengaturan\.*$/i, 'Gagal simpan pengaturan'],
+    [/^Koneksi terputus ke server saat mengunggah logo\.*$/i, 'Gagal unggah logo'],
+    [/^Koneksi terputus ke server\. Periksa jaringan Anda\.*$/i, 'Koneksi server terputus'],
+    [/^Terjadi kesalahan koneksi saat beralih profil katalog$/i, 'Gagal beralih katalog'],
+    [/^Terjadi kesalahan saat otentikasi Google SSO\.*$/i, 'Gagal login Google'],
+    [/^Terjadi kesalahan saat upgrade plan$/i, 'Gagal upgrade plan'],
+    [/^Terjadi kesalahan saat mengunggah gambar\. Silakan login ulang\.*$/i, 'Gagal unggah gambar'],
+    [/^Koneksi bermasalah\. Gagal menyimpan artikel\.*$/i, 'Gagal simpan artikel'],
+    [/^Koneksi bermasalah\. Gagal menghapus artikel\.*$/i, 'Gagal hapus artikel'],
+    [/^Koneksi bermasalah\. Gagal mengirim komentar\.*$/i, 'Gagal kirim komentar'],
+    [/^Tidak ada opsi pengganti lain yang tersedia untuk menghapus opsi ini\.*$/i, 'Tidak ada opsi pengganti'],
+    [/^Status langganan dan kuota berhasil diperbarui!$/i, 'Status langganan diperbarui'],
+    [/^Semua notifikasi telah ditandai dibaca!$/i, 'Semua notifikasi dibaca'],
+    [/^Riwayat notifikasi terbaca telah dibersihkan!$/i, 'Riwayat notifikasi dibersihkan'],
+    [/^Catatan internal CS berhasil disimpan$/i, 'Catatan internal disimpan'],
+    [/^Balasan berhasil dikirim ke merchant$/i, 'Balasan terkirim ke merchant'],
+    [/^Silakan tambahkan minimal 1 penerima.*$/i, 'Pilih minimal 1 penerima'],
+    [/^Silakan pilih toko target terlebih dahulu$/i, 'Pilih toko target dulu'],
+    [/^Silakan pilih user target terlebih dahulu$/i, 'Pilih user target dulu'],
+    [/^Silakan pilih profil katalog yang ingin Anda kelola\.*$/i, 'Pilih profil katalog dulu'],
+    [/^Beralih ke profil katalog "(.*?)"$/i, 'Beralih ke $1'],
+    [/^Profil katalog baru "(.*?)" berhasil dibuat!$/i, 'Katalog $1 dibuat'],
+  ];
+
+  for (const [pattern, target] of replacements) {
+    if (pattern.test(text)) {
+      return text.replace(pattern, target);
+    }
+  }
+
+  text = text.replace(/^Terjadi kesalahan (koneksi )?saat /i, 'Gagal ');
+  text = text.replace(/^Terjadi gangguan saat /i, 'Gagal ');
+  text = text.replace(/^Koneksi bermasalah\.\s*/i, '');
+  text = text.replace(/^Koneksi terputus\.\s*/i, '');
+  text = text.replace(/^Koneksi internet bermasalah\.\s*/i, '');
+  text = text.replace(/\s+berhasil disimpan!?$/i, ' disimpan');
+  text = text.replace(/\s+berhasil ditambahkan!?$/i, ' ditambahkan');
+  text = text.replace(/\s+berhasil diperbarui!?$/i, ' diperbarui');
+  text = text.replace(/\s+berhasil dihapus!?$/i, ' dihapus');
+  text = text.replace(/\s+berhasil diunggah!?$/i, ' diunggah');
+  text = text.replace(/\s+ke papan klip!?$/i, '');
+  text = text.replace(/\s+ke clipboard\.?$/i, '');
+  text = text.replace(/\.\s*Silakan coba lagi\.?$/i, '');
+  text = text.replace(/\.\s*Periksa jaringan Anda\.?$/i, '');
+  text = text.replace(/^Mohon\s+/i, '');
+  text = text.replace(/^Silakan\s+/i, '');
+
+  if (text.length > 38) {
+    const trimmed = text.slice(0, 36);
+    const lastSpace = trimmed.lastIndexOf(' ');
+    if (lastSpace > 20) {
+      text = trimmed.slice(0, lastSpace);
+    } else {
+      text = trimmed;
+    }
+  }
+
+  return text;
+}
+
 interface SwipeableToastProps {
   toast: ToastItem | null;
   onClose: () => void;
@@ -326,10 +421,10 @@ export const SwipeableToast: React.FC<SwipeableToastProps> = ({
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          maxWidth: '65vw',
+          maxWidth: '78vw',
         }}
       >
-        {toast.message}
+        {compactToastMessage(toast.message)}
       </span>
 
       {/* Action button if provided */}

@@ -224,7 +224,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       
       setDomains(prev => prev.map(d => (d.id === item.id ? { ...d, is_active: nextStatus } : d)));
       loadDynamicSafeDomains(true);
-      showToast(`Domain ${item.domain} ${nextStatus ? 'diaktifkan' : 'dinonaktifkan'}`);
+      showToast(nextStatus ? 'Domain diaktifkan' : 'Domain dinonaktifkan');
     } catch (err: any) {
       showToast(err.message || 'Gagal mengubah status', 'error');
     }
@@ -243,7 +243,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       
       setDomains(prev => prev.filter(d => d.id !== item.id));
       loadDynamicSafeDomains(true);
-      showToast(`Domain ${item.domain} berhasil dihapus`);
+      showToast('Domain berhasil dihapus');
     } catch (err: any) {
       showToast(err.message || 'Gagal menghapus domain', 'error');
     }
@@ -282,7 +282,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       setShowFormModal(false);
       await fetchDomains();
       loadDynamicSafeDomains(true);
-      showToast(editingDomain ? 'Domain berhasil diperbarui' : 'Domain berhasil ditambahkan');
+      showToast(editingDomain ? 'Domain diperbarui' : 'Domain ditambahkan');
     } catch (err: any) {
       showToast(err.message || 'Gagal menyimpan domain', 'error');
     } finally {
@@ -307,7 +307,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 99999,
-          padding: '0.65rem 1.2rem',
+          padding: '0.52rem 1.05rem',
           borderRadius: '999px',
           backgroundColor: toastMsg.type === 'success' ? '#10b981' : toastMsg.type === 'error' ? '#ef4444' : '#3b82f6',
           color: '#ffffff',
@@ -318,11 +318,14 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
           alignItems: 'center',
           gap: '0.45rem',
           maxWidth: '92%',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
           backdropFilter: 'blur(8px)',
           animation: 'fadeInDown 0.25s ease-out'
         }}>
-          {toastMsg.type === 'success' ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
-          <span>{toastMsg.text}</span>
+          {toastMsg.type === 'success' ? <CheckCircle size={15} style={{ flexShrink: 0 }} /> : <AlertCircle size={15} style={{ flexShrink: 0 }} />}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toastMsg.text}</span>
         </div>
       )}
 
