@@ -151,6 +151,7 @@ const formatSupportDateTime = (dateStr?: string | Date) => {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  compliance: 'Banding Kepatuhan & Akun',
   technical: 'Kendala Teknis & Bug',
   billing: 'Keuangan & Langganan',
   catalog_help: 'Bantuan Katalog',

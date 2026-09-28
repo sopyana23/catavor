@@ -6571,6 +6571,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     message: ''
   });
 
+  // Auto-populate appeal draft template whenever create ticket modal is opened for a suspended store
+  useEffect(() => {
+    if (showCreateTicketModal && (settings.dormancy_status === 'suspended' || settings.is_suspended)) {
+      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`;
+      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
+
+      setNewTicketForm(prev => ({
+        subject: (!prev.subject || !prev.subject.trim() || prev.subject.includes('Banding Kepatuhan')) ? appealSub : prev.subject,
+        category: 'compliance',
+        priority: 'high',
+        message: (!prev.message || !prev.message.trim()) ? appealMsg : prev.message
+      }));
+    }
+  }, [showCreateTicketModal, settings.dormancy_status, settings.is_suspended, settings.store_title, storeSlug]);
+
   const getTicketCategoryMeta = (val?: string) => {
     const c = (val || 'general').toLowerCase();
     switch (c) {
@@ -6599,6 +6614,16 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           bg: 'rgba(245, 158, 11, 0.12)',
           color: '#d97706',
           border: '1px solid rgba(245, 158, 11, 0.3)'
+        };
+      case 'compliance':
+      case 'suspension':
+      case 'appeal':
+        return {
+          label: 'Banding Kepatuhan & Akun',
+          shortLabel: 'Kepatuhan & Banding',
+          bg: 'rgba(239, 68, 68, 0.12)',
+          color: '#dc2626',
+          border: '1px solid rgba(239, 68, 68, 0.3)'
         };
       case 'account':
         return {
@@ -7116,7 +7141,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     setNewTicketForm({
       subject,
-      category: 'catalog_help',
+      category: 'compliance',
       priority: 'high',
       message: draftMessage
     });
@@ -16189,7 +16214,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             setAdminTab('help');
                             setNewTicketForm({
                               subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
-                              category: 'catalog_help',
+                              category: 'compliance',
                               priority: 'high',
                               message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                             });
@@ -19579,7 +19604,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         setAdminTab('help');
                                         setNewTicketForm({
                                           subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
-                                          category: 'catalog_help',
+                                          category: 'compliance',
                                           priority: 'high',
                                           message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                                         });
@@ -20566,7 +20591,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             if (isSuspendedAccount) {
                               setNewTicketForm({
                                 subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
-                                category: 'catalog_help',
+                                category: 'compliance',
                                 priority: 'high',
                                 message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                               });
@@ -21735,7 +21760,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 if (isSuspendedAccount) {
                                   setNewTicketForm({
                                     subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
-                                    category: 'catalog_help',
+                                    category: 'compliance',
                                     priority: 'high',
                                     message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                                   });
@@ -21837,7 +21862,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                         <form onSubmit={async (e) => {
                           e.preventDefault();
-                          if (!newTicketForm.subject.trim() || !newTicketForm.message.trim()) {
+                          const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
+                          const finalSubject = (isSuspendedAccount && !newTicketForm.subject.trim())
+                            ? `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`
+                            : newTicketForm.subject.trim();
+                          const finalMessage = (isSuspendedAccount && !newTicketForm.message.trim())
+                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            : newTicketForm.message.trim();
+
+                          if (!finalSubject || !finalMessage) {
                             showToast('Mohon isi Judul dan Detail Kendala.', 'error');
                             return;
                           }
@@ -21848,10 +21881,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               method: 'POST',
                               headers: getAuthHeaders(),
                               body: JSON.stringify({
-                                subject: newTicketForm.subject.trim(),
-                                category: newTicketForm.category,
-                                priority: newTicketForm.priority,
-                                message: newTicketForm.message.trim(),
+                                subject: finalSubject,
+                                category: isSuspendedAccount ? 'compliance' : newTicketForm.category,
+                                priority: isSuspendedAccount ? 'high' : newTicketForm.priority,
+                                message: finalMessage,
                                 attachments: ticketNewAttachments
                               })
                             });
@@ -21880,70 +21913,140 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div className="form-group">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                               <label className="form-label" style={{ margin: 0 }}>Judul Kendala / Subjek *</label>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                {newTicketForm.subject.length}/80
-                              </span>
+                              {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                  {newTicketForm.subject.length}/80
+                                </span>
+                              )}
                             </div>
                             <input
                               type="text"
-                              maxLength={80}
+                              maxLength={120}
                               className="form-input"
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
-                              value={newTicketForm.subject}
-                              onChange={(e) => setNewTicketForm({ ...newTicketForm, subject: e.target.value })}
+                              value={
+                                (settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`)
+                                  : newTicketForm.subject
+                              }
+                              onChange={(e) => {
+                                if (!(settings.dormancy_status === 'suspended' || settings.is_suspended)) {
+                                  setNewTicketForm({ ...newTicketForm, subject: e.target.value });
+                                }
+                              }}
+                              readOnly={settings.dormancy_status === 'suspended' || settings.is_suspended}
                               required
+                              style={
+                                (settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                  ? {
+                                      backgroundColor: 'var(--bg-deep)',
+                                      cursor: 'not-allowed',
+                                      color: 'var(--text-primary)',
+                                      fontWeight: 700,
+                                      border: '1px solid var(--border-light)'
+                                    }
+                                  : undefined
+                              }
                             />
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div className="form-group">
-                              <label className="form-label">Kategori *</label>
-                              <select
-                                className="form-input"
-                                value={newTicketForm.category}
-                                onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value })}
-                              >
-                                <option value="billing">Pembayaran & Paket Pro</option>
-                                <option value="technical">Kendala Teknis & Fitur</option>
-                                <option value="catalog_help">Bantuan Pengelolaan Katalog</option>
-                                <option value="account">Kendala Akun & Profil</option>
-                                <option value="general">Lainnya / Pertanyaan Umum</option>
-                              </select>
+                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '1rem',
+                              padding: '0.85rem 1.15rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                              border: '1px solid rgba(239, 68, 68, 0.18)'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <ShieldAlert size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  Kategori:
+                                </span>
+                                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#ef4444' }}>
+                                  Banding Kepatuhan & Akun
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  Prioritas:
+                                </span>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  padding: '0.22rem 0.65rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                  color: '#f59e0b',
+                                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                                  Tinggi
+                                </span>
+                              </div>
                             </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                              <div className="form-group">
+                                <label className="form-label">Kategori *</label>
+                                <select
+                                  className="form-input"
+                                  value={newTicketForm.category}
+                                  onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value })}
+                                >
+                                  <option value="billing">Pembayaran & Paket Pro</option>
+                                  <option value="technical">Kendala Teknis & Fitur</option>
+                                  <option value="catalog_help">Bantuan Pengelolaan Katalog</option>
+                                  <option value="account">Kendala Akun & Profil</option>
+                                  <option value="general">Lainnya / Pertanyaan Umum</option>
+                                </select>
+                              </div>
 
-                            <div className="form-group">
-                              <label className="form-label">Tingkat Urgensi *</label>
-                              <select
-                                className="form-input"
-                                value={newTicketForm.priority}
-                                onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
-                              >
-                                <option value="low">Rendah (Pertanyaan Umum)</option>
-                                <option value="medium">Sedang (Kendala Standar)</option>
-                                <option value="high">Tinggi (Fitur Bermasalah)</option>
-                                <option value="urgent">Mendesak (Katalog Error / Darurat)</option>
-                              </select>
+                              <div className="form-group">
+                                <label className="form-label">Tingkat Urgensi *</label>
+                                <select
+                                  className="form-input"
+                                  value={newTicketForm.priority}
+                                  onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
+                                >
+                                  <option value="low">Rendah (Pertanyaan Umum)</option>
+                                  <option value="medium">Sedang (Kendala Standar)</option>
+                                  <option value="high">Tinggi (Fitur Bermasalah)</option>
+                                  <option value="urgent">Mendesak (Katalog Error / Darurat)</option>
+                                </select>
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           <div className="form-group">
                             <label className="form-label">Detail Pesan & Pertanyaan *</label>
                             <textarea
-                              rows={4}
+                              rows={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 6 : 4}
                               className="form-input"
-                              placeholder="Jelaskan detail pertanyaan atau kendala Anda selengkap mungkin..."
+                              placeholder={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? "Tuliskan rincian klarifikasi atau kronologi banding Anda..." : "Jelaskan detail pertanyaan atau kendala Anda selengkap mungkin..."}
                               value={newTicketForm.message}
                               onChange={(e) => setNewTicketForm({ ...newTicketForm, message: e.target.value })}
                               required
-                              style={{ resize: 'none' }}
+                              style={{ resize: 'vertical', minHeight: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '130px' : '90px' }}
                             />
+                            {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                              <p style={{ margin: '0.45rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                                💡 <em>Anda dapat menyesuaikan atau menambahkan poin klarifikasi, kronologi kejadian, atau nomor izin usaha pada draf pesan di atas untuk mempercepat verifikasi tim kepatuhan.</em>
+                              </p>
+                            )}
                           </div>
 
                           {/* SCREENSHOT ATTACHMENTS SECTION */}
                           <div className="form-group" style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                               <label className="form-label" style={{ margin: 0, fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                Lampiran Berkas (Opsional)
+                                {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Berkas & Bukti Pendukung (Opsional)' : 'Lampiran Berkas (Opsional)'}
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginLeft: '0.45rem' }}>
                                   ({ticketNewAttachments.length}/5 berkas)
                                 </span>
@@ -22008,7 +22111,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               </div>
                             ) : (
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-                                Belum ada screenshot yang dilampirkan. Anda dapat mengunggah hingga 5 gambar format JPG/PNG/WEBP (Maks 10MB per foto).
+                                {(settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                  ? 'Unggah dokumen pendukung (Surat Izin Usaha, Foto Fisik Toko/Stok, atau Bukti Klarifikasi) untuk memperkuat permohonan banding.'
+                                  : 'Belum ada screenshot yang dilampirkan. Anda dapat mengunggah hingga 5 gambar format JPG/PNG/WEBP (Maks 10MB per foto).'}
                               </p>
                             )}
                           </div>

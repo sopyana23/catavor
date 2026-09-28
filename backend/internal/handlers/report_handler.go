@@ -651,7 +651,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 					// Mark any active appeal/compliance tickets from the past suspension as resolved
 					tx.Model(&models.SupportTicket{}).
-						Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", report.StoreID).
+						Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'compliance' OR category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", report.StoreID).
 						Updates(map[string]interface{}{
 							"status":      "resolved",
 							"resolved_at": now,

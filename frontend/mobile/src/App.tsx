@@ -6664,6 +6664,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   };
 
   const TICKET_CATEGORIES = [
+    { value: 'compliance', label: 'Banding Kepatuhan & Akun', desc: 'Permohonan peninjauan kembali atas penangguhan atau pembekuan etalase', badge: 'Kepatuhan' },
     { value: 'billing', label: 'Pembayaran & Paket Pro', desc: 'Konfirmasi transfer, kupon promo, invoice, aktivasi paket', badge: 'Billing' },
     { value: 'technical', label: 'Kendala Teknis & Fitur', desc: 'Kendala upload, bug tampilan, masalah link katalog atau gambar', badge: 'Teknis' },
     { value: 'catalog_help', label: 'Bantuan Pengelolaan Katalog', desc: 'Panduan entri item (barang, jasa, digital, flora/fauna), varian, dan kategori', badge: 'Katalog' },
@@ -6680,12 +6681,22 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const getTicketCategoryLabel = (val: string) => {
     const found = TICKET_CATEGORIES.find(c => c.value === val);
-    return found ? found.label : (val === 'payment' ? 'Pembayaran & Paket Pro' : 'Kendala Teknis & Fitur');
+    return found ? found.label : (val === 'compliance' ? 'Banding Kepatuhan & Akun' : val === 'payment' ? 'Pembayaran & Paket Pro' : 'Kendala Teknis & Fitur');
   };
 
   const getTicketCategoryMeta = (val?: string) => {
     const c = (val || 'general').toLowerCase();
     switch (c) {
+      case 'compliance':
+      case 'suspension':
+      case 'appeal':
+        return {
+          label: 'Banding Kepatuhan & Akun',
+          shortLabel: 'Kepatuhan & Banding',
+          bg: 'rgba(239, 68, 68, 0.12)',
+          color: '#dc2626',
+          border: '1px solid rgba(239, 68, 68, 0.3)'
+        };
       case 'billing':
       case 'payment':
         return {
@@ -7089,6 +7100,21 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     priority: 'medium',
     message: ''
   });
+
+  // Auto-populate appeal draft template whenever create ticket form is opened for a suspended store
+  useEffect(() => {
+    if (isCreatingTicket && (settings.dormancy_status === 'suspended' || settings.is_suspended)) {
+      const appealSub = `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`;
+      const appealMsg = `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`;
+
+      setNewTicketForm(prev => ({
+        subject: (!prev.subject || !prev.subject.trim() || prev.subject.includes('Banding Kepatuhan')) ? appealSub : prev.subject,
+        category: 'compliance',
+        priority: 'high',
+        message: (!prev.message || !prev.message.trim()) ? appealMsg : prev.message
+      }));
+    }
+  }, [isCreatingTicket, settings.dormancy_status, settings.is_suspended, settings.store_title, storeSlug]);
 
   const prevTicketMessagesRef = useRef<Record<string, number>>({});
   const isFirstTicketLoadRef = useRef<boolean>(true);
@@ -7671,7 +7697,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     setNewTicketForm({
       subject: appealSubject,
-      category: 'catalog_help',
+      category: 'compliance',
       priority: 'high',
       message: appealMessage
     });
@@ -17808,7 +17834,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         setAdminSubTab('help');
                         setNewTicketForm({
                           subject: `Banding Kepatuhan: Peninjauan Status Katalog (${settings.store_title || 'Toko'})`,
-                          category: 'catalog_help',
+                          category: 'compliance',
                           priority: 'high',
                           message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                         });
@@ -19028,7 +19054,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               setAdminSubTab('help');
                               setNewTicketForm({
                                 subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || 'Toko'})`,
-                                category: 'catalog_help',
+                                category: 'compliance',
                                 priority: 'high',
                                 message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                               });
@@ -22404,7 +22430,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                           setAdminSubTab('help');
                                           setNewTicketForm({
                                             subject: `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`,
-                                            category: 'catalog_help',
+                                            category: 'compliance',
                                             priority: 'high',
                                             message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                                           });
@@ -24131,7 +24157,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       }}>
                         <form onSubmit={async (e) => {
                           e.preventDefault();
-                          if (!newTicketForm.subject.trim() || !newTicketForm.message.trim()) {
+                          const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
+                          const finalSubject = (isSuspendedAccount && !newTicketForm.subject.trim())
+                            ? `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`
+                            : newTicketForm.subject.trim();
+                          const finalMessage = (isSuspendedAccount && !newTicketForm.message.trim())
+                            ? `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola toko mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada katalog toko kami:\n- Nama Toko: ${settings.store_title || '-'}\n- Status Terdeteksi: ${settings.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
+                            : newTicketForm.message.trim();
+
+                          if (!finalSubject || !finalMessage) {
                             showToast('Mohon isi Judul dan Detail Kendala.', 'error');
                             return;
                           }
@@ -24143,10 +24177,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               headers: getAuthHeaders(),
                               body: JSON.stringify({
                                 store_slug: getStoreSlug() || undefined,
-                                subject: newTicketForm.subject.trim(),
-                                category: newTicketForm.category,
-                                priority: newTicketForm.priority,
-                                message: newTicketForm.message.trim(),
+                                subject: finalSubject,
+                                category: isSuspendedAccount ? 'compliance' : newTicketForm.category,
+                                priority: isSuspendedAccount ? 'high' : newTicketForm.priority,
+                                message: finalMessage,
                                 attachments: ticketNewAttachments
                               })
                             });
@@ -24173,136 +24207,208 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', margin: 0 }}>
                                 JUDUL KENDALA / SUBJEK *
                               </label>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                                {newTicketForm.subject.length}/80
-                              </span>
+                              {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                  {newTicketForm.subject.length}/80
+                                </span>
+                              )}
                             </div>
                             <input
                               type="text"
-                              maxLength={80}
+                              maxLength={120}
                               className="form-input"
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
-                              value={newTicketForm.subject}
-                              onChange={(e) => setNewTicketForm({ ...newTicketForm, subject: e.target.value })}
+                              value={
+                                (settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                  ? (newTicketForm.subject || `Banding Kepatuhan: Peninjauan Pembekuan Toko (${settings.store_title || storeSlug || 'Katalog'})`)
+                                  : newTicketForm.subject
+                              }
+                              onChange={(e) => {
+                                if (!(settings.dormancy_status === 'suspended' || settings.is_suspended)) {
+                                  setNewTicketForm({ ...newTicketForm, subject: e.target.value });
+                                }
+                              }}
+                              readOnly={settings.dormancy_status === 'suspended' || settings.is_suspended}
                               required
-                              style={{ fontSize: '0.84rem', height: '44px', borderRadius: '0.65rem' }}
+                              style={{
+                                fontSize: '0.84rem',
+                                height: '44px',
+                                borderRadius: '0.65rem',
+                                ...(settings.dormancy_status === 'suspended' || settings.is_suspended
+                                  ? {
+                                      backgroundColor: 'var(--bg-deep)',
+                                      cursor: 'not-allowed',
+                                      color: 'var(--text-primary)',
+                                      fontWeight: 700,
+                                      border: '1px solid var(--border-light)'
+                                    }
+                                  : {})
+                              }}
                             />
                           </div>
 
                           {/* MODAL DROPDOWN TRIGGER BUTTONS */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
-                            {/* Kategori Modal Dropdown */}
-                            <div className="form-group" style={{ marginBottom: 0, minWidth: 0, width: '100%' }}>
-                              <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', marginBottom: '0.45rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                                KATEGORI *
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCrudDropdownPicker({
-                                    title: 'Pilih Kategori Kendala',
-                                    icon: HelpCircle,
-                                    options: TICKET_CATEGORIES.map(c => ({
-                                      value: c.value,
-                                      label: c.label,
-                                      desc: c.desc,
-                                      badge: c.badge
-                                    })),
-                                    selectedValue: newTicketForm.category,
-                                    onSelect: (val) => setNewTicketForm(prev => ({ ...prev, category: val }))
-                                  });
-                                }}
-                                className="form-input"
-                                style={{
-                                  width: '100%',
-                                  minWidth: 0,
-                                  maxWidth: '100%',
-                                  boxSizing: 'border-box',
-                                  height: '44px',
-                                  padding: '0 0.75rem',
-                                  fontSize: '0.82rem',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: '0.35rem',
-                                  cursor: 'pointer',
-                                  textAlign: 'left',
-                                  color: 'var(--text-primary)',
-                                  backgroundColor: 'var(--bg-deep)',
-                                  border: '1px solid var(--border-light)',
-                                  borderRadius: '0.65rem'
-                                }}
-                              >
-                                <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                                  {getTicketCategoryLabel(newTicketForm.category)}
+                          {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.55rem',
+                              padding: '0.8rem 1rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                              border: '1px solid rgba(239, 68, 68, 0.18)'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <ShieldAlert size={17} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  Kategori:
                                 </span>
-                                <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                              </button>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ef4444' }}>
+                                  Banding Kepatuhan & Akun
+                                </span>
+                              </div>
+                              <div style={{ height: '1px', backgroundColor: 'rgba(239, 68, 68, 0.12)', width: '100%' }} />
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  Tingkat Urgensi:
+                                </span>
+                                <span style={{
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800,
+                                  padding: '0.2rem 0.65rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                  color: '#f59e0b',
+                                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                                  Tinggi
+                                </span>
+                              </div>
                             </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
+                              {/* Kategori Modal Dropdown */}
+                              <div className="form-group" style={{ marginBottom: 0, minWidth: 0, width: '100%' }}>
+                                <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', marginBottom: '0.45rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                                  KATEGORI *
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCrudDropdownPicker({
+                                      title: 'Pilih Kategori Kendala',
+                                      icon: HelpCircle,
+                                      options: TICKET_CATEGORIES.map(c => ({
+                                        value: c.value,
+                                        label: c.label,
+                                        desc: c.desc,
+                                        badge: c.badge
+                                      })),
+                                      selectedValue: newTicketForm.category,
+                                      onSelect: (val) => setNewTicketForm(prev => ({ ...prev, category: val }))
+                                    });
+                                  }}
+                                  className="form-input"
+                                  style={{
+                                    width: '100%',
+                                    minWidth: 0,
+                                    maxWidth: '100%',
+                                    boxSizing: 'border-box',
+                                    height: '44px',
+                                    padding: '0 0.75rem',
+                                    fontSize: '0.82rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.35rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    color: 'var(--text-primary)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    border: '1px solid var(--border-light)',
+                                    borderRadius: '0.65rem'
+                                  }}
+                                >
+                                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                                    {getTicketCategoryLabel(newTicketForm.category)}
+                                  </span>
+                                  <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                                </button>
+                              </div>
 
-                            {/* Tingkat Urgensi Modal Dropdown */}
-                            <div className="form-group" style={{ marginBottom: 0, minWidth: 0, width: '100%' }}>
-                              <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', marginBottom: '0.45rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                                TINGKAT URGENSI *
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCrudDropdownPicker({
-                                    title: 'Pilih Tingkat Urgensi',
-                                    icon: AlertCircle,
-                                    options: TICKET_PRIORITIES.map(p => ({
-                                      value: p.value,
-                                      label: p.label,
-                                      desc: p.desc,
-                                      badge: p.value.toUpperCase()
-                                    })),
-                                    selectedValue: newTicketForm.priority,
-                                    onSelect: (val) => setNewTicketForm(prev => ({ ...prev, priority: val }))
-                                  });
-                                }}
-                                className="form-input"
-                                style={{
-                                  width: '100%',
-                                  minWidth: 0,
-                                  maxWidth: '100%',
-                                  boxSizing: 'border-box',
-                                  height: '44px',
-                                  padding: '0 0.75rem',
-                                  fontSize: '0.82rem',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: '0.35rem',
-                                  cursor: 'pointer',
-                                  textAlign: 'left',
-                                  color: 'var(--text-primary)',
-                                  backgroundColor: 'var(--bg-deep)',
-                                  border: '1px solid var(--border-light)',
-                                  borderRadius: '0.65rem'
-                                }}
-                              >
-                                <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                                  {getTicketPriorityLabel(newTicketForm.priority)}
-                                </span>
-                                <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                              </button>
+                              {/* Tingkat Urgensi Modal Dropdown */}
+                              <div className="form-group" style={{ marginBottom: 0, minWidth: 0, width: '100%' }}>
+                                <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', marginBottom: '0.45rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                                  TINGKAT URGENSI *
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCrudDropdownPicker({
+                                      title: 'Pilih Tingkat Urgensi',
+                                      icon: AlertCircle,
+                                      options: TICKET_PRIORITIES.map(p => ({
+                                        value: p.value,
+                                        label: p.label,
+                                        desc: p.desc,
+                                        badge: p.value.toUpperCase()
+                                      })),
+                                      selectedValue: newTicketForm.priority,
+                                      onSelect: (val) => setNewTicketForm(prev => ({ ...prev, priority: val }))
+                                    });
+                                  }}
+                                  className="form-input"
+                                  style={{
+                                    width: '100%',
+                                    minWidth: 0,
+                                    maxWidth: '100%',
+                                    boxSizing: 'border-box',
+                                    height: '44px',
+                                    padding: '0 0.75rem',
+                                    fontSize: '0.82rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.35rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    color: 'var(--text-primary)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    border: '1px solid var(--border-light)',
+                                    borderRadius: '0.65rem'
+                                  }}
+                                >
+                                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                                    {getTicketPriorityLabel(newTicketForm.priority)}
+                                  </span>
+                                  <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                                </button>
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-secondary)', marginBottom: '0.45rem', display: 'block' }}>
                               DETAIL PESAN & PERTANYAAN *
                             </label>
                             <textarea
-                              rows={4}
+                              rows={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 6 : 4}
                               className="form-input"
-                              placeholder="Jelaskan detail kendala Anda selengkap mungkin..."
+                              placeholder={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? "Tuliskan rincian klarifikasi atau kronologi banding Anda..." : "Jelaskan detail kendala Anda selengkap mungkin..."}
                               value={newTicketForm.message}
                               onChange={(e) => setNewTicketForm({ ...newTicketForm, message: e.target.value })}
                               required
-                              style={{ fontSize: '0.84rem', resize: 'vertical', minHeight: '100px', borderRadius: '0.65rem', padding: '0.75rem 0.85rem' }}
+                              style={{ fontSize: '0.84rem', resize: 'vertical', minHeight: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '120px' : '100px', borderRadius: '0.65rem', padding: '0.75rem 0.85rem' }}
                             />
+                            {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                              <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                💡 <em>Anda dapat menyesuaikan atau menambahkan poin klarifikasi, kronologi, atau izin usaha pada draf di atas untuk mempercepat verifikasi.</em>
+                              </p>
+                            )}
                           </div>
 
                           {/* MOBILE SCREENSHOT ATTACHMENTS SECTION - SPACIOUS & MODERN */}
@@ -24318,7 +24424,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             {/* Header row: Title on left, counter badge on right */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.01em' }}>
-                                Lampiran Berkas (Opsional)
+                                {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Berkas & Bukti Pendukung (Opsional)' : 'Lampiran Berkas (Opsional)'}
                               </span>
                               <span style={{
                                 fontSize: '0.68rem',
@@ -24337,7 +24443,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                             {/* Subtitle description */}
                             <p style={{ margin: 0, fontSize: '0.73rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                              Unggah tangkapan layar atau dokumen PDF untuk mempermudah investigasi kendala.
+                              {(settings.dormancy_status === 'suspended' || settings.is_suspended)
+                                ? 'Unggah dokumen pendukung (Surat Izin Usaha, Foto Fisik Toko/Stok, atau Bukti Klarifikasi) untuk memperkuat banding.'
+                                : 'Unggah tangkapan layar atau dokumen PDF untuk mempermudah investigasi kendala.'}
                             </p>
 
                             <input
