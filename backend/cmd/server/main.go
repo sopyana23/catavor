@@ -64,7 +64,7 @@ func main() {
 	}
 
 	authHandler := handlers.NewAuthHandler(cfg)
-	storeHandler := handlers.NewStoreHandler()
+	storeHandler := handlers.NewStoreHandler(cfg)
 	subscriptionHandler := handlers.NewSubscriptionHandler()
 	productHandler := handlers.NewProductHandler(cfg)
 	categoryHandler := handlers.NewCategoryHandler()

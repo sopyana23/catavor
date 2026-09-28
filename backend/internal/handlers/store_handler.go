@@ -18,10 +18,41 @@ import (
 	"gorm.io/gorm"
 )
 
-type StoreHandler struct{}
+type StoreHandler struct {
+	cfg *config.Config
+}
 
-func NewStoreHandler() *StoreHandler {
-	return &StoreHandler{}
+func NewStoreHandler(cfg ...*config.Config) *StoreHandler {
+	h := &StoreHandler{}
+	if len(cfg) > 0 {
+		h.cfg = cfg[0]
+	}
+	return h
+}
+
+func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store) bool {
+	if store == nil {
+		return false
+	}
+	claims := middleware.ExtractOptionalClaims(c, h.cfg)
+	if claims == nil {
+		return false
+	}
+	if claims.StoreID == store.ID || strings.EqualFold(claims.StoreSlug, store.Slug) {
+		return true
+	}
+	var count int64
+	database.DB.Model(&models.Store{}).Where("id = ? AND user_id = ?", store.ID, claims.UserID).Count(&count)
+	if count > 0 {
+		return true
+	}
+	var user models.User
+	if err := database.DB.Select("id, platform_role").First(&user, claims.UserID).Error; err == nil {
+		if user.PlatformRole == "platform_admin" || user.PlatformRole == "super_admin" || user.PlatformRole == "moderator" {
+			return true
+		}
+	}
+	return false
 }
 
 var ReservedSystemSlugs = map[string]bool{
@@ -229,7 +260,21 @@ func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
 		})
 	}
 
-	query := database.DB.Model(&models.Product{}).Where("store_id = ? AND is_active = ?", store.ID, true)
+	isMerchantView := h.isMerchantRequester(c, &store)
+
+	query := database.DB.Model(&models.Product{}).Where("store_id = ?", store.ID)
+	if isMerchantView {
+		statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
+		if statusFilter == "active" {
+			query = query.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+		} else if statusFilter == "archived" {
+			query = query.Where("is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+		} else if statusFilter == "hidden" || statusFilter == "moderated" {
+			query = query.Where("moderation_status = 'hidden'")
+		}
+	} else {
+		query = query.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+	}
 
 	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
@@ -414,6 +459,8 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	// Touch store activity on public product catalog query (throttled & only affects active stores before warning stage)
 	services.TouchStoreActivity(database.DB, store.ID)
 
+	isMerchantView := h.isMerchantRequester(c, &store)
+
 	query := database.DB.Model(&models.Product{}).
 		Preload("Category").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
@@ -422,7 +469,20 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		Preload("Variants", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_active = true").Order("id ASC")
 		}).
-		Where("store_id = ? AND is_active = true", store.ID)
+		Where("store_id = ?", store.ID)
+
+	if isMerchantView {
+		statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
+		if statusFilter == "active" {
+			query = query.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+		} else if statusFilter == "archived" {
+			query = query.Where("is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+		} else if statusFilter == "hidden" || statusFilter == "moderated" {
+			query = query.Where("moderation_status = 'hidden'")
+		}
+	} else {
+		query = query.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+	}
 
 	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
