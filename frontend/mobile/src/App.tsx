@@ -7523,13 +7523,45 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (notesMatch) notes = notesMatch[1].trim();
     }
 
+    const notifCategory = (notif.category || '').toUpperCase();
+    const isRestoredCase = notifCategory === 'PEMULIHAN' || 
+      notifCategory.includes('PULIH') || 
+      titleLower.includes('pemulihan') || 
+      titleLower.includes('pulih') || 
+      titleLower.includes('restored') || 
+      msgLower.includes('dipulihkan') || 
+      msgLower.includes('resmi dicabut') ||
+      msgLower.includes('telah dicabut') ||
+      msgLower.includes('aktif kembali');
+
+    const isStoreLevel = targetType === 'store' || 
+      notif.target_type === 'single_store' || 
+      titleLower.includes('profil') || 
+      titleLower.includes('toko') || 
+      titleLower.includes('katalog') ||
+      msgLower.includes('profil katalog') ||
+      msgLower.includes('toko anda');
+
     let actionTaken = 'item_hidden';
     let statusBadge = 'ITEM DINONAKTIFKAN (TAKEDOWN)';
     let statusHeadline = 'Penonaktifan Sementara Item Katalog';
     let statusColor = '#f43f5e';
     let isAppealEligible = true;
 
-    if (titleLower.includes('permanen') || msgLower.includes('permanen') || titleLower.includes('banned') || msgLower.includes('banned')) {
+    if (isRestoredCase) {
+      if (isStoreLevel) {
+        actionTaken = 'catalog_restored';
+        targetType = 'store';
+        statusBadge = 'TOKO AKTIF & PULIH';
+        statusHeadline = 'Pemulihan Operasional Profil Katalog Berhasil';
+      } else {
+        actionTaken = 'item_restored';
+        statusBadge = 'ITEM AKTIF KEMBALI';
+        statusHeadline = 'Pemulihan Visibilitas Item Katalog';
+      }
+      statusColor = '#10b981';
+      isAppealEligible = false;
+    } else if (titleLower.includes('permanen') || msgLower.includes('permanen') || titleLower.includes('banned') || msgLower.includes('banned')) {
       actionTaken = 'account_banned';
       statusBadge = 'DITANGGUHKAN PERMANEN (BANNED)';
       statusHeadline = 'Penangguhan Akun & Profil Katalog Secara Permanen';
@@ -7549,12 +7581,6 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       statusHeadline = 'Peringatan Resmi Kepatuhan Konten';
       statusColor = '#f59e0b';
       isAppealEligible = true;
-    } else if (titleLower.includes('pemulihan') || msgLower.includes('diaktifkan kembali') || titleLower.includes('restored')) {
-      actionTaken = 'item_restored';
-      statusBadge = 'STATUS PULIH (AKTIF)';
-      statusHeadline = 'Pemulihan Visibilitas Item Katalog';
-      statusColor = '#10b981';
-      isAppealEligible = false;
     }
 
     let issuedDateStr = 'Baru saja';
@@ -7588,6 +7614,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return {
       isModeration,
       isAppealEligible,
+      isRestored: isRestoredCase,
+      isStoreRestored: isRestoredCase && isStoreLevel,
       daysRemainingForAppeal,
       reportNumber,
       targetType,
@@ -21793,36 +21821,44 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <div className="glass-panel" style={{
                               padding: '1.25rem 1.15rem',
                               borderRadius: '1rem',
-                              border: `1px solid ${modCase.statusColor}35`,
-                              background: 'var(--card-bg-gradient)',
-                              boxShadow: `0 8px 32px rgba(0, 0, 0, 0.3), 0 0 1px ${modCase.statusColor}50`,
+                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : `1px solid ${modCase.statusColor}35`,
+                              background: modCase.isRestored 
+                                ? 'radial-gradient(ellipse at top left, rgba(16, 185, 129, 0.12) 0%, var(--card-bg-gradient) 70%)'
+                                : 'var(--card-bg-gradient)',
+                              boxShadow: modCase.isRestored 
+                                ? '0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(16, 185, 129, 0.15)' 
+                                : `0 8px 32px rgba(0, 0, 0, 0.3), 0 0 1px ${modCase.statusColor}50`,
                               display: 'flex',
                               flexDirection: 'column',
                               gap: '1.15rem'
                             }}>
-                              {/* Incident Header Banner */}
+                              {/* Incident or Recovery Header Banner */}
                               <div style={{
                                 display: 'flex',
                                 alignItems: 'flex-start',
                                 gap: '0.85rem',
                                 padding: '1rem',
                                 borderRadius: '0.85rem',
-                                backgroundColor: `${modCase.statusColor}12`,
-                                border: `1px solid ${modCase.statusColor}35`
+                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : `${modCase.statusColor}12`,
+                                border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.32)' : `1px solid ${modCase.statusColor}35`
                               }}>
                                 <div style={{
                                   width: '42px',
                                   height: '42px',
                                   borderRadius: '0.65rem',
-                                  backgroundColor: `${modCase.statusColor}22`,
-                                  border: `1px solid ${modCase.statusColor}45`,
+                                  backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.22)' : `${modCase.statusColor}22`,
+                                  border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.45)' : `1px solid ${modCase.statusColor}45`,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  color: modCase.statusColor,
+                                  color: modCase.isRestored ? '#10b981' : modCase.statusColor,
                                   flexShrink: 0
                                 }}>
-                                  <ShieldAlert size={22} style={{ strokeWidth: 2.2 }} />
+                                  {modCase.isRestored ? (
+                                    <CheckCircle2 size={24} style={{ strokeWidth: 2.3 }} />
+                                  ) : (
+                                    <ShieldAlert size={22} style={{ strokeWidth: 2.2 }} />
+                                  )}
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
@@ -21836,23 +21872,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                       fontWeight: 800,
                                       letterSpacing: '0.04em',
                                       textTransform: 'uppercase',
-                                      backgroundColor: `${modCase.statusColor}25`,
-                                      color: modCase.statusColor,
-                                      border: `1px solid ${modCase.statusColor}45`
+                                      backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.18)' : `${modCase.statusColor}25`,
+                                      color: modCase.isRestored ? '#10b981' : modCase.statusColor,
+                                      border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.4)' : `1px solid ${modCase.statusColor}45`
                                     }}>
-                                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: modCase.statusColor, boxShadow: `0 0 8px ${modCase.statusColor}` }} />
-                                      {modCase.statusBadge}
+                                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: modCase.isRestored ? '#10b981' : modCase.statusColor, boxShadow: `0 0 8px ${modCase.isRestored ? '#10b981' : modCase.statusColor}` }} />
+                                      {modCase.isRestored ? (modCase.targetType === 'store' ? 'TOKO RESMI DIPULIHKAN' : 'ITEM RESMI DIPULIHKAN') : modCase.statusBadge}
                                     </span>
                                     <span style={{
                                       fontSize: '0.66rem',
                                       fontWeight: 700,
                                       padding: '0.2rem 0.5rem',
                                       borderRadius: '999px',
-                                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                                      color: 'var(--text-secondary)',
-                                      border: '1px solid var(--border-light)'
+                                      backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.06)',
+                                      color: modCase.isRestored ? '#10b981' : 'var(--text-secondary)',
+                                      border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--border-light)'
                                     }}>
-                                      KEAMANAN & KEPATUHAN
+                                      {modCase.isRestored ? 'PEMULIHAN & AKTIVASI' : 'KEAMANAN & KEPATUHAN'}
                                     </span>
                                   </div>
                                   <h2 style={{
@@ -21870,7 +21906,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     margin: '0.3rem 0 0 0',
                                     fontWeight: 500
                                   }}>
-                                    Dokumen Resmi Keputusan Tim Trust & Safety Platform Catavor
+                                    {modCase.isRestored 
+                                      ? 'Dokumen Resmi Keputusan Pemulihan Layanan Tim Trust & Safety Platform Catavor'
+                                      : 'Dokumen Resmi Keputusan Tim Trust & Safety Platform Catavor'}
                                   </p>
                                 </div>
                               </div>
@@ -21951,14 +21989,18 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   border: '1px solid var(--border-light)'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
-                                    <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
-                                    <span>Kategori Pelanggaran</span>
+                                    {modCase.isRestored ? (
+                                      <CheckCircle2 size={13} style={{ color: '#10b981' }} />
+                                    ) : (
+                                      <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
+                                    )}
+                                    <span>{modCase.isRestored ? 'Kategori Evaluasi' : 'Kategori Pelanggaran'}</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#f59e0b', wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                    {modCase.reason}
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : '#f59e0b', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                    {modCase.isRestored ? 'Pemulihan Akses Penuh' : modCase.reason}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    Standar Kebijakan Platform
+                                    {modCase.isRestored ? 'Status Kepatuhan Terverifikasi' : 'Standar Kebijakan Platform'}
                                   </div>
                                 </div>
 
@@ -21969,14 +22011,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   border: '1px solid var(--border-light)'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
-                                    <Lock size={13} style={{ color: modCase.statusColor }} />
+                                    <Lock size={13} style={{ color: modCase.isRestored ? '#10b981' : modCase.statusColor }} />
                                     <span>Status Visibilitas</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.statusColor, wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                    {modCase.actionTaken === 'catalog_suspended' ? 'Operasional Ditangguhkan' : modCase.actionTaken === 'warning_issued' ? 'Peringatan Aktif' : modCase.actionTaken === 'item_restored' ? 'Aktif Normal' : 'Disembunyikan (Takedown)'}
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.statusColor, wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                    {modCase.isRestored ? 'Aktif & Pulih Penuh' : modCase.actionTaken === 'catalog_suspended' ? 'Operasional Ditangguhkan' : modCase.actionTaken === 'warning_issued' ? 'Peringatan Aktif' : 'Disembunyikan (Takedown)'}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    Akses etalase publik dinonaktifkan
+                                    {modCase.isRestored ? 'Akses etalase publik dan pesanan aktif' : 'Akses etalase publik dinonaktifkan'}
                                   </div>
                                 </div>
 
@@ -21987,18 +22029,18 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   border: '1px solid var(--border-light)'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.35rem' }}>
-                                    <Scale size={13} style={{ color: 'var(--primary)' }} />
-                                    <span>Hak Banding Mitra</span>
+                                    <Scale size={13} style={{ color: modCase.isRestored ? '#10b981' : 'var(--primary)' }} />
+                                    <span>{modCase.isRestored ? 'Status Berkas' : 'Hak Banding Mitra'}</span>
                                   </div>
-                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isAppealEligible ? '#10b981' : '#ef4444', wordBreak: 'break-word', lineHeight: 1.35 }}>
-                                    {modCase.actionTaken === 'account_banned' 
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : modCase.isAppealEligible ? '#10b981' : '#ef4444', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                                    {modCase.isRestored ? 'Selesai & Tertutup' : modCase.actionTaken === 'account_banned' 
                                       ? 'Permanen (Ditutup)' 
                                       : modCase.isAppealEligible 
                                       ? `Tersedia (${modCase.daysRemainingForAppeal} Hari)` 
                                       : 'Tidak Tersedia'}
                                   </div>
                                   <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                    {modCase.isAppealEligible ? 'SLA Evaluasi: < 24 Jam Kerja' : 'Keputusan penegakan bersifat final'}
+                                    {modCase.isRestored ? 'Sanksi telah dicabut secara resmi' : modCase.isAppealEligible ? 'SLA Evaluasi: < 24 Jam Kerja' : 'Keputusan penegakan bersifat final'}
                                   </div>
                                 </div>
                               </div>
@@ -22007,22 +22049,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               <div style={{
                                 padding: '1.05rem',
                                 borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(244, 63, 94, 0.05)',
-                                borderLeft: '4px solid #f43f5e',
-                                borderTop: '1px solid rgba(244, 63, 94, 0.2)',
-                                borderRight: '1px solid rgba(244, 63, 94, 0.2)',
-                                borderBottom: '1px solid rgba(244, 63, 94, 0.2)',
+                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.05)' : 'rgba(244, 63, 94, 0.05)',
+                                borderLeft: modCase.isRestored ? '4px solid #10b981' : '4px solid #f43f5e',
+                                borderTop: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
+                                borderRight: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
+                                borderBottom: `1px solid ${modCase.isRestored ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.2)'}`,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.6rem'
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 800, color: '#f43f5e' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : '#f43f5e' }}>
                                     <BadgeCheck size={16} />
-                                    <span>Catatan Resmi Penguji (Trust & Safety Examiner Finding)</span>
+                                    <span>{modCase.isRestored ? 'Catatan Resmi Keputusan Pemulihan (Trust & Safety Note)' : 'Catatan Resmi Penguji (Trust & Safety Examiner Finding)'}</span>
                                   </div>
                                   <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', padding: '0.15rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                                    Audit Terverifikasi
+                                    {modCase.isRestored ? 'Pemulihan Terverifikasi' : 'Audit Terverifikasi'}
                                   </span>
                                 </div>
                                 <div style={{
@@ -22034,31 +22076,53 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   borderRadius: '0.5rem',
                                   backgroundColor: 'rgba(0,0,0,0.2)'
                                 }}>
-                                  "{modCase.notes || 'Penonaktifan sementara atas dasar kepatuhan kebijakan katalog dan perlindungan ekosistem belanja.'}"
+                                  "{modCase.notes || (modCase.isRestored ? 'Penangguhan telah resmi dicabut setelah verifikasi kepatuhan. Operasional profil katalog kini telah kembali normal sepenuhnya.' : 'Penonaktifan sementara atas dasar kepatuhan kebijakan katalog dan perlindungan ekosistem belanja.')}"
                                 </div>
                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
-                                  Catatan ini diterbitkan berdasarkan hasil evaluasi terhadap laporan kepatuhan yang masuk ke sistem.
+                                  {modCase.isRestored 
+                                    ? 'Catatan ini diterbitkan oleh Tim Kepatuhan Catavor sebagai konfirmasi resmi status aktif profil katalog.'
+                                    : 'Catatan ini diterbitkan berdasarkan hasil evaluasi terhadap laporan kepatuhan yang masuk ke sistem.'}
                                 </p>
                               </div>
 
-                              {/* Right to Appeal Advisory Guide */}
-                              <div style={{
-                                padding: '1rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                                border: '1px solid rgba(59, 130, 246, 0.2)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.45rem'
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#3b82f6' }}>
-                                  <LifeBuoy size={16} />
-                                  <span>Prosedur Pengajuan Banding Kepatuhan (Right to Appeal)</span>
+                              {/* Right to Appeal or Restoration Guide */}
+                              {modCase.isRestored ? (
+                                <div style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.45rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#10b981' }}>
+                                    <CheckCircle2 size={16} />
+                                    <span>Informasi Operasional Pasca-Pemulihan</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    Profil katalog Anda telah sepenuhnya dipulihkan. Pengunjung umum kini dapat kembali mengakses tautan profil publik dan melakukan pemesanan via WhatsApp seperti biasa. Pastikan untuk selalu mematuhi pedoman komunitas Catavor.
+                                  </p>
                                 </div>
-                                <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
-                                  Platform Catavor berkomitmen menjaga iklim usaha yang adil dan transparan. Jika Anda memiliki bukti bahwa produk telah sesuai standar regulasi atau telah melakukan koreksi data, silakan ajukan banding resmi. Tim Kepatuhan Senior akan meninjau ulang permohonan Anda secara prioritas.
-                                </p>
-                              </div>
+                              ) : (
+                                <div style={{
+                                  padding: '1rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.45rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 800, color: '#3b82f6' }}>
+                                    <LifeBuoy size={16} />
+                                    <span>Prosedur Pengajuan Banding Kepatuhan (Right to Appeal)</span>
+                                  </div>
+                                  <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    Platform Catavor berkomitmen menjaga iklim usaha yang adil dan transparan. Jika Anda memiliki bukti bahwa produk telah sesuai standar regulasi atau telah melakukan koreksi data, silakan ajukan banding resmi. Tim Kepatuhan Senior akan meninjau ulang permohonan Anda secara prioritas.
+                                  </p>
+                                </div>
+                              )}
 
                               {/* Case Sheet Actions */}
                               <div style={{
@@ -22068,7 +22132,58 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 paddingTop: '0.5rem',
                                 borderTop: '1px solid var(--border-light)'
                               }}>
-                                {!modCase.isAppealEligible && (
+                                {modCase.isRestored ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                                    <div style={{
+                                      padding: '0.85rem 1rem',
+                                      borderRadius: '0.75rem',
+                                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                                      color: '#10b981',
+                                      fontSize: '0.8rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem',
+                                      lineHeight: 1.45
+                                    }}>
+                                      <CheckCircle2 size={18} style={{ color: '#10b981', flexShrink: 0 }} />
+                                      <span>
+                                        Pemulihan selesai. Berkas pengawasan ditutup dan etalase toko aktif normal.
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedNotification(null);
+                                        const slug = storeSlug || getStoreSlug();
+                                        if (slug) {
+                                          window.location.href = `/${slug}/admin`;
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '0.85rem 1.25rem',
+                                        borderRadius: '0.75rem',
+                                        fontSize: '0.88rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        border: 'none',
+                                        backgroundColor: '#10b981',
+                                        color: '#ffffff',
+                                        boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.55rem',
+                                        width: '100%',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                    >
+                                      <CheckCircle2 size={16} style={{ strokeWidth: 2.5 }} />
+                                      <span>Kembali ke Beranda & Kelola Katalog</span>
+                                      <ArrowRight size={15} />
+                                    </button>
+                                  </div>
+                                ) : !modCase.isAppealEligible ? (
                                   <div style={{
                                     padding: '0.85rem 1rem',
                                     borderRadius: '0.75rem',
@@ -22088,7 +22203,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                         : 'Masa tenggang banding 30 hari telah berakhir. Akses pengajuan banding otomatis ditutup.'}
                                     </span>
                                   </div>
-                                )}
+                                ) : null}
 
                                 {modCase.isAppealEligible && (() => {
                                   const activeAppeal = tickets.find(t => 
