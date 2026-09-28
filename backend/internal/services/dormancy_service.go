@@ -165,7 +165,7 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 
 	// Auto-resolve pending appeal tickets from this past dormancy suspension
 	_ = db.Model(&models.SupportTicket{}).
-		Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", store.ID).
+		Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'compliance' OR category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", store.ID).
 		Updates(map[string]interface{}{
 			"status":      "resolved",
 			"resolved_at": now,
