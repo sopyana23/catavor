@@ -136,7 +136,8 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&blacklisted).Error; err == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
-			"message": "Toko tidak ditemukan.",
+			"code":    "STORE_BANNED",
+			"message": "Katalog toko telah dinonaktifkan secara permanen.",
 		})
 	}
 
@@ -155,7 +156,8 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	if store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
-			"message": "Toko tidak ditemukan.",
+			"code":    "STORE_BANNED",
+			"message": "Katalog toko telah dinonaktifkan secara permanen.",
 		})
 	}
 
