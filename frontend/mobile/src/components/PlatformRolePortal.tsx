@@ -5356,13 +5356,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         badge: 'PERINGATAN',
                         badgeColor: '#f59e0b'
                       };
+                    case 'item_needs_fix':
+                      return {
+                        label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
+                        desc: 'Disembunyikan, merchant diizinkan edit data untuk diajukan ulang',
+                        icon: AlertTriangle,
+                        color: '#f59e0b',
+                        badge: 'PERLU EDIT',
+                        badgeColor: '#f59e0b'
+                      };
+                    case 'item_locked':
                     case 'item_hidden':
                       return {
-                        label: 'Nonaktifkan / Sembunyikan Item',
-                        desc: 'Item disembunyikan dari katalog publik & pencarian',
+                        label: 'Nonaktifkan & Kunci: Pelanggaran Keras',
+                        desc: 'Disembunyikan & kunci edit (read-only), hanya banding atau hapus',
                         icon: XCircle,
                         color: '#ef4444',
-                        badge: 'NONAKTIF',
+                        badge: 'TERKUNCI',
                         badgeColor: '#ef4444'
                       };
                     case 'item_restored':
@@ -5440,9 +5450,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           },
                           ...(isItem ? [
                             {
-                              value: 'item_hidden',
-                              label: 'Nonaktifkan / Sembunyikan Item',
-                              desc: 'Seketika menyembunyikan item dari katalog publik & hasil pencarian'
+                              value: 'item_needs_fix',
+                              label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
+                              desc: 'Sembunyikan dari publik namun merchant diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang'
+                            },
+                            {
+                              value: 'item_locked',
+                              label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras',
+                              desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi komoditas terlarang/fatal. Hanya banding atau hapus'
                             },
                             {
                               value: 'item_restored',
@@ -5890,14 +5905,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                 const hasAction = r.action_taken && r.action_taken !== 'none';
                 const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
-                const actionLabel = r.action_taken === 'item_hidden' 
-                  ? 'Item Dinonaktifkan' 
+                const actionLabel = r.action_taken === 'item_needs_fix'
+                  ? 'Perlu Perbaikan'
+                  : (r.action_taken === 'item_locked' || r.action_taken === 'item_hidden')
+                  ? 'Item Dikunci'
                   : r.action_taken === 'catalog_suspended' 
                   ? 'Katalog Dibekukan' 
                   : r.action_taken === 'catalog_banned'
                   ? 'Katalog Dibanned Permanen'
                   : r.action_taken === 'warning_issued' 
                   ? 'Diberi Peringatan' 
+                  : r.action_taken === 'item_restored'
+                  ? 'Item Dipulihkan'
                   : (r.action_taken || '');
 
                 const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned';

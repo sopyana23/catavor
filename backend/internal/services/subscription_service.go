@@ -262,9 +262,18 @@ func CanEditOrReactivateProduct(db *gorm.DB, storeID uint, productID uint, willB
 		return false, "Produk tidak ditemukan."
 	}
 
-	// 1. Compliance Takedown Guard: If product was hidden/moderated by platform, merchant CANNOT activate it
-	if product.ModerationStatus == "hidden" && willBeActive {
-		return false, "Produk ini dinonaktifkan oleh Tim Kepatuhan/Moderasi platform dan tidak dapat diaktifkan kembali secara mandiri. Silakan hubungi tim bantuan CS jika Anda membutuhkan klarifikasi."
+	// 1. Compliance Takedown Guard:
+	// If product is locked by platform admin, merchant CANNOT edit or activate it
+	if product.ModerationStatus == "locked" {
+		return false, "Produk ini dinonaktifkan & dikunci oleh Tim Kepatuhan platform karena pelanggaran kebijakan komoditas. Pengeditan dinonaktifkan."
+	}
+	// If product is under review, merchant cannot edit until review completes
+	if product.ModerationStatus == "in_review" {
+		return false, "Produk ini sedang dalam peninjauan ulang oleh Tim Kepatuhan. Mohon tunggu proses verifikasi selesai."
+	}
+	// If product needs fix, merchant can edit, but CANNOT directly activate it to public
+	if (product.ModerationStatus == "needs_fix" || product.ModerationStatus == "hidden") && willBeActive {
+		return false, "Produk ini sedang dalam peninjauan kepatuhan. Anda dapat memperbarui data produk, namun tidak dapat langsung mengaktifkannya ke publik secara mandiri sebelum disetujui Tim Kepatuhan."
 	}
 
 	// 2. If product was archived and user tries to set it active (or edit it)

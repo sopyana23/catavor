@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
@@ -47,6 +48,7 @@ type ProductRequest struct {
 	Attributes          map[string]interface{} `json:"attributes"`
 	GalleryImages       []string               `json:"gallery_images"`
 	IsActive            *bool                  `json:"is_active"`
+	IsResubmit          *bool                  `json:"is_resubmit"`
 	Variants            []struct {
 		VariantName   string   `json:"variant_name"`
 		SKU           string   `json:"sku"`
@@ -451,6 +453,15 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		product.Attributes = datatypes.JSON(b)
 	}
 
+	wasInNeedsFix := product.ModerationStatus == "needs_fix" || product.ModerationStatus == "hidden"
+	if wasInNeedsFix {
+		now := time.Now().UTC()
+		product.ModerationStatus = "in_review"
+		product.IsActive = false
+		product.ResubmittedAt = &now
+		product.ResubmitCount = product.ResubmitCount + 1
+	}
+
 	if err := database.DB.Save(&product).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -487,6 +498,30 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
+	// Trigger broadcast alert to platform admins if product was resubmitted
+	if wasInNeedsFix {
+		go func(pID uint, pName, sTitle string) {
+			now := time.Now().UTC()
+			adminMsg := fmt.Sprintf("Merchant \"%s\" telah memperbarui data produk \"%s\" dan mengajukan peninjauan ulang.", sTitle, pName)
+			adminNotif := models.Notification{
+				ID:            fmt.Sprintf("notif_resubmit_%d_%d", pID, now.UnixNano()),
+				TargetType:    "all",
+				Title:         "Pengajuan Ulang Perbaikan Produk",
+				Message:       adminMsg,
+				Type:          "info",
+				Category:      "MODERASI",
+				ActionEnabled: true,
+				ActionType:    "detail",
+				ActionLabel:   "Tinjau Produk →",
+				ActionURL:     fmt.Sprintf("/superadmin?tab=reports&item_id=%d", pID),
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
+			_ = database.DB.Create(&adminNotif).Error
+			services.GetNotificationHub().Broadcast(&adminNotif)
+		}(product.ID, product.Name, store.StoreTitle)
+	}
+
 	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
 	// Record Activity Log
@@ -503,7 +538,10 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	actionType := "product.update"
 	desc := fmt.Sprintf("Memperbarui data produk '%s'.", product.Name)
-	if oldPrice != product.Price {
+	if wasInNeedsFix {
+		actionType = "product.resubmit"
+		desc = fmt.Sprintf("Mengajukan ulang perbaikan untuk produk '%s' yang sebelumnya disembunyikan.", product.Name)
+	} else if oldPrice != product.Price {
 		actionType = "product.price_change"
 		desc = fmt.Sprintf("Mengubah harga produk '%s' dari Rp %s menjadi Rp %s.", product.Name, formatRupiahInt(int(oldPrice)), formatRupiahInt(int(product.Price)))
 	}
@@ -529,9 +567,14 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		UserAgent: c.Get("User-Agent"),
 	})
 
+	respMsg := "Produk berhasil diperbarui."
+	if wasInNeedsFix {
+		respMsg = "Perbaikan produk berhasil dikirim dan kini dalam status peninjauan ulang oleh Tim Kepatuhan."
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Produk berhasil diperbarui.",
+		"message": respMsg,
 		"data":    product,
 	})
 }

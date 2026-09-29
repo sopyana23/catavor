@@ -635,11 +635,11 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		// C. Execute Technical Enforcement
 		if applyEnforcement {
 			switch actionTaken {
-			case "item_hidden":
+			case "item_needs_fix":
 				if report.FaunaID != nil && *report.FaunaID > 0 {
 					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
 						"is_active":             false,
-						"moderation_status":     "hidden",
+						"moderation_status":     "needs_fix",
 						"moderation_reason":     adminNotes,
 						"moderated_at":          &now,
 						"is_shipping_available": false,
@@ -648,7 +648,26 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					}
 					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
 						"is_active":             false,
-						"moderation_status":     "hidden",
+						"moderation_status":     "needs_fix",
+						"moderation_reason":     adminNotes,
+						"moderated_at":          &now,
+						"is_shipping_available": false,
+					}).Error
+				}
+			case "item_locked", "item_hidden":
+				if report.FaunaID != nil && *report.FaunaID > 0 {
+					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+						"is_active":             false,
+						"moderation_status":     "locked",
+						"moderation_reason":     adminNotes,
+						"moderated_at":          &now,
+						"is_shipping_available": false,
+					}).Error; err != nil {
+						return err
+					}
+					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+						"is_active":             false,
+						"moderation_status":     "locked",
 						"moderation_reason":     adminNotes,
 						"moderated_at":          &now,
 						"is_shipping_available": false,
@@ -661,6 +680,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"moderation_status":     "none",
 						"moderation_reason":     "",
 						"moderated_at":          nil,
+						"resubmitted_at":        nil,
 						"is_shipping_available": true,
 					}).Error; err != nil {
 						return err
@@ -670,6 +690,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"moderation_status":     "none",
 						"moderation_reason":     "",
 						"moderated_at":          nil,
+						"resubmitted_at":        nil,
 						"is_shipping_available": true,
 					}).Error
 				}
@@ -760,7 +781,11 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				targetSubTab := ""
 				actionType := "detail"
 				notifCategory := "KEAMANAN"
-				if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
+				if actionTaken == "item_needs_fix" {
+					notifCategory = "PERBAIKAN"
+					actionURL = fmt.Sprintf("/%s/admin/items", report.StoreSlug)
+					targetSubTab = "items"
+				} else if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
 					notifCategory = "PEMULIHAN"
 					actionURL = fmt.Sprintf("/%s/admin", report.StoreSlug)
 					targetSubTab = "items"
@@ -841,7 +866,8 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		if report.TargetType == "item" && report.ItemName != "" {
 			targetEntityName = report.ItemName
 		}
-		sendModerationEmail(targetRecipientEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber, report.ReasonLabel, report.StoreSlug)
+		itemTypeLabel := mapProductTypeLabel(report.ItemType)
+		sendModerationEmail(targetRecipientEmail, report.StoreTitle, targetEntityName, actionTaken, adminNotes, report.ReportNumber, report.ReasonLabel, report.StoreSlug, itemTypeLabel)
 	}
 
 	// C. Dispatch Resolution / Outcome Notification to Reporter(s) via persistent queue
@@ -916,10 +942,15 @@ func buildModerationNotificationContent(actionTaken, targetName, reportNumber st
 			fmt.Sprintf("Peringatan resmi untuk \"%s\" (#%s). Buka rincian untuk panduan perbaikan & hak banding.", targetName, reportNumber),
 			"warning",
 			"Ajukan Banding Kepatuhan →"
-	case "item_hidden":
-		return "Penonaktifan Sementara Item Katalog",
-			fmt.Sprintf("Item \"%s\" dinonaktifkan sementara dari etalase publik (#%s). Buka rincian untuk informasi banding.", targetName, reportNumber),
+	case "item_needs_fix":
+		return "Perlu Perbaikan Informasi Produk",
+			fmt.Sprintf("Produk \"%s\" memerlukan penyesuaian informasi (#%s). Buka rincian untuk panduan perbaikan.", targetName, reportNumber),
 			"warning",
+			"Perbaiki Produk Sekarang →"
+	case "item_locked", "item_hidden":
+		return "Penonaktifan & Penguncian Produk",
+			fmt.Sprintf("Produk \"%s\" dinonaktifkan & dikunci oleh Tim Kepatuhan (#%s). Buka rincian untuk hak banding.", targetName, reportNumber),
+			"danger",
 			"Ajukan Banding Kepatuhan →"
 	case "item_restored":
 		return "Item Katalog Berhasil Dipulihkan",
@@ -956,9 +987,12 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	case "warning_issued":
 		actionHeadline = "Peringatan Resmi Kepatuhan Konten Katalog"
 		actionExplanation = fmt.Sprintf("Tim Kepatuhan menemukan ketidaksesuaian konten pada entitas **%s** dengan Standar Kebijakan Komunitas Catavor. Anda diminta meninjau dan melakukan koreksi mandiri terhadap foto, deskripsi, izin, atau klaim produk terkait. Sanksi penonaktifan dapat dijatuhkan apabila pelanggaran berulang.", targetName)
-	case "item_hidden":
-		actionHeadline = "Penonaktifan Sementara Item Katalog (Takedown)"
-		actionExplanation = fmt.Sprintf("Item katalog **%s** telah dinonaktifkan sementara dari etalase publik untuk melindungi keamanan ekosistem niaga. Item tidak dapat dilihat maupun dipesan oleh pengunjung umum selama masa investigasi dan klarifikasi berlangsung.", targetName)
+	case "item_needs_fix":
+		actionHeadline = "Pemberitahuan Resmi Penyesuaian & Koreksi Produk"
+		actionExplanation = fmt.Sprintf("Item katalog **%s** telah disembunyikan sementara dari etalase publik karena informasi produk belum memenuhi standar komunitas. Anda memiliki kesempatan untuk mengoreksi data produk (foto, deskripsi, harga, spesifikasi) dan mengajukan peninjauan kembali melalui tombol **Simpan & Ajukan Tinjauan Ulang**.", targetName)
+	case "item_locked", "item_hidden":
+		actionHeadline = "Penonaktifan & Penguncian Produk (Pelanggaran Komoditas/Kebijakan)"
+		actionExplanation = fmt.Sprintf("Item katalog **%s** telah dinonaktifkan dan dikunci oleh Tim Kepatuhan Catavor sehubungan dengan dugaan pelanggaran komoditas atau standar integritas komunitas. Fitur pengeditan dinonaktifkan untuk mencegah peredaran komoditas terlarang.", targetName)
 	case "item_restored":
 		actionHeadline = "Pemulihan Visibilitas Item Katalog"
 		actionExplanation = fmt.Sprintf("Peninjauan atas item katalog **%s** telah selesai dievaluasi. Item telah diaktifkan kembali secara penuh ke etalase publik dan kini dapat diakses normal oleh pelanggan.", targetName)
@@ -1007,6 +1041,31 @@ Pemberitahuan Resmi Pencabutan Sanksi & Pemulihan Akses Platform Catavor.
 			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
 	}
 
+	if actionTaken == "item_needs_fix" {
+		return fmt.Sprintf(`### %s
+Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
+
+---
+### Rincian Kasus Kepatuhan:
+• Nomor Tiket Kepatuhan: **#%s**
+• Tanggal Penerbitan: **%s**
+• Nama Profil Terdaftar: **%s**
+• Entitas Terkait: **%s**%s
+• Kategori Dugaan Pelanggaran: **%s**%s
+
+---
+### Penjelasan Keputusan & Tindak Lanjut:
+%s
+
+---
+### Hak Koreksi & Langkah Perbaikan (Action Required):
+Platform Catavor memberikan kesempatan bagi mitra untuk memperbaiki data produk agar selaras dengan Pedoman Komunitas:
+1. **Lakukan Koreksi Mandiri**: Buka menu inventaris produk Anda, perbaiki atribut yang bermasalah (foto, deskripsi, legalitas izin edar, atau spesifikasi).
+2. **Ajukan Tinjauan Ulang**: Tekan tombol **Simpan & Ajukan Tinjauan Ulang** pada form edit produk. Tim Kepatuhan akan segera meninjau kembali perbaikan Anda dalam 1x24 jam kerja.
+3. **Opsi Hapus Item**: Jika Anda tidak berniat menjual produk ini lagi, Anda dipersilakan menghapus produk secara mandiri untuk menjaga reputasi toko Anda.`,
+			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
+	}
+
 	return fmt.Sprintf(`### %s
 Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
 
@@ -1031,7 +1090,7 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 }
 
 // sendModerationEmail dispatches official transactional email to merchant owner via persistent queue
-func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNotes, reportNumber, reasonLabel, storeSlug string) {
+func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNotes, reportNumber, reasonLabel, storeSlug, itemTypeLabel string) {
 	toEmail = strings.TrimSpace(toEmail)
 	if toEmail == "" {
 		return
@@ -1052,12 +1111,15 @@ func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNote
 	case "warning_issued":
 		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
 		category = "compliance_warning"
-	case "item_hidden":
-		subject, bodyHTML = services.BuildItemTakedownEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
-		category = "compliance_item_hidden"
+	case "item_needs_fix":
+		subject, bodyHTML = services.BuildItemNeedsFixEmail(storeTitle, targetName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_item_needs_fix"
+	case "item_locked", "item_hidden":
+		subject, bodyHTML = services.BuildItemLockedEmail(storeTitle, targetName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug)
+		category = "compliance_item_locked"
 	case "item_restored":
-		subject, bodyHTML = services.BuildRestoredEmail(storeTitle, reportNumber, storeSlug)
-		category = "compliance_restored"
+		subject, bodyHTML = services.BuildItemApprovedEmail(storeTitle, targetName, reportNumber, storeSlug)
+		category = "compliance_item_restored"
 	default:
 		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
 		category = "compliance_warning"
@@ -1219,4 +1281,148 @@ func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNu
 
 	return nil
 }
+
+type ReviewItemRequest struct {
+	ProductID  uint   `json:"product_id"`
+	Decision   string `json:"decision"` // "approve" or "reject"
+	AdminNotes string `json:"admin_notes"`
+}
+
+// ReviewRemediatedItem allows platform admin to approve or reject a product that was resubmitted by a merchant.
+func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
+	var req ReviewItemRequest
+	if err := c.BodyParser(&req); err != nil || req.ProductID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format permintaan tinjauan tidak valid.",
+		})
+	}
+
+	var product models.Product
+	if err := database.DB.Preload("Store").Preload("Store.User").Where("id = ?", req.ProductID).First(&product).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Produk tidak ditemukan.",
+		})
+	}
+
+	now := time.Now().UTC()
+	storeTitle := "Katalog Digital"
+	storeSlug := ""
+	ownerEmail := ""
+	if product.Store != nil {
+		storeTitle = product.Store.StoreTitle
+		storeSlug = product.Store.Slug
+		if product.Store.User != nil {
+			ownerEmail = product.Store.User.Email
+		}
+	}
+
+	reportNum := fmt.Sprintf("REV-%d", product.ID)
+
+	if req.Decision == "approve" {
+		product.IsActive = true
+		product.ModerationStatus = "none"
+		product.ModerationReason = ""
+		product.ModeratedAt = nil
+		product.ResubmittedAt = nil
+		_ = database.DB.Save(&product).Error
+		_ = database.DB.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
+			"is_active":         true,
+			"moderation_status": "none",
+			"moderation_reason": "",
+			"moderated_at":      nil,
+			"resubmitted_at":    nil,
+		}).Error
+
+		// Invalidate cache
+		InvalidateReportMetricsCache()
+
+		// Send email to merchant
+		if ownerEmail != "" {
+			sub, bHTML := services.BuildItemApprovedEmail(storeTitle, product.Name, reportNum, storeSlug)
+			_, _ = services.EnqueueEmail(ownerEmail, storeTitle, "Catavor Trust & Safety", sub, bHTML, "compliance_item_approved", reportNum)
+		}
+
+		// Create in-app notification
+		notif := models.Notification{
+			ID:            fmt.Sprintf("notif_appr_%d_%d", product.ID, now.UnixNano()),
+			TargetType:    "single_store",
+			TargetID:      product.StoreID,
+			TargetName:    storeTitle,
+			Title:         "Perbaikan Produk Telah Disetujui",
+			Category:      "PEMULIHAN",
+			Message:       fmt.Sprintf("Perbaikan untuk produk \"%s\" telah disetujui oleh Tim Kepatuhan. Produk kini telah aktif kembali secara publik.", product.Name),
+			Type:          "success",
+			ActionEnabled: true,
+			ActionType:    "detail",
+			LinkSubTab:    "items",
+			ActionLabel:   "Lihat Produk di Katalog →",
+			ActionURL:     fmt.Sprintf("/%s", storeSlug),
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		_ = database.DB.Create(&notif).Error
+		services.GetNotificationHub().Broadcast(&notif)
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Perbaikan produk berhasil disetujui. Produk telah aktif kembali di katalog publik.",
+			"data":    product,
+		})
+	}
+
+	// Decision == "reject" (needs further remediation)
+	notes := strings.TrimSpace(req.AdminNotes)
+	if notes == "" {
+		notes = "Perbaikan yang diajukan belum memenuhi standar kepatuhan komunitas. Silakan periksa kembali foto dan deskripsi produk."
+	}
+
+	product.IsActive = false
+	product.ModerationStatus = "needs_fix"
+	product.ModerationReason = notes
+	product.ModeratedAt = &now
+	_ = database.DB.Save(&product).Error
+	_ = database.DB.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
+		"is_active":         false,
+		"moderation_status": "needs_fix",
+		"moderation_reason": notes,
+		"moderated_at":      &now,
+	}).Error
+
+	InvalidateReportMetricsCache()
+
+	itemTypeLabel := mapProductTypeLabel(product.ProductType)
+	if ownerEmail != "" {
+		sub, bHTML := services.BuildItemNeedsFixEmail(storeTitle, product.Name, itemTypeLabel, "Revisi Belum Sesuai", notes, reportNum, storeSlug)
+		_, _ = services.EnqueueEmail(ownerEmail, storeTitle, "Catavor Trust & Safety", sub, bHTML, "compliance_item_needs_fix", reportNum)
+	}
+
+	notif := models.Notification{
+		ID:            fmt.Sprintf("notif_revisi_%d_%d", product.ID, now.UnixNano()),
+		TargetType:    "single_store",
+		TargetID:      product.StoreID,
+		TargetName:    storeTitle,
+		Title:         "Perbaikan Produk Memerlukan Revisi Lanjutan",
+		Category:      "PERBAIKAN",
+		Message:       fmt.Sprintf("Perbaikan untuk produk \"%s\" belum disetujui: %s", product.Name, notes),
+		Type:          "warning",
+		ActionEnabled: true,
+		ActionType:    "detail",
+		LinkSubTab:    "items",
+		ActionLabel:   "Perbaiki Produk Sekarang →",
+		ActionURL:     fmt.Sprintf("/%s/admin/items", storeSlug),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	_ = database.DB.Create(&notif).Error
+	services.GetNotificationHub().Broadcast(&notif)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Pengajuan ulang ditolak. Catatan revisi telah dikirimkan ke merchant.",
+		"data":    product,
+	})
+}
+
 

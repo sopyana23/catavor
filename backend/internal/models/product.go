@@ -46,9 +46,11 @@ type Product struct {
 	ProductType         string         `gorm:"size:50;default:'physical';index" json:"product_type"` // physical | food | service | digital | property | fauna
 	Attributes          datatypes.JSON `gorm:"type:jsonb" json:"attributes"`
 	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
-	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"` // none | warning | hidden | suspended
+	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"` // none | needs_fix | in_review | locked | appeal_pending | hidden | suspended
 	ModerationReason    string         `gorm:"type:text" json:"moderation_reason,omitempty"`
 	ModeratedAt         *time.Time     `gorm:"index" json:"moderated_at,omitempty"`
+	ResubmittedAt       *time.Time     `gorm:"index" json:"resubmitted_at,omitempty"`
+	ResubmitCount       int            `gorm:"default:0" json:"resubmit_count"`
 	ArchivedAt          *time.Time     `gorm:"index" json:"archived_at,omitempty"`
 	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	ViewCount              int64          `gorm:"default:0" json:"view_count"`

@@ -476,7 +476,7 @@ func BuildReporterReceivedEmail(reportNumber, targetType, targetName, storeTitle
 
 // BuildReporterOutcomeEmail generates an update email sent to the reporter once moderation action is finalized
 func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle, reasonLabel, actionTaken string) (subject string, bodyHTML string) {
-	isEnforced := actionTaken == "item_hidden" || actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" || actionTaken == "warning_issued" || actionTaken == "action_taken" || actionTaken == "banned"
+	isEnforced := actionTaken == "item_hidden" || actionTaken == "item_locked" || actionTaken == "item_needs_fix" || actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" || actionTaken == "warning_issued" || actionTaken == "action_taken" || actionTaken == "banned"
 
 	targetTypeLabel := "item"
 	if targetType == "catalog" {
@@ -494,8 +494,10 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 		subtitle := fmt.Sprintf("Pemberitahuan Resmi atas Laporan Komunitas #%s", reportNumber)
 
 		actionDesc := "tindakan moderasi dan penonaktifan konten telah diberlakukan"
-		if actionTaken == "item_hidden" {
+		if actionTaken == "item_hidden" || actionTaken == "item_locked" {
 			actionDesc = "item terkait telah dinonaktifkan dan diturunkan dari katalog publik"
+		} else if actionTaken == "item_needs_fix" {
+			actionDesc = "item terkait telah dinonaktifkan dari katalog publik untuk proses revisi dan perbaikan kepatuhan"
 		} else if actionTaken == "catalog_suspended" {
 			actionDesc = "katalog toko terkait telah dibekukan sementara hingga proses kepatuhan diselesaikan"
 		} else if actionTaken == "catalog_banned" {
@@ -599,22 +601,93 @@ func BuildReporterOutcomeEmail(reportNumber, targetType, targetName, storeTitle,
 	return
 }
 
-// BuildItemTakedownEmail creates an official notification when an item is taken down/hidden by moderation.
-func BuildItemTakedownEmail(storeTitle, targetEntityName, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
-	subject = fmt.Sprintf("[Catavor Kepatuhan] Penonaktifan Item Katalog - %s (#%s)", targetEntityName, reportNumber)
-	title := "Item Katalog Dinonaktifkan oleh Tim Kepatuhan"
-	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penonaktifan Produk Berkas #%s", reportNumber)
+// BuildItemNeedsFixEmail creates an official notification when an item requires remediation by the merchant.
+func BuildItemNeedsFixEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Perlu Perbaikan: Produk '%s' Memerlukan Penyesuaian (#%s)", targetEntityName, reportNumber)
+	title := "Produk Memerlukan Penyesuaian Informasi"
+	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penyesuaian Produk Berkas #%s", reportNumber)
 
 	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
 	if storeSlug == "" {
 		itemsURL = "/admin/items"
 	}
 
+	typeRow := ""
+	if itemTypeLabel != "" {
+		typeRow = fmt.Sprintf(`<tr>
+			<td style="padding: 5px 0; color: #92400e; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fef3c7;">Tipe Katalog</td>
+			<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fef3c7;">%s</td>
+		</tr>`, html.EscapeString(itemTypeLabel))
+	}
+
 	mainContent := fmt.Sprintf(`
 	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
-	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan Tim Kepatuhan Catavor terhadap laporan masyarakat, produk Anda berikut ini telah <strong>dinonaktifkan dan disembunyikan dari katalog publik</strong>:</p>
+	<p style="margin: 0 0 16px 0;">Berdasarkan peninjauan Tim Kepatuhan Catavor terhadap laporan masyarakat, produk Anda berikut ini telah <strong>disembunyikan sementara dari katalog publik</strong> dan memerlukan perbaikan informasi:</p>
 
-	<!-- Takedown Details Box -->
+	<!-- Details Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border: 1px solid #fde68a; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.65;">
+				<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0">
+					<tr>
+						<td width="33%%" style="padding: 5px 0; color: #92400e; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fef3c7;">Nama Produk</td>
+						<td width="67%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fef3c7;">%s</td>
+					</tr>
+					%s
+					<tr>
+						<td style="padding: 5px 0; color: #92400e; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fef3c7;">Kategori Dugaan</td>
+						<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fef3c7;">%s</td>
+					</tr>
+					<tr>
+						<td style="padding: 5px 0; color: #92400e; font-size: 12px; font-weight: 600; vertical-align: top;">Arahan Moderator</td>
+						<td style="padding: 5px 0 5px 10px; color: #78350f; font-size: 12px; font-weight: 600; vertical-align: top;">"%s"</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Action Guidance -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
+				<strong style="color: #b45309; display: block; margin-bottom: 4px;">Langkah Penyelesaian & Opsi Anda:</strong>
+				1. <strong>Edit & Ajukan Ulang</strong>: Buka menu Inventaris, perbaiki foto/deskripsi/spesifikasi sesuai arahan di atas, lalu tekan <em>Simpan & Ajukan Tinjauan Ulang</em>.<br>
+				2. <strong>Hapus Produk</strong>: Jika Anda tidak berniat menjual produk ini lagi, Anda dapat langsung menghapusnya.<br>
+				3. <strong>Batas Waktu</strong>: Anda memiliki waktu <strong>30 hari</strong> untuk melakukan perbaikan sebelum produk dibersihkan otomatis oleh sistem.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), typeRow, html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
+
+	bodyHTML = wrapEmailLayout("PERLU PERBAIKAN", "#d97706", title, subtitle, mainContent, "Perbaiki Produk Sekarang →", itemsURL)
+	return
+}
+
+// BuildItemLockedEmail creates an official notification when an item is locked due to hard policy / prohibited commodity violation.
+func BuildItemLockedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Penonaktifan & Penguncian Produk - '%s' (#%s)", targetEntityName, reportNumber)
+	title := "Produk Dinonaktifkan & Terkunci"
+	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penegakan Kebijakan Berkas #%s", reportNumber)
+
+	helpURL := fmt.Sprintf("/%s/admin/help", storeSlug)
+	if storeSlug == "" {
+		helpURL = "/admin/help"
+	}
+
+	typeRow := ""
+	if itemTypeLabel != "" {
+		typeRow = fmt.Sprintf(`<tr>
+			<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Tipe Katalog</td>
+			<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
+		</tr>`, html.EscapeString(itemTypeLabel))
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Produk Anda berikut ini telah <strong>dinonaktifkan dan dikunci</strong> oleh Tim Kepatuhan Catavor sehubungan dengan indikasi pelanggaran kebijakan komoditas atau standar integritas komunitas:</p>
+
+	<!-- Details Box -->
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.65;">
@@ -623,8 +696,9 @@ func BuildItemTakedownEmail(storeTitle, targetEntityName, reasonLabel, adminNote
 						<td width="33%%" style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Nama Produk</td>
 						<td width="67%%" style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
 					</tr>
+					%s
 					<tr>
-						<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Kategori Dugaan</td>
+						<td style="padding: 5px 0; color: #991b1b; font-size: 12px; font-weight: 600; vertical-align: top; border-bottom: 1px solid #fee2e2;">Kategori Pelanggaran</td>
 						<td style="padding: 5px 0 5px 10px; color: #0f172a; font-size: 12.5px; font-weight: 700; vertical-align: top; border-bottom: 1px solid #fee2e2;">%s</td>
 					</tr>
 					<tr>
@@ -636,21 +710,56 @@ func BuildItemTakedownEmail(storeTitle, targetEntityName, reasonLabel, adminNote
 		</tr>
 	</table>
 
-	<!-- Timeline & Action Notice -->
-	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 18px;">
+	<!-- Locked Notice & Rights -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #1e293b;">
-				<strong style="color: #1e40af; display: block; margin-bottom: 4px;">Masa Tenggang 30 Hari & Opsi Penyelesaian:</strong>
-				1. <strong>Hapus Produk Mandiri</strong>: Jika Anda mengakui ketidaksesuaian barang, Anda dapat langsung menghapusnya dari menu Inventaris.<br>
-				2. <strong>Klarifikasi / Bantuan</strong>: Jika terjadi kekeliruan atau Anda memiliki izin/dokumen resmi, hubungi Tim CS kami melalui tombol di bawah.<br>
-				3. <strong>Pembersihan Otomatis</strong>: Jika tidak ada tindakan atau klarifikasi dalam <strong>30 hari</strong>, sistem akan otomatis menghapus produk ini dari daftar inventaris Anda.
+				<strong style="color: #991b1b; display: block; margin-bottom: 4px;">Status Produk & Opsi Penyelesaian:</strong>
+				1. <strong>Fitur Edit Dinonaktifkan</strong>: Pengeditan produk dikunci untuk mencegah pengalihan identitas produk yang melanggar.<br>
+				2. <strong>Hak Banding Resmi (Right to Appeal)</strong>: Jika Anda memiliki dokumen keabsahan resmi (sertifikat keaslian merek, izin edar BPOM/BKSDA, dsb.) atau terjadi kekeliruan deteksi, Anda berhak mengajukan banding.<br>
+				3. <strong>Hapus Produk</strong>: Anda dapat menghapus produk dari daftar inventaris untuk menjaga reputasi dan skor kepatuhan toko.
 			</td>
 		</tr>
 	</table>
-	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), typeRow, html.EscapeString(reasonLabel), html.EscapeString(adminNotes))
 
-	bodyHTML = wrapEmailLayout("PENONAKTIFAN ITEM", "#dc2626", title, subtitle, mainContent, "Kelola Inventaris Toko →", itemsURL)
+	bodyHTML = wrapEmailLayout("PRODUK DIKUNCI", "#dc2626", title, subtitle, mainContent, "Ajukan Banding Kepatuhan →", helpURL)
 	return
+}
+
+// BuildItemApprovedEmail creates an official notification when a remediated item is re-approved by moderation.
+func BuildItemApprovedEmail(storeTitle, targetEntityName, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Kepatuhan] Perbaikan Disetujui: Produk '%s' Telah Aktif Kembali (#%s)", targetEntityName, reportNumber)
+	title := "Perbaikan Produk Telah Disetujui"
+	subtitle := fmt.Sprintf("Pemberitahuan Pemulihan Produk Berkas #%s", reportNumber)
+
+	catalogURL := fmt.Sprintf("/%s", storeSlug)
+	if storeSlug == "" {
+		catalogURL = "/"
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola Toko <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kabar baik! Tim Kepatuhan Catavor telah meninjau perbaikan yang Anda ajukan pada produk <strong>%s</strong>. Perubahan Anda telah memenuhi standar komunitas dan produk telah <strong>diaktifkan kembali di katalog publik</strong>.</p>
+
+	<!-- Success Notice Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #166534;">
+				<strong style="color: #14532d; display: block; margin-bottom: 4px;">Status Saat Ini:</strong>
+				Produk Anda kini sudah aktif kembali dan dapat dicari serta dipesan oleh pelanggan melalui tautan katalog digital Anda. Berkas peninjauan #%s telah ditutup.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetEntityName), html.EscapeString(reportNumber))
+
+	bodyHTML = wrapEmailLayout("PERBAIKAN DISETUJUI", "#16a34a", title, subtitle, mainContent, "Lihat Produk di Katalog →", catalogURL)
+	return
+}
+
+// BuildItemTakedownEmail creates an official notification when an item is taken down/hidden by moderation (backward compatibility).
+func BuildItemTakedownEmail(storeTitle, targetEntityName, reasonLabel, adminNotes, reportNumber, storeSlug string) (subject string, bodyHTML string) {
+	return BuildItemLockedEmail(storeTitle, targetEntityName, "", reasonLabel, adminNotes, reportNumber, storeSlug)
 }
 
 // BuildItemRetentionReminderEmail creates an H-7 deadline warning before automated soft-deletion.
