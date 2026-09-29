@@ -245,3 +245,37 @@ func InvalidateSupportTemplatesCache(ctx context.Context) {
 	}
 }
 
+// GetStoreQuotaCache fetches cached serialized store quota info.
+func GetStoreQuotaCache(ctx context.Context, storeID uint) (string, bool) {
+	if !IsRedisAvailable() || storeID == 0 {
+		return "", false
+	}
+	key := fmt.Sprintf("store:quota:%d", storeID)
+	val, err := RedisClient.Get(ctx, key).Result()
+	if err != nil {
+		return "", false
+	}
+	return val, true
+}
+
+// SetStoreQuotaCache stores serialized store quota info with a safety TTL (default 10 minutes).
+func SetStoreQuotaCache(ctx context.Context, storeID uint, data string, ttl time.Duration) {
+	if !IsRedisAvailable() || storeID == 0 {
+		return
+	}
+	key := fmt.Sprintf("store:quota:%d", storeID)
+	if ttl <= 0 {
+		ttl = 10 * time.Minute
+	}
+	_ = RedisClient.Set(ctx, key, data, ttl).Err()
+}
+
+// InvalidateStoreQuotaCache purges store quota cache when items, media, or plan change (Zero-Stale Quota Architecture).
+func InvalidateStoreQuotaCache(ctx context.Context, storeID uint) {
+	if !IsRedisAvailable() || storeID == 0 {
+		return
+	}
+	key := fmt.Sprintf("store:quota:%d", storeID)
+	_ = RedisClient.Del(ctx, key).Err()
+}
+

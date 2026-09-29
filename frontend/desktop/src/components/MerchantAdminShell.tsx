@@ -20,7 +20,8 @@ import {
   LogOut,
   Bell,
   ChevronRight,
-  Menu
+  Menu,
+  HardDrive
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
@@ -766,6 +767,34 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                 {planName}
               </span>
             </div>
+
+            {/* Cloud Storage Warning Pill if >= 80% */}
+            {storeQuota && storeQuota.storage_usage_percent >= 80 && (
+              <div
+                onClick={() => {
+                  setAdminTab('subscription');
+                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '999px',
+                  backgroundColor: storeQuota.is_storage_over_limit ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  border: `1px solid ${storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b'}`,
+                  cursor: 'pointer',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  color: storeQuota.is_storage_over_limit ? '#ef4444' : '#f59e0b',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Penyimpanan Cloud hampir penuh (${Math.round(storeQuota.storage_usage_percent)}%). Klik untuk upgrade kuota.`}
+              >
+                <HardDrive size={13} />
+                <span>{Math.round(storeQuota.storage_usage_percent)}% Storage</span>
+              </div>
+            )}
 
             {/* Public Storefront Link Button */}
             {!(settings?.dormancy_status === 'suspended' || settings?.is_suspended) && (

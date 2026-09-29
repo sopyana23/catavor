@@ -641,7 +641,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	return c.JSON(responsePayload)
 }
 
-// InvalidateStoreProductsCache purges cached product queries for a specific store.
+// InvalidateStoreProductsCache purges cached product queries and quota cache for a specific store.
 func InvalidateStoreProductsCache(storeID uint) {
 	if database.IsRedisAvailable() && database.RedisClient != nil && storeID > 0 {
 		ctx := context.Background()
@@ -650,6 +650,7 @@ func InvalidateStoreProductsCache(storeID uint) {
 		for iter.Next(ctx) {
 			_ = database.RedisClient.Del(ctx, iter.Val()).Err()
 		}
+		database.InvalidateStoreQuotaCache(ctx, storeID)
 	}
 }
 
