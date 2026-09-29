@@ -641,7 +641,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 	return c.JSON(responsePayload)
 }
 
-// InvalidateStoreProductsCache purges cached product queries and quota cache for a specific store.
+// InvalidateStoreProductsCache purges cached product queries, catalog metrics, and quota cache for a specific store.
 func InvalidateStoreProductsCache(storeID uint) {
 	if database.IsRedisAvailable() && database.RedisClient != nil && storeID > 0 {
 		ctx := context.Background()
@@ -652,6 +652,106 @@ func InvalidateStoreProductsCache(storeID uint) {
 		}
 		database.InvalidateStoreQuotaCache(ctx, storeID)
 	}
+}
+
+// CatalogMetrics returns aggregated metrics (total counts, by_type, by_category, by_status, total_value) with Redis Cache-Aside.
+func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
+	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
+	if IsReservedSlug(slug) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
+
+	var store models.Store
+	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&store).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
+
+	isMerchantView := h.isMerchantRequester(c, &store)
+	cacheKey := fmt.Sprintf("catavor:store:%d:products:catalog_metrics:mv%t", store.ID, isMerchantView)
+
+	// 1. Try Redis cache
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if cachedVal, err := database.RedisClient.Get(context.Background(), cacheKey).Result(); err == nil && cachedVal != "" {
+			var cachedRes fiber.Map
+			if err := json.Unmarshal([]byte(cachedVal), &cachedRes); err == nil {
+				c.Set("X-Cache", "HIT-REDIS")
+				return c.JSON(cachedRes)
+			}
+		}
+	}
+
+	// 2. Query DB aggregations
+	type CountResult struct {
+		Key   string `gorm:"column:key"`
+		Count int64  `gorm:"column:count"`
+	}
+
+	newBaseQuery := func() *gorm.DB {
+		q := database.DB.Model(&models.Product{}).Where("store_id = ?", store.ID)
+		if !isMerchantView {
+			return q.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
+		}
+		return q.Where("moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden'")
+	}
+
+	var totalItems int64
+	newBaseQuery().Count(&totalItems)
+
+	var activeItems int64
+	database.DB.Model(&models.Product{}).Where("store_id = ? AND is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&activeItems)
+
+	var archivedItems int64
+	database.DB.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&archivedItems)
+
+	// By Product Type
+	var typeRows []CountResult
+	newBaseQuery().Select("COALESCE(NULLIF(product_type, ''), 'physical') as key, COUNT(*) as count").Group("key").Scan(&typeRows)
+	byType := make(map[string]int64)
+	for _, r := range typeRows {
+		byType[r.Key] = r.Count
+	}
+
+	// By Category (Class)
+	var catRows []CountResult
+	newBaseQuery().Select("COALESCE(NULLIF(class, ''), 'Lainnya') as key, COUNT(*) as count").Group("key").Scan(&catRows)
+	byCategory := make(map[string]int64)
+	for _, r := range catRows {
+		byCategory[r.Key] = r.Count
+	}
+
+	// Total Value (Sum of price)
+	var totalValue float64
+	newBaseQuery().Select("COALESCE(SUM(price), 0)").Scan(&totalValue)
+
+	responsePayload := fiber.Map{
+		"success": true,
+		"data": fiber.Map{
+			"total_items":      totalItems,
+			"active_items":     activeItems,
+			"archived_items":   archivedItems,
+			"total_categories": len(byCategory),
+			"total_value":      totalValue,
+			"by_type":          byType,
+			"by_category":      byCategory,
+		},
+		"cached_at": time.Now().Format(time.RFC3339),
+	}
+
+	// 3. Save into Redis cache (TTL 10m - automatically invalidated on write)
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if bytes, err := json.Marshal(responsePayload); err == nil {
+			_ = database.RedisClient.Set(context.Background(), cacheKey, string(bytes), 10*time.Minute).Err()
+		}
+	}
+
+	c.Set("X-Cache", "MISS-REDIS")
+	return c.JSON(responsePayload)
 }
 
 

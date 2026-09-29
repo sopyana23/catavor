@@ -198,6 +198,7 @@ func main() {
 	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
 	api.Get("/u/:slug", storeHandler.ShowStore)
 	api.Get("/u/:slug/products", storeHandler.IndexProducts)
+	api.Get("/u/:slug/catalog-metrics", storeHandler.CatalogMetrics)
 	api.Get("/u/:slug/categories", categoryHandler.Index)
 	api.Get("/u/:slug/fauna", storeHandler.IndexProducts) // Backward-compatible alias
 	api.Get("/public/stores/reactivate", handlers.HandlePublicReactivateStore)
