@@ -649,12 +649,52 @@
 }
 
 .admin-table tr:hover {
-  background: var(--primary-glow);
+  background: var(--bg-card-hover, var(--primary-glow));
 }
 
 .admin-table td {
   font-size: 0.88rem;
   color: var(--text-primary);
+}
+
+/* Modern Desktop Merchant Admin Shell Styles */
+.desktop-admin-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+}
+
+.desktop-admin-shell .admin-table-container {
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.desktop-admin-shell .admin-table th {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.desktop-admin-shell .admin-table td {
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.84rem;
+  vertical-align: middle;
+}
+
+.desktop-admin-shell .admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.desktop-admin-shell .admin-table tr:hover {
+  background: var(--bg-card-hover, rgba(255, 255, 255, 0.03));
 }
 
 .action-buttons {

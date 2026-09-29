@@ -9460,7 +9460,11 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           try {
             if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
             localStorage.removeItem('catavor_settings');
+            localStorage.removeItem('catavor_active_slug');
+            sessionStorage.removeItem('catavor_active_slug_selected');
           } catch {}
+          document.documentElement.setAttribute('data-theme', 'navy');
+          document.body.setAttribute('data-theme', 'navy');
           setError(settingsData?.message || 'Katalog / Store tidak ditemukan.');
           // If 404 and user is logged in, proactively check if account was banned or offer store switch
           if (token && slug && !isReservedStoreSlug(slug)) {
@@ -9521,7 +9525,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       }
     } catch (err: any) {
       console.error(err);
-      if (err?.status === 404 || err?.message?.toLowerCase().includes('tidak ditemukan') || err?.message?.includes('404')) {
+      if (err?.status === 404 || err?.statusCode === 404 || err?.code === 'STORE_BANNED' || err?.message?.toLowerCase().includes('tidak ditemukan') || err?.message?.toLowerCase().includes('dinonaktifkan') || err?.message?.includes('404')) {
         const emptySettings: ShopSettings = {
           whatsapp_number: '',
           store_slogan: '',
@@ -9542,6 +9546,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         try {
           if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
           localStorage.removeItem('catavor_settings');
+          localStorage.removeItem('catavor_active_slug');
+          sessionStorage.removeItem('catavor_active_slug_selected');
         } catch {}
         setError(err?.message || 'Katalog tidak ditemukan.');
       } else {

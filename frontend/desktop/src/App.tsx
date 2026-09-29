@@ -8732,7 +8732,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
           try {
             if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
             localStorage.removeItem('catavor_settings');
+            localStorage.removeItem('catavor_active_slug');
+            sessionStorage.removeItem('catavor_active_slug_selected');
           } catch {}
+          document.documentElement.setAttribute('data-theme', 'navy');
+          document.body.setAttribute('data-theme', 'navy');
           setError(settingsData?.message || 'Katalog / Store tidak ditemukan.');
         }
       } else {
@@ -8751,7 +8755,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     } catch (err: any) {
       console.error(err);
-      if (err?.status === 404 || err?.message?.toLowerCase().includes('tidak ditemukan') || err?.message?.includes('404')) {
+      if (err?.status === 404 || err?.statusCode === 404 || err?.code === 'STORE_BANNED' || err?.message?.toLowerCase().includes('tidak ditemukan') || err?.message?.toLowerCase().includes('dinonaktifkan') || err?.message?.includes('404')) {
         const emptySettings: ShopSettings = {
           whatsapp_number: '',
           store_slogan: '',
@@ -8772,6 +8776,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         try {
           if (slug) localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
           localStorage.removeItem('catavor_settings');
+          localStorage.removeItem('catavor_active_slug');
+          sessionStorage.removeItem('catavor_active_slug_selected');
         } catch {}
         setError(err?.message || 'Katalog / Store tidak ditemukan.');
       } else {
