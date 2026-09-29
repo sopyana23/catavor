@@ -204,8 +204,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         display: 'flex',
         minHeight: '100vh',
         width: '100%',
-        backgroundColor: 'var(--bg-deep, #0b1329)',
-        color: 'var(--text-primary, #ffffff)',
+        backgroundColor: 'var(--bg-deep)',
+        color: 'var(--text-primary)',
         fontFamily: "'Plus Jakarta Sans', sans-serif"
       }}
     >
@@ -214,8 +214,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         style={{
           width: isSidebarCollapsed ? '78px' : '268px',
           flexShrink: 0,
-          backgroundColor: 'var(--bg-card, #0f172a)',
-          borderRight: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+          backgroundColor: 'var(--bg-card)',
+          borderRight: '1px solid var(--border-light)',
           display: 'flex',
           flexDirection: 'column',
           position: 'sticky',
@@ -223,14 +223,14 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           height: '100vh',
           zIndex: 40,
           transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: '4px 0 24px rgba(0, 0, 0, 0.12)'
+          boxShadow: '4px 0 24px rgba(0, 0, 0, 0.06)'
         }}
       >
         {/* Sidebar Header: Store Switcher Anchor */}
         <div 
           style={{
             padding: isSidebarCollapsed ? '1rem 0.5rem' : '1.15rem 1.15rem',
-            borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+            borderBottom: '1px solid var(--border-light)',
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
@@ -248,9 +248,9 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                   gap: '0.75rem',
                   padding: '0.55rem 0.7rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'var(--bg-card-hover, rgba(255, 255, 255, 0.05))',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--bg-card-hover)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
                   width: '100%',
                   cursor: 'pointer',
                   textAlign: 'left',
@@ -527,14 +527,14 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255, 255, 255, 0.04))';
-                          e.currentTarget.style.color = 'var(--text-primary, #ffffff)';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                          e.currentTarget.style.color = 'var(--text-primary)';
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isActive) {
                           e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.color = 'var(--text-secondary, #cbd5e1)';
+                          e.currentTarget.style.color = 'var(--text-secondary)';
                         }
                       }}
                       title={isSidebarCollapsed ? item.label : undefined}
@@ -548,7 +548,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                           bottom: '18%',
                           width: '3.5px',
                           borderRadius: '0 4px 4px 0',
-                          backgroundColor: 'var(--primary, #10b981)',
+                          backgroundColor: 'var(--primary)',
                           boxShadow: '0 0 10px var(--primary)'
                         }} />
                       )}
@@ -572,7 +572,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                           borderRadius: '999px',
                           backgroundColor: item.badgeColor || 'var(--primary-glow)',
                           color: item.badgeTextColor || 'var(--primary)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          border: '1px solid var(--border-light)',
                           whiteSpace: 'nowrap'
                         }}>
                           {item.badge}
@@ -590,8 +590,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         <div 
           style={{
             padding: isSidebarCollapsed ? '0.75rem 0.4rem' : '0.85rem 1rem',
-            borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
-            backgroundColor: 'var(--bg-card, #0f172a)'
+            borderTop: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)'
           }}
         >
           {!isSidebarCollapsed ? (
@@ -675,15 +675,15 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           flexDirection: 'column',
           minWidth: 0,
           minHeight: '100vh',
-          backgroundColor: 'var(--bg-deep, #0b1329)'
+          backgroundColor: 'var(--bg-deep)'
         }}
       >
         {/* Top App Header Bar */}
         <header
           style={{
             height: '62px',
-            backgroundColor: 'var(--bg-card, #0f172a)',
-            borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+            backgroundColor: 'var(--bg-card)',
+            borderBottom: '1px solid var(--border-light)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
