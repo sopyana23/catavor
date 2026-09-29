@@ -1,12 +1,55 @@
 /* Layout & Structure */
+.container {
+  width: 100%;
+  max-width: 1380px;
+  margin: 0 auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1600px) {
+  .container {
+    max-width: 1520px;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+.fauna-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  margin-top: 1.25rem;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1280px) {
+  .fauna-grid {
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 1.65rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .fauna-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.75rem;
+  }
+}
+
 .app-header {
   border-bottom: 1px solid var(--border-light);
-  padding: 1.5rem 0;
+  padding: 1rem 0;
   position: sticky;
   top: 0;
   z-index: 40;
   background: var(--header-bg) !important;
   color: var(--text-primary) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .header-content {
@@ -227,13 +270,29 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  border-radius: 1rem;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.fauna-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  border-color: var(--primary-glow);
 }
 
 .card-image-container {
   position: relative;
-  height: 180px;
+  height: 220px;
   width: 100%;
   overflow: hidden;
+}
+
+.admin-main-fullwidth {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .card-img {
@@ -1542,3 +1601,195 @@
     -webkit-backdrop-filter: blur(16px);
   }
 }
+
+/* ==========================================================
+   DESKTOP BRAND SHOWCASE HERO (Brand Hub)
+   ========================================================== */
+.desktop-store-showcase {
+  background: var(--card-bg-gradient);
+  border: 1px solid var(--border-light);
+  border-radius: 1.25rem;
+  padding: 1.75rem 2.25rem;
+  margin: 1.75rem 0 1.5rem 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.desktop-store-showcase::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary) 0%, #38bdf8 50%, #818cf8 100%);
+}
+
+.desktop-store-brand-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.desktop-store-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 1rem;
+  background: var(--bg-card-hover);
+  border: 2px solid var(--border-light);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 2rem;
+  font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.desktop-store-meta {
+  min-width: 0;
+}
+
+.desktop-store-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.desktop-store-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.desktop-store-slogan {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.45;
+  max-width: 650px;
+}
+
+.desktop-store-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.desktop-store-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* ==========================================================
+   DESKTOP UNIFIED ACTION TOOLBAR
+   ========================================================== */
+.desktop-action-toolbar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 1rem;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.desktop-toolbar-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.desktop-toolbar-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.desktop-chip-btn {
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.desktop-toolbar-search-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  max-width: 680px;
+  justify-content: flex-end;
+}
+
+/* ==========================================================
+   DESKTOP ABOUT BENTO GRID
+   ========================================================== */
+.desktop-about-bento {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  gap: 1.75rem;
+  margin-top: 1.5rem;
+  margin-bottom: 3rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .desktop-about-bento {
+    grid-template-columns: 1fr;
+  }
+}
+
+.desktop-bento-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 1.15rem;
+  padding: 1.75rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* ==========================================================
+   DESKTOP PRODUCT DETAIL PAGE LAYOUT
+   ========================================================== */
+.desktop-detail-page {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 3rem;
+  align-items: start;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 4rem 2rem;
+}
+
+@media (max-width: 1100px) {
+  .desktop-detail-page {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+

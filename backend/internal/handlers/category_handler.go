@@ -31,10 +31,21 @@ func (h *CategoryHandler) Index(c *fiber.Ctx) error {
 	if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
 		storeID = storeVal.ID
 	} else if slug := c.Params("slug"); slug != "" {
-		var store models.Store
-		if err := database.DB.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&store).Error; err != nil {
+		cleanSlug := strings.ToLower(strings.TrimSpace(slug))
+		var blacklistedCount int64
+		database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanSlug).Count(&blacklistedCount)
+		if blacklistedCount > 0 {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
+				"code":    "STORE_BANNED",
+				"message": "Katalog toko telah dinonaktifkan secara permanen.",
+			})
+		}
+		var store models.Store
+		if err := database.DB.Where("LOWER(slug) = ?", cleanSlug).First(&store).Error; err != nil || store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"code":    "STORE_BANNED",
 				"message": "Toko tidak ditemukan.",
 			})
 		}

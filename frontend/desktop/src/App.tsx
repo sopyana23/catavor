@@ -13635,26 +13635,48 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             justifyContent: 'space-between',
             zIndex: 100
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
               <button 
                 onClick={() => {
                   setIsDetailActive(false);
                   setSelectedFauna(null);
                 }}
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'var(--bg-card-hover)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '0.5rem',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '0.25rem'
+                  padding: '0.45rem',
+                  transition: 'all 0.2s'
                 }}
+                title="Kembali ke Katalog"
               >
-                <ArrowLeft size={22} />
+                <ArrowLeft size={18} />
               </button>
-              <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--text-primary)' }}>Detail Produk</span>
+              <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem' }}>
+                <span 
+                  onClick={() => {
+                    setIsDetailActive(false);
+                    setSelectedFauna(null);
+                  }}
+                  style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
+                  title="Ke Katalog Utama"
+                >
+                  Katalog
+                </span>
+                <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  {selectedFauna.class ? selectedFauna.class.toUpperCase() : 'PRODUK'}
+                </span>
+                <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ color: 'var(--primary)', fontWeight: 800, maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedFauna.name}
+                </span>
+              </nav>
             </div>
 
             <button
@@ -14853,15 +14875,117 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               </div>
             )}
 
-            {/* Hero Section */}
+            {/* Desktop Brand Showcase Hero (Brand Hub) */}
             {!error && settings.dormancy_status !== 'suspended' && (
-              <section className="hero-section">
-                <h2 className="hero-title">
-                  Galeri Satwa Hias <span className="hero-highlight">Premium</span>
-                </h2>
-                <p className="hero-desc">
-                  Kami menyediakan berbagai pilihan produk barang dan produk berkualitas tinggi dengan layanan cepat, aman, dan terpercaya.
-                </p>
+              <section className="desktop-store-showcase animate-fade-in">
+                <div className="desktop-store-brand-left">
+                  <div className="desktop-store-avatar">
+                    {settings.store_logo_url ? (
+                      <img 
+                        src={settings.store_logo_url} 
+                        alt={settings.store_title} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    ) : (
+                      (settings.store_title || storeSlug || 'C').charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="desktop-store-meta">
+                    <div className="desktop-store-title-row">
+                      <h2 className="desktop-store-title">
+                        {settings.store_title || 'Katalog Resmi'}
+                      </h2>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '0.2rem 0.65rem',
+                        borderRadius: '999px',
+                        backgroundColor: 'var(--primary-glow)',
+                        color: 'var(--primary)',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        <CheckCircle2 size={13} /> Terverifikasi
+                      </span>
+                      {settings.plan === 'pro_business' && (
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          color: '#f59e0b',
+                          border: '1px solid rgba(245, 158, 11, 0.3)'
+                        }}>
+                          PRO BISNIS
+                        </span>
+                      )}
+                    </div>
+                    <p className="desktop-store-slogan">
+                      {settings.store_slogan || settings.about_slogan || 'Koleksi produk dan layanan unggulan dengan kualitas terbaik dan pemesanan mudah via WhatsApp.'}
+                    </p>
+                    <div className="desktop-store-badges-row">
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Package size={14} style={{ color: 'var(--primary)' }} />
+                        <strong>{faunas.length}</strong> Total Produk
+                      </span>
+                      {settings.about_location && (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <MapPin size={14} style={{ color: '#38bdf8' }} />
+                          <span style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {settings.about_location}
+                          </span>
+                        </span>
+                      )}
+                      {settings.show_hours && (
+                        <span style={{ fontSize: '0.78rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
+                          <Clock size={14} /> Buka Layanan
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="desktop-store-actions">
+                  {settings.whatsapp_number && (
+                    <a
+                      href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary"
+                      style={{ textDecoration: 'none', padding: '0.7rem 1.35rem', fontSize: '0.86rem', boxShadow: '0 4px 16px var(--primary-glow)' }}
+                    >
+                      <MessageCircle size={16} />
+                      <span>Hubungi Penjual</span>
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleShareStore}
+                    className="btn-secondary"
+                    style={{ padding: '0.7rem 1.15rem', fontSize: '0.86rem' }}
+                    title="Bagikan Profil Katalog Ini"
+                  >
+                    <Share2 size={16} />
+                    <span>Bagikan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePublicTab('about')}
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.7rem 1.15rem',
+                      fontSize: '0.86rem',
+                      borderColor: (activePublicTab as string) === 'about' ? 'var(--primary)' : undefined,
+                      color: (activePublicTab as string) === 'about' ? 'var(--primary)' : undefined
+                    }}
+                  >
+                    <Info size={16} />
+                    <span>Tentang Toko</span>
+                  </button>
+                </div>
               </section>
             )}
 
@@ -15044,194 +15168,150 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                 ) : (
                   <>
-                    {/* Filter Panel (Only shown if store has at least 1 product and more than 1 category type) */}
-                    {isHybridStore && (
-                      <div className="product-type-filter-bar" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* Unified Desktop Action Toolbar */}
+                    <section className="desktop-action-toolbar">
+                      <div className="desktop-toolbar-chips">
                         <button
                           type="button"
+                          className="desktop-chip-btn"
                           onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); }}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            padding: '0.45rem 0.9rem',
-                            borderRadius: '999px',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
                             border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                             backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
                             color: productTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
                           }}
                         >
+                          <Layers size={13} />
                           <span>Semua ({faunas.length})</span>
                         </button>
                         {availableProductTypes.includes('physical') && (
                           <button
                             type="button"
+                            className="desktop-chip-btn"
                             onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); }}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '0.45rem 0.9rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
                               border: productTypeFilter === 'physical' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'physical' ? 'var(--primary)' : 'transparent',
                               color: productTypeFilter === 'physical' ? '#000000' : 'var(--text-secondary)'
                             }}
                           >
+                            <Package size={13} />
                             <span>Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})</span>
                           </button>
                         )}
                         {availableProductTypes.includes('food') && (
                           <button
                             type="button"
+                            className="desktop-chip-btn"
                             onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); }}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '0.45rem 0.9rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
                               border: productTypeFilter === 'food' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'food' ? 'var(--primary)' : 'transparent',
                               color: productTypeFilter === 'food' ? '#000000' : 'var(--text-secondary)'
                             }}
                           >
+                            <Utensils size={13} />
                             <span>Kuliner ({faunas.filter(f => f.product_type === 'food').length})</span>
                           </button>
                         )}
                         {availableProductTypes.includes('service') && (
                           <button
                             type="button"
+                            className="desktop-chip-btn"
                             onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); }}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '0.45rem 0.9rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
                               border: productTypeFilter === 'service' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'service' ? 'var(--primary)' : 'transparent',
                               color: productTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
                             }}
                           >
+                            <Wrench size={13} />
                             <span>Jasa ({faunas.filter(f => f.product_type === 'service').length})</span>
                           </button>
                         )}
                         {availableProductTypes.includes('digital') && (
                           <button
                             type="button"
+                            className="desktop-chip-btn"
                             onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); }}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '0.45rem 0.9rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
                               border: productTypeFilter === 'digital' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'digital' ? 'var(--primary)' : 'transparent',
                               color: productTypeFilter === 'digital' ? '#000000' : 'var(--text-secondary)'
                             }}
                           >
+                            <FileCode size={13} />
                             <span>Digital ({faunas.filter(f => f.product_type === 'digital').length})</span>
                           </button>
                         )}
                         {availableProductTypes.includes('fauna') && (
                           <button
                             type="button"
+                            className="desktop-chip-btn"
                             onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); }}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '0.45rem 0.9rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
                               border: productTypeFilter === 'fauna' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'fauna' ? 'var(--primary)' : 'transparent',
                               color: productTypeFilter === 'fauna' ? '#000000' : 'var(--text-secondary)'
                             }}
                           >
+                            <PawPrint size={13} />
                             <span>Fauna ({faunas.filter(f => f.product_type === 'fauna').length})</span>
                           </button>
                         )}
                         {availableProductTypes.includes('property') && (
                           <button
                             type="button"
+                            className="desktop-chip-btn"
                             onClick={() => { setProductTypeFilter('property'); setClassFilter('all'); }}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '0.45rem 0.9rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
                               border: productTypeFilter === 'property' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'property' ? 'var(--primary)' : 'transparent',
                               color: productTypeFilter === 'property' ? '#000000' : 'var(--text-secondary)'
                             }}
                           >
+                            <Building2 size={13} />
                             <span>Properti ({faunas.filter(f => f.product_type === 'property').length})</span>
                           </button>
                         )}
                       </div>
-                    )}
 
-                    <section className="glass-panel controls-panel">
-                      <div className="search-wrapper" style={{ position: 'relative' }}>
-                        <Search className="search-icon" />
-                        <input 
-                          type="text" 
-                          className="search-input" 
-                          placeholder="Cari produk / item katalog..."
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                        />
-                        {search && (
-                          <button
-                            type="button"
-                            onClick={() => setSearch('')}
-                            style={{
-                              position: 'absolute',
-                              right: '0.85rem',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              background: 'rgba(255,255,255,0.1)',
-                              border: 'none',
-                              color: 'var(--text-secondary)',
-                              width: '22px',
-                              height: '22px',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem'
-                            }}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                      <div className="filters-wrapper">
+                      <div className="desktop-toolbar-search-filters">
+                        <div className="search-wrapper" style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
+                          <Search className="search-icon" />
+                          <input 
+                            type="text" 
+                            className="search-input" 
+                            placeholder="Cari produk / item katalog..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                          />
+                          {search && (
+                            <button
+                              type="button"
+                              onClick={() => setSearch('')}
+                              style={{
+                                position: 'absolute',
+                                right: '0.85rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                color: 'var(--text-secondary)',
+                                width: '22px',
+                                height: '22px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                         <select 
                           className="filter-select"
                           value={classFilter}
