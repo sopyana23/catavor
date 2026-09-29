@@ -1,11 +1,13 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 
 	"github.com/rs/zerolog/log"
@@ -131,8 +133,21 @@ func GetPlanByCode(db *gorm.DB, code string) (*models.SubscriptionPlan, error) {
 	return &plan, nil
 }
 
-// GetStoreQuotaInfo calculates comprehensive quota usage and plan status for a store.
+// GetStoreQuotaInfo calculates comprehensive quota usage and plan status for a store with Redis Cache-Aside.
 func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
+	if storeID == 0 {
+		return nil, fmt.Errorf("invalid store id")
+	}
+
+	// 1. Try Redis Cache HIT
+	if cachedVal, ok := database.GetStoreQuotaCache(context.Background(), storeID); ok && cachedVal != "" {
+		var cachedQuota StoreQuotaInfo
+		if err := json.Unmarshal([]byte(cachedVal), &cachedQuota); err == nil {
+			return &cachedQuota, nil
+		}
+	}
+
+	// 2. Cache MISS: query PostgreSQL database
 	var store models.Store
 	if err := db.First(&store, storeID).Error; err != nil {
 		return nil, err
@@ -200,7 +215,7 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	isStorageOver := plan.StorageLimitBytes > 0 && store.StorageUsedBytes > plan.StorageLimitBytes
 	isItemsOver := plan.MaxItems > 0 && activeCount >= int64(plan.MaxItems)
 
-	return &StoreQuotaInfo{
+	quota := &StoreQuotaInfo{
 		StoreID:             store.ID,
 		StoreSlug:           store.Slug,
 		StoreTitle:          store.StoreTitle,
@@ -222,7 +237,20 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		IsItemsOverLimit:    isItemsOver,
 		CustomDomain:        store.CustomDomain,
 		CustomDomainStatus:  store.CustomDomainStatus,
-	}, nil
+	}
+
+	// Cache in Redis with 10-minute safety TTL
+	if bytes, err := json.Marshal(quota); err == nil {
+		database.SetStoreQuotaCache(context.Background(), storeID, string(bytes), 10*time.Minute)
+	}
+
+	return quota, nil
+}
+
+// GetStoreQuotaInfoFresh forces a database query by invalidating the cache first.
+func GetStoreQuotaInfoFresh(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	return GetStoreQuotaInfo(db, storeID)
 }
 
 // CanAddProduct checks if the store is eligible to add a new active product.
@@ -351,6 +379,7 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 		Time("expires_at", newExpiresAt).
 		Msg("Store subscription successfully updated")
 
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	return GetStoreQuotaInfo(db, storeID)
 }
 
@@ -377,6 +406,7 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 		return nil, err
 	}
 
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	return GetStoreQuotaInfo(db, storeID)
 }
 
@@ -622,5 +652,6 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		return nil, err
 	}
 
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	return GetStoreQuotaInfo(db, storeID)
 }

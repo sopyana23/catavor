@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
@@ -235,6 +237,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	// Atomically increment store storage_used_bytes
 	if storeID > 0 {
 		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", int64(buf.Len())))
+		database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	}
 
 	origFileName := filepath.Base(file.Filename)
@@ -295,6 +298,8 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 			"message": "Gagal menghapus file dari penyimpanan.",
 		})
 	}
+
+	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
