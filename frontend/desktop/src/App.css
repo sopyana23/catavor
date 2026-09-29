@@ -1793,3 +1793,92 @@
   }
 }
 
+/* ==========================================================
+   DESKTOP INVENTORY & PRODUCT LIST FILTER STYLES
+   ========================================================== */
+.desktop-filter-card {
+  padding: 1rem 1.25rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg-gradient);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.desktop-filter-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  transform: none !important;
+}
+
+.desktop-filter-search-input {
+  width: 100%;
+  height: 40px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  border-radius: 0.6rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  padding-left: 2.4rem;
+  padding-right: 2rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.desktop-filter-search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.desktop-select-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+.desktop-select-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+.desktop-select-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.desktop-select-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.desktop-pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.75rem;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.desktop-pagination-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-glow);
+}
+
+.desktop-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.desktop-pagination-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}

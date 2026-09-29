@@ -350,6 +350,8 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		UserAgent: c.Get("User-Agent"),
 	})
 
+	InvalidateStoreProductsCache(store.ID)
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Produk berhasil ditambahkan.",
@@ -600,6 +602,8 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		respMsg = "Perbaikan produk berhasil dikirim dan kini dalam status peninjauan ulang oleh Tim Kepatuhan."
 	}
 
+	InvalidateStoreProductsCache(store.ID)
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": respMsg,
@@ -668,6 +672,8 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		IPAddress:   c.IP(),
 		UserAgent:   c.Get("User-Agent"),
 	})
+
+	InvalidateStoreProductsCache(store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -752,6 +758,8 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 			"message": "Gagal mengajukan peninjauan ulang.",
 		})
 	}
+
+	InvalidateStoreProductsCache(store.ID)
 
 	// Update associated reports to 're_review'
 	var itemReports []models.Report
