@@ -17365,7 +17365,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <th>Nama Item &amp; Spesifikasi</th>
                             <th>Kategori &amp; Tipe</th>
                             <th>Harga</th>
-                            <th>Pengiriman / Akses</th>
+                            <th>Status &amp; Ketersediaan</th>
                             <th style={{ width: '170px' }}>Aksi</th>
                           </tr>
                         </thead>
@@ -17415,22 +17415,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   <td>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                                       <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>{item.name}</span>
-                                      {(item as any).is_active === false && (
-                                        <span style={{ 
-                                          display: 'inline-flex', 
-                                          alignItems: 'center', 
-                                          gap: '0.2rem', 
-                                          fontSize: '0.62rem', 
-                                          fontWeight: 800, 
-                                          padding: '0.1rem 0.45rem', 
-                                          borderRadius: '4px', 
-                                          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                                          color: '#f87171', 
-                                          border: '1px solid rgba(239, 68, 68, 0.3)' 
-                                        }}>
-                                          <Lock size={10} /> DIARSIPKAN
-                                        </span>
-                                      )}
                                     </div>
                                     <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
                                       {itemType === 'food' && (
@@ -17440,10 +17424,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         <span>{item.attributes?.condition || 'Baru'}{item.attributes?.weight ? ` • ${item.attributes.weight}g` : ''}{item.attributes?.brand ? ` • ${item.attributes.brand}` : ''}</span>
                                       )}
                                       {itemType === 'service' && (
-                                        <span>{item.attributes?.duration || '1 Sesi'}{item.attributes?.service_area ? ` • Area: ${item.attributes.service_area}` : ''}</span>
+                                        <span>{item.attributes?.duration || '1 Sesi'}{item.attributes?.service_location ? ` • ${item.attributes.service_location}` : ''}{item.attributes?.service_area ? ` • Area: ${item.attributes.service_area}` : ''}</span>
                                       )}
                                       {itemType === 'digital' && (
                                         <span>{item.attributes?.file_format || 'File'}{item.attributes?.file_size ? ` • ${item.attributes.file_size}` : ''}</span>
+                                      )}
+                                      {itemType === 'property' && (
+                                        <span>{item.attributes?.transaction_type || 'Properti'}{item.attributes?.building_area ? ` • LB: ${item.attributes.building_area}m²` : ''}{item.attributes?.land_area ? ` • LT: ${item.attributes.land_area}m²` : ''}</span>
                                       )}
                                       {itemType === 'fauna' && (
                                         <span>{item.scientific_name ? <i>{item.scientific_name}</i> : (item.habitat || 'General')}</span>
@@ -17471,11 +17458,52 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     </div>
                                   </td>
                                   <td>
-                                    {item.is_shipping_available ? (
-                                      <span className="badge badge-least-concern" style={{ fontSize: '0.7rem' }}>Bisa Dikirim</span>
-                                    ) : (
-                                      <span className="badge badge-vulnerable" style={{ fontSize: '0.7rem' }}>Lokal / Pickup</span>
-                                    )}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                      {(item as any).is_active !== false ? (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.25rem',
+                                          padding: '0.12rem 0.45rem',
+                                          borderRadius: '4px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                          color: '#10b981',
+                                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                                        }}>
+                                          <CheckCircle2 size={11} strokeWidth={2.5} /> Aktif
+                                        </span>
+                                      ) : (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.25rem',
+                                          padding: '0.12rem 0.45rem',
+                                          borderRadius: '4px',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                          color: '#ef4444',
+                                          border: '1px solid rgba(239, 68, 68, 0.3)'
+                                        }}>
+                                          <Lock size={11} strokeWidth={2.5} /> Diarsipkan
+                                        </span>
+                                      )}
+                                      {item.conservation_status && (
+                                        <span style={{
+                                          fontSize: '0.7rem',
+                                          fontWeight: 600,
+                                          color: 'var(--text-secondary)',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.25rem'
+                                        }}>
+                                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
+                                          {item.conservation_status}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td>
                                     <div className="action-buttons">
