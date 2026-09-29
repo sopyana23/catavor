@@ -14228,8 +14228,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         </div>
       ) : (
         <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* Unified Desktop Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) */}
-      <div className={`desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
+        {/* Unified Desktop Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) - Hidden in Merchant Admin Workspace */}
+        {!(view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged) && (
+        <div className={`desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
         {/* Store Owner Preview Banner for Public Storefront View */}
         {isStoreOwner && view === 'catalog' && (
           <aside 
@@ -14526,9 +14527,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </header>
         )}
       </div>
+      )}
 
-      {/* Main Container */}
-      <main className="container" style={{ paddingBottom: '4rem' }}>
+      {/* Main Container - Full-bleed for Admin Workspace, Standard container for Public Views */}
+      <main 
+        className={view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged ? "admin-workspace-canvas" : "container"} 
+        style={view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged ? { padding: 0, width: '100%', maxWidth: 'none', margin: 0, minHeight: '100vh', display: 'flex', flexDirection: 'column' } : { paddingBottom: '4rem' }}
+      >
         {error ? (
           <div 
             className="animate-fade-in" 
@@ -15755,8 +15760,30 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               </form>
             </div>
           ) : (
-            /* ADMIN DASHBOARD (LOGGED IN & PASSWORD CHANGED) */
-            <div className="glass-panel animate-fade-in" style={{ padding: '2rem', marginTop: '2rem' }}>
+            /* ADMIN DASHBOARD (LOGGED IN & PASSWORD CHANGED) - MODERN SAAS SHELL */
+            <MerchantAdminShell
+              adminTab={adminTab}
+              setAdminTab={setAdminTab}
+              settings={settings}
+              storeSlug={storeSlug}
+              adminUser={adminUser}
+              unreadCount={unreadCount}
+              unreadTicketsCount={unreadTicketsCount}
+              totalItemsCount={faunas.length}
+              storeQuota={storeQuota}
+              userStores={userStores}
+              showStoreDropdown={showStoreDropdown}
+              setShowStoreDropdown={setShowStoreDropdown}
+              openStoreChooserModal={openStoreChooserModal}
+              setShowCreateStoreModal={setShowCreateStoreModal}
+              handleSwitchStore={handleSwitchStore}
+              handleLogout={handleLogout}
+              goToCatalog={goToCatalog}
+              onOpenNotifications={() => setShowNotificationModal(true)}
+              onOpenCreateItem={() => openCreateModal('physical')}
+              isPlatformAdminUser={isPlatformAdmin(adminUser)}
+              isSuperAdminUser={isSuperAdmin(adminUser)}
+            >
               {/* Dormancy Inactivity Warning Banner (Free Tier Desktop - Dynamic Luxury Theme) */}
               {settings.plan === 'free' && (settings.dormancy_status === 'warning_1' || settings.dormancy_status === 'warning_2') && (
                 <div 
@@ -15864,343 +15891,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </button>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                  {/* Store Switcher Dropdown Anchor */}
-                  <div style={{ position: 'relative' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowStoreDropdown(!showStoreDropdown)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        padding: '0.6rem 0.9rem',
-                        borderRadius: '0.75rem',
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        color: '#ffffff',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        textAlign: 'left'
-                      }}
-                      title="Ganti Profil Katalog"
-                    >
-                      <div style={{
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '8px',
-                        background: 'var(--primary-glow)',
-                        border: '1px solid var(--primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--primary)',
-                        fontWeight: 800,
-                        fontSize: '1rem',
-                        overflow: 'hidden',
-                        flexShrink: 0
-                      }}>
-                        {settings.store_logo_url ? (
-                          <img src={settings.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          (settings.store_title || storeSlug || 'C').charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <div style={{ minWidth: '120px', maxWidth: '200px' }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {settings.store_title || storeSlug || 'Katalog'}
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span>@{storeSlug}</span>
-                          <span style={{
-                            fontSize: '0.62rem',
-                            fontWeight: 700,
-                            padding: '0.05rem 0.35rem',
-                            borderRadius: '4px',
-                            background: settings.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.2)' : settings.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                            color: settings.plan === 'pro_business' ? '#f59e0b' : settings.plan === 'pro_starter' ? '#38bdf8' : '#34d399'
-                          }}>
-                            {settings.plan === 'pro_business' ? 'PRO BISNIS' : settings.plan === 'pro_starter' ? 'STARTER' : 'FREE'}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronDown size={16} style={{ color: 'var(--text-muted)', transform: showStoreDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                    </button>
 
-                    {/* Store Switcher Dropdown Popover */}
-                    {showStoreDropdown && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 'calc(100% + 8px)',
-                        left: 0,
-                        width: '320px',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: '0.85rem',
-                        boxShadow: '0 12px 36px rgba(0,0,0,0.35)',
-                        padding: '0.65rem',
-                        zIndex: 1000,
-                        animation: 'fadeIn 0.15s ease',
-                        color: 'var(--text-primary)'
-                      }}>
-                        <div style={{ padding: '0.4rem 0.6rem 0.6rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Profil Katalog Anda ({userStores.length})
-                          </span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                            {adminUser?.email}
-                          </span>
-                        </div>
-
-                        <div style={{ maxHeight: '240px', overflowY: 'auto', padding: '0.4rem 0', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          {(() => {
-                            const planWeight = (plan?: string) => {
-                              if (plan === 'pro_business') return 3;
-                              if (plan === 'pro_starter') return 2;
-                              return 1;
-                            };
-
-                            const sortedStores = [...userStores].sort((a, b) => {
-                              const isAActive = a.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                              const isBActive = b.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                              if (isAActive && !isBActive) return -1;
-                              if (!isAActive && isBActive) return 1;
-
-                              const weightDiff = planWeight(b.plan) - planWeight(a.plan);
-                              if (weightDiff !== 0) return weightDiff;
-
-                              const nameA = (a.store_title || a.slug).toLowerCase();
-                              const nameB = (b.store_title || b.slug).toLowerCase();
-                              return nameA.localeCompare(nameB);
-                            });
-
-                            return sortedStores.map((s) => {
-                              const isCurrent = s.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                            return (
-                              <div
-                                key={s.id}
-                                onClick={() => handleSwitchStore(s.slug)}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '0.55rem 0.65rem',
-                                  borderRadius: '0.5rem',
-                                  backgroundColor: isCurrent ? 'var(--primary-glow)' : 'transparent',
-                                  border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
-                                  cursor: isCurrent ? 'default' : 'pointer',
-                                  transition: 'all 0.15s ease'
-                                }}
-                                onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'var(--bg-deep)'; }}
-                                onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
-                                  <div style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    borderRadius: '6px',
-                                    backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-card-hover)',
-                                    color: isCurrent ? '#ffffff' : 'var(--text-primary)',
-                                    border: isCurrent ? 'none' : '1px solid var(--border-light)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 800,
-                                    fontSize: '0.85rem',
-                                    flexShrink: 0,
-                                    overflow: 'hidden'
-                                  }}>
-                                    {s.store_logo_url ? (
-                                      <img src={s.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : (
-                                      s.store_title ? s.store_title.charAt(0).toUpperCase() : s.slug.charAt(0).toUpperCase()
-                                    )}
-                                  </div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {s.store_title || s.slug}
-                                    </div>
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                      @{s.slug} {s.item_count !== undefined ? `• ${s.item_count} item` : ''}
-                                    </div>
-                                  </div>
-                                </div>
-                                {isCurrent ? (
-                                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                                    <Check size={14} /> Aktif
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                    Beralih &rarr;
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          });
-                        })()}
-                        </div>
-
-                        <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem', display: 'flex', gap: '0.4rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowStoreDropdown(false);
-                              openStoreChooserModal();
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: '0.55rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <Store size={14} />
-                            <span>Pusat Katalog</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowStoreDropdown(false);
-                              setShowCreateStoreModal(true);
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: '0.55rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--primary-glow)',
-                              border: '1px dashed var(--primary)',
-                              color: 'var(--primary)',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <Plus size={14} />
-                            <span>Buat Baru</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h2 style={{ fontSize: '1.4rem', margin: 0, fontWeight: 800, color: 'var(--text-color)', letterSpacing: '-0.02em' }}>
-                      Dashboard Administrator
-                    </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0.15rem 0 0' }}>
-                      Pengelola: <strong>{adminUser?.name}</strong> • Akun Multi-Katalog
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* Public Catalog Eye button (hidden if suspended) */}
-                  {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
-                    <button 
-                      type="button"
-                      onClick={goToCatalog}
-                      style={{
-                        padding: '0.55rem 0.95rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        color: '#ffffff',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                      title="Buka tampilan katalog yang dilihat pengunjung"
-                    >
-                      <Eye size={15} />
-                      <span>Lihat Katalog Publik</span>
-                      <ExternalLink size={13} style={{ opacity: 0.6 }} />
-                    </button>
-                  )}
-
-                  {/* Notification Bell Button */}
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setAdminTab('notifications');
-                      const slug = getStoreSlug();
-                      if (slug) {
-                        window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                      }
-                    }}
-                    style={{ 
-                      position: 'relative', 
-                      background: 'rgba(255,255,255,0.06)', 
-                      border: '1px solid rgba(255,255,255,0.12)', 
-                      borderRadius: '0.5rem', 
-                      padding: '0.55rem 0.85rem', 
-                      cursor: 'pointer', 
-                      color: '#fff', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '0.4rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <Bell size={16} style={{ color: unreadCount > 0 ? '#f59e0b' : '#9ca3af' }} />
-                    <span>Notifikasi</span>
-                    {unreadCount > 0 && (
-                      <span style={{ backgroundColor: '#ef4444', color: '#fff', fontSize: '0.62rem', fontWeight: 900, borderRadius: '9999px', padding: '0.1rem 0.45rem', border: '1.5px solid #0f172a' }}>
-                        {unreadCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
-                    <>
-                      <button 
-                        className="btn-secondary" 
-                        onClick={() => {
-                          setAdminTab('subscription');
-                          const slug = getStoreSlug();
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
-                        }} 
-                        style={{ padding: '0.55rem 0.95rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', border: '1px solid var(--primary)', color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 700 }}
-                      >
-                        <Crown size={15} />
-                        <span>Paket &amp; Langganan</span>
-                      </button>
-
-                      {adminTab === 'items' && (
-                        <button className="btn-primary" onClick={() => openCreateModal('physical')} style={{ padding: '0.55rem 1rem', fontSize: '0.8rem', fontWeight: 700 }}>
-                          <Plus size={16} />
-                          Tambah Item
-                        </button>
-                      )}
-                    </>
-                  )}
-                  <button className="btn-danger" onClick={handleLogout} style={{ padding: '0.55rem 0.9rem', fontSize: '0.8rem' }}>
-                    <LogOut size={15} />
-                    Keluar
-                  </button>
-                </div>
-              </div>
+              {/* Note: Store Switcher, Admin Titles, Action Buttons, and Quota Pills are now cleanly integrated into MerchantAdminShell Sticky Sidebar & Header */}
 
               {/* IF STORE IS SUSPENDED & USER IS NOT IN HELP TAB -> RENDER ISOLATION RESOLUTION HUB */}
               {(settings.dormancy_status === 'suspended' || settings.is_suspended) && adminTab !== 'help' ? (
@@ -16737,194 +16429,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </div>
               )}
 
-              {/* Tab Selector */}
-              <div className="admin-tabs">
-                <button 
-                  className={`admin-tab ${adminTab === 'items' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('items');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <PackageCheck size={16} />
-                  <span>Daftar Item Katalog</span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'analytics' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('analytics');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/analytics`);
-                    fetchAnalytics(analyticsPeriod);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <BarChart3 size={16} />
-                  <span>Statistik &amp; Trafik</span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'subscription' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('subscription');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <Crown size={16} />
-                  <span>Paket &amp; Langganan</span>
-                  <span style={{ 
-                    fontSize: '0.62rem', 
-                    fontWeight: 900, 
-                    padding: '0.1rem 0.4rem', 
-                    borderRadius: '999px', 
-                    backgroundColor: settings.plan === 'free' ? 'rgba(245, 158, 11, 0.2)' : 'var(--primary-glow)', 
-                    color: settings.plan === 'free' ? '#f59e0b' : 'var(--primary)', 
-                    border: '1px solid var(--border-light)',
-                    textTransform: 'uppercase'
-                  }}>
-                    {storeQuota?.plan?.name || (settings.plan === 'free' ? 'Gratis' : 'Pro')}
-                  </span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'notifications' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('notifications');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <BellRing size={16} />
-                  <span>Notifikasi &amp; Aktivitas</span>
-                  {unreadCount > 0 && <span className="badge" style={{ backgroundColor: 'var(--primary)', color: '#000', borderRadius: '999px', fontSize: '0.65rem', padding: '0.1rem 0.45rem', marginLeft: '0.2rem', fontWeight: 800 }}>{unreadCount}</span>}
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'audit_logs' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('audit_logs');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/audit-logs`);
-                    fetchActivityLogs(1, false);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <History size={16} />
-                  <span>{adminUser?.email === 'admin@catavor.com' ? 'System Audit Trail' : 'Riwayat Aktivitas & Audit'}</span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'settings' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('settings');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/settings`);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <SlidersHorizontal size={16} />
-                  <span>Pengaturan Katalog</span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'profile' ? 'active' : ''}`}
-                  onClick={() => {
-                    setAdminTab('profile');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/profile`);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <UserCheck size={16} />
-                  <span>Profil &amp; Password Admin</span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'policies' ? 'active' : ''}`}
-                  onClick={() => { 
-                    setAdminTab('policies'); 
-                    fetchPolicies(); 
-                    fetchPolicyAuditLogs();
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-                >
-                  <Scale size={16} />
-                  <span>Legal &amp; Kebijakan Platform</span>
-                </button>
-                <button 
-                  className={`admin-tab ${adminTab === 'help' ? 'active' : ''}`}
-                  onClick={() => { 
-                    setAdminTab('help');
-                    const slug = getStoreSlug();
-                    if (slug) {
-                      window.history.pushState({}, '', `/${slug}/admin/help`);
-                    }
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', position: 'relative' }}
-                >
-                  <LifeBuoy size={16} />
-                  <span>Pusat Bantuan &amp; Support</span>
-                  {unreadTicketsCount > 0 && (
-                    <span style={{
-                      padding: '0.12rem 0.5rem',
-                      borderRadius: '999px',
-                      backgroundColor: '#ef4444',
-                      color: '#ffffff',
-                      fontSize: '0.66rem',
-                      fontWeight: 800,
-                      boxShadow: '0 0 8px rgba(239, 68, 68, 0.7)',
-                      animation: 'pulse 1.8s infinite'
-                    }}>
-                      {unreadTicketsCount} Baru
-                    </span>
-                  )}
-                </button>
-                {isSuperAdmin(adminUser) && (
-                  <button 
-                    className={`admin-tab ${adminTab === 'rbac' ? 'active' : ''}`}
-                    onClick={() => { 
-                      setAdminTab('rbac');
-                      const slug = getStoreSlug();
-                      if (slug) {
-                        window.history.pushState({}, '', `/${slug}/admin/rbac`);
-                      }
-                    }}
-                    style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
-                      gap: '0.45rem',
-                      borderColor: adminTab === 'rbac' ? 'rgba(244, 63, 94, 0.4)' : undefined,
-                      color: adminTab === 'rbac' ? '#f43f5e' : undefined 
-                    }}
-                  >
-                    <Shield size={16} color="#f43f5e" />
-                    <span>Staf &amp; Hak Akses RBAC</span>
-                  </button>
-                )}
-                {isPlatformAdmin(adminUser) && (
-                  <button 
-                    className={`admin-tab ${adminTab === 'portal' ? 'active' : ''}`}
-                    onClick={() => { 
-                      setAdminTab('portal');
-                      const slug = getStoreSlug();
-                      if (slug) {
-                        window.history.pushState({}, '', `/${slug}/admin/portal`);
-                      }
-                    }}
-                    style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
-                      gap: '0.45rem',
-                      borderColor: adminTab === 'portal' ? getRoleBadge(adminUser?.platform_role || '').color : undefined,
-                      color: adminTab === 'portal' ? getRoleBadge(adminUser?.platform_role || '').color : undefined 
-                    }}
-                  >
-                    <Layers size={16} color={getRoleBadge(adminUser?.platform_role || '').color} />
-                    <span>Portal Staf ({getRoleBadge(adminUser?.platform_role || '').label})</span>
-                  </button>
-                )}
-              </div>
+              {/* Navigation tabs are now cleanly rendered in MerchantAdminShell's Sticky Sidebar */}
 
               {/* Admin Tabs Content */}
               {adminTab === 'items' && (
@@ -22564,7 +22069,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               )}
               </>
             )}
-            </div>
+            </MerchantAdminShell>
           )
         ) : null
         )}

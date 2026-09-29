@@ -151,6 +151,11 @@ func main() {
 		ByteRange: true,
 		MaxAge:    0,
 	})
+	app.Static("/tablet", cfg.TabletDistDir, fiber.Static{
+		Compress:  true,
+		ByteRange: true,
+		MaxAge:    0,
+	})
 	app.Static("/mobile", cfg.MobileDistDir, fiber.Static{
 		Compress:  true,
 		ByteRange: true,

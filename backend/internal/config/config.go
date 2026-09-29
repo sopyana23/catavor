@@ -39,6 +39,7 @@ type Config struct {
 	S3UsePathStyle     bool
 	S3SSL              bool
 	DesktopDistDir     string
+	TabletDistDir      string
 	MobileDistDir      string
 	AllowedOrigins     []string
 }
@@ -105,6 +106,7 @@ func LoadConfig() *Config {
 		S3UsePathStyle:     s3UsePathStyle,
 		S3SSL:              s3SSL,
 		DesktopDistDir:     resolveDir("DESKTOP_DIST_DIR", "public/desktop"),
+		TabletDistDir:      resolveDir("TABLET_DIST_DIR", "public/tablet"),
 		MobileDistDir:      resolveDir("MOBILE_DIST_DIR", "public/mobile"),
 		AllowedOrigins:     origins,
 	}

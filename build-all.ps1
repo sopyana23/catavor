@@ -22,6 +22,19 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+$tabletDir = Join-Path $PSScriptRoot "frontend\tablet"
+if (Test-Path $tabletDir) {
+    Write-Host ""
+    Write-Host "3. Building Tablet Frontend..." -ForegroundColor Cyan
+    Set-Location -Path $tabletDir
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Tablet Frontend build failed!" -ForegroundColor Red
+        Set-Location -Path $PSScriptRoot
+        exit 1
+    }
+}
+
 Set-Location -Path $PSScriptRoot
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor Green

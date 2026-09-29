@@ -12,7 +12,10 @@ import (
 	"gorm.io/gorm"
 )
 
-var mobileUARegex = regexp.MustCompile(`(?i)(android|bb\d+|meego).+mobile|avantgo|bada/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino`)
+var tabletUARegex = regexp.MustCompile(`(?i)(ipad|tablet|playbook|silk|kindle)`)
+var androidRegex = regexp.MustCompile(`(?i)android`)
+var mobileSubRegex = regexp.MustCompile(`(?i)mobile`)
+var mobileUARegex = regexp.MustCompile(`(?i)(android|bb\d+|meego).+mobile|avantgo|bada/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino`)
 
 type SPAHandler struct {
 	cfg *config.Config
@@ -57,17 +60,25 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	}
 
 	userAgent := c.Get("User-Agent")
-	viewQuery := c.Query("view")
+	viewQuery := strings.ToLower(c.Query("view"))
 	secCHMobile := c.Get("Sec-CH-UA-Mobile")
-
-	isMobile := mobileUARegex.MatchString(userAgent) ||
-		viewQuery == "mobile" ||
-		secCHMobile == "?1"
 
 	var targetDist string
 	var fallbackDist string
 
-	if isMobile {
+	if viewQuery == "tablet" {
+		targetDist = h.cfg.TabletDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if viewQuery == "mobile" {
+		targetDist = h.cfg.MobileDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if viewQuery == "desktop" {
+		targetDist = h.cfg.DesktopDistDir
+		fallbackDist = h.cfg.MobileDistDir
+	} else if tabletUARegex.MatchString(userAgent) || (androidRegex.MatchString(userAgent) && !mobileSubRegex.MatchString(userAgent)) {
+		targetDist = h.cfg.TabletDistDir
+		fallbackDist = h.cfg.DesktopDistDir
+	} else if mobileUARegex.MatchString(userAgent) || secCHMobile == "?1" {
 		targetDist = h.cfg.MobileDistDir
 		fallbackDist = h.cfg.DesktopDistDir
 	} else {
@@ -78,6 +89,9 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	indexPath := resolveIndexHTML(targetDist)
 	if indexPath == "" {
 		indexPath = resolveIndexHTML(fallbackDist)
+	}
+	if indexPath == "" {
+		indexPath = resolveIndexHTML(h.cfg.DesktopDistDir)
 	}
 
 	if indexPath == "" {
@@ -100,12 +114,16 @@ func resolveIndexHTML(distDir string) string {
 	candidates := []string{
 		filepath.Join(distDir, "index.html"),
 		filepath.Join(distDir, "..", "desktop", "index.html"),
+		filepath.Join(distDir, "..", "tablet", "index.html"),
 		filepath.Join(distDir, "..", "mobile", "index.html"),
 		filepath.Join("public", "desktop", "index.html"),
+		filepath.Join("public", "tablet", "index.html"),
 		filepath.Join("public", "mobile", "index.html"),
 		filepath.Join(".", "public", "desktop", "index.html"),
+		filepath.Join(".", "public", "tablet", "index.html"),
 		filepath.Join(".", "public", "mobile", "index.html"),
 		filepath.Join("..", "public", "desktop", "index.html"),
+		filepath.Join("..", "public", "tablet", "index.html"),
 		filepath.Join("..", "public", "mobile", "index.html"),
 	}
 
