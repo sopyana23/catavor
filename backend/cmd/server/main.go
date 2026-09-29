@@ -267,6 +267,7 @@ func main() {
 		// CRUD Modern Product & Category
 		guardedMutations.Post("/products", productHandler.Store)
 		guardedMutations.Put("/products/:id", productHandler.Update)
+		guardedMutations.Post("/products/:id/resubmit-review", productHandler.ResubmitForReview)
 		guardedMutations.Delete("/products/:id", productHandler.Destroy)
 
 		guarded.Get("/admin/categories", categoryHandler.Index)

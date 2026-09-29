@@ -5681,6 +5681,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {[
               { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
               { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
+              { id: 're_review', label: 'Tinjau Ulang', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
               { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
               { id: 'action_taken', label: 'Ditindak Sanksi', count: reportMetrics ? reportMetrics.action_taken : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
               { id: 'banned', label: 'Banned Permanen', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
@@ -5822,6 +5823,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
                 const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
                   pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
+                  re_review: { label: 'Perlu Ditinjau Ulang', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' },
                   investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
@@ -5860,10 +5862,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       backgroundColor: theme.surface,
                       border: isItemBanned
                         ? '1px solid rgba(239, 68, 68, 0.55)'
-                        : (r.status === 'pending' 
-                            ? '1px solid rgba(245, 158, 11, 0.4)' 
-                            : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`)),
-                      boxShadow: isItemBanned ? '0 4px 14px rgba(239, 68, 68, 0.12)' : theme.cardShadow,
+                        : (r.status === 're_review'
+                            ? '1px solid rgba(16, 185, 129, 0.65)'
+                            : (r.status === 'pending' 
+                                ? '1px solid rgba(245, 158, 11, 0.4)' 
+                                : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`))),
+                      boxShadow: isItemBanned 
+                        ? '0 4px 14px rgba(239, 68, 68, 0.12)' 
+                        : (r.status === 're_review' ? '0 4px 14px rgba(16, 185, 129, 0.12)' : theme.cardShadow),
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.65rem',
@@ -6002,6 +6008,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         )}
                       </div>
                     </div>
+
+                    {r.status === 're_review' && (
+                      <div style={{
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem'
+                      }}>
+                        <RefreshCw size={13} color="#10b981" />
+                        <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
+                          Pemilik toko telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
+                        </span>
+                      </div>
+                    )}
 
                     {/* Footer Row: Clean Action Buttons */}
                     <div style={{
