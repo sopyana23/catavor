@@ -86,7 +86,12 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badge: totalItemsCount > 0 ? totalItemsCount : null,
           badgeColor: 'var(--primary-glow)',
           badgeTextColor: 'var(--primary)'
-        },
+        }
+      ]
+    },
+    {
+      group: 'Performa & Aktivitas',
+      items: [
         {
           id: 'analytics',
           label: 'Statistik & Trafik',
