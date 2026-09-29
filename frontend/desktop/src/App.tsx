@@ -17365,7 +17365,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <th>Nama Item &amp; Spesifikasi</th>
                             <th>Kategori &amp; Tipe</th>
                             <th>Harga</th>
-                            <th>Status &amp; Ketersediaan</th>
+                            <th style={{ width: '130px' }}>Status</th>
                             <th style={{ width: '170px' }}>Aksi</th>
                           </tr>
                         </thead>
@@ -17458,52 +17458,53 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     </div>
                                   </td>
                                   <td>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
-                                      {(item as any).is_active !== false ? (
-                                        <span style={{
+                                    {(item as any).is_active !== false ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleActiveStatus(item, false)}
+                                        title="Status: Aktif (Klik untuk mengarsipkan)"
+                                        style={{
                                           display: 'inline-flex',
                                           alignItems: 'center',
-                                          gap: '0.25rem',
-                                          padding: '0.12rem 0.45rem',
-                                          borderRadius: '4px',
-                                          fontSize: '0.72rem',
+                                          gap: '0.3rem',
+                                          padding: '0.22rem 0.65rem',
+                                          borderRadius: '6px',
+                                          fontSize: '0.74rem',
                                           fontWeight: 700,
                                           backgroundColor: 'rgba(16, 185, 129, 0.12)',
                                           color: '#10b981',
-                                          border: '1px solid rgba(16, 185, 129, 0.3)'
-                                        }}>
-                                          <CheckCircle2 size={11} strokeWidth={2.5} /> Aktif
-                                        </span>
-                                      ) : (
-                                        <span style={{
+                                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.15s ease'
+                                        }}
+                                      >
+                                        <CheckCircle2 size={12} strokeWidth={2.5} />
+                                        <span>Aktif</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleActiveStatus(item, true)}
+                                        title="Status: Diarsipkan (Klik untuk mengaktifkan)"
+                                        style={{
                                           display: 'inline-flex',
                                           alignItems: 'center',
-                                          gap: '0.25rem',
-                                          padding: '0.12rem 0.45rem',
-                                          borderRadius: '4px',
-                                          fontSize: '0.72rem',
+                                          gap: '0.3rem',
+                                          padding: '0.22rem 0.65rem',
+                                          borderRadius: '6px',
+                                          fontSize: '0.74rem',
                                           fontWeight: 700,
                                           backgroundColor: 'rgba(239, 68, 68, 0.12)',
                                           color: '#ef4444',
-                                          border: '1px solid rgba(239, 68, 68, 0.3)'
-                                        }}>
-                                          <Lock size={11} strokeWidth={2.5} /> Diarsipkan
-                                        </span>
-                                      )}
-                                      {item.conservation_status && (
-                                        <span style={{
-                                          fontSize: '0.7rem',
-                                          fontWeight: 600,
-                                          color: 'var(--text-secondary)',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '0.25rem'
-                                        }}>
-                                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                                          {item.conservation_status}
-                                        </span>
-                                      )}
-                                    </div>
+                                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.15s ease'
+                                        }}
+                                      >
+                                        <Lock size={12} strokeWidth={2.5} />
+                                        <span>Diarsipkan</span>
+                                      </button>
+                                    )}
                                   </td>
                                   <td>
                                     <div className="action-buttons">
