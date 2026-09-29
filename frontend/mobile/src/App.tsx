@@ -1500,6 +1500,11 @@ interface Fauna {
   max_order?: number | null
   video_url: string | null
   is_shipping_available: boolean
+  is_active?: boolean
+  moderation_status?: string
+  moderation_reason?: string
+  moderated_at?: string
+  store_id?: number
   description: string
   image_url: string
   product_type?: ItemCategoryType
@@ -11839,18 +11844,35 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   // Open Details Sheet with Scroll Position Memory
   const openDetailsSheet = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/products/${id}`)
-      const data = await res.json()
-      if (data.success) {
-        catalogScrollYRef.current = window.scrollY
-        setSelectedFauna(data.data)
-        setActiveImageIndex(0)
-        setIsDetailActive(true)
-        window.scrollTo({ top: 0, behavior: 'instant' })
+      // 1. Instant optimistic load from existing faunas array if available
+      const localItem = faunas.find(f => f.id === id);
+      if (localItem) {
+        catalogScrollYRef.current = window.scrollY;
+        setSelectedFauna(localItem);
+        setActiveImageIndex(0);
+        setIsDetailActive(true);
+        window.scrollTo({ top: 0, behavior: 'instant' });
       }
-    } catch (err) {
-      console.error(err)
-      alert('Gagal memuat detail.')
+
+      // 2. Fetch fresh detailed item via apiClient (automatically sends auth token Bearer)
+      const currentSlug = storeSlug || getStoreSlug() || '';
+      const res = await apiClient.get<any>(`/products/${id}`, { slug: currentSlug });
+      if (res && res.success && res.data) {
+        if (!localItem) {
+          catalogScrollYRef.current = window.scrollY;
+          setActiveImageIndex(0);
+          setIsDetailActive(true);
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+        setSelectedFauna(res.data);
+      } else if (!localItem) {
+        showToast?.(res?.message || 'Item tidak ditemukan atau sedang dinonaktifkan.', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (!faunas.some(f => f.id === id)) {
+        showToast?.(err?.message || 'Gagal memuat detail item.', 'error');
+      }
     }
   }
 

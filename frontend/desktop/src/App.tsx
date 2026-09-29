@@ -10639,20 +10639,34 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }
 
-  // Fetch details
+  // Fetch details with optimistic load and apiClient
   const fetchDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/products/${id}`)
-      const data = await res.json()
-      if (data.success) {
-        setSelectedFauna(data.data)
-        setActiveImageIndex(0)
-        setIsDetailActive(true)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+      const currentSlug = storeSlug || getStoreSlug() || '';
+      const localItem = faunas.find(f => f.id === id);
+      if (localItem) {
+        setSelectedFauna(localItem);
+        setActiveImageIndex(0);
+        setIsDetailActive(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    } catch (err) {
-      console.error(err)
-      alert('Gagal mengambil data detail.')
+
+      const res = await apiClient.get<any>(`/products/${id}`, { slug: currentSlug });
+      if (res && res.success && res.data) {
+        if (!localItem) {
+          setActiveImageIndex(0);
+          setIsDetailActive(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        setSelectedFauna(res.data);
+      } else if (!localItem) {
+        showToast?.(res?.message || 'Item tidak ditemukan atau sedang dinonaktifkan.', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (!faunas.some(f => f.id === id)) {
+        showToast?.(err?.message || 'Gagal mengambil data detail.', 'error');
+      }
     }
   }
 
