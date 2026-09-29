@@ -993,7 +993,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // States: Division Data
   const [reports, setReports] = useState<any[]>([]);
-  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 'action_taken' | 'banned' | 'resolved' | 'dismissed'>('all');
+  const [reportsFilter, setReportsFilter] = useState<'all' | 'pending' | 'investigating' | 're_review' | 'action_taken' | 'banned' | 'resolved' | 'dismissed'>('all');
   const [reportsTargetFilter, setReportsTargetFilter] = useState<'all' | 'item' | 'catalog'>('all');
   const [reportsSearchQuery, setReportsSearchQuery] = useState<string>('');
   const [moderationModalReport, setModerationModalReport] = useState<any | null>(null);
@@ -5751,7 +5751,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {[
               { id: 'all', label: 'Semua', count: reportMetrics ? reportMetrics.total : reports.length },
               { id: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
-              { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
+              { id: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating').length },
+              { id: 're_review', label: '📥 Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
               { id: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => r.status === 'action_taken' && r.action_taken !== 'catalog_banned').length },
               { id: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
               { id: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
@@ -5765,9 +5766,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   borderRadius: '999px',
                   fontSize: '0.72rem',
                   fontWeight: 700,
-                  backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : '#f43f5e') : theme.chipInactiveBg,
+                  backgroundColor: reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : '#f43f5e') : theme.chipInactiveBg,
                   color: reportsFilter === f.id ? '#ffffff' : theme.chipInactiveText,
-                  border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : '#f43f5e') : theme.border}`,
+                  border: `1px solid ${reportsFilter === f.id ? (f.id === 'banned' ? '#ef4444' : f.id === 're_review' ? '#10b981' : '#f43f5e') : theme.border}`,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'flex',
@@ -5821,7 +5822,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             .filter(r => {
               if (reportsFilter !== 'all') {
                 if (reportsFilter === 'investigating') {
-                  if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                  if (r.status !== 'investigating') return false;
+                } else if (reportsFilter === 're_review') {
+                  if (r.status !== 're_review') return false;
                 } else if (reportsFilter === 'banned') {
                   if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
                 } else if (reportsFilter === 'action_taken') {
@@ -5861,7 +5864,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               .filter(r => {
                 if (reportsFilter !== 'all') {
                   if (reportsFilter === 'investigating') {
-                    if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                    if (r.status !== 'investigating') return false;
+                  } else if (reportsFilter === 're_review') {
+                    if (r.status !== 're_review') return false;
                   } else if (reportsFilter === 'banned') {
                     if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
                   } else if (reportsFilter === 'action_taken') {
@@ -5894,6 +5899,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
                   investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
+                  re_review: { label: '📥 Revisi Masuk', bg: 'rgba(16, 185, 129, 0.18)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.45)' },
                   action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
                   banned: { label: '🚫 Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
                   dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
@@ -5930,10 +5936,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       backgroundColor: theme.surface,
                       border: isItemBanned
                         ? '1px solid rgba(239, 68, 68, 0.55)'
-                        : (r.status === 'pending' 
-                            ? '1px solid rgba(245, 158, 11, 0.4)' 
-                            : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`)),
-                      boxShadow: isItemBanned ? '0 4px 14px rgba(239, 68, 68, 0.12)' : theme.cardShadow,
+                        : (r.status === 're_review'
+                            ? '1px solid rgba(16, 185, 129, 0.65)'
+                            : (r.status === 'pending' 
+                                ? '1px solid rgba(245, 158, 11, 0.4)' 
+                                : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`))),
+                      boxShadow: isItemBanned 
+                        ? '0 4px 14px rgba(239, 68, 68, 0.12)' 
+                        : (r.status === 're_review' ? '0 4px 14px rgba(16, 185, 129, 0.12)' : theme.cardShadow),
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.65rem',
@@ -6072,6 +6082,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         )}
                       </div>
                     </div>
+
+                    {r.status === 're_review' && (
+                      <div style={{
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem'
+                      }}>
+                        <RefreshCw size={13} color="#10b981" />
+                        <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
+                          Pemilik toko telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
+                        </span>
+                      </div>
+                    )}
 
                     {/* Footer Row: Clean Action Buttons */}
                     <div style={{

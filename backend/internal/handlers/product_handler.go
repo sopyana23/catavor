@@ -498,10 +498,24 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
-	// Trigger broadcast alert to platform admins if product was resubmitted
+	// Trigger broadcast alert & report synchronization if product was resubmitted
 	if wasInNeedsFix {
+		now := time.Now().UTC()
+		// 1. Update any pending/investigating/action_taken reports for this item to 're_review'
+		var itemReports []models.Report
+		database.DB.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
+		for _, r := range itemReports {
+			noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah memperbarui data produk dan mengajukan peninjauan ulang.", now.Format("02 Jan 2006 15:04 WIB")))
+			database.DB.Model(&r).Updates(map[string]interface{}{
+				"status":      "re_review",
+				"admin_notes": noteUpdate,
+				"updated_at":  now,
+			})
+		}
+		InvalidateReportMetricsCache()
+
+		// 2. Broadcast and record notification for platform admins
 		go func(pID uint, pName, sTitle string) {
-			now := time.Now().UTC()
 			adminMsg := fmt.Sprintf("Merchant \"%s\" telah memperbarui data produk \"%s\" dan mengajukan peninjauan ulang.", sTitle, pName)
 			adminNotif := models.Notification{
 				ID:            fmt.Sprintf("notif_resubmit_%d_%d", pID, now.UnixNano()),
@@ -520,6 +534,20 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			_ = database.DB.Create(&adminNotif).Error
 			services.GetNotificationHub().Broadcast(&adminNotif)
 		}(product.ID, product.Name, store.StoreTitle)
+
+		// 3. Create acknowledgement notification for merchant
+		merchantNotif := models.Notification{
+			ID:         fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
+			TargetType: "store",
+			TargetID:   store.ID,
+			Title:      "Pengajuan Perbaikan Produk Diterima",
+			Message:    fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk antrean peninjauan oleh tim kepatuhan.", product.Name),
+			Type:       "info",
+			Category:   "MODERASI",
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		_ = database.DB.Create(&merchantNotif).Error
 	}
 
 	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
@@ -685,3 +713,98 @@ func (h *ProductHandler) GetRecommendations(c *fiber.Ctx) error {
 		"data":    recs,
 	})
 }
+
+// ResubmitForReview allows a merchant to submit a product for compliance review after fixing it
+func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
+	store, ok := c.Locals("store").(*models.Store)
+	if !ok || store == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses ditolak.",
+		})
+	}
+
+	id := c.Params("id")
+	var product models.Product
+	if err := database.DB.Where("id = ? AND store_id = ?", id, store.ID).First(&product).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Produk tidak ditemukan.",
+		})
+	}
+
+	if product.ModerationStatus != "needs_fix" && product.ModerationStatus != "hidden" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Item ini tidak dalam status perlu perbaikan kepatuhan.",
+		})
+	}
+
+	now := time.Now().UTC()
+	product.ModerationStatus = "in_review"
+	product.IsActive = false
+	product.ResubmittedAt = &now
+	product.ResubmitCount = product.ResubmitCount + 1
+
+	if err := database.DB.Save(&product).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengajukan peninjauan ulang.",
+		})
+	}
+
+	// Update associated reports to 're_review'
+	var itemReports []models.Report
+	database.DB.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
+	for _, r := range itemReports {
+		noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah mengajukan peninjauan ulang produk.", now.Format("02 Jan 2006 15:04 WIB")))
+		database.DB.Model(&r).Updates(map[string]interface{}{
+			"status":      "re_review",
+			"admin_notes": noteUpdate,
+			"updated_at":  now,
+		})
+	}
+	InvalidateReportMetricsCache()
+
+	// Broadcast alert to admins
+	go func(pID uint, pName, sTitle string) {
+		adminMsg := fmt.Sprintf("Merchant \"%s\" telah mengajukan peninjauan ulang untuk produk \"%s\".", sTitle, pName)
+		adminNotif := models.Notification{
+			ID:            fmt.Sprintf("notif_resubmit_%d_%d", pID, now.UnixNano()),
+			TargetType:    "all",
+			Title:         "Pengajuan Ulang Perbaikan Produk",
+			Message:       adminMsg,
+			Type:          "info",
+			Category:      "MODERASI",
+			ActionEnabled: true,
+			ActionType:    "detail",
+			ActionLabel:   "Tinjau Produk →",
+			ActionURL:     fmt.Sprintf("/superadmin?tab=reports&item_id=%d", pID),
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		_ = database.DB.Create(&adminNotif).Error
+		services.GetNotificationHub().Broadcast(&adminNotif)
+	}(product.ID, product.Name, store.StoreTitle)
+
+	// Notification for merchant
+	merchantNotif := models.Notification{
+		ID:         fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
+		TargetType: "store",
+		TargetID:   store.ID,
+		Title:      "Pengajuan Perbaikan Produk Diterima",
+		Message:    fmt.Sprintf("Perbaikan data produk \"%s\" telah kami terima dan masuk antrean peninjauan oleh tim kepatuhan.", product.Name),
+		Type:       "info",
+		Category:   "MODERASI",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	_ = database.DB.Create(&merchantNotif).Error
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Produk berhasil diajukan untuk peninjauan ulang oleh tim kepatuhan.",
+		"data":    product,
+	})
+}
+

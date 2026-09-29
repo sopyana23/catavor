@@ -77,9 +77,10 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	}
 
 	// 2. Direct DB Aggregation fallback
-	var pendingCount, investigatingCount, actionCount, bannedCount, dismissedCount, resolvedCount, totalCount int64
+	var pendingCount, investigatingCount, reReviewCount, actionCount, bannedCount, dismissedCount, resolvedCount, totalCount int64
 	db.Model(&models.Report{}).Where("status = ?", "pending").Count(&pendingCount)
 	db.Model(&models.Report{}).Where("status = ?", "investigating").Count(&investigatingCount)
+	db.Model(&models.Report{}).Where("status = ?", "re_review").Count(&reReviewCount)
 	db.Model(&models.Report{}).Where("status = ?", "action_taken").Count(&actionCount)
 	db.Model(&models.Report{}).Where("status = ? OR action_taken = 'catalog_banned'", "banned").Count(&bannedCount)
 	db.Model(&models.Report{}).Where("status = ?", "dismissed").Count(&dismissedCount)
@@ -89,6 +90,7 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	metrics := map[string]int64{
 		"pending":       pendingCount,
 		"investigating": investigatingCount,
+		"re_review":     reReviewCount,
 		"action_taken":  actionCount,
 		"banned":        bannedCount,
 		"dismissed":     dismissedCount,
@@ -376,7 +378,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 		}
 		var activeCount int64
 		subQ := database.DB.Model(&models.Report{}).
-			Where("store_id = ? AND status IN ('pending', 'investigating')", r.StoreID)
+			Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", r.StoreID)
 		if r.TargetType == "item" && r.FaunaID != nil {
 			subQ = subQ.Where("fauna_id = ?", *r.FaunaID)
 		} else {
@@ -429,7 +431,7 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 
 	// 1. Fetch other active reports for the same entity (Multi-Reporter Evidence Timeline)
 	var activeReports []models.Report
-	actQ := database.DB.Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating')", report.StoreID, report.ID)
+	actQ := database.DB.Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating', 're_review')", report.StoreID, report.ID)
 	if report.TargetType == "item" && report.FaunaID != nil {
 		actQ = actQ.Where("fauna_id = ?", *report.FaunaID)
 	} else {
