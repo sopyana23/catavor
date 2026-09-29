@@ -133,6 +133,7 @@ import { AnalyticsPage, type DetailedAnalyticsData } from './components/Analytic
 import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
 import { PlatformRolePortal } from './components/PlatformRolePortal'
+import { MerchantAdminShell } from './components/MerchantAdminShell'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChooserModal'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
