@@ -30,6 +30,8 @@ type Fauna struct {
 	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"`
 	ModerationReason    string         `gorm:"type:text" json:"moderation_reason,omitempty"`
 	ModeratedAt         *time.Time     `gorm:"index" json:"moderated_at,omitempty"`
+	ResubmittedAt       *time.Time     `gorm:"index" json:"resubmitted_at,omitempty"`
+	ResubmitCount       int            `gorm:"default:0" json:"resubmit_count"`
 	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`

@@ -342,6 +342,7 @@ func main() {
 		guarded.Get("/reports", reportHandler.Index)
 		guarded.Get("/reports/:id", reportHandler.Show)
 		guarded.Put("/reports/:id", reportHandler.UpdateStatus)
+		guarded.Post("/reports/review-item", reportHandler.ReviewRemediatedItem)
 
 
 		// Superadmin Broadcast Notifications (Backward Compatibility Alias)

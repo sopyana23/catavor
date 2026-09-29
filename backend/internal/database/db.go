@@ -334,6 +334,8 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	// 2. Ensure Schema Columns and High-Performance Indexes on products table
 	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(50) DEFAULT 'none';").Error
 	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS moderation_reason TEXT;").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS resubmitted_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS resubmit_count INT DEFAULT 0;").Error
 	_ = db.Exec("ALTER TABLE products ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_store_active ON products(store_id, is_active);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_products_moderation_status ON products(moderation_status);").Error
