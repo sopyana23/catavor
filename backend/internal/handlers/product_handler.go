@@ -9,6 +9,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
@@ -144,7 +145,22 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		isAuthorized := false
 		if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil && storeVal.ID == product.StoreID {
 			isAuthorized = true
+		} else if claims := middleware.ExtractOptionalClaims(c, h.cfg); claims != nil {
+			if claims.StoreID == product.StoreID {
+				isAuthorized = true
+			} else if claims.UserID > 0 {
+				var store models.Store
+				if err := database.DB.Where("id = ? AND user_id = ?", product.StoreID, claims.UserID).First(&store).Error; err == nil {
+					isAuthorized = true
+				} else {
+					var user models.User
+					if err := database.DB.Select("platform_role").First(&user, claims.UserID).Error; err == nil && (user.PlatformRole == "superadmin" || user.PlatformRole == "investigator") {
+						isAuthorized = true
+					}
+				}
+			}
 		}
+
 		if !isAuthorized {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success":     false,
@@ -154,8 +170,10 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		}
 	}
 
-	// Increment view count
-	database.DB.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
+	// Increment view count only for active items viewed by public
+	if product.IsActive {
+		database.DB.Model(&product).UpdateColumn("view_count", gormExpr("view_count + 1"))
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
