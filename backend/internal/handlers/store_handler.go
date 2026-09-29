@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
@@ -469,6 +471,36 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 
 	isMerchantView := h.isMerchantRequester(c, &store)
 
+	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
+	search := strings.TrimSpace(c.Query("search"))
+	productType := strings.TrimSpace(c.Query("product_type"))
+	if productType == "" {
+		productType = strings.TrimSpace(c.Query("type"))
+	}
+	classFilter := strings.TrimSpace(c.Query("class"))
+	categoryID := strings.TrimSpace(c.Query("category_id"))
+	habitatFilter := strings.TrimSpace(c.Query("habitat"))
+	sortBy := strings.TrimSpace(c.Query("sort"))
+	pageStr := strings.TrimSpace(c.Query("page"))
+	limitStr := strings.TrimSpace(c.Query("limit"))
+	if limitStr == "" {
+		limitStr = strings.TrimSpace(c.Query("per_page"))
+	}
+
+	// 1. Redis Cache Lookup (for ultra-fast response < 1ms)
+	cacheKey := fmt.Sprintf("catavor:store:%d:products:p%s:l%s:s%s:q%s:t%s:c%s:cid%s:st%s:hb%s:mv%t",
+		store.ID, pageStr, limitStr, sortBy, search, productType, classFilter, categoryID, statusFilter, habitatFilter, isMerchantView)
+
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if cachedVal, err := database.RedisClient.Get(context.Background(), cacheKey).Result(); err == nil && cachedVal != "" {
+			var cachedRes fiber.Map
+			if err := json.Unmarshal([]byte(cachedVal), &cachedRes); err == nil {
+				c.Set("X-Cache", "HIT")
+				return c.JSON(cachedRes)
+			}
+		}
+	}
+
 	query := database.DB.Model(&models.Product{}).
 		Preload("Category").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
@@ -480,7 +512,6 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		Where("store_id = ?", store.ID)
 
 	if isMerchantView {
-		statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
 		if statusFilter == "active" {
 			query = query.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
 		} else if statusFilter == "archived" {
@@ -492,38 +523,30 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		query = query.Where("is_active = true AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')")
 	}
 
-	search := strings.TrimSpace(c.Query("search"))
 	if search != "" {
 		searchPattern := "%" + strings.ToLower(search) + "%"
 		query = query.Where("LOWER(name) LIKE ? OR LOWER(scientific_name) LIKE ? OR LOWER(description) LIKE ?", searchPattern, searchPattern, searchPattern)
 	}
 
-	productType := strings.TrimSpace(c.Query("product_type"))
-	if productType == "" {
-		productType = strings.TrimSpace(c.Query("type"))
-	}
 	if productType != "" && productType != "all" {
 		query = query.Where("product_type = ?", productType)
 	}
 
-	classFilter := strings.TrimSpace(c.Query("class"))
 	if classFilter != "" && classFilter != "all" {
 		query = query.Where("class = ?", classFilter)
 	}
 
-	if categoryID := strings.TrimSpace(c.Query("category_id")); categoryID != "" {
+	if categoryID != "" {
 		if catID, err := strconv.ParseUint(categoryID, 10, 32); err == nil {
 			query = query.Where("category_id = ?", uint(catID))
 		}
 	}
 
-	habitatFilter := strings.TrimSpace(c.Query("habitat"))
 	if habitatFilter != "" && habitatFilter != "all" {
 		query = query.Where("habitat LIKE ?", "%"+habitatFilter+"%")
 	}
 
-	statusFilter := strings.TrimSpace(c.Query("status"))
-	if statusFilter != "" && statusFilter != "all" {
+	if statusFilter != "" && statusFilter != "all" && !isMerchantView {
 		query = query.Where("conservation_status LIKE ?", "%"+statusFilter+"%")
 	}
 
@@ -532,7 +555,6 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		totalItems = 0
 	}
 
-	sortBy := strings.TrimSpace(c.Query("sort"))
 	switch sortBy {
 	case "oldest":
 		query = query.Order("id asc")
@@ -546,12 +568,6 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		query = query.Order("price desc")
 	default:
 		query = query.Order("id desc")
-	}
-
-	pageStr := strings.TrimSpace(c.Query("page"))
-	limitStr := strings.TrimSpace(c.Query("limit"))
-	if limitStr == "" {
-		limitStr = strings.TrimSpace(c.Query("per_page"))
 	}
 
 	page := 1
@@ -594,7 +610,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		perPageResponse = int(totalItems)
 	}
 
-	return c.JSON(fiber.Map{
+	responsePayload := fiber.Map{
 		"success": true,
 		"data":    products,
 		"store": fiber.Map{
@@ -612,8 +628,31 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 			"has_next":     limit > 0 && page < totalPages,
 			"has_prev":     page > 1,
 		},
-	})
+	}
+
+	// 2. Save into Redis Cache (TTL: 60s)
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if bytes, err := json.Marshal(responsePayload); err == nil {
+			_ = database.RedisClient.Set(context.Background(), cacheKey, string(bytes), 60*time.Second).Err()
+		}
+	}
+
+	c.Set("X-Cache", "MISS")
+	return c.JSON(responsePayload)
 }
+
+// InvalidateStoreProductsCache purges cached product queries for a specific store.
+func InvalidateStoreProductsCache(storeID uint) {
+	if database.IsRedisAvailable() && database.RedisClient != nil && storeID > 0 {
+		ctx := context.Background()
+		pattern := fmt.Sprintf("catavor:store:%d:products:*", storeID)
+		iter := database.RedisClient.Scan(ctx, 0, pattern, 0).Iterator()
+		for iter.Next(ctx) {
+			_ = database.RedisClient.Del(ctx, iter.Val()).Err()
+		}
+	}
+}
+
 
 func (h *StoreHandler) CheckSlug(c *fiber.Ctx) error {
 	slugParam := c.Params("slug")

@@ -136,6 +136,7 @@ import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { MerchantAdminShell } from './components/MerchantAdminShell'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChooserModal'
+import { DesktopCustomSelect } from './components/DesktopCustomSelect'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
@@ -5867,9 +5868,65 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return filteredAdminItems.slice((adminPage - 1) * adminPerPage, adminPage * adminPerPage);
   }, [filteredAdminItems, adminPage, adminPerPage]);
 
+  // Desktop Server-Side Fetching for Merchant Admin Items
+  const [serverAdminItems, setServerAdminItems] = useState<Fauna[] | null>(null);
+  const [serverAdminTotal, setServerAdminTotal] = useState<number | null>(null);
+  const [serverAdminTotalPages, setServerAdminTotalPages] = useState<number | null>(null);
+  const [isServerFiltering, setIsServerFiltering] = useState<boolean>(false);
+
+  const displayedAdminItems = useMemo(() => {
+    if (serverAdminItems !== null) {
+      return serverAdminItems;
+    }
+    return paginatedAdminItems;
+  }, [serverAdminItems, paginatedAdminItems]);
+
+  const displayedTotalItems = serverAdminTotal !== null ? serverAdminTotal : filteredAdminItems.length;
+  const displayedTotalPages = serverAdminTotalPages !== null ? serverAdminTotalPages : totalAdminPages;
+
   // Authentication State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
   const isPopStateRef = useRef<boolean>(false)
+
+  useEffect(() => {
+    if (adminTab !== 'items') return;
+    const slug = storeSlug || getStoreSlug();
+    if (!slug || isReservedStoreSlug(slug)) return;
+
+    const timer = setTimeout(async () => {
+      setIsServerFiltering(true);
+      try {
+        const queryParams = new URLSearchParams({
+          view: 'merchant',
+          page: String(adminPage),
+          limit: String(adminPerPage),
+          sort: adminSortBy,
+        });
+        if (adminSearch.trim()) queryParams.set('search', adminSearch.trim());
+        if (adminProductTypeFilter !== 'all') queryParams.set('product_type', adminProductTypeFilter);
+        if (adminClassFilter !== 'all') queryParams.set('class', adminClassFilter);
+        if (adminActiveFilter !== 'all') queryParams.set('status', adminActiveFilter);
+
+        const res = await fetch(`${API_BASE}/u/${slug}/products?${queryParams.toString()}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } : { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.data)) {
+          setServerAdminItems(data.data);
+          if (data.pagination) {
+            setServerAdminTotal(data.pagination.total_items ?? data.data.length);
+            setServerAdminTotalPages(data.pagination.total_pages ?? Math.max(1, Math.ceil((data.pagination.total_items ?? data.data.length) / adminPerPage)));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch server-side admin items:', err);
+      } finally {
+        setIsServerFiltering(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [adminTab, storeSlug, adminPage, adminPerPage, adminSortBy, adminSearch, adminProductTypeFilter, adminClassFilter, adminActiveFilter, token]);
   const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[]} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
@@ -8668,11 +8725,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
               onFresh: (freshFauna) => {
                 if (freshFauna?.success && Array.isArray(freshFauna.data)) {
                   setFaunas(freshFauna.data);
+                  setServerAdminItems(null);
                 }
               }
             });
             if (faunaData && faunaData.success) {
               setFaunas(faunaData.data);
+              setServerAdminItems(null);
             } else {
               setError(faunaData?.message || 'Gagal memuat katalog.');
             }
@@ -16453,21 +16512,20 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                     {/* Top Control Bar: Search & Active/Archived Filter */}
                     {faunas.length > 0 && (
-                      <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      <div className="desktop-filter-card">
                         
                         {/* Search Bar + Secondary Dropdowns */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.15fr 1fr 135px', gap: '0.75rem', alignItems: 'center' }}>
                           
                           {/* Search Input */}
                           <div style={{ position: 'relative' }}>
                             <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                             <input 
                               type="text"
-                              className="form-input"
+                              className="desktop-filter-search-input"
                               placeholder="Cari nama item, ilmiah, kategori, atau deskripsi..."
                               value={adminSearch}
                               onChange={(e) => { setAdminSearch(e.target.value); setAdminPage(1); }}
-                              style={{ paddingLeft: '2.4rem', paddingRight: adminSearch ? '2.2rem' : '0.85rem', height: '40px', fontSize: '0.84rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
                             />
                             {adminSearch && (
                               <button
@@ -16481,31 +16539,51 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           {/* Category Dropdown */}
-                          <select
-                            className="form-select"
+                          <DesktopCustomSelect
                             value={adminClassFilter}
-                            onChange={(e) => { setAdminClassFilter(e.target.value); setAdminPage(1); }}
-                            style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
-                          >
-                            <option value="all">Semua Kategori ({availableAdminCategories.length})</option>
-                            {availableAdminCategories.map(c => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
+                            onChange={(val) => { setAdminClassFilter(val); setAdminPage(1); }}
+                            options={[
+                              { value: 'all', label: 'Semua Kategori', count: availableAdminCategories.length },
+                              ...availableAdminCategories.map(c => ({ value: c, label: c }))
+                            ]}
+                            placeholder="Semua Kategori"
+                            ariaLabel="Filter Kategori Produk"
+                          />
 
                           {/* Sort Dropdown */}
-                          <select
-                            className="form-select"
+                          <DesktopCustomSelect
                             value={adminSortBy}
-                            onChange={(e) => { setAdminSortBy(e.target.value as any); setAdminPage(1); }}
-                            style={{ height: '40px', fontSize: '0.82rem', borderRadius: '0.5rem', backgroundColor: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
-                          >
-                            <option value="newest">Terbaru</option>
-                            <option value="oldest">Terlama</option>
-                            <option value="name_asc">Nama (A-Z)</option>
-                            <option value="price_asc">Harga Terendah</option>
-                            <option value="price_desc">Harga Tertinggi</option>
-                          </select>
+                            onChange={(val) => { setAdminSortBy(val as any); setAdminPage(1); }}
+                            options={[
+                              { value: 'newest', label: 'Terbaru' },
+                              { value: 'oldest', label: 'Terlama' },
+                              { value: 'name_asc', label: 'Nama (A-Z)' },
+                              { value: 'price_asc', label: 'Harga Terendah' },
+                              { value: 'price_desc', label: 'Harga Tertinggi' },
+                            ]}
+                            placeholder="Urutan Produk"
+                            ariaLabel="Urutan Produk"
+                          />
+
+                          {/* Rows Per Page Dropdown with "Baris:" Label */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end' }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                              Baris:
+                            </span>
+                            <DesktopCustomSelect
+                              value={String(adminPerPage)}
+                              onChange={(val) => { setAdminPerPage(Number(val)); setAdminPage(1); }}
+                              options={[
+                                { value: '10', label: '10' },
+                                { value: '25', label: '25' },
+                                { value: '50', label: '50' },
+                              ]}
+                              placeholder="10"
+                              showCheckmark={false}
+                              style={{ width: '74px' }}
+                              ariaLabel="Jumlah Baris per Halaman"
+                            />
+                          </div>
                         </div>
 
                         {/* Level-1 Type Pills & Active/Archived Filter Switcher */}
@@ -16695,7 +16773,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           {/* Reset filter button */}
-                          {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all' || adminActiveFilter !== 'all') && (
+                          {(adminSearch || adminProductTypeFilter !== 'all' || adminClassFilter !== 'all' || adminActiveFilter !== 'all' || adminSortBy !== 'newest') && (
                             <button
                               type="button"
                               onClick={() => {
@@ -16705,6 +16783,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 setAdminActiveFilter('all');
                                 setAdminSortBy('newest');
                                 setAdminPage(1);
+                                setServerAdminItems(null);
                               }}
                               style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer' }}
                             >
@@ -16735,14 +16814,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 Belum ada item katalog terdaftar. Klik "+ Tambah Item Baru" di atas untuk memulai.
                               </td>
                             </tr>
-                          ) : filteredAdminItems.length === 0 ? (
+                          ) : displayedAdminItems.length === 0 ? (
                             <tr>
                               <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2.5rem' }}>
-                                Tidak ada item yang sesuai dengan filter atau pencarian Anda.
+                                {isServerFiltering ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <Loader size={18} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                                    <span>Memuat data item...</span>
+                                  </div>
+                                ) : (
+                                  'Tidak ada item yang sesuai dengan filter atau pencarian Anda.'
+                                )}
                               </td>
                             </tr>
                           ) : (
-                            paginatedAdminItems.map((item) => {
+                            displayedAdminItems.map((item) => {
                               const itemType = (item.product_type || 'physical') as ItemCategoryType;
                               const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? '#10b981' : '#3b82f6';
                               const typeLabel = itemType === 'food' ? 'Food' : itemType === 'service' ? 'Jasa' : itemType === 'digital' ? 'Digital' : itemType === 'fauna' ? 'Fauna' : 'Fisik';
@@ -16851,94 +16937,71 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
 
                     {/* Desktop Pagination Bar */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      <div>
-                        Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{paginatedAdminItems.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{filteredAdminItems.length}</strong> total item
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div>
+                          Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{displayedAdminItems.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{displayedTotalItems}</strong> total item
+                        </div>
+                        {isServerFiltering && (
+                          <Loader size={13} className="animate-spin" style={{ color: 'var(--primary)', opacity: 0.8 }} />
+                        )}
                       </div>
 
-                      {totalAdminPages > 1 && (
+                      {displayedTotalPages > 1 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <button 
                             type="button"
-                            disabled={adminPage === 1}
+                            disabled={adminPage === 1 || isServerFiltering}
                             onClick={() => setAdminPage(prev => Math.max(prev - 1, 1))}
-                            style={{
-                              background: 'var(--card-bg-gradient)',
-                              border: '1px solid var(--border-light)',
-                              color: adminPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                              borderRadius: '0.4rem',
-                              padding: '0.35rem 0.75rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: adminPage === 1 ? 'not-allowed' : 'pointer'
-                            }}
+                            className="desktop-pagination-btn"
+                            title="Halaman Sebelumnya"
                           >
                             &larr; Prev
                           </button>
 
-                          {Array.from({ length: totalAdminPages }).map((_, idx) => {
-                            const pageNum = idx + 1;
-                            if (
-                              totalAdminPages > 7 &&
-                              pageNum !== 1 &&
-                              pageNum !== totalAdminPages &&
-                              Math.abs(pageNum - adminPage) > 2
-                            ) {
-                              if (pageNum === 2 && adminPage > 4) {
-                                return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                            {Array.from({ length: displayedTotalPages }).map((_, idx) => {
+                              const pageNum = idx + 1;
+                              if (
+                                displayedTotalPages > 7 &&
+                                pageNum !== 1 &&
+                                pageNum !== displayedTotalPages &&
+                                Math.abs(pageNum - adminPage) > 2
+                              ) {
+                                if (pageNum === 2 && adminPage > 4) {
+                                  return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                                }
+                                if (pageNum === displayedTotalPages - 1 && adminPage < displayedTotalPages - 3) {
+                                  return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                                }
+                                return null;
                               }
-                              if (pageNum === totalAdminPages - 1 && adminPage < totalAdminPages - 3) {
-                                return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
-                              }
-                              return null;
-                            }
 
-                            return (
-                              <button
-                                type="button"
-                                key={pageNum}
-                                onClick={() => setAdminPage(pageNum)}
-                                style={{
-                                  border: pageNum === adminPage ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                  backgroundColor: pageNum === adminPage ? 'var(--primary)' : 'var(--card-bg-gradient)',
-                                  color: pageNum === adminPage ? '#ffffff' : 'var(--text-primary)',
-                                  borderRadius: '0.4rem',
-                                  width: '34px',
-                                  height: '34px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'pointer',
-                                  fontSize: '0.78rem',
-                                  fontWeight: pageNum === adminPage ? 800 : 600
-                                }}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
+                              return (
+                                <button
+                                  type="button"
+                                  key={pageNum}
+                                  disabled={isServerFiltering}
+                                  onClick={() => setAdminPage(pageNum)}
+                                  className={`desktop-pagination-btn ${pageNum === adminPage ? 'active' : ''}`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
 
-                          <button 
-                            type="button"
-                            disabled={adminPage === totalAdminPages}
-                            onClick={() => setAdminPage(prev => Math.min(prev + 1, totalAdminPages))}
-                            style={{
-                              background: 'var(--card-bg-gradient)',
-                              border: '1px solid var(--border-light)',
-                              color: adminPage === totalAdminPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                              borderRadius: '0.4rem',
-                              padding: '0.35rem 0.75rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: adminPage === totalAdminPages ? 'not-allowed' : 'pointer'
-                            }}
-                          >
-                            Next &rarr;
-                          </button>
-                        </div>
-                      )}
+                            <button 
+                              type="button"
+                              disabled={adminPage === displayedTotalPages || isServerFiltering}
+                              onClick={() => setAdminPage(prev => Math.min(prev + 1, displayedTotalPages))}
+                              className="desktop-pagination-btn"
+                              title="Halaman Berikutnya"
+                            >
+                              Next &rarr;
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
                 )
               )}
 
