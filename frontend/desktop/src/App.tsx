@@ -1953,11 +1953,11 @@ export const ProductDescriptionView: React.FC<{ description?: string; isMobile?:
 };
 
 export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boolean }> = ({ item, isMobile = false }) => {
-  if (!item) return null;
-  const pType = item.product_type || 'fauna';
+  const pType = item?.product_type || 'fauna';
   const [isExpanded, setIsExpanded] = useState(false);
 
   const infoItems = useMemo(() => {
+    if (!item) return [];
     const list: {
       id: string;
       label: string;
@@ -2054,15 +2054,13 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
     return list;
   }, [item, pType]);
 
-  const [activeTabId, setActiveTabId] = useState<string>(() => infoItems[0]?.id || '');
+  const [activeTabId, setActiveTabId] = useState<string>('');
 
   useEffect(() => {
     if (infoItems.length > 0 && !infoItems.some(it => it.id === activeTabId)) {
       setActiveTabId(infoItems[0].id);
     }
   }, [infoItems, activeTabId]);
-
-  if (infoItems.length === 0) return null;
 
   const currentItem = infoItems.find(it => it.id === activeTabId) || infoItems[0];
   const hasMultiple = infoItems.length > 1;
@@ -2096,6 +2094,9 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
     }
     return text;
   }, [currentItem]);
+
+  // Ensure all hooks are executed unconditionally before returning null
+  if (!item || infoItems.length === 0) return null;
 
   const isLong = cleanContent.length > 250 || cleanContent.split('\n').length > 4;
 
@@ -11120,8 +11121,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Get recommendations for desktop (3-Tier Waterfall Algorithm: Same Class+Type -> Same Type -> Other Store Items)
   const getRecommendations = (fauna: Fauna) => {
-    if (!faunas || faunas.length <= 1) return []
-    const otherFaunas = faunas.filter(f => f && f.id !== fauna.id && (f as any).is_active !== false)
+    if (!fauna || !faunas || faunas.length <= 1) return []
+    // Pastikan hanya item aktif yang dihitung
+    const activeFaunas = faunas.filter(f => f && (f as any).is_active !== false)
+    if (activeFaunas.length <= 1) return []
+
+    // Pastikan mengecualikan item yang sedang dibuka (aman perbandingan number & string)
+    const otherFaunas = activeFaunas.filter(f => 
+      String(f.id) !== String(fauna.id) &&
+      (!(fauna as any).slug || !(f as any).slug || (f as any).slug !== (fauna as any).slug)
+    )
     if (otherFaunas.length === 0) return []
     
     // Tier 1: Kategori & Tipe Produk sama persis
@@ -14709,43 +14718,56 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             </div>
 
             {/* Recommendations Section (Public / Storefront Only: Multi-Sector Recommendation & Graceful Hiding; Hidden in Admin Items View) */}
-            {view !== 'admin' && !window.location.pathname.toLowerCase().includes('/admin') && getRecommendations(selectedFauna).length > 0 && (
-              <div style={{ marginTop: '3.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem' }}>
-                <div style={{ marginBottom: '1.75rem' }}>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '999px',
-                    backgroundColor: 'var(--primary-glow)',
-                    color: 'var(--primary)',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    marginBottom: '0.5rem'
-                  }}>
-                    <Sparkles size={12} />
-                    <span>Koleksi Serupa & Pilihan</span>
+            {view !== 'admin' && !window.location.pathname.toLowerCase().includes('/admin') && (() => {
+              const recs = getRecommendations(selectedFauna);
+              if (!recs || recs.length === 0) return null;
+              return (
+                <div style={{ marginTop: '3.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem' }}>
+                  <div style={{ marginBottom: '1.75rem' }}>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'var(--primary-glow)',
+                      color: 'var(--primary)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <Sparkles size={12} />
+                      <span>Koleksi Serupa & Pilihan</span>
+                    </div>
+                    <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                      Rekomendasi Katalog Lainnya
+                    </h3>
+                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginTop: '0.35rem', marginBottom: 0 }}>
+                      Eksplorasi pilihan produk dan layanan menarik lainnya dari toko ini
+                    </p>
                   </div>
-                  <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
-                    Rekomendasi Katalog Lainnya
-                  </h3>
-                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginTop: '0.35rem', marginBottom: 0 }}>
-                    Eksplorasi pilihan produk dan layanan menarik lainnya dari toko ini
-                  </p>
-                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem' }}>
-                  {getRecommendations(selectedFauna).map(rec => (
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: recs.length >= 4 
+                      ? 'repeat(4, 1fr)' 
+                      : 'repeat(auto-fill, minmax(240px, 280px))', 
+                    gap: '1.25rem' 
+                  }}>
+                    {recs.map(rec => (
                     <div 
                       key={rec.id} 
                       onClick={() => {
-                        setSelectedFauna(rec);
-                        activeDetailItemIdRef.current = String(rec.id);
-                        setActiveImageIndex(0);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        fetchDetails(rec.id);
+                        try {
+                          const url = new URL(window.location.href);
+                          url.searchParams.set('item', String(rec.id));
+                          window.history.pushState({}, '', url.toString());
+                        } catch (e) {
+                          // ignore URL push errors in sandboxes
+                        }
                       }}
                       style={{
                         cursor: 'pointer',
@@ -14883,7 +14905,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   ))}
                 </div>
               </div>
-            )}
+            );
+          })()}
 
           </div>
 
