@@ -12321,6 +12321,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#334155' }}>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal 15 item produk</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> 100 MB Storage &amp; 5 foto/item</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Halaman "Tentang Kami" profil bisnis</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Subdomain kustom (catavor.com/toko)</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> WhatsApp Direct Order</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark Catavor aktif</li>
@@ -12351,7 +12352,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>150 item produk aktif</strong></li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>2 GB Storage &amp; 8 foto/item</strong></li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Lencana Toko Terverifikasi</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Halaman "Tentang Kami" kustom</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Prioritas Pencarian Platform</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>100% Bebas Watermark</strong></li>
                       </ul>
                     </div>
