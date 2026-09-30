@@ -27,6 +27,7 @@ import {
   EyeOff,
   Tag,
   ArrowLeft,
+  ArrowUp,
   Home,
   Sun,
   Moon,
@@ -123,7 +124,8 @@ import {
   TrendingUp,
   MousePointerClick,
   Activity,
-  History
+  History,
+  Menu
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -463,7 +465,7 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
   }
 
   // Target type: 'item'
-  const pType = (item?.product_type || 'physical') as string;
+  const pType = String(item?.product_type || item?.type || item?.attributes?.product_type || 'physical').trim().toLowerCase();
 
   if (pType === 'digital') {
     return [
@@ -529,6 +531,21 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
     { id: 'defective_hazard', title: 'Barang Cacat Fatal, Rekondisi Diam-diam, atau Berbahaya', desc: 'Produk rusak parah, barang rekondisi dijual sebagai baru, atau membahayakan keselamatan' },
     { id: 'other', title: 'Pelanggaran Lainnya pada Item Fisik', desc: 'Pelanggaran pada item produk fisik lainnya yang tidak tercantum di atas' }
   ];
+}
+
+export function getReportingSectorInfo(targetType: 'store' | 'item', item?: any): { label: string; color: string; icon: any } {
+  if (targetType === 'store') {
+    return { label: 'Profil Toko & Katalog', color: '#6366f1', icon: Store };
+  }
+  const pType = String(item?.product_type || item?.type || item?.attributes?.product_type || 'physical').trim().toLowerCase();
+  switch (pType) {
+    case 'service': return { label: 'Layanan Jasa', color: '#0284c7', icon: Briefcase };
+    case 'food': return { label: 'Kuliner & F&B', color: '#ea580c', icon: Utensils };
+    case 'digital': return { label: 'Produk Digital', color: '#8b5cf6', icon: Smartphone };
+    case 'property': return { label: 'Properti & Real Estate', color: '#0d9488', icon: Building2 };
+    case 'fauna': return { label: 'Flora & Fauna', color: '#16a34a', icon: PawPrint };
+    default: return { label: 'Produk Fisik', color: '#e11d48', icon: Package };
+  }
 }
 
 export function isNonEmptyValue(val: any): boolean {
@@ -5735,6 +5752,55 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'name_asc'>('newest')
 
+  // Desktop Smart Sticky Quick-Search on Scroll-Up (Instant Reveal)
+  const [showStickyQuickSearch, setShowStickyQuickSearch] = useState<boolean>(false);
+
+  useEffect(() => {
+    let accumulatedUp = 0;
+    let accumulatedDown = 0;
+    let lastScrollY = window.scrollY;
+
+    const handleSmartScroll = () => {
+      if (selectedFauna) {
+        setShowStickyQuickSearch(false);
+        return;
+      }
+      const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+
+      // Near top of page -> always hide sticky quick-search
+      if (currentScrollY <= 260) {
+        setShowStickyQuickSearch(false);
+        accumulatedUp = 0;
+        accumulatedDown = 0;
+        lastScrollY = currentScrollY;
+        return;
+      }
+
+      const delta = currentScrollY - lastScrollY;
+
+      if (delta > 0) {
+        // User scrolling DOWN -> hide
+        accumulatedUp = 0;
+        accumulatedDown += delta;
+        if (accumulatedDown > 10) {
+          setShowStickyQuickSearch(false);
+        }
+      } else if (delta < 0) {
+        // User scrolling UP slightly -> reveal
+        accumulatedDown = 0;
+        accumulatedUp += Math.abs(delta);
+        if (accumulatedUp > 6) {
+          setShowStickyQuickSearch(true);
+        }
+      }
+
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleSmartScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleSmartScroll);
+  }, [selectedFauna]);
+
   const getSubtypeLabel = (prodType: string) => {
     switch (prodType) {
       case 'food': return 'Semua Menu / Saji';
@@ -8979,12 +9045,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   // Share store link (direct to Share / QR modal)
+  // Share store link (direct to Share / QR modal)
   const handleShareStore = () => {
     setShowQRModal(true);
     const slug = storeSlug || getStoreSlug();
     if (slug) {
       window.history.pushState({}, '', view === 'admin' ? `/${slug}/admin/share` : `/${slug}/about/share`);
     }
+  };
+
+  // Report store action (direct to Report modal from public header)
+  const handleReportStore = () => {
+    const initialReasons = getCatalogReportReasons('store', null);
+    setReportReason(initialReasons[0]?.id || 'other');
+    setReportNotes('');
+    setReportEmail('');
+    setReportModalData({ type: 'store' });
   };
 
   // Share specific fauna item link
@@ -15104,142 +15180,133 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           <header className="app-header">
             <div className="container header-content">
               <div className="logo-area">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {(() => {
-                    const titleText = (!error && settings?.store_title) || 'Catavor';
-                    const scale = getDesktopHeaderScale(titleText);
-                    return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
-                        {renderStoreLogo(!error ? settings?.store_logo_url : undefined, 'logo-icon', scale.iconSize)}
-                        <h1 
-                          className="logo-text" 
-                          style={{ margin: 0, fontSize: scale.titleFontSize, fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: scale.maxWidth, transition: 'font-size 0.2s ease' }} 
-                          title={titleText}
-                        >
-                          {titleText}
-                        </h1>
-                        {!error && settings?.plan === 'free' && (
-                          <span style={{ fontSize: scale.badgeFontSize, fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--primary)', border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            Free by Catavor
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
-                    view === 'admin' ? (
-                      <button
-                        type="button"
-                        onClick={() => setActionMenuData({ type: 'admin_menu' })}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-secondary)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          transition: 'all 0.2s',
-                          lineHeight: 1
-                        }}
-                        title="Menu Opsi Pengelola"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = 'var(--primary)';
-                          e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = 'var(--text-secondary)';
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <MoreVertical size={18} />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActionMenuData({ type: 'store' })}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-secondary)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '50%',
-                          transition: 'all 0.2s',
-                          lineHeight: 1
-                        }}
-                        title="Menu & Opsi Katalog"
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = 'var(--primary)';
-                          e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = 'var(--text-secondary)';
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <MoreVertical size={18} />
-                      </button>
-                    )
-                  )}
-                </div>
+                {view === 'admin' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    {renderStoreLogo(!error ? settings?.store_logo_url : undefined, 'logo-icon', 26)}
+                    <h1 
+                      className="logo-text" 
+                      style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }} 
+                    >
+                      {settings?.store_title || 'Pengelola Toko'}
+                    </h1>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+                      Admin
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <img 
+                      src={logoHeaderImg} 
+                      alt="Catavor" 
+                      style={{ height: '26px', width: 'auto', objectFit: 'contain' }} 
+                    />
+                    <span style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '12px',
+                      backgroundColor: 'var(--primary-glow)',
+                      color: 'var(--primary)',
+                      border: '1px solid var(--border-light)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      Platform Katalog
+                    </span>
+                  </div>
+                )}
               </div>
               {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
                 <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {view === 'catalog' ? (
-                  <>
-                    <button 
-                      type="button"
-                      className={`btn-secondary ${activePublicTab === 'catalog' ? 'active' : ''}`} 
-                      onClick={() => setActivePublicTab('catalog')}
-                      style={{
-                        padding: '0.45rem 1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: activePublicTab === 'catalog' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: activePublicTab === 'catalog' ? '#fff' : 'var(--text-secondary)',
-                        border: activePublicTab === 'catalog' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      🔍 Katalog Produk
-                    </button>
-                    <button 
-                      type="button"
-                      className={`btn-secondary ${activePublicTab === 'about' ? 'active' : ''}`} 
-                      onClick={() => setActivePublicTab('about')}
-                      style={{
-                        padding: '0.45rem 1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: activePublicTab === 'about' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: activePublicTab === 'about' ? '#fff' : 'var(--text-secondary)',
-                        border: activePublicTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      📖 Tentang Kami
-                    </button>
-                  </>
-                ) : (
-                  <button 
-                    className="btn-primary" 
-                    onClick={goToCatalog}
-                  >
-                    Lihat Katalog
-                  </button>
-                )}
-              </div>
-            )}
+                  {view === 'catalog' ? (
+                    <>
+                      {isStoreOwner && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setView('admin');
+                            const slug = getStoreSlug();
+                            if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                          }}
+                          className="btn-secondary"
+                          style={{
+                            padding: '0.45rem 0.95rem',
+                            fontSize: '0.82rem',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            fontWeight: 700,
+                            borderColor: 'var(--primary)',
+                            color: 'var(--primary)'
+                          }}
+                          title="Buka Dasbor Pengelola Toko"
+                        >
+                          <LayoutDashboard size={14} />
+                          <span>Kelola Toko</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleShareStore}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.45rem 0.95rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.38rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        title="Bagikan Profil Katalog Ini"
+                      >
+                        <Share2 size={14} />
+                        <span>Bagikan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleReportStore}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.45rem 0.95rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.38rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        title="Laporkan Profil / Katalog Toko Ini"
+                      >
+                        <Flag size={14} />
+                        <span>Laporkan</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        className="btn-secondary" 
+                        onClick={goToCatalog}
+                        style={{ padding: '0.45rem 0.95rem', fontSize: '0.82rem', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+                      >
+                        <Eye size={14} />
+                        <span>Lihat Toko Publik</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActionMenuData({ type: 'admin_menu' })}
+                        className="header-menu-pill-btn"
+                        title="Menu Pengelola"
+                      >
+                        <Menu size={15} />
+                        <span>Menu Admin</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             {error && (
               <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <button 
@@ -15257,6 +15324,130 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </header>
         )}
       </div>
+      )}
+
+      {/* DESKTOP SMART SCROLL QUICK-SEARCH BAR (Reveal on slight scroll-up) */}
+      {!error && view === 'catalog' && activePublicTab === 'catalog' && !selectedFauna && (
+        <aside 
+          className={`desktop-sticky-quick-search-bar ${showStickyQuickSearch ? 'visible' : 'hidden'}`}
+          aria-label="Pencarian Cepat Melayang"
+        >
+          <div className="desktop-sticky-quick-search-inner">
+            <div 
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', flexShrink: 0 }}
+              title="Klik untuk kembali ke paling atas"
+            >
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+                {settings.store_logo_url ? (
+                  <img src={settings.store_logo_url} alt={settings.store_title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  (settings.store_title || 'C').charAt(0).toUpperCase()
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                  {settings.store_title || 'Katalog'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  {filteredFaunas.length} produk
+                </span>
+              </div>
+            </div>
+
+            <div style={{ position: 'relative', flex: 1, maxWidth: '520px' }}>
+              <Search size={15} className="search-icon" style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input 
+                type="text" 
+                className="search-input" 
+                placeholder="Ketik untuk mencari produk..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.52rem 2.2rem 0.52rem 2.5rem', 
+                  borderRadius: '999px',
+                  fontSize: '0.84rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)'
+                }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.7rem'
+                  }}
+                  title="Hapus pencarian"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+              {settings.whatsapp_number && (
+                <a
+                  href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary"
+                  style={{
+                    textDecoration: 'none',
+                    padding: '0.45rem 1rem',
+                    fontSize: '0.8rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    backgroundColor: 'var(--primary)',
+                    borderColor: 'var(--primary)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 8px var(--primary-glow)'
+                  }}
+                >
+                  <MessageCircle size={14} />
+                  <span>Hubungi</span>
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="btn-secondary"
+                style={{
+                  padding: '0.45rem 0.75rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '8px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                title="Kembali ke atas"
+              >
+                <ArrowUp size={14} />
+                <span>Ke Atas</span>
+              </button>
+            </div>
+          </div>
+        </aside>
       )}
 
       {/* Main Container - Full-bleed for Admin Workspace, Standard container for Public Views */}
@@ -15398,10 +15589,179 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         ) : (
         view === 'catalog' ? (
-          /* ========================================================
-             CUSTOMER VIEW
-             ======================================================== */
-          activePublicTab === 'about' ? (
+          <>
+            {/* Desktop Brand Showcase Hero (Single Brand Hub - Integrated Header) */}
+            {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
+              <>
+                <section className="desktop-store-showcase animate-fade-in">
+                  <div className="desktop-store-brand-left">
+                    <div className="desktop-store-avatar">
+                      {settings.store_logo_url ? (
+                        <img 
+                          src={settings.store_logo_url} 
+                          alt={settings.store_title} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        />
+                      ) : (
+                        (settings.store_title || storeSlug || 'C').charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="desktop-store-meta">
+                      <div className="desktop-store-title-row">
+                        <h1 className="desktop-store-title" style={{ margin: 0 }}>
+                          {settings.store_title || 'Katalog Resmi'}
+                        </h1>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'var(--primary-glow)',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--border-light)'
+                        }}>
+                          <CheckCircle2 size={13} /> Terverifikasi
+                        </span>
+                        {settings.plan === 'pro_business' && (
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(245, 158, 11, 0.3)'
+                          }}>
+                            PRO BISNIS
+                          </span>
+                        )}
+                      </div>
+                      <p className="desktop-store-slogan">
+                        {settings.store_slogan || settings.about_slogan || 'Koleksi produk dan layanan unggulan dengan kualitas terbaik dan pemesanan mudah via WhatsApp.'}
+                      </p>
+                      <div className="desktop-store-badges-row">
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Package size={14} style={{ color: 'var(--primary)' }} />
+                          <strong>{faunas.length}</strong> Total Produk
+                        </span>
+                        {settings.about_location && (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <MapPin size={14} style={{ color: '#38bdf8' }} />
+                            <span style={{ maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {settings.about_location}
+                            </span>
+                          </span>
+                        )}
+                        {settings.show_hours && (
+                          <span style={{ fontSize: '0.78rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
+                            <Clock size={14} /> Buka Layanan
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="desktop-store-actions">
+                    {settings.whatsapp_number && (
+                      <a
+                        href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary"
+                        style={{
+                          textDecoration: 'none',
+                          padding: '0.72rem 1.45rem',
+                          fontSize: '0.86rem',
+                          borderRadius: '10px',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          boxShadow: '0 4px 14px var(--primary-glow)',
+                          backgroundColor: 'var(--primary)',
+                          borderColor: 'var(--primary)',
+                          color: '#ffffff'
+                        }}
+                      >
+                        <MessageCircle size={17} />
+                        <span>Hubungi Penjual</span>
+                      </a>
+                    )}
+                    {activePublicTab === 'about' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActivePublicTab('catalog');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.72rem 1.35rem',
+                          fontSize: '0.86rem',
+                          borderRadius: '10px',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          backgroundColor: 'var(--primary-glow)',
+                          borderColor: 'var(--primary)',
+                          color: 'var(--primary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        title="Kembali ke Katalog Produk"
+                      >
+                        <LayoutGrid size={16} />
+                        <span>Katalog Produk</span>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          backgroundColor: 'var(--primary)',
+                          color: '#ffffff',
+                          padding: '0.1rem 0.5rem',
+                          borderRadius: '999px',
+                          marginLeft: '0.2rem'
+                        }}>
+                          {faunas.length}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFauna(null);
+                          activeDetailItemIdRef.current = null;
+                          setActivePublicTab('about');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.72rem 1.4rem',
+                          fontSize: '0.86rem',
+                          borderRadius: '10px',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        title="Lihat Profil & Informasi Lengkap Toko"
+                      >
+                        <Store size={16} style={{ color: 'var(--primary)' }} />
+                        <span>Tentang Toko</span>
+                      </button>
+                    )}
+                  </div>
+                </section>
+              </>
+            )}
+
+            {/* Public Tab Active View */}
+            {activePublicTab === 'about' ? (
             /* PUBLIC ABOUT US PAGE (DESKTOP - 100% DYNAMIC VISIBILITY) */
             (() => {
               const parsedCards = (() => {
@@ -15439,6 +15799,36 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               return (
                 <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem', marginTop: '1.5rem', maxWidth: '880px', margin: '1.5rem auto', display: 'flex', flexDirection: 'column', gap: '1.75rem', border: '1px solid var(--border-light)' }}>
+                  {/* Navigation Back Banner */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePublicTab('catalog');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.45rem 1rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer'
+                      }}
+                      title="Kembali ke Daftar Katalog Produk"
+                    >
+                      <ArrowLeft size={15} />
+                      <span>Kembali ke Katalog ({faunas.length} Produk)</span>
+                    </button>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Store size={13} style={{ color: 'var(--primary)' }} />
+                      Profil & Informasi Toko
+                    </span>
+                  </div>
+
                   {/* Hero Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
                     <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', flexShrink: 0, justifyContent: 'center', border: '1px solid var(--border-light)' }}>
@@ -15512,24 +15902,47 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
                   )}
 
-                  {/* Share Action */}
-                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
+                  {/* Bottom Navigation & Share Actions */}
+                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePublicTab('catalog');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="btn-primary"
+                      style={{
+                        padding: '0.62rem 1.4rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <ArrowLeft size={16} />
+                      <span>Kembali ke Katalog ({faunas.length} Produk)</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={handleShareStore}
                       className="btn-secondary"
                       style={{
-                        padding: '0.65rem 1.5rem',
-                        display: 'flex',
+                        padding: '0.62rem 1.35rem',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.5rem',
                         fontSize: '0.85rem',
                         fontWeight: 700,
                         cursor: 'pointer',
-                        borderRadius: '0.5rem'
+                        borderRadius: '8px'
                       }}
                     >
-                      <Share2 size={16} style={{ color: 'var(--primary)' }} /> Bagikan Halaman Ini
+                      <Share2 size={16} style={{ color: 'var(--primary)' }} />
+                      <span>Bagikan Profil Ini</span>
                       {settings.plan === 'free' && (
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'var(--btn-secondary-bg)', color: 'var(--primary)', border: '1px solid var(--border-light)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           Free by Catavor
@@ -15610,119 +16023,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               </div>
             )}
 
-            {/* Desktop Brand Showcase Hero (Brand Hub) */}
-            {!error && settings.dormancy_status !== 'suspended' && (
-              <section className="desktop-store-showcase animate-fade-in">
-                <div className="desktop-store-brand-left">
-                  <div className="desktop-store-avatar">
-                    {settings.store_logo_url ? (
-                      <img 
-                        src={settings.store_logo_url} 
-                        alt={settings.store_title} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                      />
-                    ) : (
-                      (settings.store_title || storeSlug || 'C').charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <div className="desktop-store-meta">
-                    <div className="desktop-store-title-row">
-                      <h2 className="desktop-store-title">
-                        {settings.store_title || 'Katalog Resmi'}
-                      </h2>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        padding: '0.2rem 0.65rem',
-                        borderRadius: '999px',
-                        backgroundColor: 'var(--primary-glow)',
-                        color: 'var(--primary)',
-                        border: '1px solid var(--border-light)'
-                      }}>
-                        <CheckCircle2 size={13} /> Terverifikasi
-                      </span>
-                      {settings.plan === 'pro_business' && (
-                        <span style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          padding: '0.15rem 0.55rem',
-                          borderRadius: '6px',
-                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                          color: '#f59e0b',
-                          border: '1px solid rgba(245, 158, 11, 0.3)'
-                        }}>
-                          PRO BISNIS
-                        </span>
-                      )}
-                    </div>
-                    <p className="desktop-store-slogan">
-                      {settings.store_slogan || settings.about_slogan || 'Koleksi produk dan layanan unggulan dengan kualitas terbaik dan pemesanan mudah via WhatsApp.'}
-                    </p>
-                    <div className="desktop-store-badges-row">
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Package size={14} style={{ color: 'var(--primary)' }} />
-                        <strong>{faunas.length}</strong> Total Produk
-                      </span>
-                      {settings.about_location && (
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <MapPin size={14} style={{ color: '#38bdf8' }} />
-                          <span style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {settings.about_location}
-                          </span>
-                        </span>
-                      )}
-                      {settings.show_hours && (
-                        <span style={{ fontSize: '0.78rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
-                          <Clock size={14} /> Buka Layanan
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="desktop-store-actions">
-                  {settings.whatsapp_number && (
-                    <a
-                      href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary"
-                      style={{ textDecoration: 'none', padding: '0.7rem 1.35rem', fontSize: '0.86rem', boxShadow: '0 4px 16px var(--primary-glow)' }}
-                    >
-                      <MessageCircle size={16} />
-                      <span>Hubungi Penjual</span>
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleShareStore}
-                    className="btn-secondary"
-                    style={{ padding: '0.7rem 1.15rem', fontSize: '0.86rem' }}
-                    title="Bagikan Profil Katalog Ini"
-                  >
-                    <Share2 size={16} />
-                    <span>Bagikan</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActivePublicTab('about')}
-                    className="btn-secondary"
-                    style={{
-                      padding: '0.7rem 1.15rem',
-                      fontSize: '0.86rem',
-                      borderColor: (activePublicTab as string) === 'about' ? 'var(--primary)' : undefined,
-                      color: (activePublicTab as string) === 'about' ? 'var(--primary)' : undefined
-                    }}
-                  >
-                    <Info size={16} />
-                    <span>Tentang Toko</span>
-                  </button>
-                </div>
-              </section>
-            )}
+            {/* Unified Store Hero & Tabs are mounted at the top of customer view */}
 
 
 
@@ -15903,117 +16204,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                 ) : (
                   <>
-                    {/* Unified Desktop Action Toolbar */}
+                    {/* Unified Desktop Action Toolbar (Structured 2-Tier) */}
                     <section className="desktop-action-toolbar">
-                      <div className="desktop-toolbar-chips">
-                        <button
-                          type="button"
-                          className="desktop-chip-btn"
-                          onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); }}
-                          style={{
-                            border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                            backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
-                            color: productTypeFilter === 'all' ? '#000000' : 'var(--text-secondary)'
-                          }}
-                        >
-                          <Layers size={13} />
-                          <span>Semua ({faunas.length})</span>
-                        </button>
-                        {availableProductTypes.includes('physical') && (
-                          <button
-                            type="button"
-                            className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); }}
-                            style={{
-                              border: productTypeFilter === 'physical' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: productTypeFilter === 'physical' ? 'var(--primary)' : 'transparent',
-                              color: productTypeFilter === 'physical' ? '#000000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            <Package size={13} />
-                            <span>Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})</span>
-                          </button>
-                        )}
-                        {availableProductTypes.includes('food') && (
-                          <button
-                            type="button"
-                            className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); }}
-                            style={{
-                              border: productTypeFilter === 'food' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: productTypeFilter === 'food' ? 'var(--primary)' : 'transparent',
-                              color: productTypeFilter === 'food' ? '#000000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            <Utensils size={13} />
-                            <span>Kuliner ({faunas.filter(f => f.product_type === 'food').length})</span>
-                          </button>
-                        )}
-                        {availableProductTypes.includes('service') && (
-                          <button
-                            type="button"
-                            className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); }}
-                            style={{
-                              border: productTypeFilter === 'service' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: productTypeFilter === 'service' ? 'var(--primary)' : 'transparent',
-                              color: productTypeFilter === 'service' ? '#000000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            <Wrench size={13} />
-                            <span>Jasa ({faunas.filter(f => f.product_type === 'service').length})</span>
-                          </button>
-                        )}
-                        {availableProductTypes.includes('digital') && (
-                          <button
-                            type="button"
-                            className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); }}
-                            style={{
-                              border: productTypeFilter === 'digital' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: productTypeFilter === 'digital' ? 'var(--primary)' : 'transparent',
-                              color: productTypeFilter === 'digital' ? '#000000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            <FileCode size={13} />
-                            <span>Digital ({faunas.filter(f => f.product_type === 'digital').length})</span>
-                          </button>
-                        )}
-                        {availableProductTypes.includes('fauna') && (
-                          <button
-                            type="button"
-                            className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); }}
-                            style={{
-                              border: productTypeFilter === 'fauna' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: productTypeFilter === 'fauna' ? 'var(--primary)' : 'transparent',
-                              color: productTypeFilter === 'fauna' ? '#000000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            <PawPrint size={13} />
-                            <span>Fauna ({faunas.filter(f => f.product_type === 'fauna').length})</span>
-                          </button>
-                        )}
-                        {availableProductTypes.includes('property') && (
-                          <button
-                            type="button"
-                            className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('property'); setClassFilter('all'); }}
-                            style={{
-                              border: productTypeFilter === 'property' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: productTypeFilter === 'property' ? 'var(--primary)' : 'transparent',
-                              color: productTypeFilter === 'property' ? '#000000' : 'var(--text-secondary)'
-                            }}
-                          >
-                            <Building2 size={13} />
-                            <span>Properti ({faunas.filter(f => f.product_type === 'property').length})</span>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="desktop-toolbar-search-filters">
-                        <div className="search-wrapper" style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
-                          <Search className="search-icon" />
+                      {/* Tier 1: Search & Filter Dropdowns */}
+                      <div className="desktop-toolbar-main-row">
+                        <div className="search-wrapper" style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
+                          <Search className="search-icon" size={15} />
                           <input 
                             type="text" 
                             className="search-input" 
@@ -16042,43 +16238,156 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 cursor: 'pointer',
                                 fontSize: '0.75rem'
                               }}
+                              title="Hapus pencarian"
                             >
                               ✕
                             </button>
                           )}
                         </div>
-                        <select 
-                          className="filter-select"
-                          value={classFilter}
-                          onChange={(e) => setClassFilter(e.target.value)}
-                        >
-                          <option value="all">Semua Kategori ({availableCategories.length})</option>
-                          {availableCategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                        <select 
-                          className="filter-select"
-                          value={habitatFilter}
-                          onChange={(e) => setHabitatFilter(e.target.value)}
-                        >
-                          <option value="all">{getSubtypeLabel(productTypeFilter)}</option>
-                          {availableSubTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
-                        <select 
-                          className="filter-select"
-                          value={sortBy}
-                          onChange={(e) => setSortBy(e.target.value as any)}
-                          style={{ fontWeight: 700 }}
-                        >
-                          <option value="newest">↕ Urutkan: Terbaru</option>
-                          <option value="price_asc">↕ Harga: Termurah</option>
-                          <option value="price_desc">↕ Harga: Tertinggi</option>
-                          <option value="name_asc">↕ Nama: A - Z</option>
-                          <option value="oldest">↕ Terlama</option>
-                        </select>
+
+                        <div className="desktop-toolbar-dropdowns">
+                          <select 
+                            className="filter-select"
+                            value={classFilter}
+                            onChange={(e) => setClassFilter(e.target.value)}
+                          >
+                            <option value="all">Semua Kategori ({availableCategories.length})</option>
+                            {availableCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                          <select 
+                            className="filter-select"
+                            value={habitatFilter}
+                            onChange={(e) => setHabitatFilter(e.target.value)}
+                          >
+                            <option value="all">{getSubtypeLabel(productTypeFilter)}</option>
+                            {availableSubTypes.map(type => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                          <select 
+                            className="filter-select"
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            style={{ fontWeight: 600 }}
+                          >
+                            <option value="newest">Urutkan: Terbaru</option>
+                            <option value="price_asc">Harga: Termurah</option>
+                            <option value="price_desc">Harga: Tertinggi</option>
+                            <option value="name_asc">Nama: A - Z</option>
+                            <option value="oldest">Terlama</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Tier 2: Product Type Chips Carousel */}
+                      <div className="desktop-toolbar-chips-row">
+                        <div className="desktop-toolbar-chips">
+                          <button
+                            type="button"
+                            className="desktop-chip-btn"
+                            onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); }}
+                            style={{
+                              border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                              color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                            }}
+                          >
+                            <Layers size={13} />
+                            <span>Semua ({faunas.length})</span>
+                          </button>
+                          {availableProductTypes.includes('physical') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'physical' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'physical' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'physical' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <Package size={13} />
+                              <span>Barang ({faunas.filter(f => (f.product_type || 'physical') === 'physical').length})</span>
+                            </button>
+                          )}
+                          {availableProductTypes.includes('food') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'food' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'food' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'food' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <Utensils size={13} />
+                              <span>Kuliner ({faunas.filter(f => f.product_type === 'food').length})</span>
+                            </button>
+                          )}
+                          {availableProductTypes.includes('service') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'service' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'service' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'service' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <Wrench size={13} />
+                              <span>Jasa ({faunas.filter(f => f.product_type === 'service').length})</span>
+                            </button>
+                          )}
+                          {availableProductTypes.includes('digital') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'digital' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'digital' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'digital' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <FileCode size={13} />
+                              <span>Digital ({faunas.filter(f => f.product_type === 'digital').length})</span>
+                            </button>
+                          )}
+                          {availableProductTypes.includes('fauna') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'fauna' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'fauna' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'fauna' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <PawPrint size={13} />
+                              <span>Fauna ({faunas.filter(f => f.product_type === 'fauna').length})</span>
+                            </button>
+                          )}
+                          {availableProductTypes.includes('property') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('property'); setClassFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'property' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'property' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'property' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <Building2 size={13} />
+                              <span>Properti ({faunas.filter(f => f.product_type === 'property').length})</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </section>
 
@@ -16126,90 +16435,155 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           {filteredFaunas.slice(0, displayLimit).map((fauna, faunaIdx) => (
                             <React.Fragment key={fauna.id}>
                               <div 
-                                className="glass-panel glass-panel-hover fauna-card"
+                                className="fauna-card"
                                 onClick={() => fetchDetails(fauna.id)}
                                 style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
                               >
-                          <div className="card-image-container" style={{ height: '240px', position: 'relative' }}>
-                            <img 
-                              src={fauna.image_url} 
-                              alt={fauna.name} 
-                              className="card-img" 
-                              onError={(e) => {
-                                e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActionMenuData({ type: 'item', item: fauna });
-                              }}
-                              style={{
-                                position: 'absolute',
-                                top: '0.75rem',
-                                right: '0.75rem',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                backgroundColor: 'rgba(9, 14, 12, 0.72)',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#fff',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                backdropFilter: 'blur(6px)',
-                                zIndex: 10
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = '#000'; e.currentTarget.style.transform = 'scale(1.08)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(9, 14, 12, 0.72)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.transform = 'scale(1)'; }}
-                              title="Opsi Produk"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
+                                <div className="card-image-container" style={{ height: '215px', position: 'relative', overflow: 'hidden' }}>
+                                  <img 
+                                    src={fauna.image_url} 
+                                    alt={fauna.name} 
+                                    className="card-img" 
+                                    onError={(e) => {
+                                      e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                                    }}
+                                  />
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: '0.65rem',
+                                    left: '0.65rem',
+                                    padding: '0.22rem 0.65rem',
+                                    borderRadius: '6px',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                                    backdropFilter: 'blur(8px)',
+                                    color: '#ffffff',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.03em',
+                                    textTransform: 'uppercase',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    zIndex: 2
+                                  }}>
+                                    <span>{fauna.class}</span>
+                                  </div>
 
-                          </div>
-                          <div className="card-body" style={{ padding: '1.25rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', flexGrow: 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 700,
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '4px',
-                                backgroundColor: 'var(--primary-glow)',
-                                color: 'var(--primary)',
-                                border: '1px solid var(--border-light)',
-                                display: 'inline-flex',
-                                alignItems: 'center'
-                              }}>
-                                {fauna.class}
-                              </span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{fauna.habitat}</span>
-                            </div>
-                            <h3 className="card-title" style={{ fontSize: '1.1rem', margin: '0.2rem 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#ffffff' }}>{fauna.name}</h3>
-                            <div className="card-subtitle" style={{ fontSize: '0.8rem', margin: '0.15rem 0 0', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {fauna.product_type === 'digital'
-                                ? `${fauna.attributes?.file_format ? fauna.attributes.file_format + ' • ' : ''}${fauna.attributes?.file_size || 'Digital File'}${fauna.attributes?.license_type ? ' • ' + fauna.attributes.license_type : ''}`
-                                : fauna.product_type === 'physical'
-                                ? `${fauna.attributes?.brand ? fauna.attributes.brand + ' • ' : ''}${fauna.attributes?.condition || 'Baru'}${fauna.attributes?.weight ? ' • ' + fauna.attributes.weight + 'g' : ''}`
-                                : fauna.product_type === 'service'
-                                ? `Durasi: ${fauna.attributes?.duration || '1 Sesi'}${fauna.attributes?.service_location ? ' • ' + fauna.attributes.service_location : ''}`
-                                : fauna.product_type === 'food'
-                                ? `Exp: ${fauna.attributes?.expired_info || '7 Hari'}${fauna.attributes?.storage_temp ? ' • ' + fauna.attributes.storage_temp : ''}`
-                                : fauna.product_type === 'property'
-                                ? `${fauna.attributes?.transaction_type || 'Dijual'} • ${fauna.attributes?.certificate || 'SHM'}${fauna.attributes?.land_area ? ' • LT ' + fauna.attributes.land_area + 'm²' : ''}${fauna.attributes?.building_area ? ' • LB ' + fauna.attributes.building_area + 'm²' : ''}`
-                                : (fauna.scientific_name && fauna.scientific_name !== 'N/A' ? <i style={{ fontStyle: 'italic' }}>{fauna.scientific_name}</i> : fauna.class)}
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
-                              <div className="card-price" style={{ fontSize: '1.25rem', margin: 0, fontWeight: 800 }}>{formatRupiah(fauna.price)}</div>
-                              <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.15rem' }}>
-                                Beli / Detail &rarr;
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActionMenuData({ type: 'item', item: fauna });
+                                    }}
+                                    style={{
+                                      position: 'absolute',
+                                      top: '0.65rem',
+                                      right: '0.65rem',
+                                      width: '30px',
+                                      height: '30px',
+                                      borderRadius: '8px',
+                                      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#ffffff',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease',
+                                      backdropFilter: 'blur(8px)',
+                                      zIndex: 2
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = '#ffffff'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.55)'; e.currentTarget.style.color = '#ffffff'; }}
+                                    title="Opsi Produk"
+                                  >
+                                    <MoreVertical size={15} />
+                                  </button>
+                                </div>
+
+                                <div className="card-body" style={{ padding: '1.1rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', flexGrow: 1 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                      {fauna.habitat || getSubtypeLabel(fauna.product_type || 'physical')}
+                                    </span>
+                                    {fauna.attributes?.condition && (
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                        {fauna.attributes.condition}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <h3 style={{
+                                    fontSize: '0.98rem',
+                                    fontWeight: 700,
+                                    margin: '0.15rem 0 0.35rem 0',
+                                    color: 'var(--text-primary)',
+                                    lineHeight: 1.35,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    minHeight: '2.7em'
+                                  }}>
+                                    {fauna.name}
+                                  </h3>
+
+                                  <div style={{
+                                    fontSize: '0.76rem',
+                                    color: 'var(--text-secondary)',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    marginBottom: '0.5rem'
+                                  }}>
+                                    {fauna.product_type === 'digital'
+                                      ? `${fauna.attributes?.file_format ? fauna.attributes.file_format + ' • ' : ''}${fauna.attributes?.file_size || 'Digital File'}${fauna.attributes?.license_type ? ' • ' + fauna.attributes.license_type : ''}`
+                                      : fauna.product_type === 'physical'
+                                      ? `${fauna.attributes?.brand ? fauna.attributes.brand + ' • ' : ''}${fauna.attributes?.condition || 'Baru'}${fauna.attributes?.weight ? ' • ' + fauna.attributes.weight + 'g' : ''}`
+                                      : fauna.product_type === 'service'
+                                      ? `Durasi: ${fauna.attributes?.duration || '1 Sesi'}${fauna.attributes?.service_location ? ' • ' + fauna.attributes.service_location : ''}`
+                                      : fauna.product_type === 'food'
+                                      ? `Exp: ${fauna.attributes?.expired_info || '7 Hari'}${fauna.attributes?.storage_temp ? ' • ' + fauna.attributes.storage_temp : ''}`
+                                      : fauna.product_type === 'property'
+                                      ? `${fauna.attributes?.transaction_type || 'Dijual'} • ${fauna.attributes?.certificate || 'SHM'}${fauna.attributes?.land_area ? ' • LT ' + fauna.attributes.land_area + 'm²' : ''}${fauna.attributes?.building_area ? ' • LB ' + fauna.attributes.building_area + 'm²' : ''}`
+                                      : (fauna.scientific_name && fauna.scientific_name !== 'N/A' ? <i style={{ fontStyle: 'italic' }}>{fauna.scientific_name}</i> : fauna.class)}
+                                  </div>
+
+                                  <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginTop: 'auto',
+                                    borderTop: '1px solid var(--border-light)',
+                                    paddingTop: '0.75rem'
+                                  }}>
+                                    <div>
+                                      <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.02em', fontWeight: 600 }}>
+                                        Harga
+                                      </span>
+                                      <div style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em', margin: 0 }}>
+                                        {formatRupiah(fauna.price)}
+                                      </div>
+                                    </div>
+                                    <div style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 700,
+                                      color: 'var(--primary)',
+                                      padding: '0.35rem 0.75rem',
+                                      borderRadius: '8px',
+                                      backgroundColor: 'var(--primary-glow)',
+                                      border: '1px solid var(--border-light)',
+                                      transition: 'all 0.15s ease'
+                                    }}>
+                                      <span>Detail</span>
+                                      <ArrowRight size={13} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
 
                         {faunaIdx === 3 && (
                           <div style={{ gridColumn: '1 / -1' }}>
@@ -16267,8 +16641,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               </>
             )}
           </>
-          )
-        ) : view === 'admin' ? (
+        )}
+      </>
+    ) : view === 'admin' ? (
           /* ========================================================
              ADMIN SYSTEM WITH STRICT MULTI-TENANT GUARD
              ======================================================== */
@@ -25606,242 +25981,499 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
       )}
 
       {/* CONTEXT-AWARE LUXURY REPORT MODAL - Desktop */}
-      {reportModalData && (
-        <div 
-          className="modal-overlay" 
-          onClick={() => setReportModalData(null)}
-          style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
+      {reportModalData && (() => {
+        const reasonList = getCatalogReportReasons(reportModalData.type as any, reportModalData.item);
+        const sectorInfo = getReportingSectorInfo(reportModalData.type as any, reportModalData.item);
+        const SectorIcon = sectorInfo.icon;
+        const targetTitle = reportModalData.type === 'store'
+          ? (settings.store_title ? `Katalog ${settings.store_title}` : 'Profil Katalog Toko Ini')
+          : (reportModalData.item?.name || 'Item Katalog');
+
+        return (
           <div 
-            className="glass-panel animate-scale-up" 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '520px',
-              maxHeight: '88vh',
-              overflowY: 'auto',
-              padding: '1.75rem',
-              borderRadius: '1.25rem',
-              border: '1px solid var(--border-light)',
-              background: 'var(--bg-card)',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.15rem'
+            className="modal-overlay" 
+            onClick={() => setReportModalData(null)}
+            style={{ 
+              zIndex: 1000, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(8px)',
+              padding: '1.25rem'
             }}
           >
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div 
+              className="animate-scale-up" 
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: '560px',
+                height: 'auto',
+                maxHeight: 'min(90vh, 760px)',
+                borderRadius: '16px',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                boxShadow: '0 24px 64px -12px rgba(0, 0, 0, 0.28), 0 8px 24px -6px rgba(0, 0, 0, 0.12)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Pinned Fixed Header */}
+              <div style={{
+                flexShrink: 0,
+                padding: '1.2rem 1.5rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: 'var(--bg-card)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                    flexShrink: 0
+                  }}>
+                    <ShieldAlert size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
+                      {reportModalData.type === 'store' ? 'Laporkan Profil Katalog' : 'Laporkan Item Katalog'}
+                    </h3>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                      Pilih alasan pelanggaran yang paling relevan untuk ditinjau Tim Kepatuhan
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={() => setReportModalData(null)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--bg-card-hover)',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                    e.currentTarget.style.borderColor = 'var(--border-focus)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                  }}
+                  title="Tutup Modal"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div 
+                className="modal-content-scroll"
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '1.25rem 1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem'
+                }}
+              >
+                {/* Target Entity Summary Card */}
                 <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  padding: '0.75rem 0.95rem',
+                  backgroundColor: 'var(--bg-card-hover)',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ef4444',
-                  flexShrink: 0
+                  gap: '0.75rem'
                 }}>
-                  <ShieldAlert size={19} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>
-                    {reportModalData.type === 'store' 
-                      ? (settings.store_title ? `Laporkan Katalog: ${settings.store_title}` : 'Laporkan Katalog Ini') 
-                      : `Laporkan Item: ${reportModalData.item?.name || 'Item Katalog'}`}
-                  </h3>
-                  <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                    Pilih alasan pelanggaran yang paling relevan untuk ditinjau Tim Kepatuhan
-                  </span>
-                </div>
-              </div>
-              <button 
-                type="button" 
-                onClick={() => setReportModalData(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.2rem', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
+                  {reportModalData.type === 'item' ? (
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      flexShrink: 0
+                    }}>
+                      <img 
+                        src={reportModalData.item?.image_url || '/placeholder.png'} 
+                        alt={reportModalData.item?.name || ''} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      border: '1px solid rgba(99, 102, 241, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#6366f1',
+                      flexShrink: 0
+                    }}>
+                      <Store size={20} />
+                    </div>
+                  )}
 
-            {/* Reasons List */}
-            <div>
-              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Alasan Pelaporan *
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {getCatalogReportReasons(reportModalData.type as any, reportModalData.item).map((reason) => {
-                  const isSelected = reportReason === reason.id;
-                  return (
-                    <button
-                      key={reason.id}
-                      type="button"
-                      onClick={() => setReportReason(reason.id)}
-                      style={{
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: '0.75rem',
-                        border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                        backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                        color: 'var(--text-primary)',
-                        display: 'flex',
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.15rem' }}>
+                      <span style={{
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: isSelected ? 'var(--primary)' : 'var(--text-primary)', display: 'block' }}>
-                          {reason.title}
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.12rem', lineHeight: 1.3 }}>
-                          {reason.desc}
-                        </span>
-                      </div>
-                      <div style={{
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        border: isSelected ? '1.5px solid var(--primary)' : '1.5px solid var(--border-light)',
-                        backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
+                        gap: '0.25rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.03em',
+                        padding: '1px 7px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        color: '#ef4444'
                       }}>
-                        {isSelected && <Check size={12} strokeWidth={3.5} />}
-                      </div>
-                    </button>
-                  );
-                })}
+                        <SectorIcon size={11} />
+                        <span>{sectorInfo.label}</span>
+                      </span>
+                      {reportModalData.item?.class && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          • {reportModalData.item.class}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      color: 'var(--text-main)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {targetTitle}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Alasan Pelaporan */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.55rem' }}>
+                    <span style={{
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      color: 'var(--text-main)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}>
+                      Alasan Pelaporan *
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      Disesuaikan untuk {sectorInfo.label}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {reasonList.map((reason) => {
+                      const isSelected = reportReason === reason.id;
+                      return (
+                        <div
+                          key={reason.id}
+                          onClick={() => setReportReason(reason.id)}
+                          style={{
+                            padding: '0.75rem 0.95rem',
+                            borderRadius: '10px',
+                            border: isSelected ? '1.5px solid #ef4444' : '1px solid var(--border-light)',
+                            backgroundColor: isSelected ? 'rgba(239, 68, 68, 0.04)' : 'var(--bg-card)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: '0.85rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            boxShadow: isSelected ? '0 2px 8px rgba(239, 68, 68, 0.08)' : 'none'
+                          }}
+                          onMouseEnter={e => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+                              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                            }
+                          }}
+                          onMouseLeave={e => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = 'var(--border-light)';
+                              e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                            }
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '0.84rem',
+                              fontWeight: 600,
+                              color: isSelected ? '#ef4444' : 'var(--text-main)',
+                              lineHeight: 1.35
+                            }}>
+                              {reason.title}
+                            </div>
+                            <div style={{
+                              fontSize: '0.73rem',
+                              color: 'var(--text-secondary)',
+                              marginTop: '0.2rem',
+                              lineHeight: 1.35
+                            }}>
+                              {reason.desc}
+                            </div>
+                          </div>
+
+                          <div style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            border: isSelected ? 'none' : '1.5px solid var(--border-focus)',
+                            backgroundColor: isSelected ? '#ef4444' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '2px',
+                            transition: 'all 0.15s ease'
+                          }}>
+                            {isSelected && <Check size={11} strokeWidth={3.5} color="#fff" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section: Keterangan Tambahan */}
+                <div>
+                  <label style={{
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: 'var(--text-main)',
+                    display: 'block',
+                    marginBottom: '0.45rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}>
+                    Keterangan Tambahan (Opsional)
+                  </label>
+                  <textarea
+                    placeholder="Jelaskan rincian atau bukti pelanggaran yang Anda temukan untuk mempermudah investigasi..."
+                    value={reportNotes}
+                    onChange={(e) => setReportNotes(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-main)',
+                      resize: 'none',
+                      fontSize: '0.82rem',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      transition: 'border-color 0.15s ease'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border-light)'}
+                  />
+                </div>
+
+                {/* Section: Email Pelapor */}
+                <div>
+                  <label style={{
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: 'var(--text-main)',
+                    display: 'block',
+                    marginBottom: '0.45rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}>
+                    Email Pelapor (Opsional)
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="email"
+                      placeholder="email@anda.com"
+                      value={reportEmail}
+                      onChange={(e) => setReportEmail(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.75rem 0.65rem 2.2rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.82rem',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        transition: 'border-color 0.15s ease'
+                      }}
+                      onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'var(--border-light)'}
+                    />
+                    <Mail size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.35rem 0 0 0' }}>
+                    Digunakan tim kepatuhan untuk mengirimkan notifikasi status tindak lanjut penanganan laporan.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Additional Details */}
-            <div>
-              <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Keterangan Tambahan (Opsional)
-              </label>
-              <textarea
-                placeholder="Jelaskan detail pelanggaran yang Anda temukan..."
-                value={reportNotes}
-                onChange={(e) => setReportNotes(e.target.value)}
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '0.65rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-deep)',
-                  color: 'var(--text-primary)',
-                  resize: 'none',
-                  fontSize: '0.8rem',
-                  fontFamily: 'inherit'
-                }}
-              />
-            </div>
+              {/* Pinned Sticky Footer */}
+              <div style={{
+                flexShrink: 0,
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                  <ShieldCheck size={14} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  <span>Laporan dijamin kerahasiaannya dan ditinjau secara objektif oleh Tim Kepatuhan.</span>
+                </div>
 
-            {/* Email (Optional) */}
-            <div>
-              <label style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Email Pelapor (Opsional)
-              </label>
-              <input
-                type="email"
-                placeholder="email@anda.com (untuk pembaruan status laporan)"
-                value={reportEmail}
-                onChange={(e) => setReportEmail(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.65rem 0.75rem',
-                  borderRadius: '0.65rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-deep)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.8rem',
-                  fontFamily: 'inherit'
-                }}
-              />
-            </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setReportModalData(null)}
+                    disabled={isSubmittingReport}
+                    style={{
+                      flex: 1,
+                      height: '42px',
+                      padding: '0 1rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card-hover)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-muted)';
+                      e.currentTarget.style.color = 'var(--text-main)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                    }}
+                  >
+                    Batal
+                  </button>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setReportModalData(null)}
-                disabled={isSubmittingReport}
-                style={{ flex: 1, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 700, borderRadius: '0.75rem' }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={isSubmittingReport}
-                onClick={async () => {
-                  const reasonList = getCatalogReportReasons(reportModalData.type as any, reportModalData.item);
-                  const currentReasonObj = reasonList.find(r => r.id === reportReason);
-                  const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
-                  const targetName = reportModalData.type === 'store' 
-                    ? (settings.store_title || 'katalog ini') 
-                    : (reportModalData.item?.name || 'item ini');
+                  <button
+                    type="button"
+                    disabled={isSubmittingReport}
+                    onClick={async () => {
+                      const currentReasonObj = reasonList.find(r => r.id === reportReason);
+                      const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
 
-                  setIsSubmittingReport(true);
-                  try {
-                    const res = await fetch(`${API_BASE}/reports`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        target_type: reportModalData.type === 'store' ? 'catalog' : 'item',
-                        store_id: (settings as any).id || 0,
-                        store_slug: storeSlug || '',
-                        store_title: settings.store_title || 'Katalog Digital',
-                        fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
-                        item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
-                        reason_category: reportReason,
-                        reason_label: reasonLabel,
-                        description: reportNotes.trim(),
-                        reporter_email: reportEmail.trim()
-                      })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      setReportModalData(null);
-                      setReportNotes('');
-                      setReportEmail('');
-                      showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetName}" telah berhasil dikirim ke tim kepatuhan.`);
-                    } else {
-                      showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
-                    }
-                  } catch (err) {
-                    showToast('Terjadi gangguan saat mengirim laporan. Silakan coba lagi.', 'error');
-                  } finally {
-                    setIsSubmittingReport(false);
-                  }
-                }}
-                style={{
-                  flex: 2,
-                  padding: '0.75rem',
-                  fontSize: '0.86rem',
-                  fontWeight: 800,
-                  borderRadius: '0.75rem',
-                  backgroundColor: '#ef4444',
-                  borderColor: '#ef4444',
-                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)'
-                }}
-              >
-                {isSubmittingReport ? 'Mengirim Laporan...' : 'Kirim Laporan'}
-              </button>
+                      setIsSubmittingReport(true);
+                      try {
+                        const res = await fetch(`${API_BASE}/reports`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            target_type: reportModalData.type === 'store' ? 'catalog' : 'item',
+                            store_id: (settings as any).id || 0,
+                            store_slug: storeSlug || '',
+                            store_title: settings.store_title || 'Katalog Digital',
+                            fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
+                            item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
+                            reason_category: reportReason,
+                            reason_label: reasonLabel,
+                            description: reportNotes.trim(),
+                            reporter_email: reportEmail.trim()
+                          })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setReportModalData(null);
+                          setReportNotes('');
+                          setReportEmail('');
+                          showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`);
+                        } else {
+                          showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
+                        }
+                      } catch (err) {
+                        showToast('Terjadi gangguan saat mengirim laporan. Silakan coba lagi.', 'error');
+                      } finally {
+                        setIsSubmittingReport(false);
+                      }
+                    }}
+                    style={{
+                      flex: 2,
+                      height: '42px',
+                      padding: '0 1.25rem',
+                      fontSize: '0.86rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)',
+                      cursor: isSubmittingReport ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      transition: 'all 0.15s ease',
+                      opacity: isSubmittingReport ? 0.7 : 1
+                    }}
+                    onMouseEnter={e => {
+                      if (!isSubmittingReport) e.currentTarget.style.backgroundColor = '#dc2626';
+                    }}
+                    onMouseLeave={e => {
+                      if (!isSubmittingReport) e.currentTarget.style.backgroundColor = '#ef4444';
+                    }}
+                  >
+                    {isSubmittingReport ? (
+                      <>
+                        <Loader size={16} className="animate-spin" />
+                        <span>Mengirim Laporan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={15} />
+                        <span>Kirim Laporan</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* REKBER SYARIAH EXPLAINER MODAL POPUP */}
       {showRekberExplainerModal && (
