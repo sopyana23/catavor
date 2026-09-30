@@ -16490,38 +16490,69 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
 
                         <div className="desktop-toolbar-dropdowns">
-                          <select 
-                            className="filter-select"
+                          {/* Category Dropdown */}
+                          <DesktopCustomSelect
                             value={classFilter}
-                            onChange={(e) => setClassFilter(e.target.value)}
-                          >
-                            <option value="all">Semua Kategori ({availableCategories.length})</option>
-                            {availableCategories.map(cat => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                          </select>
-                          <select 
-                            className="filter-select"
-                            value={habitatFilter}
-                            onChange={(e) => setHabitatFilter(e.target.value)}
-                          >
-                            <option value="all">{getSubtypeLabel(productTypeFilter)}</option>
-                            {availableSubTypes.map(type => (
-                              <option key={type} value={type}>{type}</option>
-                            ))}
-                          </select>
-                          <select 
-                            className="filter-select"
+                            onChange={(val) => setClassFilter(val)}
+                            options={[
+                              { 
+                                value: 'all', 
+                                label: 'Semua Kategori', 
+                                count: productTypeFilter === 'all' 
+                                  ? (catalogMetrics?.total_items ?? faunas.length) 
+                                  : (productTypeCounts[productTypeFilter] ?? faunas.filter(f => (f.product_type || 'physical') === productTypeFilter).length) 
+                              },
+                              ...availableCategories.map(cat => ({
+                                value: cat,
+                                label: cat,
+                                count: categoryCounts[cat] ?? 0
+                              }))
+                            ]}
+                            placeholder="Semua Kategori"
+                            ariaLabel="Filter Kategori Produk"
+                            style={{ minWidth: '175px', width: 'auto' }}
+                            dropdownStyle={{ minWidth: '220px' }}
+                          />
+
+                          {/* Subtype Dropdown (Dynamically displayed when subcategories exist) */}
+                          {availableSubTypes.length > 0 && (
+                            <DesktopCustomSelect
+                              value={habitatFilter}
+                              onChange={(val) => setHabitatFilter(val)}
+                              options={[
+                                { 
+                                  value: 'all', 
+                                  label: getSubtypeLabel(productTypeFilter) || 'Semua Subtipe',
+                                },
+                                ...availableSubTypes.map(type => ({
+                                  value: type,
+                                  label: type,
+                                  count: faunas.filter(f => f.habitat === type && (productTypeFilter === 'all' || (f.product_type || 'physical') === productTypeFilter)).length
+                                }))
+                              ]}
+                              placeholder={getSubtypeLabel(productTypeFilter) || 'Subtipe'}
+                              ariaLabel={getSubtypeLabel(productTypeFilter)}
+                              style={{ minWidth: '165px', width: 'auto' }}
+                              dropdownStyle={{ minWidth: '190px' }}
+                            />
+                          )}
+
+                          {/* Sort Dropdown */}
+                          <DesktopCustomSelect
                             value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as any)}
-                            style={{ fontWeight: 600 }}
-                          >
-                            <option value="newest">Urutkan: Terbaru</option>
-                            <option value="price_asc">Harga: Termurah</option>
-                            <option value="price_desc">Harga: Tertinggi</option>
-                            <option value="name_asc">Nama: A - Z</option>
-                            <option value="oldest">Terlama</option>
-                          </select>
+                            onChange={(val) => setSortBy(val as any)}
+                            options={[
+                              { value: 'newest', label: 'Terbaru' },
+                              { value: 'price_asc', label: 'Harga: Termurah' },
+                              { value: 'price_desc', label: 'Harga: Tertinggi' },
+                              { value: 'name_asc', label: 'Nama (A-Z)' },
+                              { value: 'oldest', label: 'Terlama' },
+                            ]}
+                            placeholder="Urutan Produk"
+                            ariaLabel="Urutan Produk"
+                            style={{ minWidth: '160px', width: 'auto' }}
+                            dropdownStyle={{ minWidth: '175px' }}
+                          />
                         </div>
                       </div>
 
@@ -16531,7 +16562,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <button
                             type="button"
                             className="desktop-chip-btn"
-                            onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); }}
+                            onClick={() => { setProductTypeFilter('all'); setClassFilter('all'); setHabitatFilter('all'); }}
                             style={{
                               border: productTypeFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                               backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'var(--bg-card-hover)',
@@ -16545,7 +16576,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="desktop-chip-btn"
-                              onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); }}
+                              onClick={() => { setProductTypeFilter('physical'); setClassFilter('all'); setHabitatFilter('all'); }}
                               style={{
                                 border: productTypeFilter === 'physical' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: productTypeFilter === 'physical' ? 'var(--primary)' : 'var(--bg-card-hover)',
@@ -16560,7 +16591,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="desktop-chip-btn"
-                              onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); }}
+                              onClick={() => { setProductTypeFilter('food'); setClassFilter('all'); setHabitatFilter('all'); }}
                               style={{
                                 border: productTypeFilter === 'food' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: productTypeFilter === 'food' ? 'var(--primary)' : 'var(--bg-card-hover)',
@@ -16575,7 +16606,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="desktop-chip-btn"
-                              onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); }}
+                              onClick={() => { setProductTypeFilter('service'); setClassFilter('all'); setHabitatFilter('all'); }}
                               style={{
                                 border: productTypeFilter === 'service' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: productTypeFilter === 'service' ? 'var(--primary)' : 'var(--bg-card-hover)',
@@ -16590,7 +16621,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="desktop-chip-btn"
-                              onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); }}
+                              onClick={() => { setProductTypeFilter('digital'); setClassFilter('all'); setHabitatFilter('all'); }}
                               style={{
                                 border: productTypeFilter === 'digital' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: productTypeFilter === 'digital' ? 'var(--primary)' : 'var(--bg-card-hover)',
@@ -16605,7 +16636,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="desktop-chip-btn"
-                              onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); }}
+                              onClick={() => { setProductTypeFilter('fauna'); setClassFilter('all'); setHabitatFilter('all'); }}
                               style={{
                                 border: productTypeFilter === 'fauna' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: productTypeFilter === 'fauna' ? 'var(--primary)' : 'var(--bg-card-hover)',
@@ -16620,7 +16651,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <button
                               type="button"
                               className="desktop-chip-btn"
-                              onClick={() => { setProductTypeFilter('property'); setClassFilter('all'); }}
+                              onClick={() => { setProductTypeFilter('property'); setClassFilter('all'); setHabitatFilter('all'); }}
                               style={{
                                 border: productTypeFilter === 'property' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                 backgroundColor: productTypeFilter === 'property' ? 'var(--primary)' : 'var(--bg-card-hover)',

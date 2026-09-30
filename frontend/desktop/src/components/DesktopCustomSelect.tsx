@@ -159,6 +159,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
         position: 'relative',
         width: '100%',
         userSelect: 'none',
+        zIndex: isOpen ? 60 : 1,
         ...style,
       }}
     >
