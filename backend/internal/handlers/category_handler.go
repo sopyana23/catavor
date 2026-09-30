@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
@@ -22,6 +26,22 @@ func slugifyCategory(s string) string {
 	reg := regexp.MustCompile(`[^a-z0-9\-]+`)
 	s = reg.ReplaceAllString(s, "-")
 	return strings.Trim(s, "-")
+}
+
+// InvalidateStoreCategoriesCache purges cached category queries and store profile for a specific store.
+func InvalidateStoreCategoriesCache(storeID uint) {
+	if database.IsRedisAvailable() && database.RedisClient != nil && storeID > 0 {
+		ctx := context.Background()
+		pattern := fmt.Sprintf("catavor:store:%d:categories:*", storeID)
+		iter := database.RedisClient.Scan(ctx, 0, pattern, 0).Iterator()
+		for iter.Next(ctx) {
+			_ = database.RedisClient.Del(ctx, iter.Val()).Err()
+		}
+		var store models.Store
+		if err := database.DB.Select("slug").Where("id = ?", storeID).First(&store).Error; err == nil && store.Slug != "" {
+			_ = database.RedisClient.Del(ctx, fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+		}
+	}
 }
 
 // Index returns all categories for the authenticated store or requested store slug.
@@ -59,10 +79,23 @@ func (h *CategoryHandler) Index(c *fiber.Ctx) error {
 		})
 	}
 
+	pType := strings.ToLower(strings.TrimSpace(c.Query("product_type")))
+	cacheKey := fmt.Sprintf("catavor:store:%d:categories:%s", storeID, pType)
+
+	// 1. Try Redis cache
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if cachedVal, err := database.RedisClient.Get(context.Background(), cacheKey).Result(); err == nil && cachedVal != "" {
+			var cachedRes fiber.Map
+			if err := json.Unmarshal([]byte(cachedVal), &cachedRes); err == nil {
+				c.Set("X-Cache", "HIT")
+				return c.JSON(cachedRes)
+			}
+		}
+	}
+
 	var categories []models.Category
 	query := database.DB.Where("store_id = ?", storeID)
 
-	pType := c.Query("product_type")
 	if pType != "" {
 		query = query.Where("product_type = ?", pType)
 	}
@@ -74,10 +107,20 @@ func (h *CategoryHandler) Index(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{
+	responsePayload := fiber.Map{
 		"success": true,
 		"data":    categories,
-	})
+	}
+
+	// 2. Cache in Redis (TTL: 300s)
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if bytes, err := json.Marshal(responsePayload); err == nil {
+			_ = database.RedisClient.Set(context.Background(), cacheKey, string(bytes), 300*time.Second).Err()
+		}
+	}
+
+	c.Set("X-Cache", "MISS")
+	return c.JSON(responsePayload)
 }
 
 // Store creates a new category for the authenticated store.
@@ -137,6 +180,8 @@ func (h *CategoryHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
+	InvalidateStoreCategoriesCache(store.ID)
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
 		"message": "Kategori berhasil ditambahkan.",
@@ -194,6 +239,8 @@ func (h *CategoryHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
+	InvalidateStoreCategoriesCache(store.ID)
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Kategori berhasil diperbarui.",
@@ -229,6 +276,8 @@ func (h *CategoryHandler) Destroy(c *fiber.Ctx) error {
 			"message": "Gagal menghapus kategori.",
 		})
 	}
+
+	InvalidateStoreCategoriesCache(store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,

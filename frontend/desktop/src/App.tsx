@@ -5838,7 +5838,98 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     return Array.from(new Set(types));
   }, [faunas, productTypeFilter]);
 
+  // Server-Side Public Catalog State (Redis Cached & Server-Side Paginated)
+  const [serverCatalogItems, setServerCatalogItems] = useState<Fauna[]>([]);
+  const [serverPagination, setServerPagination] = useState<{
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    hasNext: boolean;
+  }>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    hasNext: false
+  });
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(false);
+  const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>(search);
+
+  // Debounce search input (300ms) to ensure smooth performance without spamming Redis
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Fetch Server-Side Catalog with Redis Caching
+  const fetchServerCatalog = useCallback(async (page: number, append: boolean = false) => {
+    const slug = storeSlug || getStoreSlug();
+    if (!slug || isReservedStoreSlug(slug) || view !== 'catalog') return;
+
+    if (append) {
+      setIsFetchingMore(true);
+    } else {
+      setIsCatalogLoading(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '16');
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (productTypeFilter !== 'all') params.set('type', productTypeFilter);
+      if (classFilter !== 'all') params.set('class', classFilter);
+      if (habitatFilter !== 'all') params.set('habitat', habitatFilter);
+      if (sortBy) params.set('sort', sortBy);
+
+      const res = await fetch(`${API_BASE}/u/${slug}/products?${params.toString()}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success && Array.isArray(json.data)) {
+          if (append) {
+            setServerCatalogItems(prev => {
+              const existingIds = new Set(prev.map(item => item.id));
+              const newItems = json.data.filter((item: Fauna) => !existingIds.has(item.id));
+              return [...prev, ...newItems];
+            });
+          } else {
+            setServerCatalogItems(json.data);
+          }
+
+          if (json.pagination) {
+            setServerPagination({
+              currentPage: json.pagination.current_page || page,
+              totalPages: json.pagination.total_pages || 1,
+              totalItems: json.pagination.total_items ?? json.data.length,
+              hasNext: Boolean(json.pagination.has_next)
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch server catalog:', err);
+    } finally {
+      setIsCatalogLoading(false);
+      setIsFetchingMore(false);
+    }
+  }, [storeSlug, view, debouncedSearch, productTypeFilter, classFilter, habitatFilter, sortBy]);
+
+  // Trigger server-side fetch on filter or search change
+  useEffect(() => {
+    if (view === 'catalog' && activePublicTab === 'catalog') {
+      fetchServerCatalog(1, false);
+    }
+  }, [fetchServerCatalog, view, activePublicTab]);
+
   const filteredFaunas = useMemo(() => {
+    if (view === 'catalog') {
+      return serverCatalogItems;
+    }
+
     let result = faunas.filter(item => {
       const itemType = item.product_type || 'physical';
       const matchesProductType = productTypeFilter === 'all' || itemType === productTypeFilter;
@@ -5867,7 +5958,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
 
     return result;
-  }, [faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
+  }, [view, serverCatalogItems, faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
 
   // Modals
   const [showCrudModal, setShowCrudModal] = useState<boolean>(false)
@@ -9234,25 +9325,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setDisplayLimit(12)
   }, [search, classFilter, habitatFilter, productTypeFilter, sortBy])
 
-  // Responsive Infinite scroll event listener
+  // Responsive Server-Side Infinite Scroll Event Listener (Auto-scroll for first 3 pages)
   useEffect(() => {
     const handleScroll = () => {
-      if (isDetailActive || loadingMore) return
-      if (displayLimit >= filteredFaunas.length) return
-      const threshold = 150
-      const position = window.innerHeight + window.scrollY
-      const limit = document.documentElement.scrollHeight - threshold
+      if (isDetailActive || isFetchingMore || isCatalogLoading) return;
+      if (!serverPagination.hasNext) return;
+      // After page 3 (48 items), pause auto-scroll to allow access to footer, user can click "Muat Lebih Banyak"
+      if (serverPagination.currentPage >= 4) return;
+
+      const threshold = 350;
+      const position = window.innerHeight + window.scrollY;
+      const limit = document.documentElement.scrollHeight - threshold;
       if (position >= limit) {
-        setLoadingMore(true)
-        setTimeout(() => {
-          setDisplayLimit(prev => Math.min(prev + 12, filteredFaunas.length))
-          setLoadingMore(false)
-        }, 350)
+        fetchServerCatalog(serverPagination.currentPage + 1, true);
       }
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [filteredFaunas.length, isDetailActive, loadingMore, displayLimit])
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isDetailActive, isFetchingMore, isCatalogLoading, serverPagination, fetchServerCatalog]);
 
   // Smart Sticky Filter & Preview Bar Auto-Hide on Scroll Down & Reveal on Scroll Up
   useEffect(() => {
@@ -16539,7 +16629,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     {/* Results Counter & Reset Filter Bar */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', padding: '0 0.5rem' }}>
                       <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                        Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{filteredFaunas.length}</strong> {filteredFaunas.length === faunas.length ? 'produk' : `dari ${faunas.length} produk`}
+                        Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{serverCatalogItems.length}</strong> {serverPagination.totalItems > 0 ? `dari ${serverPagination.totalItems} item` : 'item'}
                       </span>
                       {(search || classFilter !== 'all' || habitatFilter !== 'all' || productTypeFilter !== 'all' || sortBy !== 'newest') && (
                         <button
@@ -16552,7 +16642,33 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       )}
                     </div>
 
-                    {filteredFaunas.length === 0 ? (
+                    {isCatalogLoading ? (
+                      /* Initial Server Fetch Skeleton Loader */
+                      <div className="fauna-grid">
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                          <div 
+                            key={i} 
+                            className="glass-panel"
+                            style={{ display: 'flex', flexDirection: 'column', height: '360px', opacity: 0.7 }}
+                          >
+                            <div style={{ height: '215px', backgroundColor: 'rgba(255,255,255,0.03)', position: 'relative', overflow: 'hidden' }}>
+                              <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)', animation: 'shimmer 1.5s infinite' }}></div>
+                            </div>
+                            <div style={{ padding: '1.25rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexGrow: 1, justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <div style={{ height: '10px', width: '30%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px' }}></div>
+                                  <div style={{ height: '10px', width: '20%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px' }}></div>
+                                </div>
+                                <div style={{ height: '16px', width: '80%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px', marginTop: '0.75rem' }}></div>
+                                <div style={{ height: '10px', width: '60%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px', marginTop: '0.5rem' }}></div>
+                              </div>
+                              <div style={{ height: '16px', width: '50%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px' }}></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : filteredFaunas.length === 0 ? (
                       /* SEARCH NO RESULTS EMPTY STATE */
                       <div className="glass-panel animate-fade-in" style={{ padding: '3.5rem 2rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '1rem' }}>
                         <Search size={44} style={{ marginBottom: '0.85rem', color: 'var(--text-muted)' }} />
@@ -16577,7 +16693,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         />
 
                         <div className="fauna-grid">
-                          {filteredFaunas.slice(0, displayLimit).map((fauna, faunaIdx) => (
+                          {filteredFaunas.map((fauna, faunaIdx) => (
                             <React.Fragment key={fauna.id}>
                               <div 
                                 className="fauna-card"
@@ -16753,7 +16869,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   />
 
                     {/* Infinite Scroll loading indicator */}
-                    {loadingMore && (
+                    {isFetchingMore && (
                       <div className="fauna-grid" style={{ marginTop: '2rem' }}>
                         {[1, 2, 3, 4].map((i) => (
                           <div 
@@ -16778,7 +16894,31 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
                         ))}
                       </div>
-                        )}
+                    )}
+
+                    {/* Manual Load More Button for Page >= 4 (allows accessing footer easily on massive catalogs) */}
+                    {serverPagination.hasNext && serverPagination.currentPage >= 4 && !isFetchingMore && (
+                      <div style={{ textAlign: 'center', marginTop: '2.5rem', marginBottom: '1.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => fetchServerCatalog(serverPagination.currentPage + 1, true)}
+                          className="btn-primary"
+                          style={{
+                            padding: '0.75rem 2.2rem',
+                            fontSize: '0.88rem',
+                            fontWeight: 800,
+                            borderRadius: '999px',
+                            boxShadow: '0 4px 15px var(--primary-glow)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                          }}
+                        >
+                          <span>Muat Lebih Banyak Item ({serverPagination.totalItems - serverCatalogItems.length} Tersisa)</span>
+                        </button>
+                      </div>
+                    )}
                       </>
                     )}
                   </>

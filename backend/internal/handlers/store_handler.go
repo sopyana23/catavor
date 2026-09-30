@@ -164,6 +164,17 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 		})
 	}
 
+	profileCacheKey := fmt.Sprintf("catavor:store:%s:profile", slug)
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if cachedVal, err := database.RedisClient.Get(context.Background(), profileCacheKey).Result(); err == nil && cachedVal != "" {
+			var cachedRes fiber.Map
+			if err := json.Unmarshal([]byte(cachedVal), &cachedRes); err == nil {
+				c.Set("X-Cache", "HIT")
+				return c.JSON(cachedRes)
+			}
+		}
+	}
+
 	// 1. Check if slug is in blacklisted_slugs (Permanently banned / terminated store)
 	var blacklisted models.BlacklistedSlug
 	if err := database.DB.Where("LOWER(slug) = ?", slug).First(&blacklisted).Error; err == nil {
@@ -220,10 +231,19 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	// Touch store activity on public catalog view (throttled & only affects active stores before warning stage)
 	services.TouchStoreActivity(database.DB, store.ID)
 
-	return c.JSON(fiber.Map{
+	responsePayload := fiber.Map{
 		"success": true,
 		"data":    store,
-	})
+	}
+
+	if database.IsRedisAvailable() && database.RedisClient != nil {
+		if bytes, err := json.Marshal(responsePayload); err == nil {
+			_ = database.RedisClient.Set(context.Background(), profileCacheKey, string(bytes), 300*time.Second).Err()
+		}
+	}
+
+	c.Set("X-Cache", "MISS")
+	return c.JSON(responsePayload)
 }
 
 func (h *StoreHandler) IndexFauna(c *fiber.Ctx) error {
@@ -654,6 +674,14 @@ func InvalidateStoreProductsCache(storeID uint) {
 	}
 }
 
+// InvalidateStoreProfileCache purges cached profile and about info for a specific store.
+func InvalidateStoreProfileCache(slug string) {
+	if database.IsRedisAvailable() && database.RedisClient != nil && slug != "" {
+		ctx := context.Background()
+		_ = database.RedisClient.Del(ctx, fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(slug))).Err()
+	}
+}
+
 // CatalogMetrics returns aggregated metrics (total counts, by_type, by_category, by_status, total_value) with Redis Cache-Aside.
 func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	slug := strings.ToLower(strings.TrimSpace(c.Params("slug")))
@@ -909,6 +937,8 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 			"message": "Gagal memperbarui profil toko.",
 		})
 	}
+
+	InvalidateStoreProfileCache(store.Slug)
 
 	// Refresh store activity timestamp for active stores
 	services.TouchStoreActivity(database.DB, store.ID)
