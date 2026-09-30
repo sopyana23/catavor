@@ -52,6 +52,12 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
+/* Public Storefront: Top platform header scrolls away naturally so only the smart search bar floats on scroll-up */
+.app-header.public-storefront-header {
+  position: relative;
+  box-shadow: none;
+}
+
 .header-content {
   display: flex;
   justify-content: space-between;
@@ -1594,6 +1600,12 @@
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Public Catalog Top Stack: Non-sticky so it scrolls away naturally and leaves floating solely to the smart quick-search bar */
+.desktop-public-top-stack {
+  position: static;
+  width: 100%;
 }
 
 /* Store Owner Preview Banner for Public Storefront View */

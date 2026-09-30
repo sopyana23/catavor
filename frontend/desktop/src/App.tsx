@@ -9260,7 +9260,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     let accumulatedDown = 0;
 
     const handleSmartFilterScroll = () => {
-      if (isDetailActive) return;
+      if (isDetailActive || view === 'catalog') return;
       const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
 
       // Always visible when near top of page
@@ -9295,7 +9295,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     window.addEventListener('scroll', handleSmartFilterScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleSmartFilterScroll);
-  }, [isDetailActive]);
+  }, [isDetailActive, view]);
 
   // Sync profile form when user state loads
   useEffect(() => {
@@ -15035,9 +15035,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         )
       ) : (
         <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* Unified Desktop Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) - Hidden in Merchant Admin Workspace */}
+        {/* Unified Desktop Top Stack - Sticky only in Admin, Static in Public Catalog (leaving floating solely to smart quick-search) */}
         {!(view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged) && (
-        <div className={`desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
+        <div className={view === 'admin' ? `desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}` : 'desktop-public-top-stack'}>
         {/* Store Owner Preview Banner for Public Storefront View */}
         {isStoreOwner && view === 'catalog' && (
           <aside 
@@ -15178,7 +15178,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             </div>
           </header>
         ) : (
-          <header className="app-header">
+          <header className={`app-header ${view === 'catalog' ? 'public-storefront-header' : ''}`}>
             <div className="container header-content">
               <div className="logo-area">
                 {view === 'admin' ? (
@@ -15351,7 +15351,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {settings.store_title || 'Katalog'}
                 </span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                  {filteredFaunas.length} produk
+                  {filteredFaunas.length} item
                 </span>
               </div>
             </div>
@@ -15361,7 +15361,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               <input 
                 type="text" 
                 className="search-input" 
-                placeholder="Ketik untuk mencari produk..."
+                placeholder="Ketik untuk mencari..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ 
@@ -15404,7 +15404,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
               {settings.whatsapp_number && (
                 <a
-                  href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}`}
+                  href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai katalog Anda.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary"
@@ -15646,7 +15646,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <div className="desktop-store-badges-row">
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                           <Package size={14} style={{ color: 'var(--primary)' }} />
-                          <strong>{faunas.length}</strong> Total Produk
+                          <strong>{faunas.length}</strong> Total Item
                         </span>
                         {settings.about_location && (
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -15812,7 +15812,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         title="Kembali ke Daftar Katalog Produk"
                       >
                         <ArrowLeft size={15} />
-                        <span>Kembali ke Katalog ({faunas.length} Produk)</span>
+                        <span>Kembali ke Katalog ({faunas.length} Item)</span>
                       </button>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
