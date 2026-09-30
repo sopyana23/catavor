@@ -5804,7 +5804,20 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Modals
   const [showCrudModal, setShowCrudModal] = useState<boolean>(false)
-  const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
+  const [isDetailActive, setIsDetailActive] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const initialItem = new URLSearchParams(window.location.search).get('item');
+    return Boolean(initialItem);
+  })
+  const activeDetailItemIdRef = useRef<string | null>(
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null
+  )
+
+  const handleCloseDetail = useCallback(() => {
+    setIsDetailActive(false);
+    setSelectedFauna(null);
+    activeDetailItemIdRef.current = null;
+  }, [])
   const [showPurchaseOptions, setShowPurchaseOptions] = useState<boolean>(false)
   const [showRekberExplainerModal, setShowRekberExplainerModal] = useState<boolean>(false)
   const [purchaseQty, setPurchaseQty] = useState<number>(1)
@@ -8110,10 +8123,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    const itemId = urlParams.get('item');
+    const itemId = urlParams.get('item') || activeDetailItemIdRef.current;
     if (itemId && !selectedFauna) {
       const found = faunas.find(f => f && f.id !== undefined && String(f.id) === itemId);
-      if (found) setSelectedFauna(found);
+      if (found) {
+        setSelectedFauna(found);
+        setIsDetailActive(true);
+        activeDetailItemIdRef.current = String(found.id);
+      }
     }
   }, [faunas]);
 
@@ -8148,6 +8165,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (slug) {
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);
+        const popItemId = urlParams.get('item');
+        if (popItemId) {
+          activeDetailItemIdRef.current = popItemId;
+          const found = faunas.find(f => f && String(f.id) === popItemId);
+          if (found) {
+            setSelectedFauna(found);
+            setIsDetailActive(true);
+          } else {
+            fetchDetails(parseInt(popItemId, 10));
+          }
+        } else {
+          handleCloseDetail();
+        }
 
         if (parts.length >= 2) {
           const sub = parts[1];
@@ -8968,20 +8998,26 @@ Terima kasih atas perhatian dan kerja samanya.`;
     });
   };
 
-  // Auto-open product detail from query params on load
+  // Auto-open product detail from query params on load or refresh
   useEffect(() => {
-    if (faunas.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const itemId = params.get('item');
-      if (itemId) {
-        const item = faunas.find(f => f.id === parseInt(itemId));
-        if (item) {
-          setSelectedFauna(item);
-          setIsDetailActive(true);
-        }
+    const rawItemId = activeDetailItemIdRef.current || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null);
+    if (!rawItemId) return;
+    const targetId = parseInt(rawItemId, 10);
+    if (isNaN(targetId) || targetId <= 0) return;
+
+    if (faunas && faunas.length > 0) {
+      const item = faunas.find(f => f && f.id === targetId);
+      if (item) {
+        setSelectedFauna(item);
+        setIsDetailActive(true);
+        activeDetailItemIdRef.current = String(item.id);
+        return;
       }
     }
-  }, [faunas]);
+
+    // Direct fetch detail to support instant refresh or items not in initial page/catalog
+    fetchDetails(targetId);
+  }, [storeSlug, faunas]);
 
   // Trigger loading store data
   useEffect(() => {
@@ -9053,8 +9089,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
-    if (selectedFauna && selectedFauna.id !== undefined && selectedFauna.id !== null && !showCrudModal) {
-      params.set('item', String(selectedFauna.id));
+    const activeItemId = (selectedFauna && selectedFauna.id !== undefined && selectedFauna.id !== null)
+      ? String(selectedFauna.id)
+      : (isDetailActive && activeDetailItemIdRef.current ? activeDetailItemIdRef.current : null);
+
+    if (activeItemId && !showCrudModal) {
+      params.set('item', activeItemId);
     }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
@@ -9076,7 +9116,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         );
       }
     }
-  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error]);
+  }, [view, adminTab, settingsSubTab, showQRModal, showCrudModal, crudMode, editId, activePublicTab, isDetailActive, selectedFauna, selectedTicket, selectedNotificationDetail, storeSlug, error]);
 
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs (/ , /login , /register/step-X)
@@ -10872,6 +10912,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const fetchDetails = async (id: number) => {
     try {
       const currentSlug = storeSlug || getStoreSlug() || '';
+      activeDetailItemIdRef.current = String(id);
       const localItem = faunas.find(f => f.id === id);
       if (localItem) {
         setSelectedFauna(localItem);
@@ -10888,13 +10929,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         setSelectedFauna(res.data);
+        activeDetailItemIdRef.current = String(res.data.id);
       } else if (!localItem) {
         showToast?.(res?.message || 'Item tidak ditemukan atau sedang dinonaktifkan.', 'error');
+        handleCloseDetail();
       }
     } catch (err: any) {
       console.error(err);
       if (!faunas.some(f => f.id === id)) {
         showToast?.(err?.message || 'Gagal mengambil data detail.', 'error');
+        handleCloseDetail();
       }
     }
   }
@@ -10902,7 +10946,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
   // Get recommendations for desktop (3-Tier Waterfall Algorithm: Same Class+Type -> Same Type -> Other Store Items)
   const getRecommendations = (fauna: Fauna) => {
     if (!faunas || faunas.length <= 1) return []
-    const otherFaunas = faunas.filter(f => f.id !== fauna.id)
+    const otherFaunas = faunas.filter(f => f && f.id !== fauna.id && (f as any).is_active !== false)
+    if (otherFaunas.length === 0) return []
     
     // Tier 1: Kategori & Tipe Produk sama persis
     const tier1 = otherFaunas.filter(f => f.class === fauna.class && f.product_type === fauna.product_type)
@@ -13840,54 +13885,53 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
   return (
     <>
-      {isDetailActive && selectedFauna ? (
-        /* ==========================================================
-           FULL-PAGE DESKTOP DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
-           ========================================================== */
-        <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)' }}>
-          {/* Header */}
-          <div style={{
-            position: 'sticky',
-            top: 0,
-            backgroundColor: 'var(--bg-card)',
-            borderBottom: '1px solid var(--border-light)',
-            padding: '1rem 2rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            zIndex: 100
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <button 
-                onClick={() => {
-                  setIsDetailActive(false);
-                  setSelectedFauna(null);
-                }}
-                style={{
-                  background: 'var(--bg-card-hover)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '0.5rem',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0.45rem',
-                  transition: 'all 0.2s'
-                }}
-                title="Kembali ke Katalog"
-              >
-                <ArrowLeft size={18} />
-              </button>
-              <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem' }}>
-                <span 
-                  onClick={() => {
-                    setIsDetailActive(false);
-                    setSelectedFauna(null);
+      {isDetailActive ? (
+        selectedFauna ? (
+          /* ==========================================================
+             FULL-PAGE DESKTOP DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
+             ========================================================== */
+          <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)' }}>
+            {/* Header */}
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              backgroundColor: 'var(--bg-card)',
+              borderBottom: '1px solid var(--border-light)',
+              padding: '1rem 2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              zIndex: 100
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <button 
+                  onClick={handleCloseDetail}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    background: 'var(--bg-card-hover)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '10px',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
                   }}
-                  style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
-                  title="Ke Katalog Utama"
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.borderColor = 'var(--border-focus)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                  title="Kembali ke Katalog"
                 >
+                  <ArrowLeft size={18} />
+                </button>
+                <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem' }}>
+                  <span 
+                    onClick={handleCloseDetail}
+                    style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
+                    title="Ke Katalog Utama"
+                  >
                   Katalog
                 </span>
                 <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
@@ -13907,136 +13951,91 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 type="button"
                 onClick={() => setShowDetailActionDropdown(prev => !prev)}
                 style={{
+                  width: '36px',
+                  height: '36px',
                   background: showDetailActionDropdown ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
                   border: showDetailActionDropdown ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  borderRadius: '0.5rem',
-                  color: 'var(--primary)',
+                  borderRadius: '10px',
+                  color: showDetailActionDropdown ? 'var(--primary)' : 'var(--text-secondary)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '0.45rem 0.65rem',
-                  transition: 'all 0.2s',
-                  boxShadow: showDetailActionDropdown ? '0 0 12px var(--primary-glow)' : 'none'
+                  transition: 'all 0.2s ease',
+                  boxShadow: showDetailActionDropdown ? '0 0 10px var(--primary-glow)' : 'none'
+                }}
+                onMouseEnter={e => {
+                  if (!showDetailActionDropdown) {
+                    e.currentTarget.style.borderColor = 'var(--border-focus)';
+                    e.currentTarget.style.color = 'var(--primary)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!showDetailActionDropdown) {
+                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                  }
                 }}
                 title="Opsi & Aksi Produk"
               >
                 <MoreVertical size={18} />
               </button>
 
-              {showDetailActionDropdown && (
-                <div
-                  className="animate-scale-up"
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    right: 0,
-                    width: '240px',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: '0.75rem',
-                    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.18)',
-                    zIndex: 150,
-                    padding: '0.4rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    backdropFilter: 'blur(16px)'
-                  }}
-                >
-                  {/* Status header mini */}
-                  <div style={{
-                    padding: '0.5rem 0.75rem 0.4rem',
-                    borderBottom: '1px solid var(--border-light)',
-                    marginBottom: '0.25rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>STATUS KATALOG</span>
-                    <span style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      padding: '0.15rem 0.45rem',
-                      borderRadius: '4px',
-                      backgroundColor: (selectedFauna as any).is_active !== false ? 'rgba(34, 197, 94, 0.12)' : 'rgba(148, 163, 184, 0.15)',
-                      color: (selectedFauna as any).is_active !== false ? '#16a34a' : 'var(--text-secondary)',
-                      border: `1px solid ${(selectedFauna as any).is_active !== false ? 'rgba(34, 197, 94, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`
-                    }}>
-                      {(selectedFauna as any).is_active !== false ? 'Aktif' : 'Diarsipkan'}
-                    </span>
-                  </div>
+              {showDetailActionDropdown && (() => {
+                const isInAdminContext = view === 'admin' || window.location.pathname.toLowerCase().includes('/admin');
+                const canManageItem = Boolean(view === 'admin' || isStoreOwner);
 
-                  {/* Option 1: Salin Tautan */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDetailActionDropdown(false);
-                      handleShareItem(selectedFauna);
-                    }}
+                return (
+                  <div
+                    className="animate-scale-up"
                     style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: '230px',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '12px',
+                      boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.04)',
+                      zIndex: 150,
+                      padding: '0.45rem',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.65rem',
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      fontSize: '0.84rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      background: 'none',
-                      border: 'none',
-                      borderRadius: '0.45rem',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s ease'
+                      flexDirection: 'column',
+                      gap: '2px',
+                      backdropFilter: 'blur(20px)'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                   >
-                    <Share2 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                    <span>Salin Tautan Produk</span>
-                  </button>
+                    {/* Status header mini (HANYA DITAMPILKAN DI KONTEKS PENGELOLA/ADMIN MERCHANT) */}
+                    {(canManageItem || isInAdminContext) && (
+                      <div style={{
+                        padding: '0.5rem 0.75rem 0.4rem',
+                        borderBottom: '1px solid var(--border-light)',
+                        marginBottom: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.02em' }}>STATUS KATALOG</span>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '4px',
+                          backgroundColor: (selectedFauna as any).is_active !== false ? 'rgba(34, 197, 94, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+                          color: (selectedFauna as any).is_active !== false ? '#16a34a' : 'var(--text-secondary)',
+                          border: `1px solid ${(selectedFauna as any).is_active !== false ? 'rgba(34, 197, 94, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`
+                        }}>
+                          {(selectedFauna as any).is_active !== false ? 'Aktif' : 'Diarsipkan'}
+                        </span>
+                      </div>
+                    )}
 
-                  {/* Option 2: Lihat di Storefront Publik */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDetailActionDropdown(false);
-                      const targetUrl = `${window.location.origin}/${storeSlug || ''}?item=${selectedFauna.id}`;
-                      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.65rem',
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      fontSize: '0.84rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      background: 'none',
-                      border: 'none',
-                      borderRadius: '0.45rem',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                  >
-                    <ExternalLink size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                    <span>Buka Tampilan Publik</span>
-                  </button>
-
-                  {/* Option 3 (Admin / Owner): Toggle Aktifkan / Arsipkan */}
-                  {(view === 'admin' || isStoreOwner) && (
+                    {/* Option 1: Salin Tautan Produk (Universal) */}
                     <button
                       type="button"
-                      disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                       onClick={() => {
                         setShowDetailActionDropdown(false);
-                        const curActive = (selectedFauna as any).is_active !== false;
-                        handleToggleActiveStatus(selectedFauna, !curActive);
+                        handleShareItem(selectedFauna);
                       }}
                       style={{
                         display: 'flex',
@@ -14045,82 +14044,30 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         width: '100%',
                         padding: '0.55rem 0.75rem',
                         fontSize: '0.84rem',
-                        fontWeight: 600,
+                        fontWeight: 500,
                         color: 'var(--text-primary)',
                         background: 'none',
                         border: 'none',
                         borderRadius: '0.45rem',
-                        cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                        cursor: 'pointer',
                         textAlign: 'left',
-                        opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
                         transition: 'all 0.15s ease'
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                     >
-                      {(selectedFauna as any).is_active !== false ? (
-                        <>
-                          <Archive size={15} style={{ color: '#d97706', flexShrink: 0 }} />
-                          <span>Arsipkan Produk</span>
-                        </>
-                      ) : (
-                        <>
-                          <Eye size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
-                          <span>Aktifkan Produk</span>
-                        </>
-                      )}
+                      <Share2 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                      <span>Salin Tautan Produk</span>
                     </button>
-                  )}
 
-                  {/* Option 4 (Admin / Owner): Edit Data */}
-                  {(view === 'admin' || isStoreOwner) && (
-                    <button
-                      type="button"
-                      disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                      onClick={() => {
-                        setShowDetailActionDropdown(false);
-                        openEditModal(selectedFauna);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.65rem',
-                        width: '100%',
-                        padding: '0.55rem 0.75rem',
-                        fontSize: '0.84rem',
-                        fontWeight: 600,
-                        color: 'var(--text-primary)',
-                        background: 'none',
-                        border: 'none',
-                        borderRadius: '0.45rem',
-                        cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
-                        textAlign: 'left',
-                        opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                    >
-                      <Edit3 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                      <span>Edit Rincian Data</span>
-                    </button>
-                  )}
-
-                  {/* Option 5 (Admin / Owner): Hapus Produk */}
-                  {(view === 'admin' || isStoreOwner) && (
-                    <>
-                      <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '0.2rem 0' }} />
+                    {/* Option 2: Buka Tampilan Publik (HANYA MUNCUL DI CONTEXT ADMIN MERCHANT) */}
+                    {isInAdminContext && (
                       <button
                         type="button"
-                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
-                        onClick={async () => {
+                        onClick={() => {
                           setShowDetailActionDropdown(false);
-                          if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
-                          const deleted = await handleFaunaDelete(selectedFauna.id);
-                          if (deleted) {
-                            setIsDetailActive(false);
-                            setSelectedFauna(null);
-                          }
+                          const targetUrl = `${window.location.origin}/${storeSlug || ''}?item=${selectedFauna.id}`;
+                          window.open(targetUrl, '_blank', 'noopener,noreferrer');
                         }}
                         style={{
                           display: 'flex',
@@ -14129,8 +14076,42 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           width: '100%',
                           padding: '0.55rem 0.75rem',
                           fontSize: '0.84rem',
-                          fontWeight: 600,
-                          color: '#ef4444',
+                          fontWeight: 500,
+                          color: 'var(--text-primary)',
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: '0.45rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                      >
+                        <ExternalLink size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        <span>Buka Tampilan Publik</span>
+                      </button>
+                    )}
+
+                    {/* Option 3 (Admin / Owner): Toggle Aktifkan / Arsipkan */}
+                    {canManageItem && (
+                      <button
+                        type="button"
+                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
+                        onClick={() => {
+                          setShowDetailActionDropdown(false);
+                          const curActive = (selectedFauna as any).is_active !== false;
+                          handleToggleActiveStatus(selectedFauna, !curActive);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.65rem',
+                          width: '100%',
+                          padding: '0.55rem 0.75rem',
+                          fontSize: '0.84rem',
+                          fontWeight: 500,
+                          color: 'var(--text-primary)',
                           background: 'none',
                           border: 'none',
                           borderRadius: '0.45rem',
@@ -14139,28 +14120,31 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
                           transition: 'all 0.15s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                       >
-                        <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
-                        <span>Hapus Produk</span>
+                        {(selectedFauna as any).is_active !== false ? (
+                          <>
+                            <Archive size={15} style={{ color: '#d97706', flexShrink: 0 }} />
+                            <span>Arsipkan Produk</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+                            <span>Aktifkan Produk</span>
+                          </>
+                        )}
                       </button>
-                    </>
-                  )}
+                    )}
 
-                  {/* Option Public: Laporkan Produk */}
-                  {!isStoreOwner && view !== 'admin' && (
-                    <>
-                      <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '0.2rem 0' }} />
+                    {/* Option 4 (Admin / Owner): Edit Data */}
+                    {canManageItem && (
                       <button
                         type="button"
+                        disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
                         onClick={() => {
                           setShowDetailActionDropdown(false);
-                          const initialReasons = getCatalogReportReasons('item', selectedFauna);
-                          setReportReason(initialReasons[0]?.id || 'other');
-                          setReportNotes('');
-                          setReportEmail('');
-                          setReportModalData({ type: 'item', item: selectedFauna });
+                          openEditModal(selectedFauna);
                         }}
                         style={{
                           display: 'flex',
@@ -14169,25 +14153,106 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           width: '100%',
                           padding: '0.55rem 0.75rem',
                           fontSize: '0.84rem',
-                          fontWeight: 600,
-                          color: '#ef4444',
+                          fontWeight: 500,
+                          color: 'var(--text-primary)',
                           background: 'none',
                           border: 'none',
                           borderRadius: '0.45rem',
-                          cursor: 'pointer',
+                          cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
                           textAlign: 'left',
+                          opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
                           transition: 'all 0.15s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                       >
-                        <Flag size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
-                        <span>Laporkan Item Ini</span>
+                        <Edit3 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                        <span>Edit Rincian Data</span>
                       </button>
-                    </>
-                  )}
-                </div>
-              )}
+                    )}
+
+                    {/* Option 5 (Admin / Owner): Hapus Produk */}
+                    {canManageItem && (
+                      <>
+                        <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '0.2rem 0' }} />
+                        <button
+                          type="button"
+                          disabled={settings.dormancy_status === 'suspended' || settings.is_suspended}
+                          onClick={async () => {
+                            setShowDetailActionDropdown(false);
+                            if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
+                            const deleted = await handleFaunaDelete(selectedFauna.id);
+                            if (deleted) {
+                              handleCloseDetail();
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem',
+                            width: '100%',
+                            padding: '0.55rem 0.75rem',
+                            fontSize: '0.84rem',
+                            fontWeight: 500,
+                            color: '#ef4444',
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: '0.45rem',
+                            cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                            textAlign: 'left',
+                            opacity: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 0.5 : 1,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          <Trash2 size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                          <span>Hapus Produk</span>
+                        </button>
+                      </>
+                    )}
+
+                    {/* Option Public: Laporkan Produk */}
+                    {!canManageItem && !isInAdminContext && (
+                      <>
+                        <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '0.2rem 0' }} />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowDetailActionDropdown(false);
+                            const initialReasons = getCatalogReportReasons('item', selectedFauna);
+                            setReportReason(initialReasons[0]?.id || 'other');
+                            setReportNotes('');
+                            setReportEmail('');
+                            setReportModalData({ type: 'item', item: selectedFauna });
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem',
+                            width: '100%',
+                            padding: '0.55rem 0.75rem',
+                            fontSize: '0.84rem',
+                            fontWeight: 500,
+                            color: '#ef4444',
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: '0.45rem',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          <Flag size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                          <span>Laporkan Item Ini</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -14467,48 +14532,175 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
             </div>
 
-            {/* Recommendations Section (Public Only: Multi-Sector Recommendation & Graceful Hiding) */}
-            {view !== 'admin' && !isStoreOwner && getRecommendations(selectedFauna).length > 0 && (
-              <div style={{ marginTop: '4rem', borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem' }}>
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            {/* Recommendations Section (Public / Storefront Only: Multi-Sector Recommendation & Graceful Hiding; Hidden in Admin Items View) */}
+            {view !== 'admin' && !window.location.pathname.toLowerCase().includes('/admin') && getRecommendations(selectedFauna).length > 0 && (
+              <div style={{ marginTop: '3.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '2.5rem' }}>
+                <div style={{ marginBottom: '1.75rem' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '999px',
+                    backgroundColor: 'var(--primary-glow)',
+                    color: 'var(--primary)',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    marginBottom: '0.5rem'
+                  }}>
+                    <Sparkles size={12} />
+                    <span>Koleksi Serupa & Pilihan</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
                     Rekomendasi Katalog Lainnya
                   </h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.25rem', marginBottom: 0 }}>
+                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginTop: '0.35rem', marginBottom: 0 }}>
                     Eksplorasi pilihan produk dan layanan menarik lainnya dari toko ini
                   </p>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem' }}>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem' }}>
                   {getRecommendations(selectedFauna).map(rec => (
                     <div 
                       key={rec.id} 
-                      className="glass-panel" 
                       onClick={() => {
                         setSelectedFauna(rec);
+                        activeDetailItemIdRef.current = String(rec.id);
                         setActiveImageIndex(0);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      style={{ cursor: 'pointer', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--border-light)', borderRadius: '0.75rem', transition: 'transform 0.2s' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)' }}
+                      style={{
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.85rem',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                        transition: 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s ease, box-shadow 0.25s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-3px)';
+                        e.currentTarget.style.borderColor = 'var(--primary)';
+                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.08)';
+                        const img = e.currentTarget.querySelector('img');
+                        if (img) img.style.transform = 'scale(1.04)';
+                        const cta = e.currentTarget.querySelector('.rec-card-cta') as HTMLElement;
+                        if (cta) {
+                          cta.style.backgroundColor = 'var(--primary)';
+                          cta.style.color = '#ffffff';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = 'var(--border-light)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+                        const img = e.currentTarget.querySelector('img');
+                        if (img) img.style.transform = 'scale(1)';
+                        const cta = e.currentTarget.querySelector('.rec-card-cta') as HTMLElement;
+                        if (cta) {
+                          cta.style.backgroundColor = 'var(--primary-glow)';
+                          cta.style.color = 'var(--primary)';
+                        }
+                      }}
                     >
-                      <img 
-                        src={rec.image_url} 
-                        alt={rec.name} 
-                        style={{ width: '100%', height: '160px', objectFit: 'cover' }}
-                        onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
-                      />
-                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
-                        <div>
-                          <span style={{ display: 'inline-block', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                            {rec.class}
-                          </span>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em', lineHeight: 1.3, marginBottom: '0.5rem' }}>
-                            {rec.name}
-                          </div>
+                      {/* Image Thumbnail Container */}
+                      <div style={{ position: 'relative', height: '170px', overflow: 'hidden', backgroundColor: 'var(--bg-deep)' }}>
+                        <img 
+                          src={rec.image_url} 
+                          alt={rec.name} 
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block',
+                            transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                          }}
+                          onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                        />
+                        {/* Category Floating Pill */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.65rem',
+                          left: '0.65rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(15, 23, 42, 0.72)',
+                          backdropFilter: 'blur(8px)',
+                          color: '#ffffff',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          border: '1px solid rgba(255, 255, 255, 0.15)'
+                        }}>
+                          {rec.class}
                         </div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
-                          {formatRupiah(rec.price)}
+                      </div>
+
+                      {/* Card Content Info */}
+                      <div style={{
+                        padding: '0.95rem 1rem 1rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flex: 1,
+                        justifyContent: 'space-between'
+                      }}>
+                        <div>
+                          <h4 style={{
+                            fontSize: '0.92rem',
+                            fontWeight: 700,
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.38,
+                            margin: 0,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            minHeight: '2.55em'
+                          }}>
+                            {rec.name}
+                          </h4>
+                        </div>
+
+                        {/* Price & Action Row */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderTop: '1px solid var(--border-light)',
+                          paddingTop: '0.65rem',
+                          marginTop: '0.85rem'
+                        }}>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                              Harga
+                            </span>
+                            <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.01em' }}>
+                              {formatRupiah(rec.price)}
+                            </span>
+                          </div>
+
+                          <div 
+                            className="rec-card-cta"
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              backgroundColor: 'var(--primary-glow)',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              flexShrink: 0
+                            }}
+                          >
+                            <ArrowRight size={13} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -14545,10 +14737,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <>
                   <button 
                     type="button" 
-                    onClick={() => {
-                      setIsDetailActive(false);
-                      setSelectedFauna(null);
-                    }}
+                    onClick={handleCloseDetail}
                     style={{
                       height: '42px',
                       padding: '0 1.5rem',
@@ -14606,8 +14795,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
                       const deleted = await handleFaunaDelete(selectedFauna.id);
                       if (deleted) {
-                        setIsDetailActive(false);
-                        setSelectedFauna(null);
+                        handleCloseDetail();
                       }
                     }}
                     style={{
@@ -14641,8 +14829,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       onClick={() => {
                         if (settings.dormancy_status === 'suspended' || settings.is_suspended) return;
                         const temp = selectedFauna;
-                        setIsDetailActive(false);
-                        setSelectedFauna(null);
+                        handleCloseDetail();
                         openEditModal(temp);
                       }}
                       style={{
@@ -14746,6 +14933,29 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             </div>
           </div>
         </div>
+      ) : (
+          <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'var(--bg-card)',
+            gap: '1rem'
+          }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              border: '3px solid var(--border-light)',
+              borderTopColor: 'var(--primary)',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            <span style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Memuat detail produk...
+            </span>
+          </div>
+        )
       ) : (
         <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Unified Desktop Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) - Hidden in Merchant Admin Workspace */}

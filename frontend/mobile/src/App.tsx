@@ -6174,7 +6174,14 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Bottom Sheets & Navigation
   const [showCrudSheet, setShowCrudSheet] = useState<boolean>(false)
-  const [isDetailActive, setIsDetailActive] = useState<boolean>(false)
+  const [isDetailActive, setIsDetailActive] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const initialItem = new URLSearchParams(window.location.search).get('item');
+    return Boolean(initialItem);
+  })
+  const activeDetailItemIdRef = useRef<string | null>(
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null
+  )
   const [displayLimit, setDisplayLimit] = useState<number>(10)
   const catalogScrollYRef = useRef<number>(0)
   const [isFilterHidden, setIsFilterHidden] = useState<boolean>(false)
@@ -8641,10 +8648,14 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    const itemId = urlParams.get('item');
+    const itemId = urlParams.get('item') || activeDetailItemIdRef.current;
     if (itemId && !selectedFauna) {
       const found = faunas.find(f => f && f.id !== undefined && String(f.id) === itemId);
-      if (found) setSelectedFauna(found);
+      if (found) {
+        setSelectedFauna(found);
+        setIsDetailActive(true);
+        activeDetailItemIdRef.current = String(found.id);
+      }
     }
   }, [faunas]);
 
@@ -9601,20 +9612,26 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     });
   };
 
-  // Auto-open product detail from query params on load
+  // Auto-open product detail from query params on load or refresh
   useEffect(() => {
-    if (faunas.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const itemId = params.get('item');
-      if (itemId) {
-        const item = faunas.find(f => f.id === parseInt(itemId));
-        if (item) {
-          setSelectedFauna(item);
-          setIsDetailActive(true);
-        }
+    const rawItemId = activeDetailItemIdRef.current || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null);
+    if (!rawItemId) return;
+    const targetId = parseInt(rawItemId, 10);
+    if (isNaN(targetId) || targetId <= 0) return;
+
+    if (faunas && faunas.length > 0) {
+      const item = faunas.find(f => f && f.id === targetId);
+      if (item) {
+        setSelectedFauna(item);
+        setIsDetailActive(true);
+        activeDetailItemIdRef.current = String(item.id);
+        return;
       }
     }
-  }, [faunas]);
+
+    // Direct fetch detail to support instant refresh or items not in initial page/catalog
+    openDetailsSheet(targetId);
+  }, [storeSlug, faunas]);
 
   // Trigger loading store data
   useEffect(() => {
@@ -9699,8 +9716,12 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       targetPath += `/sightings`;
     }
 
-    if (selectedFauna && selectedFauna.id !== undefined && selectedFauna.id !== null && view !== 'fauna-editor') {
-      params.set('item', String(selectedFauna.id));
+    const activeItemId = (selectedFauna && selectedFauna.id !== undefined && selectedFauna.id !== null)
+      ? String(selectedFauna.id)
+      : (isDetailActive && activeDetailItemIdRef.current ? activeDetailItemIdRef.current : null);
+
+    if (activeItemId && view !== 'fauna-editor') {
+      params.set('item', activeItemId);
     }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
@@ -9722,7 +9743,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         );
       }
     }
-  }, [activeTab, aboutSubView, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
+  }, [activeTab, aboutSubView, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, selectedArticle, storeSlug, error]);
 
   // Sync Onboarding & Portal State to Industry Standard Clean URLs in Mobile (/ , /login , /register/step-X)
   useEffect(() => {
@@ -11850,6 +11871,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   // Open Details Sheet with Scroll Position Memory
   const openDetailsSheet = async (id: number) => {
     try {
+      activeDetailItemIdRef.current = String(id);
       // 1. Instant optimistic load from existing faunas array if available
       const localItem = faunas.find(f => f.id === id);
       if (localItem) {
@@ -11871,19 +11893,23 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           window.scrollTo({ top: 0, behavior: 'instant' });
         }
         setSelectedFauna(res.data);
+        activeDetailItemIdRef.current = String(res.data.id);
       } else if (!localItem) {
         showToast?.(res?.message || 'Item tidak ditemukan atau sedang dinonaktifkan.', 'error');
+        handleCloseDetailSheet();
       }
     } catch (err: any) {
       console.error(err);
       if (!faunas.some(f => f.id === id)) {
         showToast?.(err?.message || 'Gagal memuat detail item.', 'error');
+        handleCloseDetailSheet();
       }
     }
   }
 
   // Close Details Sheet with Clean Scroll Restoration (Zero Layout Shift)
   const handleCloseDetailSheet = () => {
+    activeDetailItemIdRef.current = null
     const savedScrollPos = catalogScrollYRef.current || 0
     setIsFilterHidden(false)
     setIsDetailActive(false)
@@ -14373,11 +14399,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         onChange={handleArticleImageUpload} 
       />
 
-      {isDetailActive && selectedFauna ? (
-        /* ==========================================================
-           FULL-PAGE MOBILE DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
-           ========================================================== */
-        <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)' }}>
+      {isDetailActive ? (
+        selectedFauna ? (
+          /* ==========================================================
+             FULL-PAGE MOBILE DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
+             ========================================================== */
+          <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)' }}>
           {/* Header */}
           <div style={{
             position: 'sticky',
@@ -15337,6 +15364,29 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             );
           })()}
         </div>
+        ) : (
+          <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'var(--bg-card)',
+            gap: '1rem'
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              border: '3px solid var(--border-light)',
+              borderTopColor: 'var(--primary)',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Memuat detail produk...
+            </span>
+          </div>
+        )
       ) : view === 'fauna-editor' ? (() => {
         const typeConfig = getItemTypeFormConfig(crudForm.product_type);
         const TypeIcon = typeConfig.icon;
