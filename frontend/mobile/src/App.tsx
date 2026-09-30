@@ -12935,7 +12935,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <li>⚡ <strong>150 item produk aktif</strong></li>
                       <li>⚡ <strong>2 GB Storage &amp; 8 foto/item</strong></li>
                       <li>⚡ Lencana Katalog Terverifikasi</li>
-                      <li>⚡ Halaman "Tentang Kami" kustom</li>
                       <li>⚡ <strong>100% Bebas Watermark</strong></li>
                     </ul>
                     <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_starter'); setRegisterBillingCycle(pricingBillingCycle === 'yearly' ? 'annual' : 'monthly'); setPortalTab('register'); }}>
@@ -14382,8 +14381,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       (
         activeTab !== 'admin' &&
         !(activeTab === 'articles' && selectedArticle) &&
-        !(activeTab === 'about' && aboutSubView === 'qrcode') &&
-        !(settings.plan === 'free' && !isStoreOwner)
+        !(activeTab === 'about' && aboutSubView === 'qrcode')
       )
     )
   );
@@ -19594,7 +19592,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             Buka Fitur Unlimited (Plan Pro)
                           </div>
                           <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Item tanpa batas &amp; Halaman Tentang Kami
+                            Item tanpa batas &amp; Lencana Terverifikasi
                           </div>
                         </div>
                       </div>
@@ -25755,16 +25753,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <BookOpen size={20} />
                 <span>Katalog</span>
               </button>
-              {settings?.plan !== 'free' && (
-                <button 
-                  type="button"
-                  className={`nav-item ${activeTab === 'about' ? 'active' : ''}`}
-                  onClick={goToAbout}
-                >
-                  <Info size={20} />
-                  <span>Tentang Kami</span>
-                </button>
-              )}
+              <button 
+                type="button"
+                className={`nav-item ${activeTab === 'about' ? 'active' : ''}`}
+                onClick={goToAbout}
+              >
+                <Info size={20} />
+                <span>Tentang Kami</span>
+              </button>
               {isStoreOwner && (
                 <button 
                   type="button"
