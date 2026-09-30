@@ -91,22 +91,26 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #059669 100%);
-  color: white;
+  background: var(--primary);
+  color: #ffffff;
   padding: 0.65rem 1.25rem;
   border-radius: 0.75rem;
   font-weight: 700;
   border: none;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  box-shadow: 0 2px 10px var(--primary-glow);
   transition: var(--transition-smooth);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  background: var(--primary-hover, var(--primary));
+  box-shadow: 0 4px 16px var(--primary-glow);
+  filter: brightness(1.05);
 }
 
 .btn-secondary {
@@ -221,19 +225,19 @@
 
 .search-input {
   width: 100%;
-  background: #131916;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem 0.75rem 2.75rem;
-  color: white;
-  font-size: 0.95rem;
+  border-radius: 0.65rem;
+  padding: 0.6rem 0.85rem 0.6rem 2.4rem;
+  color: var(--text-primary);
+  font-size: 0.86rem;
   transition: var(--transition-smooth);
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--primary);
-  background: #1b241f;
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .filters-wrapper {
@@ -243,12 +247,13 @@
 }
 
 .filter-select {
-  background: #131916;
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
+  border-radius: 0.65rem;
+  padding: 0.6rem 1rem;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 0.84rem;
+  font-weight: 500;
   cursor: pointer;
   transition: var(--transition-smooth);
 }
@@ -256,11 +261,11 @@
 .filter-select:focus {
   outline: none;
   border-color: var(--primary);
-  background: #1b241f;
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .filter-select option {
-  background-color: var(--bg-deep);
+  background-color: var(--bg-card);
   color: var(--text-primary);
 }
 
@@ -270,14 +275,17 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  border-radius: 1rem;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
 .fauna-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
-  border-color: var(--primary-glow);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary);
 }
 
 .card-image-container {
@@ -1608,12 +1616,12 @@
    DESKTOP BRAND SHOWCASE HERO (Brand Hub)
    ========================================================== */
 .desktop-store-showcase {
-  background: var(--card-bg-gradient);
+  background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: 1.25rem;
   padding: 1.75rem 2.25rem;
   margin: 1.75rem 0 1.5rem 0;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1629,7 +1637,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary) 0%, #38bdf8 50%, #818cf8 100%);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-glow) 100%);
 }
 
 .desktop-store-brand-left {
@@ -1640,17 +1648,17 @@
 }
 
 .desktop-store-avatar {
-  width: 84px;
-  height: 84px;
-  border-radius: 1rem;
+  width: 78px;
+  height: 78px;
+  border-radius: 14px;
   background: var(--bg-card-hover);
-  border: 2px solid var(--border-light);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--primary);
-  font-size: 2rem;
+  font-size: 1.85rem;
   font-weight: 800;
   overflow: hidden;
   flex-shrink: 0;
@@ -1669,7 +1677,7 @@
 }
 
 .desktop-store-title {
-  font-size: 1.65rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--text-primary);
   margin: 0;
@@ -1677,7 +1685,7 @@
 }
 
 .desktop-store-slogan {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   margin: 0 0 0.75rem 0;
   line-height: 1.45;
@@ -1699,19 +1707,129 @@
 }
 
 /* ==========================================================
+   DESKTOP UNIFIED STORE NAVIGATION TABS (Ala Official Store)
+   ========================================================== */
+.desktop-store-tabs-wrapper {
+  margin: 0 0 1.5rem 0;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+.desktop-store-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.desktop-store-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.desktop-store-tab:hover {
+  color: var(--text-primary);
+}
+
+.desktop-store-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.desktop-store-tab .tab-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--bg-card-hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  transition: all 0.18s ease;
+}
+
+.desktop-store-tab.active .tab-badge {
+  background-color: var(--primary-glow);
+  color: var(--primary);
+  border-color: var(--border-light);
+}
+
+/* Header Menu Button Pill */
+.header-menu-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.header-menu-pill-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--bg-card-hover);
+}
+
+/* ==========================================================
    DESKTOP UNIFIED ACTION TOOLBAR
    ========================================================== */
 .desktop-action-toolbar {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: 1rem;
-  padding: 0.85rem 1.25rem;
+  padding: 1rem 1.25rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.desktop-toolbar-main-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
+  width: 100%;
+}
+
+.desktop-toolbar-main-row .search-wrapper {
+  flex: 1;
+  min-width: 260px;
+}
+
+.desktop-toolbar-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.desktop-toolbar-chips-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-top: 1px solid var(--border-light);
+  padding-top: 0.75rem;
+  overflow: hidden;
 }
 
 .desktop-toolbar-chips {
@@ -1720,7 +1838,7 @@
   gap: 0.5rem;
   overflow-x: auto;
   scrollbar-width: none;
-  flex-shrink: 0;
+  width: 100%;
 }
 
 .desktop-toolbar-chips::-webkit-scrollbar {
@@ -1740,13 +1858,43 @@
   gap: 0.4rem;
 }
 
-.desktop-toolbar-search-filters {
+/* ==========================================================
+   DESKTOP SMART SCROLL QUICK-SEARCH BAR (FLOAT ON SCROLL-UP)
+   ========================================================== */
+.desktop-sticky-quick-search-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--header-bg) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.16);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.desktop-sticky-quick-search-bar.hidden {
+  transform: translateY(-105%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.desktop-sticky-quick-search-bar.visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.desktop-sticky-quick-search-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0.65rem 1.5rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex: 1;
-  max-width: 680px;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
 }
 
 /* ==========================================================
