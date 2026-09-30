@@ -7674,7 +7674,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [supportUnreadCount, setSupportUnreadCount] = useState<number>(0);
 
   const fetchTicketsPing = useCallback(async () => {
-    if (!token) return;
+    // Only ping support tickets if user is logged in, is the store owner, and in admin view
+    if (!token || !isStoreOwner || view !== 'admin') return;
     try {
       const slug = storeSlug || getStoreSlug() || '';
       const queryParams = new URLSearchParams();
@@ -7691,12 +7692,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       }
     } catch {}
-  }, [token, storeSlug]);
+  }, [token, isStoreOwner, view, storeSlug]);
 
   desktopFetchTicketsPingRef.current = fetchTicketsPing;
 
   // Sync tickets ping for lightweight global unread badge on merchant dashboard & menu (Store-Scoped)
   useEffect(() => {
+    if (!token || !isStoreOwner || view !== 'admin') return;
     fetchTicketsPing();
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
@@ -7704,7 +7706,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [fetchTicketsPing]);
+  }, [fetchTicketsPing, token, isStoreOwner, view]);
 
   const unreadTicketsCount = useMemo(() => {
     const activeSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
@@ -8625,17 +8627,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Subscription Plans & Merchant Quota Fetchers
   const fetchMyQuota = async () => {
-    if (!token) return;
+    // Only fetch quota when authenticated as store owner
+    if (!token || !isStoreOwner) return;
     try {
       const res = await fetch(`${API_BASE}/subscription/my-quota`, {
         headers: getAuthHeaders()
       });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setStoreQuota(data.data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setStoreQuota(data.data);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch quota data:', err);
+      console.warn('Failed to fetch quota data:', err);
     }
   };
 
@@ -8660,10 +8665,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   useEffect(() => {
     fetchSubscriptionPlans();
-    if (token) {
+    if (token && isStoreOwner && view === 'admin') {
       fetchMyQuota();
     }
-  }, [token]);
+  }, [token, isStoreOwner, view]);
 
   // Global API Unauthorized session interception
   useEffect(() => {
@@ -10602,6 +10607,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Open CRUD modal for create with dynamic quota guard
   const openCreateModal = (initialType: ItemCategoryType = 'physical') => {
+    if (token && isStoreOwner) {
+      fetchMyQuota();
+    }
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
       showToast('Operasional toko sedang dibekukan sementara. Penambahan item dinonaktifkan.', 'error');
       return;
