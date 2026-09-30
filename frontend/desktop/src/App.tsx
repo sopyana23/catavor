@@ -15309,21 +15309,42 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </span>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <img 
-                      src={logoHeaderImg} 
-                      alt="Catavor" 
-                      style={{ height: '26px', width: 'auto', objectFit: 'contain' }} 
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <a 
+                      href="/" 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        textDecoration: 'none',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s ease'
+                      }}
+                      title="Catavor - Platform Katalog Digital"
+                    >
+                      <span style={{
+                        fontSize: '1.25rem',
+                        fontWeight: 850,
+                        color: 'var(--primary)',
+                        letterSpacing: '-0.025em',
+                        fontFamily: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif",
+                        textShadow: '0 0 16px var(--primary-glow)',
+                        lineHeight: 1
+                      }}>
+                        Catavor
+                      </span>
+                    </a>
                     <span style={{
-                      fontSize: '0.68rem',
+                      fontSize: '0.72rem',
                       fontWeight: 700,
-                      padding: '0.15rem 0.55rem',
-                      borderRadius: '12px',
+                      padding: '0.18rem 0.6rem',
+                      borderRadius: '999px',
                       backgroundColor: 'var(--primary-glow)',
                       color: 'var(--primary)',
                       border: '1px solid var(--border-light)',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      letterSpacing: '0.02em',
+                      display: 'inline-flex',
+                      alignItems: 'center'
                     }}>
                       Platform Katalog
                     </span>
@@ -15918,7 +15939,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       }}
                       title="Lihat Profil & Informasi Lengkap"
                     >
-                      <Store size={16} style={{ color: 'var(--primary)' }} />
+                      <Info size={16} style={{ color: 'var(--primary)' }} />
                       <span>Tentang Kami</span>
                     </button>
                   </div>
