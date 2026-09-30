@@ -1792,7 +1792,7 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
         <span style={{ height: '1px', flex: 1, backgroundColor: 'var(--border-light)' }}></span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: validLinks.length > 1 ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
         {validLinks.map((link: any, idx: number) => {
           const handle = extractSocialHandle(link.url, link.platform, link.label);
           const hasHandle = handle && handle !== link.platform;
@@ -1808,16 +1808,17 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.85rem 1.05rem',
+                padding: '0.75rem 1rem',
                 borderRadius: '0.75rem',
                 backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-light)',
                 textDecoration: 'none',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+                transition: 'all 0.2s ease',
+                gap: '1rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
@@ -1830,10 +1831,10 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
                   border: '1px solid var(--border-light)',
                   flexShrink: 0
                 }}>
-                  {renderSocialIcon(link.platform, 20, 'var(--primary)')}
+                  {renderSocialIcon(link.platform, 18, 'var(--primary)')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                  <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.25 }}>
+                  <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                     {link.platform}
                   </span>
                   <span style={{ 
@@ -1851,11 +1852,11 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
               </div>
               
               <div style={{ 
-                display: 'flex', 
+                display: 'inline-flex', 
                 alignItems: 'center', 
                 gap: '0.35rem', 
                 fontSize: '0.75rem', 
-                fontWeight: 800, 
+                fontWeight: 700, 
                 color: 'var(--primary)',
                 backgroundColor: 'var(--primary-glow)',
                 padding: '0.35rem 0.75rem',
@@ -1864,7 +1865,7 @@ export function SocialMediaSection({ rawSocialLinks }: { rawSocialLinks?: string
                 flexShrink: 0
               }}>
                 <span>Buka</span>
-                <ExternalLink size={13} />
+                <ExternalLink size={12} />
               </div>
             </a>
           );
@@ -15591,7 +15592,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         view === 'catalog' ? (
           <>
             {/* Desktop Brand Showcase Hero (Single Brand Hub - Integrated Header) */}
-            {!error && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
+            {!error && activePublicTab === 'catalog' && settings && settings.dormancy_status !== 'suspended' && !settings.is_suspended && settings.dormancy_status !== 'banned' && (
               <>
                 <section className="desktop-store-showcase animate-fade-in">
                   <div className="desktop-store-brand-left">
@@ -15690,71 +15691,31 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <span>Hubungi Penjual</span>
                       </a>
                     )}
-                    {activePublicTab === 'about' ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActivePublicTab('catalog');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        className="btn-secondary"
-                        style={{
-                          padding: '0.72rem 1.35rem',
-                          fontSize: '0.86rem',
-                          borderRadius: '10px',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          backgroundColor: 'var(--primary-glow)',
-                          borderColor: 'var(--primary)',
-                          color: 'var(--primary)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        title="Kembali ke Katalog Produk"
-                      >
-                        <LayoutGrid size={16} />
-                        <span>Katalog Produk</span>
-                        <span style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          backgroundColor: 'var(--primary)',
-                          color: '#ffffff',
-                          padding: '0.1rem 0.5rem',
-                          borderRadius: '999px',
-                          marginLeft: '0.2rem'
-                        }}>
-                          {faunas.length}
-                        </span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedFauna(null);
-                          activeDetailItemIdRef.current = null;
-                          setActivePublicTab('about');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        className="btn-secondary"
-                        style={{
-                          padding: '0.72rem 1.4rem',
-                          fontSize: '0.86rem',
-                          borderRadius: '10px',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        title="Lihat Profil & Informasi Lengkap Toko"
-                      >
-                        <Store size={16} style={{ color: 'var(--primary)' }} />
-                        <span>Tentang Toko</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFauna(null);
+                        activeDetailItemIdRef.current = null;
+                        setActivePublicTab('about');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.72rem 1.4rem',
+                        fontSize: '0.86rem',
+                        borderRadius: '10px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      title="Lihat Profil & Informasi Lengkap"
+                    >
+                      <Store size={16} style={{ color: 'var(--primary)' }} />
+                      <span>Tentang Kami</span>
+                    </button>
                   </div>
                 </section>
               </>
@@ -15772,6 +15733,23 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 }
               })();
 
+              const getPremiumIcon = (card: any) => {
+                if (card.icon) {
+                  return renderAboutIcon(card.icon, 22);
+                }
+                const t = (card.title || '').toLowerCase();
+                if (t.includes('sehat') || t.includes('garansi') || t.includes('kesehatan') || t.includes('kualitas')) {
+                  return renderAboutIcon('shield', 22);
+                }
+                if (t.includes('aman') || t.includes('transaksi') || t.includes('bayar') || t.includes('percaya')) {
+                  return renderAboutIcon('lock', 22);
+                }
+                if (t.includes('tanya') || t.includes('konsultasi') || t.includes('care') || t.includes('layanan') || t.includes('pelanggan')) {
+                  return renderAboutIcon('message', 22);
+                }
+                return renderAboutIcon('compass', 22);
+              };
+
               const cleanEmoji = (text: string) => {
                 return text.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{3030}\u{2B50}\u{2B55}\u{2934}-\u{2935}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{3297}\u{3299}\u{303D}\u{00A9}\u{00AE}\u{2122}]/gu, '').trim();
               };
@@ -15779,7 +15757,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               const hasTitle = Boolean(settings.about_title && settings.about_title.trim());
               const hasSlogan = Boolean(settings.about_slogan && settings.about_slogan.trim());
               const hasDescription = Boolean(settings.about_description && settings.about_description.trim());
-              const hasDisclaimer = Boolean(settings.about_disclaimer && settings.about_disclaimer.trim());
               const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
 
               const parsedSocial = (() => {
@@ -15798,157 +15775,242 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
 
               return (
-                <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem', marginTop: '1.5rem', maxWidth: '880px', margin: '1.5rem auto', display: 'flex', flexDirection: 'column', gap: '1.75rem', border: '1px solid var(--border-light)' }}>
-                  {/* Navigation Back Banner */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActivePublicTab('catalog');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="btn-secondary"
-                      style={{
-                        padding: '0.45rem 1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '8px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        cursor: 'pointer'
-                      }}
-                      title="Kembali ke Daftar Katalog Produk"
-                    >
-                      <ArrowLeft size={15} />
-                      <span>Kembali ke Katalog ({faunas.length} Produk)</span>
-                    </button>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Store size={13} style={{ color: 'var(--primary)' }} />
-                      Profil & Informasi Toko
-                    </span>
-                  </div>
+                <div className="animate-fade-in" style={{ maxWidth: '1240px', margin: '1.25rem auto 3rem auto', padding: '0 0.5rem' }}>
+                  {/* Top Navigation & Action Bar */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1.25rem',
+                    borderRadius: '12px',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    marginBottom: '1.5rem',
+                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.04)',
+                    gap: '1rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    {/* Left: Back Button & Breadcrumbs */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActivePublicTab('catalog');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.5rem 1rem',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          cursor: 'pointer'
+                        }}
+                        title="Kembali ke Daftar Katalog Produk"
+                      >
+                        <ArrowLeft size={15} />
+                        <span>Kembali ke Katalog ({faunas.length} Produk)</span>
+                      </button>
 
-                  {/* Hero Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
-                    <div style={{ backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', flexShrink: 0, justifyContent: 'center', border: '1px solid var(--border-light)' }}>
-                      <Info size={26} />
-                    </div>
-                    <div>
-                      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                        {hasTitle ? settings.about_title : (settings.store_title || 'Catavor')}
-                      </h2>
-                      {hasSlogan && (
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-                          {settings.about_slogan}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Description Paragraph (100% Hidden if empty) */}
-                  {hasDescription && (
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', margin: 0 }}>
-                      <FormattedText text={settings.about_description || ''} />
-                    </div>
-                  )}
-
-                  {/* Value Cards (100% Hidden if empty) */}
-                  {hasCards && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                        {parsedCards.map((card: any, idx: number) => (
-                          <div key={idx} className="glass-panel" style={{ padding: '1.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                            <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
-                              {renderAboutIcon(card.icon, 22)}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>{cleanEmoji(card.title)}</h4>
-                              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{card.content}</p>
-                            </div>
-                          </div>
-                        ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Katalog</span>
+                        <span>/</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{settings.store_title || 'Katalog'}</span>
+                        <span>/</span>
+                        <span style={{ fontWeight: 700, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Info size={13} /> Tentang Kami
+                        </span>
                       </div>
                     </div>
-                  )}
 
-                  {/* Hubungi Kami Section (100% Hidden if all 5 contact channels are empty) */}
-                  {hasAnyContactChannel && (
-                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.75rem', marginTop: '0.5rem' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1.25rem', letterSpacing: '0.02em', textTransform: 'uppercase', opacity: 0.9 }}>
-                        Hubungi Kami
-                      </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        {/* Lokasi (100% Hidden if empty - no fallback) */}
-                        {hasLocation && (
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', gridColumn: 'span 2' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, marginTop: '0.15rem' }}>
-                              <MapPin size={18} />
+                    {/* Right: Quick Action CTAs */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      {settings.whatsapp_number && (
+                        <a
+                          href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai profil dan layanan di katalog Anda.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-primary"
+                          style={{
+                            textDecoration: 'none',
+                            padding: '0.5rem 1.1rem',
+                            fontSize: '0.82rem',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            backgroundColor: 'var(--primary)',
+                            borderColor: 'var(--primary)',
+                            color: '#ffffff',
+                            boxShadow: '0 2px 8px var(--primary-glow)'
+                          }}
+                        >
+                          <MessageCircle size={15} />
+                          <span>Hubungi Penjual</span>
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleShareStore}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.5rem 1rem',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          cursor: 'pointer'
+                        }}
+                        title="Bagikan Tautan Profil & QR Katalog"
+                      >
+                        <Share2 size={15} style={{ color: 'var(--primary)' }} />
+                        <span>Bagikan Profil</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2-Column Bento Grid Layout */}
+                  <div className="desktop-about-bento">
+                    {/* LEFT COLUMN: Narrative & Value Cards */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {/* Card 1: Profil & Cerita Toko */}
+                      <div className="desktop-bento-card">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
+                          <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+                            {settings.store_logo_url ? (
+                              <img src={settings.store_logo_url} alt={settings.store_title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '11px' }} />
+                            ) : (
+                              <Info size={24} />
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontFamily: "'Outfit', sans-serif" }}>
+                                {hasTitle ? settings.about_title : `Tentang ${settings.store_title || 'Catavor'}`}
+                              </h2>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '999px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+                                <CheckCircle2 size={12} /> Resmi
+                              </span>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: 0 }}>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Lokasi / Alamat Resmi</span>
-                              <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: '1.55' }}>
-                                <FormattedText text={settings.about_location || ''} />
-                              </div>
-                            </div>
+                            {hasSlogan && (
+                              <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                                {settings.about_slogan}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {hasDescription ? (
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: '1.75', marginTop: '1.25rem' }}>
+                            <FormattedText text={settings.about_description || ''} />
+                          </div>
+                        ) : (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.6', marginTop: '1.25rem', fontStyle: 'italic' }}>
+                            Selamat datang di katalog resmi {settings.store_title || 'kami'}. Jelajahi beragam produk berkualitas terbaik dengan pemesanan langsung melalui WhatsApp.
                           </div>
                         )}
-
-                        {hasHours && <OperationalHoursCard rawHours={settings.about_hours} />}
-                        {hasWhatsapp && <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />}
-                        {hasWebsite && <OfficialWebsiteCard url={settings.official_website} />}
-                        {hasSocial && <SocialMediaSection rawSocialLinks={settings.social_links} />}
                       </div>
-                    </div>
-                  )}
 
-                  {/* Bottom Navigation & Share Actions */}
-                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActivePublicTab('catalog');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="btn-primary"
-                      style={{
-                        padding: '0.62rem 1.4rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 700,
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <ArrowLeft size={16} />
-                      <span>Kembali ke Katalog ({faunas.length} Produk)</span>
-                    </button>
+                      {/* Card 2: Value Cards (Why Choose Us) */}
+                      {hasCards && (
+                        <div className="desktop-bento-card">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                              <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <ShieldCheck size={18} />
+                              </div>
+                              <div>
+                                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                                  Keunggulan & Standar Layanan
+                                </h3>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', padding: '0.2rem 0.6rem', borderRadius: '6px', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-light)' }}>
+                              {parsedCards.length} Komitmen
+                            </span>
+                          </div>
 
-                    <button
-                      type="button"
-                      onClick={handleShareStore}
-                      className="btn-secondary"
-                      style={{
-                        padding: '0.62rem 1.35rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        borderRadius: '8px'
-                      }}
-                    >
-                      <Share2 size={16} style={{ color: 'var(--primary)' }} />
-                      <span>Bagikan Profil Ini</span>
-                      {settings.plan === 'free' && (
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '12px', backgroundColor: 'var(--btn-secondary-bg)', color: 'var(--primary)', border: '1px solid var(--border-light)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          Free by Catavor
-                        </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                            {parsedCards.map((card: any, idx: number) => (
+                              <div key={idx} className="desktop-about-value-card">
+                                <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
+                                  {getPremiumIcon(card)}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>
+                                    {cleanEmoji(card.title)}
+                                  </h4>
+                                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                                    {card.content}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
-                    </button>
+                    </div>
+
+                    {/* RIGHT COLUMN: Official Channels & Quick Actions */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {/* Card: Saluran Resmi & Kontak */}
+                      {hasAnyContactChannel && (
+                        <div className="desktop-bento-card">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <MapPin size={18} />
+                            </div>
+                            <div>
+                              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                                Saluran Resmi & Kontak
+                              </h3>
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                Informasi alamat, jam buka, dan komunikasi
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                            {/* Lokasi / Alamat */}
+                            {hasLocation && (
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', padding: '0.95rem 1.1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, marginTop: '0.1rem' }}>
+                                  <MapPin size={17} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                    Lokasi / Alamat Resmi
+                                  </span>
+                                  <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: '1.5' }}>
+                                    <FormattedText text={settings.about_location || ''} />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Jam Operasional */}
+                            {hasHours && <OperationalHoursCard rawHours={settings.about_hours} />}
+
+                            {/* WhatsApp Contacts */}
+                            {hasWhatsapp && <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />}
+
+                            {/* Official Website */}
+                            {hasWebsite && <OfficialWebsiteCard url={settings.official_website} />}
+
+                            {/* Social Media Section */}
+                            {hasSocial && <SocialMediaSection rawSocialLinks={settings.social_links} />}
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
                   </div>
                 </div>
               );
