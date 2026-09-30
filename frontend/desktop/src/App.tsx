@@ -15044,15 +15044,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             aria-label="Mode Pratinjau Publik"
             className="desktop-preview-bar"
           >
-            <div style={{
-              maxWidth: '1280px',
-              margin: '0 auto',
-              padding: '0.45rem 2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem'
-            }}>
+            <div className="desktop-preview-bar-inner">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <div style={{
                   width: '26px',
@@ -15333,6 +15325,97 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           className={`desktop-sticky-quick-search-bar ${showStickyQuickSearch ? 'visible' : 'hidden'}`}
           aria-label="Pencarian Cepat Melayang"
         >
+          {/* For Admin Merchant Preview Mode: Mode Pratinjau banner floats above the search bar */}
+          {isStoreOwner && (
+            <div className="desktop-preview-bar" style={{ borderBottom: '1px solid var(--border-light)' }}>
+              <div className="desktop-preview-bar-inner" style={{ paddingTop: '0.38rem', paddingBottom: '0.38rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--primary-glow)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <Eye size={13} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Mode Pratinjau Katalog
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      — Tampilan langsung yang dilihat pengunjung & pelanggan Anda
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => openCreateModal('physical')}
+                    style={{
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-light)',
+                      padding: '0.28rem 0.75rem',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      fontSize: '0.74rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.32rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Tambah Item Baru"
+                  >
+                    <Plus size={12} style={{ color: 'var(--primary)' }} />
+                    <span>+ Tambah Item</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setView('admin');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+                    }}
+                    style={{
+                      backgroundColor: 'var(--primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.28rem 0.85rem',
+                      borderRadius: '999px',
+                      fontWeight: 800,
+                      fontSize: '0.74rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 8px var(--primary-glow)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kembali ke Dashboard Admin"
+                  >
+                    <LayoutDashboard size={12} />
+                    <span>Dashboard Admin</span>
+                    <ArrowRight size={11} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="desktop-sticky-quick-search-inner">
             <div 
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
