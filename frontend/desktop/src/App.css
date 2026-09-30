@@ -1898,13 +1898,13 @@
 }
 
 /* ==========================================================
-   DESKTOP ABOUT BENTO GRID
+   DESKTOP ABOUT BENTO GRID (Refined & Modern)
    ========================================================== */
 .desktop-about-bento {
   display: grid;
-  grid-template-columns: 1.65fr 1fr;
-  gap: 1.75rem;
-  margin-top: 1.5rem;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
   margin-bottom: 3rem;
   align-items: start;
 }
@@ -1912,6 +1912,7 @@
 @media (max-width: 1024px) {
   .desktop-about-bento {
     grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
 }
 
@@ -1920,7 +1921,27 @@
   border: 1px solid var(--border-light);
   border-radius: 1.15rem;
   padding: 1.75rem;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-about-value-card {
+  padding: 1.2rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 0.95rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+}
+
+.desktop-about-value-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.08);
 }
 
 /* ==========================================================
