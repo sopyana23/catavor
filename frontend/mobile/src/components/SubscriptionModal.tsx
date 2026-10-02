@@ -803,7 +803,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
                           <ImageIcon size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>Foto per Item: <strong>{plan.max_images_per_item === -1 ? 'Tak Terbatas' : `Hingga ${plan.max_images_per_item} Foto`}</strong></span>
+                          <span>Foto per Item: <strong>Hingga 10 Foto HD</strong></span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: plan.has_custom_domain ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                           <Globe size={13} style={{ color: plan.has_custom_domain ? '#10b981' : 'var(--text-muted)', flexShrink: 0 }} />

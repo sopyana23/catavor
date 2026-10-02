@@ -24782,37 +24782,84 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                 )}
 
-                {/* Multi-image Section with Dynamic Tier Photo Limit */}
+                {/* Multi-image Section (Standard 10 Photos) */}
                 {(() => {
-                  const maxPhotosAllowed = storeQuota?.plan?.max_images_per_item || (adminUser?.store_plan === 'pro_business' ? 10 : adminUser?.store_plan === 'pro_starter' ? 8 : 5);
+                  const MAX_PRODUCT_PHOTOS = 10;
+                  const validCount = crudImages.filter(Boolean).length;
                   return (
                     <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
                         <div>
-                          <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                            Foto Produk (1-{maxPhotosAllowed} Foto - Kuota Paket {storeQuota?.plan?.name || 'Free'})
-                          </h3>
-                          <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-                            Unggah foto beresolusi jelas untuk menampilkan detail terbaik item Anda.
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                              Foto Produk
+                            </h3>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.12rem 0.55rem',
+                              borderRadius: '1rem',
+                              backgroundColor: validCount > 0 ? 'var(--primary-glow)' : 'var(--bg-card)',
+                              color: validCount > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+                              border: '1px solid var(--border-light)'
+                            }}>
+                              {validCount} / {MAX_PRODUCT_PHOTOS} Foto
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                            Unggah hingga 10 foto beresolusi jelas. Foto pertama otomatis menjadi foto sampul utama katalog Anda.
                           </p>
                         </div>
-                        {crudImages.length < maxPhotosAllowed && (
+                        {crudImages.length < MAX_PRODUCT_PHOTOS && (
                           <button
                             type="button"
                             className="btn-primary"
-                            style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem', borderRadius: '0.4rem' }}
+                            style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '0.45rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                             onClick={() => setCrudImages([...crudImages, ''])}
                           >
-                            + Tambah Foto
+                            <span>+ Tambah Foto</span>
                           </button>
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {crudImages.map((imgUrl, index) => (
-                          <div key={index} style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', background: 'var(--bg-deep)', padding: '0.75rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)' }}>
+                          <div key={index} style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', background: 'var(--bg-deep)', padding: '0.7rem 0.85rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)' }}>
+                            {/* Role Badge: Sampul Utama vs Foto Tambahan */}
+                            <div style={{ minWidth: '78px', textAlign: 'center', flexShrink: 0 }}>
+                              {index === 0 ? (
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 800,
+                                  color: 'var(--primary)',
+                                  backgroundColor: 'var(--primary-glow)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  padding: '0.18rem 0.5rem',
+                                  borderRadius: '0.35rem',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  ★ Sampul
+                                </span>
+                              ) : (
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  color: 'var(--text-secondary)',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  padding: '0.18rem 0.5rem',
+                                  borderRadius: '0.35rem',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  Foto #{index + 1}
+                                </span>
+                              )}
+                            </div>
+
                             {/* Preview Thumbnail */}
-                            <div style={{ width: '48px', height: '48px', borderRadius: '0.45rem', overflow: 'hidden', border: '1px solid var(--border-light)', background: 'var(--bg-card)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '0.45rem', overflow: 'hidden', border: '1px solid var(--border-light)', background: 'var(--bg-card)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                               {imgUrl ? (
                                 <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
                               ) : (
@@ -24833,7 +24880,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <input
                                 type="text"
                                 className="form-input"
-                                placeholder={`Tautan Foto ${index === 0 ? 'Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
+                                placeholder={`Tautan Foto ${index === 0 ? 'Sampul Utama (Wajib) *' : `${index + 1} (Opsional)`}`}
                                 value={imgUrl}
                                 onChange={(e) => {
                                   const newImages = [...crudImages]

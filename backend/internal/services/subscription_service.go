@@ -50,7 +50,7 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			PriceAnnual:        0,
 			StorageLimitBytes:  100 * 1024 * 1024, // 100 MB (~350-500 foto HD)
 			MaxItems:           15,                 // 15 items
-			MaxImagesPerItem:   5,                  // Max 5 photos
+			MaxImagesPerItem:   10,                 // Standard 10 photos
 			HasCustomDomain:    false,
 			HasVerifiedBadge:   false,
 			HasPrioritySearch:  false,
@@ -67,7 +67,7 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			PriceAnnual:        490000,
 			StorageLimitBytes:  2 * 1024 * 1024 * 1024, // 2 GB (~7.000-10.000 foto HD)
 			MaxItems:           150,                    // 150 items
-			MaxImagesPerItem:   8,                      // Max 8 photos
+			MaxImagesPerItem:   10,                     // Standard 10 photos
 			HasCustomDomain:    false,
 			HasVerifiedBadge:   true,
 			HasPrioritySearch:  true,
@@ -84,7 +84,7 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			PriceAnnual:        1290000,
 			StorageLimitBytes:  10 * 1024 * 1024 * 1024, // 10 GB (~35.000+ foto HD)
 			MaxItems:           -1,                      // Unlimited
-			MaxImagesPerItem:   10,                      // Max 10 photos
+			MaxImagesPerItem:   10,                      // Standard 10 photos
 			HasCustomDomain:    true,
 			HasVerifiedBadge:   true,
 			HasPrioritySearch:  true,

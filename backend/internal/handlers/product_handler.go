@@ -270,15 +270,11 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 
 	// Process multi-images gallery if provided
 	if len(req.GalleryImages) > 0 {
-		plan, _ := services.GetPlanByCode(database.DB, store.Plan)
-		maxImages := 5
-		if plan != nil {
-			maxImages = plan.MaxImagesPerItem
-		}
+		const maxImages = 10
 		if len(req.GalleryImages) > maxImages {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
-				"message": fmt.Sprintf("Jumlah foto melebihi batas paket %s (maksimal %d foto per produk).", plan.Name, maxImages),
+				"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
 			})
 		}
 
@@ -473,15 +469,11 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	// Update gallery images if provided
 	if len(req.GalleryImages) > 0 {
-		plan, _ := services.GetPlanByCode(database.DB, store.Plan)
-		maxImages := 5
-		if plan != nil {
-			maxImages = plan.MaxImagesPerItem
-		}
+		const maxImages = 10
 		if len(req.GalleryImages) > maxImages {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
-				"message": fmt.Sprintf("Jumlah foto melebihi batas paket %s (maksimal %d foto per produk).", plan.Name, maxImages),
+				"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
 			})
 		}
 

@@ -13,7 +13,7 @@ type SubscriptionPlan struct {
 	PriceAnnual        float64   `gorm:"type:decimal(15,2);default:0" json:"price_annual"`
 	StorageLimitBytes  int64     `gorm:"default:104857600" json:"storage_limit_bytes"` // 100MB, 2GB, 10GB
 	MaxItems           int       `gorm:"default:15" json:"max_items"`                  // 15, 150, -1 (unlimited)
-	MaxImagesPerItem   int       `gorm:"default:5" json:"max_images_per_item"`         // 5, 8, 10
+	MaxImagesPerItem   int       `gorm:"default:10" json:"max_images_per_item"`        // Standard 10 photos
 	HasCustomDomain    bool      `gorm:"default:false" json:"has_custom_domain"`
 	HasVerifiedBadge   bool      `gorm:"default:false" json:"has_verified_badge"`
 	HasPrioritySearch  bool      `gorm:"default:false" json:"has_priority_search"`
