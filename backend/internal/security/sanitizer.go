@@ -1,7 +1,9 @@
 package security
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net/url"
 	"regexp"
@@ -157,6 +159,107 @@ func SanitizePhone(phone string) string {
 		cleaned = cleaned[:30]
 	}
 	return cleaned
+}
+
+type WAContactSanitized struct {
+	ID               string `json:"id"`
+	Label            string `json:"label"`
+	Number           string `json:"number"`
+	IsDefault        bool   `json:"is_default"`
+	UseForStorefront bool   `json:"use_for_storefront"`
+}
+
+// SanitizeWhatsAppContacts securely sanitizes single phone number or JSON array of multiple contacts
+func SanitizeWhatsAppContacts(input string) string {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		var rawList []map[string]interface{}
+		if err := json.Unmarshal([]byte(trimmed), &rawList); err == nil && len(rawList) > 0 {
+			var sanitized []WAContactSanitized
+			hasDefault := false
+			hasStorefront := false
+
+			for idx, item := range rawList {
+				id, _ := item["id"].(string)
+				id = strings.TrimSpace(id)
+				if id == "" {
+					id = fmt.Sprintf("wa_%d", idx+1)
+				} else {
+					id = SanitizeSlug(id)
+				}
+
+				label, _ := item["label"].(string)
+				if label == "" {
+					label, _ = item["name"].(string)
+				}
+				label = SanitizePlainText(label, 100)
+				if label == "" {
+					if idx == 0 {
+						label = "WhatsApp Utama"
+					} else {
+						label = fmt.Sprintf("WhatsApp CS %d", idx+1)
+					}
+				}
+
+				numStr := ""
+				if num, ok := item["number"].(string); ok {
+					numStr = num
+				} else if phone, ok := item["phone"].(string); ok {
+					numStr = phone
+				}
+				cleanedNum := SanitizePhone(numStr)
+				if cleanedNum == "" {
+					continue
+				}
+
+				isDef, _ := item["is_default"].(bool)
+				if isDef {
+					hasDefault = true
+				}
+				useFront, _ := item["use_for_storefront"].(bool)
+				if useFront {
+					hasStorefront = true
+				}
+
+				sanitized = append(sanitized, WAContactSanitized{
+					ID:               id,
+					Label:            label,
+					Number:           cleanedNum,
+					IsDefault:        isDef,
+					UseForStorefront: useFront,
+				})
+			}
+
+			if len(sanitized) > 0 {
+				if !hasDefault {
+					sanitized[0].IsDefault = true
+				}
+				if !hasStorefront {
+					found := false
+					for i := range sanitized {
+						if sanitized[i].IsDefault {
+							sanitized[i].UseForStorefront = true
+							found = true
+							break
+						}
+					}
+					if !found {
+						sanitized[0].UseForStorefront = true
+					}
+				}
+				marshaled, err := json.Marshal(sanitized)
+				if err == nil {
+					return string(marshaled)
+				}
+			}
+		}
+	}
+
+	return SanitizePhone(trimmed)
 }
 
 // SanitizeSlug ensures the slug contains only lowercase alphanumeric characters and hyphens

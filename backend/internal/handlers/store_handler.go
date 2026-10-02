@@ -881,8 +881,14 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	if val, ok := payload["promo_banner"].(string); ok {
 		store.PromoBanner = security.SanitizeRichText(val, 2000)
 	}
-	if val, ok := payload["whatsapp_number"].(string); ok {
-		store.WhatsappNumber = security.SanitizePhone(val)
+	if val, ok := payload["whatsapp_contacts"]; ok {
+		if str, ok := val.(string); ok {
+			store.WhatsappNumber = security.SanitizeWhatsAppContacts(str)
+		} else if rawBytes, err := json.Marshal(val); err == nil {
+			store.WhatsappNumber = security.SanitizeWhatsAppContacts(string(rawBytes))
+		}
+	} else if val, ok := payload["whatsapp_number"].(string); ok {
+		store.WhatsappNumber = security.SanitizeWhatsAppContacts(val)
 	}
 	if val, ok := payload["official_website"].(string); ok {
 		store.OfficialWebsite = security.SanitizeURL(val)
