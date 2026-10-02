@@ -25050,13 +25050,42 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }} 
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
-                            {crudForm.product_type === 'service' 
-                              ? 'Rekber Syariah (Escrow Aman)' 
-                              : (crudForm.product_type === 'food'
-                                  ? 'Rekber Syariah (Frozen / Katering)'
-                                  : 'Chat WA & Rekber Syariah')}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                              {crudForm.product_type === 'service' 
+                                ? 'Rekber Syariah (Escrow Aman)' 
+                                : (crudForm.product_type === 'food'
+                                    ? 'Rekber Syariah (Frozen / Katering)'
+                                    : 'Chat WA & Rekber Syariah')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setShowRekberExplainerModal(true);
+                              }}
+                              style={{
+                                background: 'var(--primary-glow)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                color: 'var(--primary)',
+                                cursor: 'pointer',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.12rem 0.45rem',
+                                borderRadius: '0.3rem',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title="Pelajari apa itu Rekber Syariah"
+                            >
+                              <HelpCircle size={11} />
+                              <span>Apa ini?</span>
+                            </button>
+                          </div>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
                             {crudForm.product_type === 'food'
                               ? 'Cocok untuk makanan beku, hampers, atau pesanan katering partai besar.'
@@ -27156,13 +27185,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             left: 0, 
             width: '100vw', 
             height: '100vh', 
-            backgroundColor: 'rgba(0,0,0,0.85)', 
-            backdropFilter: 'blur(10px)', 
-            zIndex: 10000, 
+            backgroundColor: 'rgba(0, 0, 0, 0.75)', 
+            backdropFilter: 'blur(8px)', 
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 120000, 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            padding: '1.25rem' 
+            padding: '1.5rem' 
           }} 
           onClick={() => setShowRekberExplainerModal(false)}
         >
@@ -27170,81 +27200,151 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             className="glass-panel animate-scale-up" 
             style={{ 
               width: '100%', 
-              maxWidth: '560px', 
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '1.75rem', 
-              borderRadius: '1.25rem', 
+              maxWidth: '580px', 
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: '1rem', 
               border: '1px solid var(--border-light)', 
-              background: 'var(--card-bg-gradient, linear-gradient(180deg, var(--bg-card) 0%, var(--bg-deep) 100%))', 
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px var(--primary-glow)' 
+              backgroundColor: 'var(--bg-card)', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 25px var(--primary-glow)',
+              overflow: 'hidden'
             }} 
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)', marginBottom: '1.25rem' }}>
+            {/* Modal Header (Fixed / Non-scrolling) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1.15rem 1.5rem',
+              borderBottom: '1px solid var(--border-light)',
+              backgroundColor: 'var(--bg-card)',
+              flexShrink: 0
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '0.65rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <ShieldCheck size={22} />
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)',
+                  flexShrink: 0
+                }}>
+                  <ShieldCheck size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
                     Mengenal Layanan Rekber Syariah
                   </h3>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700 }}>
+                  <p style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 600, margin: '0.15rem 0 0 0' }}>
                     Transparan • Amanah • Bebas Riba (rekbersyariah.com)
-                  </span>
+                  </p>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowRekberExplainerModal(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card-hover)',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                  e.currentTarget.style.backgroundColor = 'var(--bg-muted)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                }}
+                title="Tutup Modal"
+              >
+                <X size={16} />
+              </button>
             </div>
 
-            {/* Content */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.55 }}>
-              {/* Intro */}
-              <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-light)' }}>
-                <p style={{ margin: 0, color: 'var(--text-primary)' }}>
-                  <strong>Rekening Bersama (Rekber) Syariah</strong> adalah pihak penengah amanah (*Escrow Syariah*) yang bertugas memegang dana transaksi pembeli secara aman sampai barang/jasa diterima dan diverifikasi sesuai pesanan sebelum diteruskan ke penjual.
+            {/* Scrollable Content Body */}
+            <div 
+              style={{ 
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1.25rem 1.5rem',
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '1rem', 
+                color: 'var(--text-secondary)', 
+                fontSize: '0.84rem', 
+                lineHeight: 1.55 
+              }}
+            >
+              {/* Intro Box */}
+              <div style={{
+                padding: '0.85rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)'
+              }}>
+                <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  <strong>Rekening Bersama (Rekber) Syariah</strong> adalah pihak penengah amanah (<em>Escrow Syariah</em>) yang bertugas memegang dana transaksi pembeli secara aman sampai barang/jasa diterima dan diverifikasi sesuai pesanan sebelum diteruskan ke penjual.
                 </p>
               </div>
 
               {/* 4 Keunggulan Utama */}
               <div>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em', margin: '0 0 0.6rem 0' }}>
+                <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em', margin: '0 0 0.55rem 0' }}>
                   Mengapa Menggunakan Rekber Syariah?
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.65rem' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                      <CheckCircle2 size={15} /> 100% Anti-Penipuan
+                      <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                      <span>100% Anti-Penipuan</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.73rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
                       Uang tidak akan diteruskan ke penjual sebelum pembeli memastikan barang diterima sesuai deskripsi.
                     </p>
                   </div>
 
-                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                      <Shield size={15} /> Aman untuk Penjual
+                      <Shield size={15} style={{ flexShrink: 0 }} />
+                      <span>Aman untuk Penjual</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.73rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
                       Penjual mendapatkan kepastian dana telah disetor pembeli sebelum mengirimkan barang / memulai jasa.
                     </p>
                   </div>
 
-                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                      <Scale size={15} /> Prinsip Muamalah
+                      <Scale size={15} style={{ flexShrink: 0 }} />
+                      <span>Prinsip Muamalah</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
-                      Bebas riba dan spekulasi (*gharar*), berlandaskan akad amanah yang adil (*an taradhin*).
+                    <p style={{ margin: 0, fontSize: '0.73rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                      Bebas riba dan spekulasi (<em>gharar</em>), berlandaskan akad amanah yang adil (<em>an taradhin</em>).
                     </p>
                   </div>
 
-                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                      <MessageCircle size={15} /> Grup WA Resmi
+                      <MessageCircle size={15} style={{ flexShrink: 0 }} />
+                      <span>Grup WA Resmi</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.74rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.73rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
                       Koordinasi transaksi dipandu langsung oleh admin Rekber resmi via grup WhatsApp khusus.
                     </p>
                   </div>
@@ -27252,27 +27352,53 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               </div>
 
               {/* 5 Langkah Alur Transaksi */}
-              <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+              <div style={{ padding: '0.85rem 1rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
                 <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
                   Alur Transaksi 5 Langkah:
                 </h4>
-                <ol style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.76rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  <li><strong>Hubungi Penjual:</strong> Pembeli mengontak WhatsApp penjual dengan format pesan resmi permohonan transaksi via Rekber Syariah (rekbersyariah.com).</li>
-                  <li><strong>Pendaftaran Transaksi:</strong> Penjual / Pembeli mendaftarkan detail transaksi ke website rekbersyariah.com atau langsung menghubungi admin resmi Rekber Syariah.</li>
-                  <li><strong>Pembuatan Grup WA Resmi:</strong> Admin Rekber Syariah membuat grup WhatsApp khusus yang beranggotakan Admin Rekber, Pembeli, dan Penjual untuk memandu transaksi.</li>
-                  <li><strong>Penyetoran Dana &amp; Pengiriman:</strong> Pembeli menyetorkan dana aman ke Rekening Bersama Syariah, lalu penjual mengirimkan barang / memulai jasa.</li>
-                  <li><strong>Verifikasi &amp; Pencairan Dana:</strong> Barang diterima dan diperiksa pembeli. Setelah sesuai kesepakatan, dana di Rekber Syariah langsung dicairkan ke rekening penjual.</li>
+                <ol style={{ margin: 0, paddingLeft: '1.15rem', fontSize: '0.76rem', display: 'flex', flexDirection: 'column', gap: '0.45rem', color: 'var(--text-secondary)' }}>
+                  <li><strong style={{ color: 'var(--text-primary)' }}>Hubungi Penjual:</strong> Pembeli mengontak WhatsApp penjual dengan format pesan resmi permohonan transaksi via Rekber Syariah.</li>
+                  <li><strong style={{ color: 'var(--text-primary)' }}>Pendaftaran Transaksi:</strong> Penjual / Pembeli mendaftarkan detail transaksi ke website rekbersyariah.com atau langsung menghubungi admin resmi Rekber Syariah.</li>
+                  <li><strong style={{ color: 'var(--text-primary)' }}>Pembuatan Grup WA Resmi:</strong> Admin Rekber Syariah membuat grup WhatsApp khusus yang beranggotakan Admin Rekber, Pembeli, dan Penjual untuk memandu transaksi.</li>
+                  <li><strong style={{ color: 'var(--text-primary)' }}>Penyetoran Dana &amp; Pengiriman:</strong> Pembeli menyetorkan dana aman ke Rekening Bersama Syariah, lalu penjual mengirimkan barang / memulai jasa.</li>
+                  <li><strong style={{ color: 'var(--text-primary)' }}>Verifikasi &amp; Pencairan Dana:</strong> Barang diterima dan diperiksa pembeli. Setelah sesuai kesepakatan, dana di Rekber Syariah langsung dicairkan ke rekening penjual.</li>
                 </ol>
               </div>
             </div>
 
-            {/* Footer */}
-            <div style={{ marginTop: '1.5rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+            {/* Modal Sticky Footer */}
+            <div style={{
+              padding: '0.85rem 1.5rem',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-card)',
+              flexShrink: 0
+            }}>
+              <a 
+                href="https://rekbersyariah.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.78rem',
+                  color: 'var(--primary)',
+                  fontWeight: 600,
+                  textDecoration: 'none'
+                }}
+              >
+                <span>Kunjungi rekbersyariah.com</span>
+                <ExternalLink size={13} />
+              </a>
+
               <button 
                 type="button" 
                 className="btn-primary"
                 onClick={() => setShowRekberExplainerModal(false)} 
-                style={{ padding: '0.6rem 1.5rem', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}
+                style={{ padding: '0.5rem 1.4rem', borderRadius: '0.5rem', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
               >
                 Saya Paham
               </button>
