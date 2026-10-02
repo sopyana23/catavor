@@ -966,6 +966,7 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
     purchase_links: [] as { platform: string, url: string }[],
     enable_wa_rekber: true,
     enable_wa_direct: true,
+    whatsapp_contact_id: 'default',
     product_type: type,
     attributes: {
       condition: 'Baru' as 'Baru' | 'Bekas' | 'Refurbished',
@@ -3259,8 +3260,11 @@ export function formatPhoneNumber(phone: string | null | undefined): string {
 }
 
 export interface WAContactItem {
+  id: string;
   label: string;
   number: string;
+  is_default?: boolean;
+  use_for_storefront?: boolean;
 }
 
 export function parseWAContacts(raw: string | null | undefined): WAContactItem[] {
@@ -3274,8 +3278,11 @@ export function parseWAContacts(raw: string | null | undefined): WAContactItem[]
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
           .map((item: any, idx: number) => ({
-            label: item.label || item.name || `WhatsApp ${idx + 1}`,
-            number: String(item?.number ?? item?.phone ?? item?.whatsapp ?? '').trim()
+            id: String(item.id || `wa_${idx + 1}`),
+            label: item.label || item.name || (idx === 0 ? 'WhatsApp Utama' : `WhatsApp CS ${idx + 1}`),
+            number: String(item?.number ?? item?.phone ?? item?.whatsapp ?? '').trim(),
+            is_default: Boolean(item.is_default ?? (idx === 0)),
+            use_for_storefront: Boolean(item.use_for_storefront ?? (idx === 0))
           }))
           .filter(item => item.number !== '');
       }
@@ -3285,15 +3292,85 @@ export function parseWAContacts(raw: string | null | undefined): WAContactItem[]
   if (trimmed.includes(',')) {
     const parts = trimmed.split(',').map(p => p.trim()).filter(Boolean);
     return parts.map((num, idx) => ({
+      id: `wa_${idx + 1}`,
       label: idx === 0 ? 'WhatsApp Utama' : `WhatsApp CS ${idx + 1}`,
-      number: num
+      number: num,
+      is_default: idx === 0,
+      use_for_storefront: idx === 0
     }));
   }
 
   return [{
+    id: 'wa_main',
     label: 'WhatsApp Utama',
-    number: trimmed
+    number: trimmed,
+    is_default: true,
+    use_for_storefront: true
   }];
+}
+
+export interface ResolvedWAContact {
+  id: string;
+  label: string;
+  number: string;
+  cleanNumber: string;
+  isDefault: boolean;
+}
+
+export function getStorefrontDefaultWA(contacts: WAContactItem[], fallbackRaw?: string | null): ResolvedWAContact {
+  const list = contacts && contacts.length > 0 ? contacts : parseWAContacts(fallbackRaw);
+  if (!list || list.length === 0) {
+    return { id: 'default', label: 'WhatsApp', number: '', cleanNumber: '', isDefault: false };
+  }
+
+  let chosen = list.find(c => c.use_for_storefront);
+  if (!chosen) chosen = list.find(c => c.is_default);
+  if (!chosen) chosen = list[0];
+
+  const clean = (chosen.number || '').replace(/\D/g, '');
+  return {
+    id: chosen.id,
+    label: chosen.label || 'WhatsApp Official',
+    number: chosen.number,
+    cleanNumber: clean,
+    isDefault: true
+  };
+}
+
+export function resolveProductWAContact(
+  item: any,
+  contacts: WAContactItem[],
+  fallbackRaw?: string | null
+): ResolvedWAContact {
+  const list = contacts && contacts.length > 0 ? contacts : parseWAContacts(fallbackRaw);
+  if (!list || list.length === 0) {
+    return { id: 'default', label: 'WhatsApp', number: '', cleanNumber: '', isDefault: false };
+  }
+
+  const targetId = item?.detailed_info?.whatsapp_contact_id || item?.attributes?.whatsapp_contact_id;
+  if (targetId && targetId !== 'default') {
+    const matched = list.find(c => c.id === targetId);
+    if (matched) {
+      const clean = (matched.number || '').replace(/\D/g, '');
+      if (clean) {
+        return {
+          id: matched.id,
+          label: matched.label || 'WhatsApp CS',
+          number: matched.number,
+          cleanNumber: clean,
+          isDefault: Boolean(matched.is_default || matched.use_for_storefront)
+        };
+      }
+    }
+  }
+
+  return getStorefrontDefaultWA(list, fallbackRaw);
+}
+
+export function buildWALink(phoneNumber: string, messageText: string): string {
+  const cleanNumber = phoneNumber.replace(/\D/g, '');
+  if (!cleanNumber) return '#';
+  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageText)}`;
 }
 
 export function WhatsAppContactsCard({ rawWhatsappNumber, onTrackClick }: { rawWhatsappNumber: string | null | undefined; onTrackClick?: () => void }) {
@@ -3454,10 +3531,27 @@ export function WhatsAppContactsManager({
 
   const handleAdd = () => {
     const nextIdx = localContacts.length + 1;
+    const newId = `wa_${Date.now()}`;
+    const isFirst = localContacts.length === 0;
     const newList = [
       ...localContacts,
-      { label: `CS ${nextIdx} • Penjualan`, number: '' }
+      { 
+        id: newId,
+        label: `CS ${nextIdx} • Penjualan`, 
+        number: '',
+        is_default: isFirst,
+        use_for_storefront: isFirst
+      }
     ];
+    updateAll(newList);
+  };
+
+  const handleSetStorefront = (targetId: string) => {
+    const newList = localContacts.map(c => ({
+      ...c,
+      use_for_storefront: c.id === targetId,
+      is_default: c.id === targetId
+    }));
     updateAll(newList);
   };
 
@@ -3473,10 +3567,15 @@ export function WhatsAppContactsManager({
 
   const handleDelete = (index: number) => {
     if (localContacts.length <= 1) {
-      updateAll([{ label: 'WhatsApp Utama', number: '' }]);
+      updateAll([{ id: 'wa_main', label: 'WhatsApp Utama', number: '', is_default: true, use_for_storefront: true }]);
       return;
     }
+    const wasStorefront = localContacts[index]?.use_for_storefront;
     const newList = localContacts.filter((_, idx) => idx !== index);
+    if (wasStorefront && newList.length > 0) {
+      newList[0].use_for_storefront = true;
+      newList[0].is_default = true;
+    }
     updateAll(newList);
   };
 
@@ -3488,7 +3587,7 @@ export function WhatsAppContactsManager({
             Nomor WhatsApp Official &amp; Customer Service *
           </label>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem' }}>
-            Kelola kontak CS resmi. Bisa menambahkan lebih dari 1 nomor.
+            Kelola kontak CS resmi. Bisa menambahkan lebih dari 1 nomor dan tentukan kontak utama etalase depan.
           </span>
         </div>
         <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.25rem 0.65rem', borderRadius: '20px', border: '1px solid var(--border-light)', flexShrink: 0 }}>
@@ -3499,25 +3598,38 @@ export function WhatsAppContactsManager({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {localContacts.map((c, idx) => (
           <div 
-            key={idx} 
+            key={c.id || idx} 
             style={{ 
               padding: '1rem', 
               borderRadius: '0.85rem', 
-              border: '1px solid var(--border-light)', 
-              backgroundColor: 'var(--bg-card-hover)',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+              border: c.use_for_storefront ? '1px solid var(--primary)' : '1px solid var(--border-light)', 
+              backgroundColor: c.use_for_storefront ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+              boxShadow: c.use_for_storefront ? '0 4px 16px var(--primary-glow)' : '0 2px 10px rgba(0,0,0,0.05)',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.75rem',
-              position: 'relative'
+              position: 'relative',
+              transition: 'all 0.2s ease'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'inline-block' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c.use_for_storefront ? 'var(--primary)' : 'var(--text-muted)', display: 'inline-block' }} />
                 <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   Kontak CS #{idx + 1}
                 </span>
+                {c.use_for_storefront && (
+                  <span style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    padding: '0.12rem 0.45rem',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff'
+                  }}>
+                    UTAMA ETALASE
+                  </span>
+                )}
               </div>
 
               <button
@@ -3574,13 +3686,39 @@ export function WhatsAppContactsManager({
               </div>
             </div>
 
-            {c.number.trim() && (
-              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--primary-glow)', padding: '0.35rem 0.75rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)', width: 'fit-content' }}>
-                <Smartphone size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <span>Tampilan Publik:</span>
-                <strong>{formatPhoneNumber(c.number)}</strong>
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.25rem' }}>
+              {c.number.trim() ? (
+                <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--bg-deep)', padding: '0.35rem 0.75rem', borderRadius: '0.4rem', border: '1px solid var(--border-light)', width: 'fit-content' }}>
+                  <Smartphone size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                  <span>Format Publik:</span>
+                  <strong>{formatPhoneNumber(c.number)}</strong>
+                </div>
+              ) : <div />}
+
+              <button
+                type="button"
+                onClick={() => handleSetStorefront(c.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '999px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  backgroundColor: c.use_for_storefront ? 'var(--primary)' : 'var(--bg-deep)',
+                  color: c.use_for_storefront ? '#ffffff' : 'var(--text-secondary)',
+                  border: c.use_for_storefront ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  boxShadow: c.use_for_storefront ? '0 2px 8px var(--primary-glow)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Pilih sebagai kontak utama tombol Hubungi di halaman publik"
+              >
+                <CheckCircle2 size={13} style={{ color: c.use_for_storefront ? '#ffffff' : 'var(--text-muted)' }} />
+                <span>{c.use_for_storefront ? 'Kontak Utama Etalase Depan' : 'Jadikan Kontak Utama Etalase'}</span>
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -6012,6 +6150,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Desktop Public Item Card Action Popover Menu State (Small 3-dots dropdown)
   const [openCardActionMenuId, setOpenCardActionMenuId] = useState<number | null>(null)
+
+  // Dynamic Multi-Contact WhatsApp Resolution State (Desktop)
+  const storeWAContacts = useMemo(() => parseWAContacts(settings.whatsapp_number), [settings.whatsapp_number])
+  const storefrontWA = useMemo(() => getStorefrontDefaultWA(storeWAContacts, settings.whatsapp_number), [storeWAContacts, settings.whatsapp_number])
 
   // Available categories for desktop admin inventory scoped to active product type
   const availableAdminCategories = useMemo(() => {
@@ -10713,6 +10855,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       ],
       enable_wa_rekber: isRekberEnabled,
       enable_wa_direct: isDirectEnabled,
+      whatsapp_contact_id: item.detailed_info?.whatsapp_contact_id || 'default',
       product_type: itemType,
       attributes: {
         condition: (item.attributes?.condition as any) ?? 'Baru',
@@ -10837,7 +10980,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         images: filteredImages,
         purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== ''),
         enable_wa_rekber: crudForm.enable_wa_rekber !== false,
-        enable_wa_direct: crudForm.enable_wa_direct !== false
+        enable_wa_direct: crudForm.enable_wa_direct !== false,
+        whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
       }
     }
 
@@ -15082,12 +15226,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     type="button"
                     onClick={() => {
                       if (selectedFauna.product_type === 'property') {
-                        if (settings.whatsapp_number && settings.whatsapp_number.trim()) {
+                        const itemWA = resolveProductWAContact(selectedFauna, storeWAContacts, settings.whatsapp_number);
+                        if (itemWA.cleanNumber) {
                           if (isStoreOwner) {
                             showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
                           }
                           const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
-                          window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+                          window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
                         } else {
                           alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
                         }
@@ -15651,9 +15796,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
-              {settings.whatsapp_number && (
+              {storefrontWA.cleanNumber && (
                 <a
-                  href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai katalog Anda.`)}`}
+                  href={buildWALink(storefrontWA.cleanNumber, `Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai katalog Anda.`)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary"
@@ -15861,20 +16006,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <h1 className="desktop-store-title" style={{ margin: 0 }}>
                           {settings.store_title || 'Katalog Resmi'}
                         </h1>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          padding: '0.2rem 0.65rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'var(--primary-glow)',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--border-light)'
-                        }}>
-                          <CheckCircle2 size={13} /> Terverifikasi
-                        </span>
                         {settings.plan === 'pro_business' && (
                           <span style={{
                             fontSize: '0.72rem',
@@ -15915,9 +16046,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
 
                   <div className="desktop-store-actions">
-                    {settings.whatsapp_number && (
+                    {storefrontWA.cleanNumber && (
                       <a
-                        href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}`}
+                        href={buildWALink(storefrontWA.cleanNumber, `Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-primary"
@@ -16018,7 +16149,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
               const hasHours = Boolean(settings.show_hours === true);
-              const hasWhatsapp = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
+              const hasWhatsapp = Boolean(storefrontWA.cleanNumber);
               const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
               const hasSocial = Array.isArray(parsedSocial) && parsedSocial.length > 0;
               const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
@@ -16077,9 +16208,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                     {/* Right: Quick Action CTAs */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                      {settings.whatsapp_number && (
+                      {storefrontWA.cleanNumber && (
                         <a
-                          href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai profil dan layanan di katalog Anda.`)}`}
+                          href={buildWALink(storefrontWA.cleanNumber, `Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai profil dan layanan di katalog Anda.`)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-primary"
@@ -24896,7 +25027,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: crudForm.product_type === 'property' ? '1fr' : '1fr 1fr', gap: '0.85rem' }}>
+                  {/* Grid 2 Kolom Seimbang untuk Opsi Transaksi */}
+                  <div style={{ display: 'grid', gridTemplateColumns: crudForm.product_type === 'property' ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
                     {crudForm.product_type !== 'property' && (
                       <label 
                         style={{ 
@@ -24915,9 +25047,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           type="checkbox" 
                           checked={crudForm.enable_wa_rekber !== false} 
                           onChange={(e) => setCrudForm({ ...crudForm, enable_wa_rekber: e.target.checked })} 
-                          style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }} 
+                          style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }} 
                         />
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
                             {crudForm.product_type === 'service' 
                               ? 'Rekber Syariah (Escrow Aman)' 
@@ -24925,7 +25057,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   ? 'Rekber Syariah (Frozen / Katering)'
                                   : 'Chat WA & Rekber Syariah')}
                           </span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.3 }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
                             {crudForm.product_type === 'food'
                               ? 'Cocok untuk makanan beku, hampers, atau pesanan katering partai besar.'
                               : 'Dana ditahan aman di rekening penampung syariah hingga pesanan selesai.'}
@@ -24951,9 +25083,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         type="checkbox" 
                         checked={crudForm.enable_wa_direct !== false} 
                         onChange={(e) => setCrudForm({ ...crudForm, enable_wa_direct: e.target.checked })} 
-                        style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }} 
+                        style={{ marginTop: '0.2rem', width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }} 
                       />
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
                           {crudForm.product_type === 'property' 
                             ? 'Chat WA (Janji Survey & Konsultasi)' 
@@ -24963,13 +25095,57 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     ? 'Chat WA (Pesan Antar / Sameday)'
                                     : 'Chat WA (Transaksi Langsung)'))}
                         </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.3 }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
                           {crudForm.product_type === 'food'
                             ? 'Pembeli langsung memesan menu via chat WhatsApp untuk pengiriman instan/sameday.'
                             : 'Izinkan pembeli langsung berkonsultasi via WhatsApp.'}
                         </span>
                       </div>
                     </label>
+                  </div>
+
+                  {/* Pemilihan Saluran WhatsApp Khusus Item (Full Width) */}
+                  <div style={{
+                    marginTop: '0.85rem',
+                    padding: '0.85rem 1rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.45rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+                        <MessageCircle size={15} style={{ color: 'var(--primary)' }} />
+                        <span>Tujuan Kontak WhatsApp Item Ini</span>
+                      </label>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        Bawaan: Kontak Utama Toko
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                      Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus produk ini.
+                    </span>
+                    <div style={{ marginTop: '0.25rem' }}>
+                      <DesktopCustomSelect
+                        value={crudForm.whatsapp_contact_id || 'default'}
+                        onChange={(val) => setCrudForm({ ...crudForm, whatsapp_contact_id: val })}
+                        options={[
+                          {
+                            value: 'default',
+                            label: `[Default] Gunakan Kontak Utama Toko (${storefrontWA?.label || 'Utama'} - ${formatPhoneNumber(storefrontWA?.number || settings.whatsapp_number || '-')})`
+                          },
+                          ...storeWAContacts
+                            .filter(c => c.id !== storefrontWA?.id)
+                            .map(c => ({
+                              value: c.id,
+                              label: `${c.label || 'CS Khusus'} (${formatPhoneNumber(c.number)})`
+                            }))
+                        ]}
+                        placeholder="Pilih saluran WhatsApp..."
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -25934,7 +26110,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           : (selectedFauna.attributes?.enable_wa_direct !== undefined ? Boolean(selectedFauna.attributes.enable_wa_direct) : true);
 
         const isProperty = selectedFauna.product_type === 'property';
-        const hasPhone = Boolean(settings.whatsapp_number && settings.whatsapp_number.trim());
+        const itemWA = resolveProductWAContact(selectedFauna, storeWAContacts, settings.whatsapp_number);
+        const hasPhone = Boolean(itemWA.cleanNumber);
         const showRekberOption = !isProperty && hasPhone && settings.enable_wa_rekber !== false && isItemWARekberEnabled;
         const showDirectOption = hasPhone && settings.enable_wa_direct !== false && isItemWADirectEnabled;
         const hasAnyOptions = normalizedLinks.length > 0 || showRekberOption || showDirectOption;
@@ -26056,13 +26233,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                             {showRekberOption && (
                               <a 
-                                href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                                href={buildWALink(itemWA.cleanNumber, 
                                   selectedFauna.product_type === 'service'
                                     ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`
                                     : selectedFauna.product_type === 'food'
                                     ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan produk kuliner/katering dengan perlindungan Rekber Syariah:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`
                                     : `Halo *${settings.store_title || 'Catavor'}*, saya berminat membeli produk berikut:\n📦 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli). Terima kasih.`
-                                )}`}
+                                )}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => {
@@ -26115,7 +26292,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                             {showDirectOption && (
                               <a 
-                                href={`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(
+                                href={buildWALink(itemWA.cleanNumber, 
                                   selectedFauna.product_type === 'property'
                                     ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`
                                     : selectedFauna.product_type === 'service'
@@ -26127,7 +26304,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     : selectedFauna.product_type === 'fauna'
                                     ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik membeli / mengadopsi satwa atau tanaman hias berikut:\n🐾 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info ketersediaan, kondisi kesehatan, dan opsi pengiriman bergaransi hidup. Terima kasih.`
                                     : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)}) secara langsung.`
-                                )}`}
+                                )}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => {
