@@ -8175,9 +8175,11 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   const [imageSizeSelection, setImageSizeSelection] = useState<'kecil' | 'sedang' | 'besar' | 'ekstrabesar' | 'asli'>('sedang')
 
   // Multi-image management states
+  const MAX_PRODUCT_PHOTOS = 10
   const [crudImages, setCrudImages] = useState<string[]>([''])
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0)
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
+  const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false)
 
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<ShopSettings>(() => ({
@@ -11565,6 +11567,58 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       setCrudError('Koneksi terputus ke server saat mengunggah gambar.')
     } finally {
       setUploadingIndex(null)
+    }
+  }
+
+  // Handle Multiple Files Upload at once from Device
+  const handleBatchImageUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return
+    setIsBatchUploading(true)
+    setCrudError(null)
+
+    const fileArray = Array.from(files)
+    if (fileArray.length > MAX_PRODUCT_PHOTOS) {
+      showToast(`Maksimal ${MAX_PRODUCT_PHOTOS} foto. Hanya ${MAX_PRODUCT_PHOTOS} foto pertama yang akan diproses.`, 'info')
+    }
+    const filesToUpload = fileArray.slice(0, MAX_PRODUCT_PHOTOS)
+
+    try {
+      const uploadPromises = filesToUpload.map(async (file) => {
+        const formData = new FormData()
+        formData.append('image', file)
+        const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: formData
+        })
+        const data = await res.json()
+        if (res.ok && data.success && data.url) {
+          return data.url
+        }
+        return null
+      })
+
+      const results = await Promise.all(uploadPromises)
+      const successfulUrls = results.filter(Boolean) as string[]
+
+      if (successfulUrls.length > 0) {
+        setCrudImages(prev => {
+          const existing = prev.map(u => u.trim()).filter(Boolean)
+          const combined = [...existing, ...successfulUrls].slice(0, MAX_PRODUCT_PHOTOS)
+          return combined.length > 0 ? combined : ['']
+        })
+        showToast(`${successfulUrls.length} foto berhasil diunggah!`)
+      } else {
+        showToast('Gagal mengunggah foto. Pastikan format file gambar valid.', 'error')
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Koneksi terputus saat mengunggah foto.', 'error')
+    } finally {
+      setIsBatchUploading(false)
     }
   }
 
@@ -16650,7 +16704,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                 {/* Multi-image upload section (Standard 10 Photos) */}
                 {(() => {
-                  const MAX_PRODUCT_PHOTOS = 10;
                   const validCount = crudImages.filter(Boolean).length;
                   return (
                     <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
@@ -16675,14 +16728,50 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           </small>
                         </div>
                         {crudImages.length < MAX_PRODUCT_PHOTOS && (
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                            onClick={() => setCrudImages([...crudImages, ''])}
-                          >
-                            <span>+ Foto</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                            <label
+                              className="btn-secondary"
+                              style={{
+                                padding: '0.3rem 0.6rem',
+                                fontSize: '0.72rem',
+                                borderRadius: '0.35rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                cursor: isBatchUploading ? 'not-allowed' : 'pointer',
+                                opacity: isBatchUploading ? 0.7 : 1
+                              }}
+                              title="Pilih dan unggah banyak foto sekaligus"
+                            >
+                              {isBatchUploading ? (
+                                <Loader size={12} className="animate-spin" />
+                              ) : (
+                                <Upload size={12} />
+                              )}
+                              <span>{isBatchUploading ? 'Proses...' : 'Sekaligus'}</span>
+                              <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                disabled={isBatchUploading}
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files.length > 0) {
+                                    handleBatchImageUpload(e.target.files);
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem', borderRadius: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              onClick={() => setCrudImages([...crudImages, ''])}
+                            >
+                              <span>+ Baris</span>
+                            </button>
+                          </div>
                         )}
                       </div>
 
