@@ -14615,55 +14615,250 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </div>
             )}
 
-            {/* Large Center Image */}
-            <img 
-              src={
-                (selectedFauna.detailed_info?.images && Array.isArray(selectedFauna.detailed_info.images) && selectedFauna.detailed_info.images.length > 0)
-                  ? (selectedFauna.detailed_info.images[activeImageIndex] || selectedFauna.image_url)
-                  : selectedFauna.image_url
-              } 
-              alt={selectedFauna.name} 
-              style={{ width: '100%', height: '320px', objectFit: 'cover', cursor: 'zoom-in' }} 
-              onClick={() => {
-                setLightboxIndex(activeImageIndex)
-                setZoomScale(1)
-                setPanPosition({ x: 0, y: 0 })
-                setShowLightbox(true)
-              }}
-              onError={(e) => {
-                e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
-              }}
-            />
+            {/* Product Media & Hero Gallery */}
+            {(() => {
+              const galleryImages: string[] = (selectedFauna.detailed_info?.images && Array.isArray(selectedFauna.detailed_info.images) && selectedFauna.detailed_info.images.length > 0)
+                ? selectedFauna.detailed_info.images
+                : (selectedFauna.image_url ? [selectedFauna.image_url] : []);
+              const totalGalleryImages = galleryImages.length;
+              const currentImgIdx = Math.min(activeImageIndex, Math.max(0, totalGalleryImages - 1));
+              const currentImageSrc = galleryImages[currentImgIdx] || selectedFauna.image_url || 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
 
-            {/* Click to Zoom Hint */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
-              <ZoomIn size={12} />
-              <span>Ketuk gambar untuk memperbesar & melihat detail</span>
-            </div>
+              return (
+                <div>
+                  {/* Hero Container */}
+                  <div 
+                    style={{ 
+                      position: 'relative', 
+                      width: '100%', 
+                      height: '330px', 
+                      background: 'var(--bg-deep, #0f172a)',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <img 
+                      src={currentImageSrc} 
+                      alt={selectedFauna.name} 
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover', 
+                        display: 'block',
+                        cursor: 'zoom-in' 
+                      }} 
+                      onClick={() => {
+                        setLightboxIndex(currentImgIdx);
+                        setZoomScale(1);
+                        setPanPosition({ x: 0, y: 0 });
+                        setShowLightbox(true);
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                      }}
+                    />
 
-            {/* Thumbnails List */}
-            {selectedFauna.detailed_info?.images && Array.isArray(selectedFauna.detailed_info.images) && selectedFauna.detailed_info.images.length > 1 && (
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem', overflowX: 'auto', maxWidth: '100%', padding: '0 1rem', paddingBottom: '0.25rem' }}>
-                {selectedFauna.detailed_info.images.map((imgUrl: string, idx: number) => (
-                  <img 
-                    key={idx}
-                    src={imgUrl} 
-                    alt="" 
-                    onClick={() => setActiveImageIndex(idx)}
-                    style={{
-                      width: '45px',
-                      height: '45px',
-                      objectFit: 'cover',
-                      borderRadius: '0.35rem',
-                      border: activeImageIndex === idx ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      flexShrink: 0
-                    }} 
-                    onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
-                  />
-                ))}
-              </div>
-            )}
+                    {/* Floating Prev Touch Button */}
+                    {totalGalleryImages > 1 && (
+                      <button
+                        type="button"
+                        aria-label="Foto Sebelumnya"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImageIndex((currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: '0.65rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '50%',
+                          background: 'rgba(15, 23, 42, 0.72)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
+                          zIndex: 5
+                        }}
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                    )}
+
+                    {/* Floating Next Touch Button */}
+                    {totalGalleryImages > 1 && (
+                      <button
+                        type="button"
+                        aria-label="Foto Selanjutnya"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImageIndex((currentImgIdx + 1) % totalGalleryImages);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          right: '0.65rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '50%',
+                          background: 'rgba(15, 23, 42, 0.72)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
+                          zIndex: 5
+                        }}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    )}
+
+                    {/* Floating Pill Counter */}
+                    {totalGalleryImages > 1 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '0.75rem',
+                          right: '0.75rem',
+                          background: 'rgba(15, 23, 42, 0.75)',
+                          backdropFilter: 'blur(8px)',
+                          color: '#ffffff',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          border: '1px solid rgba(255, 255, 255, 0.18)',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                          pointerEvents: 'none',
+                          zIndex: 5
+                        }}
+                      >
+                        <Image size={12} style={{ opacity: 0.9 }} />
+                        <span>{currentImgIdx + 1} / {totalGalleryImages}</span>
+                      </div>
+                    )}
+
+                    {/* Floating Zoom Hint (Bottom-Left) */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '0.65rem',
+                        left: '0.65rem',
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        backdropFilter: 'blur(8px)',
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        padding: '0.25rem 0.55rem',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        pointerEvents: 'none',
+                        zIndex: 5
+                      }}
+                    >
+                      <ZoomIn size={12} />
+                      <span>Ketuk untuk perbesar</span>
+                    </div>
+                  </div>
+
+                  {/* Thumbnails Track */}
+                  {totalGalleryImages > 1 && (
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        gap: '0.5rem', 
+                        padding: '0.65rem 1rem', 
+                        overflowX: 'auto', 
+                        maxWidth: '100%',
+                        borderBottom: '1px solid var(--border-light)',
+                        background: 'var(--bg-card)',
+                        scrollbarWidth: 'none',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                    >
+                      {galleryImages.map((imgUrl: string, idx: number) => {
+                        const isActive = currentImgIdx === idx;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setActiveImageIndex(idx)}
+                            style={{
+                              position: 'relative',
+                              padding: 0,
+                              margin: 0,
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                              borderRadius: '0.5rem',
+                              outline: 'none'
+                            }}
+                          >
+                            <img 
+                              src={imgUrl} 
+                              alt={`Foto ${idx + 1}`} 
+                              style={{
+                                width: '48px',
+                                height: '48px',
+                                objectFit: 'cover',
+                                borderRadius: '0.5rem',
+                                display: 'block',
+                                border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                                boxShadow: isActive ? '0 0 0 2px var(--primary-glow, rgba(99, 102, 241, 0.3))' : 'none',
+                                opacity: isActive ? 1 : 0.65,
+                                transform: isActive ? 'scale(1.04)' : 'scale(1)',
+                                transition: 'all 0.2s ease'
+                              }} 
+                              onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
+                            />
+                            {idx === 0 && (
+                              <span 
+                                style={{ 
+                                  position: 'absolute', 
+                                  bottom: '2px', 
+                                  left: '50%', 
+                                  transform: 'translateX(-50%)', 
+                                  background: 'rgba(15, 23, 42, 0.85)', 
+                                  color: '#38bdf8', 
+                                  fontSize: '0.5rem', 
+                                  fontWeight: 800, 
+                                  padding: '1px 3px', 
+                                  borderRadius: '2px', 
+                                  whiteSpace: 'nowrap', 
+                                  pointerEvents: 'none',
+                                  letterSpacing: '0.02em',
+                                  border: '0.5px solid rgba(56, 189, 248, 0.4)'
+                                }}
+                              >
+                                UTAMA
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Text Info (Price, Title, Category) */}
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
