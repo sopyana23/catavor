@@ -6010,6 +6010,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [showDetailActionDropdown, setShowDetailActionDropdown] = useState<boolean>(false)
   const detailActionDropdownRef = useRef<HTMLDivElement>(null)
 
+  // Desktop Public Item Card Action Popover Menu State (Small 3-dots dropdown)
+  const [openCardActionMenuId, setOpenCardActionMenuId] = useState<number | null>(null)
+
   // Available categories for desktop admin inventory scoped to active product type
   const availableAdminCategories = useMemo(() => {
     const list = faunas
@@ -10560,6 +10563,26 @@ Terima kasih atas perhatian dan kerja samanya.`;
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [showDetailActionDropdown]);
+
+  // Close Desktop Public Item Card Action Popover Menu on click-outside or Escape
+  useEffect(() => {
+    if (openCardActionMenuId === null) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.card-action-popover-container')) {
+        setOpenCardActionMenuId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenCardActionMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openCardActionMenuId]);
 
   // Quick toggle active / archived for an item directly from detail header
   const handleToggleActiveStatus = async (item: Fauna, newActive: boolean) => {
@@ -16814,36 +16837,139 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     <span>{fauna.class}</span>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActionMenuData({ type: 'item', item: fauna });
-                                    }}
+                                  <div 
+                                    className="card-action-popover-container"
+                                    onClick={(e) => e.stopPropagation()}
                                     style={{
                                       position: 'absolute',
                                       top: '0.65rem',
                                       right: '0.65rem',
-                                      width: '30px',
-                                      height: '30px',
-                                      borderRadius: '8px',
-                                      backgroundColor: 'rgba(0, 0, 0, 0.55)',
-                                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: '#ffffff',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.15s ease',
-                                      backdropFilter: 'blur(8px)',
-                                      zIndex: 2
+                                      zIndex: 15
                                     }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = '#ffffff'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.55)'; e.currentTarget.style.color = '#ffffff'; }}
-                                    title="Opsi Produk"
                                   >
-                                    <MoreVertical size={15} />
-                                  </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenCardActionMenuId(prev => prev === fauna.id ? null : fauna.id);
+                                      }}
+                                      style={{
+                                        width: '30px',
+                                        height: '30px',
+                                        borderRadius: '8px',
+                                        backgroundColor: openCardActionMenuId === fauna.id ? 'var(--primary)' : 'rgba(0, 0, 0, 0.55)',
+                                        border: openCardActionMenuId === fauna.id ? '1px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.2)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ffffff',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                        backdropFilter: 'blur(8px)',
+                                        boxShadow: openCardActionMenuId === fauna.id ? '0 0 10px var(--primary-glow)' : 'none'
+                                      }}
+                                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = '#ffffff'; }}
+                                      onMouseLeave={(e) => { 
+                                        if (openCardActionMenuId !== fauna.id) {
+                                          e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.55)'; 
+                                          e.currentTarget.style.color = '#ffffff'; 
+                                        }
+                                      }}
+                                      title="Opsi Produk"
+                                    >
+                                      <MoreVertical size={15} />
+                                    </button>
+
+                                    {openCardActionMenuId === fauna.id && (
+                                      <div
+                                        className="animate-scale-up"
+                                        style={{
+                                          position: 'absolute',
+                                          top: 'calc(100% + 6px)',
+                                          right: 0,
+                                          width: '190px',
+                                          backgroundColor: 'var(--bg-card)',
+                                          border: '1px solid var(--border-light)',
+                                          borderRadius: '12px',
+                                          boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.25), 0 4px 10px -2px rgba(0, 0, 0, 0.1)',
+                                          zIndex: 50,
+                                          padding: '0.4rem',
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          gap: '2px',
+                                          backdropFilter: 'blur(20px)'
+                                        }}
+                                      >
+                                        {/* Opsi 1: Bagikan Item */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenCardActionMenuId(null);
+                                            handleShareItem(fauna);
+                                          }}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.65rem',
+                                            width: '100%',
+                                            padding: '0.55rem 0.75rem',
+                                            fontSize: '0.84rem',
+                                            fontWeight: 500,
+                                            color: 'var(--text-primary)',
+                                            background: 'none',
+                                            border: 'none',
+                                            borderRadius: '0.45rem',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                                        >
+                                          <Share2 size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                          <span>Bagikan Item</span>
+                                        </button>
+
+                                        <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '0.2rem 0' }} />
+
+                                        {/* Opsi 2: Laporkan Item */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenCardActionMenuId(null);
+                                            const initialReasons = getCatalogReportReasons('item', fauna);
+                                            setReportReason(initialReasons[0]?.id || 'other');
+                                            setReportNotes('');
+                                            setReportEmail('');
+                                            setReportModalData({ type: 'item', item: fauna });
+                                          }}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.65rem',
+                                            width: '100%',
+                                            padding: '0.55rem 0.75rem',
+                                            fontSize: '0.84rem',
+                                            fontWeight: 500,
+                                            color: '#ef4444',
+                                            background: 'none',
+                                            border: 'none',
+                                            borderRadius: '0.45rem',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                        >
+                                          <Flag size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                                          <span>Laporkan Item</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <div className="card-body" style={{ padding: '1.1rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', flexGrow: 1 }}>
