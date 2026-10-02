@@ -842,7 +842,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
                           <ImageIcon size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>Maks. <strong>{plan.max_images_per_item}</strong> Foto per Item</span>
+                          <span>Hingga <strong>10</strong> Foto HD per Item</span>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>

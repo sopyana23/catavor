@@ -16453,60 +16453,112 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 )}
 
-                {/* Multi-image upload section */}
-                <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <div>
-                      <label className="form-label" style={{ margin: 0 }}>{typeConfig.photoLabel}</label>
-                      <small style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', display: 'block' }}>Maksimum {storeQuota?.plan?.max_images_per_item || (settings.plan === 'pro_business' ? 10 : settings.plan === 'pro_starter' ? 8 : 5)} foto (Sesuai Paket {storeQuota?.plan?.name || 'Anda'}).</small>
-                    </div>
-                    {crudImages.length < (storeQuota?.plan?.max_images_per_item || (settings.plan === 'pro_business' ? 10 : settings.plan === 'pro_starter' ? 8 : 5)) && (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.25rem' }}
-                        onClick={() => setCrudImages([...crudImages, ''])}
-                      >
-                        + Foto
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                    {crudImages.map((imgUrl, index) => (
-                      <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
-                        {/* Preview Thumbnail */}
-                        <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                          {imgUrl ? (
-                            <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-                              <Image size={13} style={{ color: 'var(--primary)' }} />
-                              <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
-                            </div>
-                          )}
-                          {uploadingIndex === index && (
-                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Loader className="animate-spin" size={10} style={{ color: 'var(--primary)' }} />
-                            </div>
-                          )}
+                {/* Multi-image upload section (Standard 10 Photos) */}
+                {(() => {
+                  const MAX_PRODUCT_PHOTOS = 10;
+                  const validCount = crudImages.filter(Boolean).length;
+                  return (
+                    <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <label className="form-label" style={{ margin: 0 }}>{typeConfig.photoLabel}</label>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '1rem',
+                              backgroundColor: validCount > 0 ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                              color: validCount > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+                              border: '1px solid var(--border-light)'
+                            }}>
+                              {validCount} / {MAX_PRODUCT_PHOTOS}
+                            </span>
+                          </div>
+                          <small style={{ color: 'var(--text-secondary)', fontSize: '0.68rem', display: 'block', marginTop: '0.15rem' }}>
+                            Unggah hingga 10 foto produk. Foto pertama otomatis menjadi foto sampul utama.
+                          </small>
                         </div>
+                        {crudImages.length < MAX_PRODUCT_PHOTOS && (
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            onClick={() => setCrudImages([...crudImages, ''])}
+                          >
+                            <span>+ Foto</span>
+                          </button>
+                        )}
+                      </div>
 
-                        {/* Input & Upload Controls */}
-                        <div style={{ flexGrow: 1, display: 'flex', gap: '0.35rem' }}>
-                          <input
-                            type="text"
-                            className="form-input"
-                            placeholder={`Tautan Foto ${index === 0 ? 'Utama *' : `${index + 1}`}`}
-                            value={imgUrl}
-                            onChange={(e) => {
-                              const newImages = [...crudImages]
-                              newImages[index] = e.target.value
-                              setCrudImages(newImages)
-                            }}
-                            required={index === 0}
-                            style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
-                          />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {crudImages.map((imgUrl, index) => (
+                          <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                            {/* Role Badge: Sampul vs Nomor Foto */}
+                            <div style={{ minWidth: '55px', textAlign: 'center', flexShrink: 0 }}>
+                              {index === 0 ? (
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: '0.58rem',
+                                  fontWeight: 800,
+                                  color: 'var(--primary)',
+                                  backgroundColor: 'var(--primary-glow)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  padding: '0.12rem 0.35rem',
+                                  borderRadius: '0.3rem',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  ★ Sampul
+                                </span>
+                              ) : (
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: '0.58rem',
+                                  fontWeight: 700,
+                                  color: 'var(--text-secondary)',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  padding: '0.12rem 0.35rem',
+                                  borderRadius: '0.3rem',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  #{index + 1}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Preview Thumbnail */}
+                            <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                              {imgUrl ? (
+                                <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                  <Image size={13} style={{ color: 'var(--primary)' }} />
+                                  <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                                </div>
+                              )}
+                              {uploadingIndex === index && (
+                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Loader className="animate-spin" size={10} style={{ color: 'var(--primary)' }} />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Input & Upload Controls */}
+                            <div style={{ flexGrow: 1, display: 'flex', gap: '0.35rem' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder={`Tautan Foto ${index === 0 ? 'Sampul (Wajib) *' : `${index + 1}`}`}
+                                value={imgUrl}
+                                onChange={(e) => {
+                                  const newImages = [...crudImages]
+                                  newImages[index] = e.target.value
+                                  setCrudImages(newImages)
+                                }}
+                                required={index === 0}
+                                style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+                              />
                           
                           {/* Device File Upload Button */}
                           <label 
@@ -16573,6 +16625,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     ))}
                   </div>
                 </div>
+              );
+            })()}
 
                 {/* Video Embed Section with Instant Multi-Platform Preview */}
                 <div className="form-group" style={{ marginBottom: '1.25rem' }}>
