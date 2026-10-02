@@ -709,6 +709,8 @@ export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
   property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya']
 };
 
+export const MAX_PRODUCT_PHOTOS = 10;
+
 export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
   switch (type) {
     case 'physical':
@@ -728,8 +730,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 150.000',
-        photoLabel: 'Foto Barang (1-5 Foto) *',
-        photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
+        photoLabel: 'Foto Barang (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto barang fisik beresolusi jelas.',
         videoLabel: 'Video Review / Unboxing (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
@@ -796,8 +798,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 350.000',
-        photoLabel: 'Foto Satwa & Kondisi Nyata (1-5 Foto) *',
-        photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
+        photoLabel: 'Foto Satwa & Kondisi Nyata (1-10 Foto) *',
+        photoHelper: 'Unggah hingga 10 foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
         videoLabel: 'Video Satwa / Feeding Video (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
@@ -830,8 +832,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance'],
         priceLabel: 'Tarif Layanan (IDR) *',
         pricePlaceholder: 'Contoh: 120.000 / Mulai dari Rp 100.000',
-        photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-5 Foto) *',
-        photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
+        photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-10 Foto) *',
+        photoHelper: 'Unggah hingga 10 foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
         videoLabel: 'Video Dokumentasi / Hasil Kerja (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Area Layanan, Reservasi & Ketentuan Pengerjaan',
@@ -867,8 +869,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 35.000',
-        photoLabel: 'Foto Produk / Penyajian (1-5 Foto) *',
-        photoHelper: 'Unggah 1 hingga 5 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
+        photoLabel: 'Foto Produk / Penyajian (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
         videoLabel: 'Video Produk / Penyajian (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
@@ -914,8 +916,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         priceLabel: 'Harga Properti (IDR) *',
         pricePlaceholder: 'Contoh: 850.000.000 (Jual) / 35.000.000 (Sewa/Tahun)',
-        photoLabel: 'Foto Properti & Interior (1-5 Foto) *',
-        photoHelper: 'Unggah 1 hingga 5 foto fasad depan, ruang keluarga, kamar tidur, dapur, dan lingkungan.',
+        photoLabel: 'Foto Properti & Interior (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto fasad depan, ruang keluarga, kamar tidur, dapur, dan lingkungan.',
         videoLabel: 'Video Virtual Tour / Showcase Properti (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Akses & Ketentuan Booking / Survey Lokasi',
@@ -7954,6 +7956,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [crudImages, setCrudImages] = useState<string[]>([''])
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0)
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
+  const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false)
 
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<ShopSettings>(() => ({
@@ -10911,12 +10914,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     const filteredImages = crudImages.map(img => img.trim()).filter(Boolean)
     if (filteredImages.length === 0) {
-      setCrudError('Minimal harus menginput 1 foto.')
+      const msg = 'Minimal harus menginput 1 foto.'
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
-    if (filteredImages.length > 5) {
-      setCrudError('Maksimal hanya dapat menginput 5 foto.')
+    if (filteredImages.length > MAX_PRODUCT_PHOTOS) {
+      const msg = `Maksimal hanya dapat menginput ${MAX_PRODUCT_PHOTOS} foto.`
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
@@ -10928,17 +10935,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const isNoShipping = termsVal.toLowerCase().includes('ambil sendiri') || termsVal.toLowerCase().includes('pickup only') || termsVal.toLowerCase().includes('dine-in') || termsVal.toLowerCase().includes('no shipping')
 
     if (!selectedClass) {
-      setCrudError(`${typeConfig.categoryLabel.replace('*', '').trim()} wajib diisi.`)
+      const msg = `${typeConfig.categoryLabel.replace('*', '').trim()} wajib diisi.`
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
     if (crudForm.product_type === 'fauna' && !selectedHabitat) {
-      setCrudError('Habitat wajib diisi.')
+      const msg = 'Habitat wajib diisi.'
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
     if (crudForm.product_type === 'fauna' && !selectedConservationStatus) {
-      setCrudError('Status ketersediaan / konservasi wajib diisi.')
+      const msg = 'Status ketersediaan / konservasi wajib diisi.'
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
@@ -11055,6 +11068,58 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setCrudError('Koneksi terputus ke server saat mengunggah gambar.')
     } finally {
       setUploadingIndex(null)
+    }
+  }
+
+  // Handle Multiple Files Upload at once from Device
+  const handleBatchImageUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return
+    setIsBatchUploading(true)
+    setCrudError(null)
+
+    const fileArray = Array.from(files)
+    if (fileArray.length > MAX_PRODUCT_PHOTOS) {
+      showToast(`Maksimal ${MAX_PRODUCT_PHOTOS} foto. Hanya ${MAX_PRODUCT_PHOTOS} foto pertama yang akan diproses.`, 'info')
+    }
+    const filesToUpload = fileArray.slice(0, MAX_PRODUCT_PHOTOS)
+
+    try {
+      const uploadPromises = filesToUpload.map(async (file) => {
+        const formData = new FormData()
+        formData.append('image', file)
+        const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: formData
+        })
+        const data = await res.json()
+        if (res.ok && data.success && data.url) {
+          return data.url
+        }
+        return null
+      })
+
+      const results = await Promise.all(uploadPromises)
+      const successfulUrls = results.filter(Boolean) as string[]
+
+      if (successfulUrls.length > 0) {
+        setCrudImages(prev => {
+          const existing = prev.map(u => u.trim()).filter(Boolean)
+          const combined = [...existing, ...successfulUrls].slice(0, MAX_PRODUCT_PHOTOS)
+          return combined.length > 0 ? combined : ['']
+        })
+        showToast(`${successfulUrls.length} foto berhasil diunggah!`)
+      } else {
+        showToast('Gagal mengunggah foto. Pastikan format file gambar valid.', 'error')
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Koneksi terputus saat mengunggah foto.', 'error')
+    } finally {
+      setIsBatchUploading(false)
     }
   }
 
@@ -25026,14 +25091,50 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </p>
                         </div>
                         {crudImages.length < MAX_PRODUCT_PHOTOS && (
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '0.45rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                            onClick={() => setCrudImages([...crudImages, ''])}
-                          >
-                            <span>+ Tambah Foto</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                            <label
+                              className="btn-secondary"
+                              style={{
+                                padding: '0.4rem 0.85rem',
+                                fontSize: '0.8rem',
+                                borderRadius: '0.45rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                cursor: isBatchUploading ? 'not-allowed' : 'pointer',
+                                opacity: isBatchUploading ? 0.7 : 1
+                              }}
+                              title="Pilih dan unggah banyak foto sekaligus langsung dari perangkat Anda"
+                            >
+                              {isBatchUploading ? (
+                                <Loader size={14} className="animate-spin" />
+                              ) : (
+                                <Upload size={14} />
+                              )}
+                              <span>{isBatchUploading ? 'Mengunggah...' : 'Upload Sekaligus'}</span>
+                              <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                disabled={isBatchUploading}
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files.length > 0) {
+                                    handleBatchImageUpload(e.target.files);
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '0.45rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              onClick={() => setCrudImages([...crudImages, ''])}
+                            >
+                              <span>+ Tambah Baris</span>
+                            </button>
+                          </div>
                         )}
                       </div>
 
