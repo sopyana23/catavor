@@ -11179,12 +11179,15 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     const formData = new FormData()
     formData.append('image', file)
 
+    const currentSlug = getStoreSlug() || (window.location.pathname.toLowerCase().includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : storeSlug) || '';
+
     try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=branding`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=branding${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
         },
         body: formData
       })
@@ -11192,6 +11195,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       const data = await res.json()
       if (res.ok && data.success) {
         setSettingsForm(prev => ({ ...prev, store_logo_url: data.url }))
+        fetchMyQuota()
         showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo katalog.')
       } else {
         showToast(data.message || 'Gagal mengunggah gambar logo.', 'error')
@@ -11521,6 +11525,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         setAdminSubTab('items')
         resetCrudState('physical')
         loadData()
+        fetchMyQuota()
         showToast('Item katalog berhasil disimpan!')
       } else {
         if (res.status === 401) {
@@ -11543,6 +11548,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     }
   }
 
+  // Format storage helper for UI
+  const formatStorageValue = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return '0 KB';
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1024) return mb >= 10 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+    return `${(mb / 1024).toFixed(1)} GB`;
+  };
+
   // Handle File Upload from Device
   const handleImageUpload = async (index: number, file: File) => {
     setUploadingIndex(index)
@@ -11551,12 +11565,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     const formData = new FormData()
     formData.append('image', file)
 
+    const currentSlug = getStoreSlug() || (window.location.pathname.toLowerCase().includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : storeSlug) || '';
+
     try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
         },
         body: formData
       })
@@ -11566,6 +11583,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         const newImages = [...crudImages]
         newImages[index] = data.url
         setCrudImages(newImages)
+        fetchMyQuota()
       } else {
         setCrudError(data.message || 'Gagal mengunggah gambar.')
       }
@@ -11588,16 +11606,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       showToast(`Maksimal ${MAX_PRODUCT_PHOTOS} foto. Hanya ${MAX_PRODUCT_PHOTOS} foto pertama yang akan diproses.`, 'info')
     }
     const filesToUpload = fileArray.slice(0, MAX_PRODUCT_PHOTOS)
+    const currentSlug = getStoreSlug() || (window.location.pathname.toLowerCase().includes('/admin') && !isPlatformAdmin(adminUser) ? (storeSlug || adminUser?.store_slug) : storeSlug) || '';
 
     try {
       const uploadPromises = filesToUpload.map(async (file) => {
         const formData = new FormData()
         formData.append('image', file)
-        const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
+        const res = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
           method: 'POST',
           headers: {
             'Accept': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
           },
           body: formData
         })
@@ -11617,6 +11637,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           const combined = [...existing, ...successfulUrls].slice(0, MAX_PRODUCT_PHOTOS)
           return combined.length > 0 ? combined : ['']
         })
+        fetchMyQuota()
         showToast(`${successfulUrls.length} foto berhasil diunggah!`)
       } else {
         showToast('Gagal mengunggah foto. Pastikan format file gambar valid.', 'error')
@@ -20120,7 +20141,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <Database size={13} style={{ color: 'var(--text-secondary)' }} />
                         <span>
-                          Storage: <strong style={{ color: 'var(--text-primary)' }}>{((storeQuota?.storage_used_bytes || 0) / (1024 * 1024)).toFixed(1)}</strong> MB
+                          Storage: <strong style={{ color: 'var(--text-primary)' }}>{formatStorageValue(storeQuota?.storage_used_bytes || 0)}</strong>
                         </span>
                       </div>
                     </div>

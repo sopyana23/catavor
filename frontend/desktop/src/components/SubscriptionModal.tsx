@@ -1611,13 +1611,17 @@ export const QuotaDashboardWidget: React.FC<{
   const isUnlimited = quota.max_items === -1;
 
   const formatStorageShort = (bytes: number): string => {
-    if (!bytes || bytes <= 0) return '0 MB';
-    const gb = bytes / (1024 * 1024 * 1024);
-    if (gb >= 1) {
-      return gb % 1 === 0 ? `${gb.toFixed(0)} GB` : `${gb.toFixed(1)} GB`;
+    if (!bytes || bytes <= 0) return '0 KB';
+    if (bytes < 1024 * 1024) {
+      const kb = Math.round(bytes / 1024);
+      return `${kb} KB`;
     }
     const mb = bytes / (1024 * 1024);
-    return mb % 1 === 0 ? `${mb.toFixed(0)} MB` : `${mb.toFixed(1)} MB`;
+    if (mb < 1024) {
+      return mb >= 10 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+    }
+    const gb = mb / 1024;
+    return gb % 1 === 0 ? `${gb.toFixed(0)} GB` : `${gb.toFixed(1)} GB`;
   };
 
   return (
