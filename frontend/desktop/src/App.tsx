@@ -10974,6 +10974,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       is_shipping_available: !isNoShipping,
       description: crudForm.description,
       image_url: filteredImages[0],
+      gallery_images: filteredImages,
       product_type: crudForm.product_type,
       attributes: {
         ...crudForm.attributes,

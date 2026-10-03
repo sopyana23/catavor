@@ -268,17 +268,30 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
-	// Process multi-images gallery if provided
-	if len(req.GalleryImages) > 0 {
+	// Process multi-images gallery if provided (direct or fallback to detailed_info.images)
+	galleryImages := req.GalleryImages
+	if len(galleryImages) == 0 && req.DetailedInfo != nil {
+		if rawImgs, ok := req.DetailedInfo["images"]; ok {
+			if slice, ok := rawImgs.([]interface{}); ok {
+				for _, item := range slice {
+					if str, ok := item.(string); ok && strings.TrimSpace(str) != "" {
+						galleryImages = append(galleryImages, strings.TrimSpace(str))
+					}
+				}
+			}
+		}
+	}
+
+	if len(galleryImages) > 0 {
 		const maxImages = 10
-		if len(req.GalleryImages) > maxImages {
+		if len(galleryImages) > maxImages {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
 			})
 		}
 
-		for idx, imgURL := range req.GalleryImages {
+		for idx, imgURL := range galleryImages {
 			cleanURL := security.SanitizeURL(imgURL)
 			if cleanURL != "" {
 				prodImg := models.ProductImage{
@@ -467,10 +480,23 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	// Update gallery images if provided
-	if len(req.GalleryImages) > 0 {
+	// Update gallery images if provided (direct or fallback to detailed_info.images)
+	updateGallery := req.GalleryImages
+	if len(updateGallery) == 0 && req.DetailedInfo != nil {
+		if rawImgs, ok := req.DetailedInfo["images"]; ok {
+			if slice, ok := rawImgs.([]interface{}); ok {
+				for _, item := range slice {
+					if str, ok := item.(string); ok && strings.TrimSpace(str) != "" {
+						updateGallery = append(updateGallery, strings.TrimSpace(str))
+					}
+				}
+			}
+		}
+	}
+
+	if len(updateGallery) > 0 {
 		const maxImages = 10
-		if len(req.GalleryImages) > maxImages {
+		if len(updateGallery) > maxImages {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
@@ -478,7 +504,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		}
 
 		database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductImage{})
-		for idx, imgURL := range req.GalleryImages {
+		for idx, imgURL := range updateGallery {
 			cleanURL := security.SanitizeURL(imgURL)
 			if cleanURL != "" {
 				prodImg := models.ProductImage{
