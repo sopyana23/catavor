@@ -6335,6 +6335,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const activeDetailItemIdRef = useRef<string | null>(
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null
   )
+  const isDetailActiveRef = useRef<boolean>(false)
+  useEffect(() => {
+    isDetailActiveRef.current = isDetailActive;
+    if (isDetailActive) {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+    }
+  }, [isDetailActive]);
   const [displayLimit, setDisplayLimit] = useState<number>(10)
   const catalogScrollYRef = useRef<number>(0)
   const [isFilterHidden, setIsFilterHidden] = useState<boolean>(false)
@@ -8881,7 +8890,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           } else {
             openDetailsSheet(parseInt(popItemId, 10));
           }
-        } else if (isDetailActive || activeDetailItemIdRef.current) {
+        } else if (isDetailActive || activeDetailItemIdRef.current || isDetailActiveRef.current) {
           handleCloseDetailSheet();
         }
 
@@ -12196,16 +12205,35 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     }
   }
 
-  // Close Details Sheet with Clean Scroll Restoration (Zero Layout Shift)
+  // Close Details Sheet with Clean Scroll to Top (Specifically when returning from item detail page)
   const handleCloseDetailSheet = () => {
+    const wasDetail = isDetailActiveRef.current || !!activeDetailItemIdRef.current || isDetailActive;
     activeDetailItemIdRef.current = null
-    const savedScrollPos = catalogScrollYRef.current || 0
+    isDetailActiveRef.current = false
     setIsFilterHidden(false)
     setIsDetailActive(false)
     setSelectedFauna(null)
-    setTimeout(() => {
-      window.scrollTo({ top: savedScrollPos, behavior: 'instant' })
-    }, 0)
+
+    if (wasDetail) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      });
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      }, 50);
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      }, 150);
+    }
   }
 
   // Get recommendations for mobile (3-Tier Waterfall Algorithm: Same Class+Type -> Same Type -> Other Store Items)
@@ -15276,7 +15304,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 <button 
                   type="button" 
                   className="btn-secondary"
-                  onClick={handleCloseDetailSheet}
+                  onClick={() => smartBack(() => {
+                    handleCloseDetailSheet();
+                    const slug = storeSlug || getStoreSlug() || '';
+                    if (slug) {
+                      window.history.replaceState({}, '', '/' + slug);
+                    }
+                  })}
                   style={{ flex: 1, height: '42px', fontSize: '0.85rem', borderRadius: '0.35rem' }}
                 >
                   Kembali
