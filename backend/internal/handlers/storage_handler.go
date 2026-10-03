@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -191,15 +192,30 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
 		storeID = storeVal.ID
 	}
+	if storeID == 0 {
+		slug := strings.TrimSpace(c.Get("X-Store-Slug"))
+		if slug == "" {
+			slug = strings.TrimSpace(c.Query("slug", c.FormValue("slug", "")))
+		}
+		if slug != "" {
+			var s models.Store
+			if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&s).Error; err == nil {
+				storeID = s.ID
+			}
+		}
+	}
 
 	var userID uint = 0
 	if userVal, ok := c.Locals("user").(*models.User); ok && userVal != nil {
 		userID = userVal.ID
 	}
 
+	// Capture buffer length BEFORE passing it to storage.Upload (which consumes the buffer)
+	uploadSize := int64(buf.Len())
+
 	// Validate Storage Quota for Store Media (excluding pure support tickets)
 	if storeID > 0 && category != "support" {
-		if allowed, msg := services.CanUploadStorage(h.db, storeID, int64(buf.Len())); !allowed {
+		if allowed, msg := services.CanUploadStorage(h.db, storeID, uploadSize); !allowed {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"message": msg,
@@ -225,7 +241,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	}
 
 	// 7. Store via Abstracted Storage Service (Local / S3 / MinIO)
-	fileURL, err := h.storage.Upload(c.Context(), objectKey, buf, int64(buf.Len()), contentType)
+	fileURL, err := h.storage.Upload(c.Context(), objectKey, buf, uploadSize, contentType)
 	if err != nil {
 		log.Error().Err(err).Str("key", objectKey).Msg("Failed to upload object to storage")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -234,9 +250,9 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		})
 	}
 
-	// Atomically increment store storage_used_bytes
-	if storeID > 0 {
-		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", int64(buf.Len())))
+	// Atomically increment store storage_used_bytes with real upload size
+	if storeID > 0 && uploadSize > 0 {
+		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", uploadSize))
 		database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	}
 
@@ -291,6 +307,12 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
+	var deletedSize int64 = 0
+	targetPath := filepath.Join("public", "storage", filepath.FromSlash(cleanKey))
+	if fi, err := os.Stat(targetPath); err == nil {
+		deletedSize = fi.Size()
+	}
+
 	if err := h.storage.Delete(c.Context(), cleanKey); err != nil {
 		log.Error().Err(err).Str("key", cleanKey).Msg("Failed to delete object from storage")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -299,6 +321,9 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
+	if store != nil && store.ID > 0 && deletedSize > 0 {
+		h.db.Model(&models.Store{}).Where("id = ?", store.ID).UpdateColumn("storage_used_bytes", gorm.Expr("GREATEST(0, storage_used_bytes - ?)", deletedSize))
+	}
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	return c.JSON(fiber.Map{

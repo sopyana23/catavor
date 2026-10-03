@@ -10664,12 +10664,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const formData = new FormData()
     formData.append('image', file)
 
+    const currentSlug = getStoreSlug() || storeSlug || '';
+
     try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=branding`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=branding${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
         },
         body: formData
       })
@@ -10677,6 +10680,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const data = await res.json()
       if (res.ok && data.success) {
         setSettingsForm(prev => ({ ...prev, store_logo_url: data.url }))
+        fetchMyQuota()
         showToast('Logo berhasil dipilih! Klik "Simpan Pengaturan" di bawah untuk mengaplikasikan logo katalog.')
       } else {
         showToast(data.message || 'Gagal mengunggah gambar logo.', 'error')
@@ -11016,6 +11020,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setShowCrudModal(false)
         resetCrudState('physical')
         loadData()
+        fetchMyQuota()
         showToast('Item katalog berhasil disimpan!')
       } else {
         if (res.status === 401) {
@@ -11046,12 +11051,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const formData = new FormData()
     formData.append('image', file)
 
+    const currentSlug = getStoreSlug() || storeSlug || '';
+
     try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
+      const res = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
         },
         body: formData
       })
@@ -11061,6 +11069,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         const newImages = [...crudImages]
         newImages[index] = data.url
         setCrudImages(newImages)
+        fetchMyQuota()
       } else {
         setCrudError(data.message || 'Gagal mengunggah gambar.')
       }
@@ -11083,16 +11092,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
       showToast(`Maksimal ${MAX_PRODUCT_PHOTOS} foto. Hanya ${MAX_PRODUCT_PHOTOS} foto pertama yang akan diproses.`, 'info')
     }
     const filesToUpload = fileArray.slice(0, MAX_PRODUCT_PHOTOS)
+    const currentSlug = getStoreSlug() || storeSlug || '';
 
     try {
       const uploadPromises = filesToUpload.map(async (file) => {
         const formData = new FormData()
         formData.append('image', file)
-        const res = await fetch(`${API_BASE}/storage/upload?category=products`, {
+        const res = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
           method: 'POST',
           headers: {
             'Accept': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
           },
           body: formData
         })
@@ -11112,6 +11123,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const combined = [...existing, ...successfulUrls].slice(0, MAX_PRODUCT_PHOTOS)
           return combined.length > 0 ? combined : ['']
         })
+        fetchMyQuota()
         showToast(`${successfulUrls.length} foto berhasil diunggah!`)
       } else {
         showToast('Gagal mengunggah foto. Pastikan format file gambar valid.', 'error')

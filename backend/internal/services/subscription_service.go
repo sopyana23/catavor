@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -151,6 +153,10 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	var store models.Store
 	if err := db.First(&store, storeID).Error; err != nil {
 		return nil, err
+	}
+
+	if store.StorageUsedBytes <= 0 {
+		store.StorageUsedBytes = SyncStoreStorageUsed(db, storeID)
 	}
 
 	planCode := store.Plan
@@ -655,3 +661,81 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	return GetStoreQuotaInfo(db, storeID)
 }
+
+// SyncStoreStorageUsed audits and calculates the actual disk storage usage of a store
+func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
+	var totalBytes int64 = 0
+
+	// 1. Walk physical storage folder for this store: public/storage/stores/<storeID>
+	storeDir := filepath.Join("public", "storage", "stores", fmt.Sprintf("%d", storeID))
+	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
+		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
+			if err == nil && !f.IsDir() {
+				totalBytes += f.Size()
+			}
+			return nil
+		})
+	}
+
+	// 2. Also check product images belonging to this store whose files are stored locally
+	// (handles cases where files were stored under another folder before strict slug routing)
+	countedFiles := make(map[string]bool)
+	var products []models.Product
+	db.Select("id, image_url, detailed_info").Where("store_id = ?", storeID).Find(&products)
+	for _, p := range products {
+		checkAndAddLocalFile := func(rawURL string) {
+			if strings.TrimSpace(rawURL) == "" {
+				return
+			}
+			idx := strings.Index(rawURL, "/storage/")
+			if idx != -1 {
+				relPath := rawURL[idx+len("/storage/"):]
+				localPath := filepath.Join("public", "storage", filepath.FromSlash(relPath))
+				if !strings.HasPrefix(filepath.ToSlash(relPath), fmt.Sprintf("stores/%d/", storeID)) {
+					if !countedFiles[localPath] {
+						countedFiles[localPath] = true
+						if fi, err := os.Stat(localPath); err == nil && !fi.IsDir() {
+							totalBytes += fi.Size()
+						}
+					}
+				}
+			}
+		}
+
+		checkAndAddLocalFile(p.ImageURL)
+
+		if len(p.DetailedInfo) > 0 {
+			var dInfo map[string]interface{}
+			if err := json.Unmarshal(p.DetailedInfo, &dInfo); err == nil {
+				if rawImages, ok := dInfo["images"].([]interface{}); ok {
+					for _, itm := range rawImages {
+						if str, ok := itm.(string); ok {
+							checkAndAddLocalFile(str)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Check branding logo
+	var store models.Store
+	if err := db.Select("id, store_logo_url").First(&store, storeID).Error; err == nil && store.StoreLogoURL != "" {
+		idx := strings.Index(store.StoreLogoURL, "/storage/")
+		if idx != -1 {
+			relPath := store.StoreLogoURL[idx+len("/storage/"):]
+			localPath := filepath.Join("public", "storage", filepath.FromSlash(relPath))
+			if !strings.HasPrefix(filepath.ToSlash(relPath), fmt.Sprintf("stores/%d/", storeID)) && !countedFiles[localPath] {
+				countedFiles[localPath] = true
+				if fi, err := os.Stat(localPath); err == nil && !fi.IsDir() {
+					totalBytes += fi.Size()
+				}
+			}
+		}
+	}
+
+	// Update DB record
+	db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", totalBytes)
+	return totalBytes
+}
+
