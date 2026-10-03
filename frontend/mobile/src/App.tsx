@@ -14932,28 +14932,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               }} 
                               onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }}
                             />
-                            {idx === 0 && (
-                              <span 
-                                style={{ 
-                                  position: 'absolute', 
-                                  bottom: '2px', 
-                                  left: '50%', 
-                                  transform: 'translateX(-50%)', 
-                                  background: 'rgba(15, 23, 42, 0.85)', 
-                                  color: '#38bdf8', 
-                                  fontSize: '0.5rem', 
-                                  fontWeight: 800, 
-                                  padding: '1px 3px', 
-                                  borderRadius: '2px', 
-                                  whiteSpace: 'nowrap', 
-                                  pointerEvents: 'none',
-                                  letterSpacing: '0.02em',
-                                  border: '0.5px solid rgba(56, 189, 248, 0.4)'
-                                }}
-                              >
-                                UTAMA
-                              </span>
-                            )}
                           </button>
                         );
                       })}
