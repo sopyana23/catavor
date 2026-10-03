@@ -1835,11 +1835,11 @@ export const ProductDescriptionView: React.FC<{ description?: string; isMobile?:
 };
 
 export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boolean }> = ({ item, isMobile = true }) => {
-  if (!item) return null;
-  const pType = item.product_type || 'fauna';
+  const pType = item?.product_type || 'fauna';
   const [isExpanded, setIsExpanded] = useState(false);
 
   const infoItems = useMemo(() => {
+    if (!item) return [];
     const list: {
       id: string;
       label: string;
@@ -1936,15 +1936,13 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
     return list;
   }, [item, pType]);
 
-  const [activeTabId, setActiveTabId] = useState<string>(() => infoItems[0]?.id || '');
+  const [activeTabId, setActiveTabId] = useState<string>('');
 
   useEffect(() => {
     if (infoItems.length > 0 && !infoItems.some(it => it.id === activeTabId)) {
       setActiveTabId(infoItems[0].id);
     }
   }, [infoItems, activeTabId]);
-
-  if (infoItems.length === 0) return null;
 
   const currentItem = infoItems.find(it => it.id === activeTabId) || infoItems[0];
   const hasMultiple = infoItems.length > 1;
@@ -1978,6 +1976,9 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
     }
     return text;
   }, [currentItem]);
+
+  // Ensure all hooks are executed unconditionally before returning null
+  if (!item || infoItems.length === 0) return null;
 
   const isLong = cleanContent.length > 200 || cleanContent.split('\n').length > 3;
 
