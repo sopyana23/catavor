@@ -1,14 +1,20 @@
-import React, { useMemo, useState } from 'react';
-import { ExternalLink, Play, Film, AlertCircle } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { ExternalLink, Play } from 'lucide-react';
 
 export interface ParsedVideoInfo {
-  platform: 'youtube' | 'tiktok' | 'instagram' | 'direct' | 'unknown';
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'twitter' | 'pinterest' | 'direct' | 'unknown';
   embedUrl: string;
   originalUrl: string;
   platformLabel: string;
   isValid: boolean;
-  isShortLink?: boolean;
-  shortLinkNote?: string;
+  creatorHandle?: string;
+  isNativeIframeSupported: boolean;
+  brandAccent: string;
+  brandGlow: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeIcon: string;
+  cardBackground: string;
 }
 
 export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo | null {
@@ -17,66 +23,147 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
   if (!raw) return null;
 
   try {
+    // 1. YouTube & YouTube Shorts (Native iframe supported & reliable)
     const ytMatch = raw.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
     if (ytMatch && ytMatch[1]) {
+      const isShorts = raw.includes('shorts');
       return {
         platform: 'youtube',
         embedUrl: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=0&rel=0&modestbranding=1`,
         originalUrl: raw,
-        platformLabel: raw.includes('shorts') ? 'YouTube Shorts' : 'YouTube Video',
-        isValid: true
+        platformLabel: isShorts ? 'YouTube Shorts' : 'YouTube Video',
+        isValid: true,
+        isNativeIframeSupported: true,
+        brandAccent: '#ff0000',
+        brandGlow: 'rgba(239, 68, 68, 0.35)',
+        badgeBg: '#ff0000',
+        badgeText: isShorts ? 'YouTube Shorts' : 'YouTube Video',
+        badgeIcon: '▶',
+        cardBackground: 'linear-gradient(135deg, #120a0d 0%, #1f0d14 100%)'
       };
     }
 
-    // Matches standard full desktop links: tiktok.com/@user/video/1234567890 or /v/1234567890
-    const ttIdMatch = raw.match(/tiktok\.com\/(?:@?[^\/]+\/video|v|embed\/v2|embed|player\/v1)\/(\d+)/i);
-    if (ttIdMatch && ttIdMatch[1]) {
-      return {
-        platform: 'tiktok',
-        embedUrl: `https://www.tiktok.com/embed/v2/${ttIdMatch[1]}`,
-        originalUrl: raw,
-        platformLabel: 'TikTok Video',
-        isValid: true
-      };
-    }
-
+    // 2. TikTok (App share links vt.tiktok.com, vm.tiktok.com, or full browser links)
     if (raw.includes('tiktok.com')) {
-      const isShort = raw.includes('vt.tiktok.com') || raw.includes('vm.tiktok.com') || raw.includes('/t/');
+      const handleMatch = raw.match(/tiktok\.com\/@([a-zA-Z0-9_.-]+)/i);
+      const handle = handleMatch && handleMatch[1] ? `@${handleMatch[1]}` : undefined;
       return {
         platform: 'tiktok',
         embedUrl: '',
         originalUrl: raw,
-        platformLabel: isShort ? 'TikTok Short Link' : 'TikTok Link',
+        platformLabel: 'TikTok',
         isValid: true,
-        isShortLink: true,
-        shortLinkNote: isShort
-          ? 'Tautan pendek aplikasi (vt.tiktok.com) tidak dapat diputar langsung di iframe karena kebijakan keamanan TikTok. Calon pembeli dapat menonton via tombol langsung di bawah. Untuk memunculkan pemutar langsung di katalog, salin URL lengkap dari browser (tiktok.com/@username/video/1234567890).'
-          : 'Tautan video TikTok dapat dibuka langsung oleh calon pembeli di aplikasi TikTok.'
+        creatorHandle: handle,
+        isNativeIframeSupported: false,
+        brandAccent: '#00f2fe',
+        brandGlow: 'rgba(0, 242, 254, 0.35)',
+        badgeBg: '#000000',
+        badgeText: 'TikTok Video',
+        badgeIcon: '🎵',
+        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(0, 242, 254, 0.14) 0%, rgba(254, 44, 85, 0.1) 45%, #070c18 85%)'
       };
     }
 
-    const igMatch = raw.match(/instagram\.com\/(?:reel|p)\/([a-zA-Z0-9_-]+)/i);
-    if (igMatch && igMatch[1]) {
+    // 3. Instagram Reels / Posts / TV
+    if (raw.includes('instagram.com')) {
+      const handleMatch = raw.match(/instagram\.com\/([a-zA-Z0-9_.-]+)\/(?:reel|p)\//i);
+      const handle = handleMatch && handleMatch[1] && !['reel', 'p', 'tv', 'stories'].includes(handleMatch[1]) ? `@${handleMatch[1]}` : undefined;
+      const isReel = raw.includes('/reel');
       return {
         platform: 'instagram',
-        embedUrl: `https://www.instagram.com/p/${igMatch[1]}/embed/captioned/`,
+        embedUrl: '',
         originalUrl: raw,
-        platformLabel: raw.includes('reel') ? 'Instagram Reel' : 'Instagram Post',
-        isValid: true
+        platformLabel: 'Instagram',
+        isValid: true,
+        creatorHandle: handle,
+        isNativeIframeSupported: false,
+        brandAccent: '#e1306c',
+        brandGlow: 'rgba(225, 48, 108, 0.35)',
+        badgeBg: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+        badgeText: isReel ? 'Instagram Reel' : 'Instagram Video',
+        badgeIcon: '📸',
+        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(225, 48, 108, 0.15) 0%, rgba(240, 148, 51, 0.08) 45%, #0e0916 85%)'
       };
     }
 
+    // 4. Facebook Video / Reels
+    if (raw.includes('facebook.com') || raw.includes('fb.watch')) {
+      const isReel = raw.includes('/reel');
+      return {
+        platform: 'facebook',
+        embedUrl: '',
+        originalUrl: raw,
+        platformLabel: 'Facebook',
+        isValid: true,
+        isNativeIframeSupported: false,
+        brandAccent: '#1877f2',
+        brandGlow: 'rgba(24, 119, 242, 0.35)',
+        badgeBg: '#1877f2',
+        badgeText: isReel ? 'Facebook Reel' : 'Facebook Video',
+        badgeIcon: '📘',
+        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(24, 119, 242, 0.15) 0%, rgba(13, 30, 60, 0.2) 50%, #090e1a 85%)'
+      };
+    }
+
+    // 5. X / Twitter Video
+    if (raw.includes('twitter.com') || raw.includes('x.com')) {
+      const handleMatch = raw.match(/(?:twitter\.com|x\.com)\/([a-zA-Z0-9_]+)\/status/i);
+      const handle = handleMatch && handleMatch[1] && handleMatch[1].toLowerCase() !== 'i' ? `@${handleMatch[1]}` : undefined;
+      return {
+        platform: 'twitter',
+        embedUrl: '',
+        originalUrl: raw,
+        platformLabel: 'X (Twitter)',
+        isValid: true,
+        creatorHandle: handle,
+        isNativeIframeSupported: false,
+        brandAccent: '#1d9bf0',
+        brandGlow: 'rgba(29, 155, 240, 0.35)',
+        badgeBg: '#000000',
+        badgeText: 'Video di X',
+        badgeIcon: '𝕏',
+        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(29, 155, 240, 0.12) 0%, rgba(20, 30, 45, 0.25) 50%, #080c14 85%)'
+      };
+    }
+
+    // 6. Pinterest Video
+    if (raw.includes('pinterest.com') || raw.includes('pin.it')) {
+      return {
+        platform: 'pinterest',
+        embedUrl: '',
+        originalUrl: raw,
+        platformLabel: 'Pinterest',
+        isValid: true,
+        isNativeIframeSupported: false,
+        brandAccent: '#e60023',
+        brandGlow: 'rgba(230, 0, 35, 0.35)',
+        badgeBg: '#e60023',
+        badgeText: 'Pinterest Video',
+        badgeIcon: '📌',
+        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(230, 0, 35, 0.14) 0%, rgba(35, 12, 16, 0.25) 50%, #0f0709 85%)'
+      };
+    }
+
+    // 7. Direct MP4 / WebM / Generic Video URL
     if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      const isDirectFile = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(raw);
       return {
         platform: 'direct',
         embedUrl: raw,
         originalUrl: raw,
-        platformLabel: 'Video Tautan Langsung',
-        isValid: true
+        platformLabel: 'Video Showcase',
+        isValid: true,
+        isNativeIframeSupported: isDirectFile,
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
+        badgeBg: 'var(--primary, #10b981)',
+        badgeText: 'Video Produk',
+        badgeIcon: '▶',
+        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(16, 185, 129, 0.12) 0%, rgba(12, 28, 22, 0.25) 50%, #080f13 85%)'
       };
     }
-  } catch (e) {
-    console.error('Error parsing video URL:', e);
+  } catch (err) {
+    console.error('Failed to parse video URL:', err);
   }
 
   return null;
@@ -87,52 +174,12 @@ export const VideoPlayerEmbed: React.FC<{
   title?: string;
   isMobile?: boolean;
 }> = ({ url, title, isMobile = true }) => {
-  const [loadError, setLoadError] = useState(false);
   const parsed = useMemo(() => parseVideoUrl(url), [url]);
 
   if (!parsed || !parsed.isValid) return null;
 
-  if (loadError) {
-    return (
-      <div style={{
-        padding: '0.85rem',
-        borderRadius: '0.75rem',
-        background: 'rgba(239, 68, 68, 0.08)',
-        border: '1px solid rgba(239, 68, 68, 0.25)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-        color: 'var(--text-primary)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-          <AlertCircle size={15} style={{ color: '#ef4444' }} />
-          <span>Tidak dapat memuat pratinjau video di aplikasi.</span>
-        </div>
-        <a
-          href={parsed.originalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.35rem',
-            padding: '0.45rem 0.85rem',
-            borderRadius: '0.4rem',
-            background: 'var(--primary)',
-            color: '#fff',
-            fontSize: '0.78rem',
-            fontWeight: 700,
-            textDecoration: 'none'
-          }}
-        >
-          Tonton di {parsed.platformLabel} <ExternalLink size={12} />
-        </a>
-      </div>
-    );
-  }
-
-  if (parsed.platform === 'youtube') {
+  // 1. YouTube Player (Native iframe supported and reliable)
+  if (parsed.isNativeIframeSupported && parsed.platform === 'youtube') {
     return (
       <div style={{
         margin: '0.85rem 0',
@@ -174,92 +221,24 @@ export const VideoPlayerEmbed: React.FC<{
             rel="noopener noreferrer"
             style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, fontSize: '0.72rem' }}
           >
-            Buka <ExternalLink size={10} />
+            Buka YouTube <ExternalLink size={10} />
           </a>
         </div>
         <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden' }}>
           <iframe
             src={parsed.embedUrl}
-            title={title || 'Video Produk'}
+            title={title || 'Video Produk Catavor'}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
-            onError={() => setLoadError(true)}
           />
         </div>
       </div>
     );
   }
 
-  if (parsed.platform === 'tiktok' || parsed.platform === 'instagram') {
-    const isTikTok = parsed.platform === 'tiktok';
-
-    // If it's a short link or has no direct embedUrl, display a beautiful action card instead of a broken iframe
-    if (parsed.isShortLink || !parsed.embedUrl) {
-      return (
-        <div style={{
-          margin: '0.85rem 0',
-          borderRadius: '0.75rem',
-          overflow: 'hidden',
-          border: '1px solid var(--border-light)',
-          boxShadow: '0 6px 18px rgba(0,0,0,0.3)',
-          background: 'linear-gradient(135deg, #0b1220 0%, #111a2e 100%)',
-          padding: '1.15rem 1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          gap: '0.65rem'
-        }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.3rem 0.75rem',
-            borderRadius: '999px',
-            background: isTikTok ? '#000000' : 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-            color: '#fff',
-            fontSize: '0.72rem',
-            fontWeight: 800,
-            border: '1px solid rgba(255,255,255,0.2)'
-          }}>
-            {isTikTok ? '🎵 Video TikTok' : '📸 Video Instagram'}
-          </div>
-
-          <div>
-            <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-              {title || (isTikTok ? 'Tonton Video Showcase di TikTok' : 'Tonton Video Showcase di Instagram')}
-            </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', maxWidth: '320px', lineHeight: 1.45 }}>
-              {parsed.shortLinkNote || 'Video dapat disaksikan langsung oleh calon pembeli di aplikasi.'}
-            </div>
-          </div>
-
-          <a
-            href={parsed.originalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              padding: '0.5rem 1.15rem',
-              borderRadius: '0.55rem',
-              background: isTikTok ? 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)' : 'linear-gradient(45deg, #f09433 0%, #dc2743 100%)',
-              color: isTikTok ? '#000000' : '#ffffff',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              textDecoration: 'none',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)'
-            }}
-          >
-            <span>Buka di {isTikTok ? 'TikTok' : 'Instagram'}</span>
-            <ExternalLink size={12} />
-          </a>
-        </div>
-      );
-    }
-
+  // 2. Direct HTML5 Video Player if it is an actual video file (.mp4/.webm)
+  if (parsed.platform === 'direct' && parsed.isNativeIframeSupported) {
     return (
       <div style={{
         margin: '0.85rem 0',
@@ -267,92 +246,161 @@ export const VideoPlayerEmbed: React.FC<{
         overflow: 'hidden',
         border: '1px solid var(--border-light)',
         boxShadow: '0 6px 18px rgba(0,0,0,0.3)',
-        background: '#0a0f1d',
-        padding: '0.75rem',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center'
+        background: '#000000'
       }}>
-        <div style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '0.65rem',
-          paddingBottom: '0.45rem',
-          borderBottom: '1px solid var(--border-light)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{
-              padding: '2px 6px',
-              borderRadius: '3px',
-              background: isTikTok ? '#000000' : 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-              color: '#ffffff',
-              fontSize: '0.68rem',
-              fontWeight: 800,
-              border: '1px solid rgba(255,255,255,0.2)'
-            }}>
-              {isTikTok ? '🎵 TikTok' : '📸 Instagram'}
-            </span>
-            <strong style={{ fontSize: '0.78rem', color: 'var(--text-primary)' }}>{title || parsed.platformLabel}</strong>
-          </div>
-          <a
-            href={parsed.originalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, fontSize: '0.72rem' }}
-          >
-            Aplikasi <ExternalLink size={10} />
-          </a>
-        </div>
-
-        <div style={{ width: '100%', height: '420px', borderRadius: '0.45rem', overflow: 'hidden', background: '#000' }}>
-          <iframe
-            src={parsed.embedUrl}
-            title={title || 'Social Video Embed'}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            onError={() => setLoadError(true)}
-          />
-        </div>
-
-        <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.45 }}>
-          Jika pemutar dibatasi oleh privasi kreator/adblocker, calon pembeli tetap dapat{' '}
-          <a href={parsed.originalUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline', fontWeight: 600 }}>
-            membuka langsung di TikTok &rarr;
-          </a>
-        </div>
+        <video 
+          controls 
+          src={parsed.originalUrl} 
+          style={{ width: '100%', maxHeight: '380px', display: 'block' }} 
+        />
       </div>
     );
   }
 
+  // 3. Industry-Standard Rich Social Video Showcase Card (for TikTok, Instagram Reels, Facebook, X, etc.)
   return (
-    <div style={{ margin: '0.75rem 0' }}>
-      <a
-        href={parsed.originalUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
+    <a
+      href={parsed.originalUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="catavor-video-card"
+      style={{
+        '--card-accent': parsed.brandAccent,
+        '--card-glow': parsed.brandGlow,
+        margin: '0.85rem 0',
+        width: '100%',
+        padding: '1.15rem 1.1rem 1.05rem',
+        background: parsed.cardBackground,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '180px',
+        cursor: 'pointer'
+      } as React.CSSProperties}
+      title={`Tonton ${title || parsed.platformLabel} di ${parsed.platformLabel}`}
+    >
+      {/* Top Header: Badge + Creator Tag / External Icon */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+        <div style={{
           display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.45rem',
-          width: '100%',
-          padding: '0.65rem 1rem',
-          borderRadius: '0.5rem',
-          background: 'var(--primary)',
+          gap: '0.35rem',
+          padding: '0.28rem 0.65rem',
+          borderRadius: '999px',
+          background: parsed.badgeBg,
           color: '#ffffff',
-          fontWeight: 700,
-          fontSize: '0.82rem',
-          textDecoration: 'none'
-        }}
-      >
-        <Film size={15} />
-        <span>Tonton Video Preview ({parsed.platformLabel})</span>
-        <ExternalLink size={12} />
-      </a>
-    </div>
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          letterSpacing: '0.02em'
+        }}>
+          <span>{parsed.badgeIcon}</span>
+          <span>{parsed.badgeText}</span>
+        </div>
+
+        {parsed.creatorHandle ? (
+          <span style={{
+            fontSize: '0.7rem',
+            color: 'var(--text-secondary)',
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            padding: '0.18rem 0.5rem',
+            borderRadius: '5px',
+            fontWeight: 600,
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            {parsed.creatorHandle}
+          </span>
+        ) : (
+          <div style={{
+            width: '26px',
+            height: '26px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-secondary)',
+            border: '1px solid rgba(255, 255, 255, 0.06)'
+          }}>
+            <ExternalLink size={11} />
+          </div>
+        )}
+      </div>
+
+      {/* Center: Play Button */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0.65rem 0'
+      }}>
+        <div 
+          className="catavor-play-btn"
+          style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            border: `2px solid ${parsed.brandAccent}`,
+            boxShadow: `0 0 18px ${parsed.brandGlow}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            color: '#ffffff'
+          }}
+        >
+          <Play size={22} fill="#ffffff" color="#ffffff" style={{ marginLeft: '3px' }} />
+        </div>
+      </div>
+
+      {/* Bottom Footer: Video Title + Direct Watch CTA */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '0.65rem', width: '100%' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            color: '#ffffff',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            marginBottom: '0.15rem'
+          }}>
+            {title || 'Video Showcase Produk'}
+          </div>
+          <div style={{
+            fontSize: '0.68rem',
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem'
+          }}>
+            <span>Klik untuk menonton di {parsed.platformLabel}</span>
+            <ExternalLink size={10} />
+          </div>
+        </div>
+
+        <div style={{
+          flexShrink: 0,
+          padding: '0.32rem 0.7rem',
+          borderRadius: '0.45rem',
+          background: parsed.badgeBg,
+          color: '#ffffff',
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.2rem',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.35)',
+          border: '1px solid rgba(255, 255, 255, 0.2)'
+        }}>
+          <span>Tonton</span>
+          <span style={{ fontSize: '0.75rem' }}>&rarr;</span>
+        </div>
+      </div>
+    </a>
   );
 };
 
@@ -365,18 +413,18 @@ export const VideoPreviewInput: React.FC<{
   value,
   onChange,
   label = 'Link Video Showcase / Review (Opsional)',
-  placeholder = 'Tempel link video YouTube, Shorts, TikTok, atau Instagram Reels...'
+  placeholder = 'Tempel link video YouTube, TikTok, Instagram Reels, Facebook, dll...'
 }) => {
   const parsed = useMemo(() => parseVideoUrl(value), [value]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <label className="form-label" style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
           {label}
         </label>
-        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-          YouTube • Shorts • TikTok • Reels
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+          YouTube • TikTok • Reels • FB • X
         </span>
       </div>
       
@@ -387,23 +435,28 @@ export const VideoPreviewInput: React.FC<{
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ width: '100%', fontSize: '0.82rem', paddingRight: parsed?.isValid ? '90px' : '0.75rem' }}
+          style={{ width: '100%', fontSize: '0.82rem', paddingRight: parsed?.isValid ? '115px' : '0.85rem' }}
         />
         {parsed?.isValid && (
           <span style={{
             position: 'absolute',
-            right: '8px',
+            right: '6px',
             top: '50%',
             transform: 'translateY(-50%)',
-            fontSize: '0.65rem',
+            fontSize: '0.66rem',
             fontWeight: 700,
             padding: '2px 7px',
             borderRadius: '4px',
-            background: parsed.platform === 'youtube' ? 'rgba(239, 68, 68, 0.15)' : parsed.platform === 'tiktok' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(168, 85, 247, 0.15)',
-            border: `1px solid ${parsed.platform === 'youtube' ? 'rgba(239, 68, 68, 0.3)' : parsed.platform === 'tiktok' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(168, 85, 247, 0.3)'}`,
-            color: parsed.platform === 'youtube' ? '#f87171' : parsed.platform === 'tiktok' ? '#e5e7eb' : '#c084fc'
+            background: parsed.badgeBg,
+            border: `1px solid rgba(255, 255, 255, 0.25)`,
+            color: '#ffffff',
+            letterSpacing: '0.02em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.2rem'
           }}>
-            {parsed.platformLabel}
+            <span>{parsed.badgeIcon}</span>
+            <span>{parsed.badgeText}</span>
           </span>
         )}
       </div>
@@ -413,28 +466,23 @@ export const VideoPreviewInput: React.FC<{
         borderRadius: '0.5rem',
         backgroundColor: 'rgba(255, 255, 255, 0.02)',
         border: '1px solid var(--border-light)',
-        fontSize: '0.7rem',
+        fontSize: '0.71rem',
         color: 'var(--text-secondary)',
         lineHeight: 1.45
       }}>
-        <div style={{ marginBottom: '0.2rem' }}>
-          <strong style={{ color: 'var(--text-primary)' }}>Format Link yang Didukung:</strong>
+        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span>🎥 Dukungan Video Multi-Platform</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginBottom: '0.3rem' }}>
-          <div>• <strong>YouTube / Shorts:</strong> <code>youtube.com/watch?v=...</code> atau <code>youtu.be/...</code></div>
-          <div>• <strong>TikTok:</strong> Gunakan tautan lengkap browser <code>tiktok.com/@username/video/1234567890</code> agar pemutar dapat muncul langsung.</div>
-          <div>• <strong>Instagram:</strong> <code>instagram.com/reel/...</code> atau <code>instagram.com/p/...</code></div>
-        </div>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
-          <strong>Ketentuan Visibilitas:</strong> Pastikan video disetel ke <strong>Publik</strong>. Tautan pendek aplikasi seluler (seperti <code>vt.tiktok.com</code>) akan otomatis dialihkan ke aplikasi resmi TikTok.
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.69rem' }}>
+          Mendukung link video dari <strong>YouTube</strong>, <strong>TikTok</strong> (tautan aplikasi seluler maupun browser desktop), <strong>Instagram Reels</strong>, <strong>Facebook</strong>, dan <strong>X (Twitter)</strong>. Video akan tampil sebagai kartu showcase interaktif yang siap ditonton calon pembeli.
         </div>
       </div>
 
       {/* Live Video Preview in Form */}
       {parsed?.isValid && (
-        <div style={{ marginTop: '0.3rem', padding: '0.6rem', borderRadius: '0.55rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+        <div style={{ marginTop: '0.3rem', padding: '0.65rem', borderRadius: '0.6rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
           <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-            Pratinjau Pemutar Video:
+            Pratinjau Tampilan di Katalog Produk:
           </div>
           <VideoPlayerEmbed url={value} title="Pratinjau Video Produk" />
         </div>
