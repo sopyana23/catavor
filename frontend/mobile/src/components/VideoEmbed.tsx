@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ExternalLink, Play } from 'lucide-react';
+import { ExternalLink, Play, Video } from 'lucide-react';
 
 export interface ParsedVideoInfo {
   platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'twitter' | 'pinterest' | 'direct' | 'unknown';
@@ -16,6 +16,61 @@ export interface ParsedVideoInfo {
   badgeIcon: string;
   cardBackground: string;
 }
+
+/**
+ * Premium Official Platform Vector Brand Logos
+ * Guaranteed crisp, authentic vectors without cheap emojis or font artifacts.
+ * If no authentic vector is defined for a platform, returns null.
+ */
+export const PlatformBrandIcon: React.FC<{
+  platform: string;
+  size?: number;
+  color?: string;
+}> = ({ platform, size = 13, color = 'currentColor' }) => {
+  switch (platform.toLowerCase()) {
+    case 'tiktok':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.85.12V9.41a6.33 6.33 0 0 0-.85-.06A6.34 6.34 0 0 0 3.14 15.7a6.34 6.34 0 0 0 10.82 4.48c1.37-1.37 2.05-3.08 2.05-5.38V8.34a8.16 8.16 0 0 0 4.86 1.6V6.69z" />
+        </svg>
+      );
+    case 'instagram':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+        </svg>
+      );
+    case 'youtube':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+        </svg>
+      );
+    case 'facebook':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+      );
+    case 'twitter':
+    case 'x':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      );
+    case 'pinterest':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+          <path d="M12 0a12 12 0 0 0-4.37 23.18c-.06-.98-.12-2.5.02-3.57.14-.98 1.1-4.68 1.1-4.68s-.28-.56-.28-1.39c0-1.3.75-2.27 1.7-2.27.8 0 1.19.6 1.19 1.32 0 .8-.52 2.02-.78 3.14-.22.94.47 1.71 1.4 1.71 1.68 0 2.97-1.77 2.97-4.32 0-2.26-1.63-3.84-3.95-3.84-2.69 0-4.27 2.02-4.27 4.1 0 .81.31 1.68.7 2.16.08.1.09.18.06.32-.08.33-.25 1.02-.28 1.16-.04.18-.15.22-.35.13-1.3-.61-2.12-2.52-2.12-4.06 0-3.3 2.4-6.34 6.93-6.34 3.64 0 6.47 2.59 6.47 6.06 0 3.61-2.28 6.52-5.44 6.52-1.06 0-2.06-.55-2.4-1.2l-.65 2.5c-.24.91-.88 2.05-1.31 2.76A12 12 0 1 0 12 0z"/>
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
 
 export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo | null {
   if (!url || typeof url !== 'string') return null;
@@ -36,9 +91,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: true,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: '#ff0000',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: isShorts ? 'YouTube Shorts' : 'YouTube Video',
-        badgeIcon: '▶',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -57,9 +112,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: false,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: '#05070d',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: 'TikTok Video',
-        badgeIcon: '🎵',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -79,9 +134,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: false,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: isReel ? 'Instagram Reel' : 'Instagram Video',
-        badgeIcon: '📸',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -98,9 +153,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: false,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: '#1877f2',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: isReel ? 'Facebook Reel' : 'Facebook Video',
-        badgeIcon: '📘',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -119,9 +174,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: false,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: '#05070d',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: 'Video di X',
-        badgeIcon: '𝕏',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -137,9 +192,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: false,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: '#e60023',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: 'Pinterest Video',
-        badgeIcon: '📌',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -156,9 +211,9 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isNativeIframeSupported: isDirectFile,
         brandAccent: 'var(--primary, #10b981)',
         brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
-        badgeBg: 'var(--primary, #10b981)',
+        badgeBg: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
         badgeText: 'Video Produk',
-        badgeIcon: '▶',
+        badgeIcon: '',
         cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
@@ -204,15 +259,9 @@ export const VideoPlayerEmbed: React.FC<{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '18px',
-              height: '18px',
-              borderRadius: '4px',
-              background: '#ff0000',
-              color: '#ffffff',
-              fontSize: '10px',
-              fontWeight: 800
+              color: 'var(--primary, #10b981)'
             }}>
-              ▶
+              <PlatformBrandIcon platform="youtube" size={17} color="var(--primary, #10b981)" />
             </span>
             <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{title || parsed.platformLabel}</strong>
           </div>
@@ -308,18 +357,18 @@ export const VideoPlayerEmbed: React.FC<{
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '0.35rem',
+          gap: '0.38rem',
           padding: '0.28rem 0.65rem',
           borderRadius: '999px',
-          background: parsed.badgeBg,
-          color: '#ffffff',
+          background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+          color: 'var(--primary, #10b981)',
           fontSize: '0.72rem',
           fontWeight: 800,
-          border: '1px solid rgba(255, 255, 255, 0.22)',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.35)',
+          border: '1px solid var(--primary, #10b981)',
+          boxShadow: '0 2px 8px var(--primary-glow, rgba(16, 185, 129, 0.2))',
           letterSpacing: '0.02em'
         }}>
-          <span>{parsed.badgeIcon}</span>
+          <PlatformBrandIcon platform={parsed.platform} size={12} color="var(--primary, #10b981)" />
           <span>{parsed.badgeText}</span>
         </div>
 
@@ -443,11 +492,13 @@ export const VideoPreviewInput: React.FC<{
   onChange: (val: string) => void;
   label?: string;
   placeholder?: string;
+  isMobile?: boolean;
 }> = ({
   value,
   onChange,
   label = 'Link Video Showcase / Review (Opsional)',
-  placeholder = 'Tempel link video YouTube, TikTok, Instagram Reels, Facebook, dll...'
+  placeholder = 'Tempel link video YouTube, TikTok, Instagram Reels, Facebook, dll...',
+  isMobile = true
 }) => {
   const parsed = useMemo(() => parseVideoUrl(value), [value]);
 
@@ -469,7 +520,7 @@ export const VideoPreviewInput: React.FC<{
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ width: '100%', fontSize: '0.82rem', paddingRight: parsed?.isValid ? '115px' : '0.85rem' }}
+          style={{ width: '100%', fontSize: '0.82rem', paddingRight: parsed?.isValid ? '120px' : '0.85rem' }}
         />
         {parsed?.isValid && (
           <span style={{
@@ -478,18 +529,18 @@ export const VideoPreviewInput: React.FC<{
             top: '50%',
             transform: 'translateY(-50%)',
             fontSize: '0.66rem',
-            fontWeight: 700,
+            fontWeight: 800,
             padding: '2px 7px',
-            borderRadius: '4px',
-            background: parsed.badgeBg,
-            border: `1px solid rgba(255, 255, 255, 0.25)`,
-            color: '#ffffff',
+            borderRadius: '999px',
+            background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+            border: '1px solid var(--primary, #10b981)',
+            color: 'var(--primary, #10b981)',
             letterSpacing: '0.02em',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.2rem'
+            gap: '0.25rem'
           }}>
-            <span>{parsed.badgeIcon}</span>
+            <PlatformBrandIcon platform={parsed.platform} size={11} color="var(--primary, #10b981)" />
             <span>{parsed.badgeText}</span>
           </span>
         )}
@@ -497,28 +548,30 @@ export const VideoPreviewInput: React.FC<{
 
       <div style={{
         padding: '0.55rem 0.75rem',
-        borderRadius: '0.5rem',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        borderRadius: '0.55rem',
+        backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.03))',
         border: '1px solid var(--border-light)',
         fontSize: '0.71rem',
         color: 'var(--text-secondary)',
         lineHeight: 1.45
       }}>
-        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <span>🎥 Dukungan Video Multi-Platform</span>
+        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <Video size={13} style={{ color: 'var(--primary)' }} />
+          <span>Dukungan Video Multi-Platform</span>
         </div>
         <div style={{ color: 'var(--text-secondary)', fontSize: '0.69rem' }}>
-          Mendukung link video dari <strong>YouTube</strong>, <strong>TikTok</strong> (tautan aplikasi seluler maupun browser desktop), <strong>Instagram Reels</strong>, <strong>Facebook</strong>, dan <strong>X (Twitter)</strong>. Video akan tampil sebagai kartu showcase interaktif yang siap ditonton calon pembeli.
+          Mendukung tautan resmi dari <strong>YouTube</strong>, <strong>TikTok</strong> (tautan aplikasi seluler maupun browser desktop), <strong>Instagram Reels</strong>, <strong>Facebook</strong>, dan <strong>X (Twitter)</strong>. Video akan tampil sebagai kartu showcase interaktif yang siap ditonton calon pembeli.
         </div>
       </div>
 
       {/* Live Video Preview in Form */}
       {parsed?.isValid && (
-        <div style={{ marginTop: '0.3rem', padding: '0.65rem', borderRadius: '0.6rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-            Pratinjau Tampilan di Katalog Produk:
+        <div style={{ marginTop: '0.3rem', padding: '0.75rem', borderRadius: '0.65rem', background: 'var(--bg-deep, rgba(0,0,0,0.2))', border: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--primary)' }}></span>
+            <span>Pratinjau Tampilan di Katalog Produk:</span>
           </div>
-          <VideoPlayerEmbed url={value} title="Pratinjau Video Produk" />
+          <VideoPlayerEmbed url={value} title="Pratinjau Video Produk" isMobile={isMobile} />
         </div>
       )}
     </div>
