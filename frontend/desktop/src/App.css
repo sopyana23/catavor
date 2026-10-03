@@ -2170,3 +2170,32 @@
   }
 }
 
+/* Catavor Rich Social Video Showcase Card */
+.catavor-video-card {
+  position: relative;
+  display: block;
+  text-decoration: none;
+  border-radius: 0.95rem;
+  overflow: hidden;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.12));
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+}
+
+.catavor-video-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--card-accent, var(--primary)) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 20px var(--card-glow, rgba(16, 185, 129, 0.25)) !important;
+}
+
+.catavor-video-card:hover .catavor-play-btn {
+  transform: scale(1.08);
+  box-shadow: 0 0 28px var(--card-glow, rgba(16, 185, 129, 0.4)) !important;
+}
+
+.catavor-play-btn {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
