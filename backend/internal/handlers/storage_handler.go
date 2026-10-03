@@ -307,11 +307,8 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
-	var deletedSize int64 = 0
-	targetPath := filepath.Join("public", "storage", filepath.FromSlash(cleanKey))
-	if fi, err := os.Stat(targetPath); err == nil {
-		deletedSize = fi.Size()
-	}
+	targetPath := filepath.Join(services.GetStorageRoot(), filepath.FromSlash(cleanKey))
+	_ = os.Remove(targetPath + ".fiber.gz")
 
 	if err := h.storage.Delete(c.Context(), cleanKey); err != nil {
 		log.Error().Err(err).Str("key", cleanKey).Msg("Failed to delete object from storage")
@@ -321,10 +318,10 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
-	if store != nil && store.ID > 0 && deletedSize > 0 {
-		h.db.Model(&models.Store{}).Where("id = ?", store.ID).UpdateColumn("storage_used_bytes", gorm.Expr("GREATEST(0, storage_used_bytes - ?)", deletedSize))
+	if store != nil && store.ID > 0 {
+		services.SyncStoreStorageUsed(h.db, store.ID)
+		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 	}
-	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,

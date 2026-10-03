@@ -162,9 +162,8 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		return nil, err
 	}
 
-	if store.StorageUsedBytes <= 0 {
-		store.StorageUsedBytes = SyncStoreStorageUsed(db, storeID)
-	}
+	// Always ensure storage_used_bytes reflects live active files on disk
+	store.StorageUsedBytes = SyncStoreStorageUsed(db, storeID)
 
 	planCode := store.Plan
 	if planCode == "" {
@@ -669,7 +668,8 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	return GetStoreQuotaInfo(db, storeID)
 }
 
-func getStorageRoot() string {
+// GetStorageRoot returns the absolute directory for local storage
+func GetStorageRoot() string {
 	if config.AppConfig != nil && config.AppConfig.StorageLocalRoot != "" {
 		if fi, err := os.Stat(config.AppConfig.StorageLocalRoot); err == nil && fi.IsDir() {
 			return config.AppConfig.StorageLocalRoot
@@ -705,7 +705,7 @@ func HardDeleteLocalStorageFile(rawURL string) (int64, error) {
 		return 0, fmt.Errorf("invalid path traversal attempt")
 	}
 
-	diskPath := filepath.Join(getStorageRoot(), filepath.FromSlash(cleanKey))
+	diskPath := filepath.Join(GetStorageRoot(), filepath.FromSlash(cleanKey))
 	var freedBytes int64 = 0
 
 	if fi, err := os.Stat(diskPath); err == nil && !fi.IsDir() {
@@ -725,7 +725,11 @@ func HardDeleteLocalStorageFile(rawURL string) (int64, error) {
 // while pruning orphaned files in the store's product directory.
 func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	var totalBytes int64 = 0
-	storageRoot := getStorageRoot()
+	storageRoot := GetStorageRoot()
+
+	normPath := func(p string) string {
+		return strings.ToLower(filepath.Clean(filepath.ToSlash(p)))
+	}
 
 	// 1. Gather all active referenced file paths for this store
 	activeFiles := make(map[string]bool)
@@ -739,7 +743,7 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 			relPath := rawURL[idx+len("/storage/"):]
 			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
 			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
-			activeFiles[filepath.Clean(localPath)] = true
+			activeFiles[normPath(localPath)] = true
 		}
 	}
 
@@ -776,6 +780,8 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	// 2. Walk physical storage folder for this store: stores/<storeID>
 	storeDir := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID))
 	prodDirPrefix := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "products")
+	normProdPrefix := normPath(prodDirPrefix)
+
 	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
 		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
 			if err == nil && !f.IsDir() {
@@ -784,15 +790,14 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 				}
 
 				cleanPath := filepath.Clean(path)
+				normClean := normPath(cleanPath)
 
 				// If file is inside store's products directory and not in activeFiles:
-				// Prune it if older than 5 minutes (avoids deleting files from in-flight product create forms)
-				if strings.HasPrefix(cleanPath, prodDirPrefix) && !activeFiles[cleanPath] {
-					if time.Since(f.ModTime()) > 5*time.Minute {
-						_ = os.Remove(cleanPath)
-						_ = os.Remove(cleanPath + ".fiber.gz")
-					}
-					return nil // Never count orphaned/unreferenced files towards merchant storage quota
+				// Delete it physically and do not count towards storage
+				if strings.HasPrefix(normClean, normProdPrefix) && !activeFiles[normClean] {
+					_ = os.Remove(cleanPath)
+					_ = os.Remove(cleanPath + ".fiber.gz")
+					return nil
 				}
 
 				totalBytes += f.Size()
