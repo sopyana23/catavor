@@ -1219,8 +1219,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 150.000',
-        photoLabel: 'Foto Barang (1-5 Foto) *',
-        photoHelper: 'Unggah 1 hingga 5 foto barang fisik beresolusi jelas.',
+        photoLabel: 'Foto Barang (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto barang fisik beresolusi jelas.',
         videoLabel: 'Video Review / Unboxing (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
@@ -1253,7 +1253,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['E-Book & Publikasi', 'Template & Dokumen', 'Desain Grafis & UI Kit', 'Source Code & Skrip', 'Audio, Musik & SFX', 'Preset, Filter & LUTs', 'Video & Aset 3D', 'Software & Tool', 'Kursus & Modul', 'Lainnya'],
         priceLabel: 'Harga Lisensi (IDR) *',
         pricePlaceholder: 'Contoh: 75.000 (Ketik 0 jika Gratis)',
-        photoLabel: 'Banner / Mockup File (1-5 Gambar) *',
+        photoLabel: 'Banner / Mockup File (1-10 Gambar) *',
         photoHelper: 'Unggah cover mockup, screenshot preview, atau banner item digital.',
         videoLabel: 'Video Preview / Demo Item Digital (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
@@ -1287,7 +1287,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 350.000',
-        photoLabel: 'Foto Satwa & Kondisi Nyata (1-5 Foto) *',
+        photoLabel: 'Foto Satwa & Kondisi Nyata (1-10 Foto) *',
         photoHelper: 'Unggah foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
         videoLabel: 'Video Satwa / Feeding Video (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
@@ -1321,7 +1321,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         categoryOptions: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance'],
         priceLabel: 'Tarif Layanan (IDR) *',
         pricePlaceholder: 'Contoh: 120.000 / Mulai dari Rp 100.000',
-        photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-5 Foto) *',
+        photoLabel: 'Foto Portofolio / Dokumentasi Layanan (1-10 Foto) *',
         photoHelper: 'Unggah foto dokumentasi hasil kerja, portofolio tim, atau fasilitas peralatan.',
         videoLabel: 'Video Dokumentasi / Hasil Kerja (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
@@ -1358,8 +1358,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 35.000',
-        photoLabel: 'Foto Produk / Penyajian (1-5 Foto) *',
-        photoHelper: 'Unggah 1 hingga 5 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
+        photoLabel: 'Foto Produk / Penyajian (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
         videoLabel: 'Video Produk / Penyajian (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
@@ -1405,8 +1405,8 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         priceLabel: 'Harga Properti (IDR) *',
         pricePlaceholder: 'Contoh: 850.000.000 (Jual) / 35.000.000 (Sewa/Tahun)',
-        photoLabel: 'Foto Properti & Interior (1-5 Foto) *',
-        photoHelper: 'Unggah 1 hingga 5 foto fasad depan, ruang keluarga, kamar tidur, dapur, dan lingkungan.',
+        photoLabel: 'Foto Properti & Interior (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto fasad depan, ruang keluarga, kamar tidur, dapur, dan lingkungan.',
         videoLabel: 'Video Virtual Tour / Showcase Properti (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Akses & Ketentuan Booking / Survey Lokasi',
@@ -16787,48 +16787,60 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   const validCount = crudImages.filter(Boolean).length;
                   return (
                     <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem', marginBottom: '1.25rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <label className="form-label" style={{ margin: 0 }}>{typeConfig.photoLabel}</label>
-                            <span style={{
-                              fontSize: '0.65rem',
-                              fontWeight: 700,
-                              padding: '0.1rem 0.45rem',
-                              borderRadius: '1rem',
-                              backgroundColor: validCount > 0 ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                              color: validCount > 0 ? 'var(--primary)' : 'var(--text-secondary)',
-                              border: '1px solid var(--border-light)'
-                            }}>
-                              {validCount} / {MAX_PRODUCT_PHOTOS}
-                            </span>
-                          </div>
-                          <small style={{ color: 'var(--text-secondary)', fontSize: '0.68rem', display: 'block', marginTop: '0.15rem' }}>
-                            Unggah hingga 10 foto produk. Foto pertama otomatis menjadi foto sampul utama.
-                          </small>
+                      <div style={{ marginBottom: '0.85rem' }}>
+                        {/* Header Row: Label & Counter Badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <label className="form-label" style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {typeConfig.photoLabel}
+                          </label>
+                          <span style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            padding: '0.18rem 0.55rem',
+                            borderRadius: '999px',
+                            backgroundColor: validCount > 0 ? 'var(--primary-glow)' : 'var(--bg-deep, rgba(0,0,0,0.06))',
+                            color: validCount > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+                            border: '1px solid var(--border-light)',
+                            letterSpacing: '0.02em'
+                          }}>
+                            {validCount} / {MAX_PRODUCT_PHOTOS} Foto
+                          </span>
                         </div>
+
+                        {/* Helper Description */}
+                        <small style={{ color: 'var(--text-secondary)', fontSize: '0.69rem', display: 'block', marginBottom: '0.65rem', lineHeight: 1.4 }}>
+                          Unggah hingga {MAX_PRODUCT_PHOTOS} foto produk. Foto pertama otomatis menjadi foto sampul utama.
+                        </small>
+
+                        {/* Mobile Action Buttons: 2 Balanced Touch-Friendly Buttons */}
                         {crudImages.length < MAX_PRODUCT_PHOTOS && (
-                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
                             <label
                               className="btn-secondary"
                               style={{
-                                padding: '0.3rem 0.6rem',
-                                fontSize: '0.72rem',
-                                borderRadius: '0.35rem',
-                                display: 'inline-flex',
+                                padding: '0.42rem 0.65rem',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                borderRadius: '0.45rem',
+                                display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.25rem',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
                                 cursor: isBatchUploading ? 'not-allowed' : 'pointer',
-                                opacity: isBatchUploading ? 0.7 : 1
+                                opacity: isBatchUploading ? 0.7 : 1,
+                                border: '1px solid var(--border-light)',
+                                margin: 0
                               }}
                               title="Pilih dan unggah banyak foto sekaligus"
                             >
                               {isBatchUploading ? (
-                                <Loader size={12} className="animate-spin" />
+                                <Loader size={13} className="animate-spin" />
                               ) : (
-                                <Upload size={12} />
+                                <Upload size={13} />
                               )}
-                              <span>{isBatchUploading ? 'Proses...' : 'Sekaligus'}</span>
+                              <span>{isBatchUploading ? 'Mengunggah...' : 'Upload Sekaligus'}</span>
                               <input
                                 type="file"
                                 multiple
@@ -16843,13 +16855,26 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 }}
                               />
                             </label>
+
                             <button
                               type="button"
                               className="btn-primary"
-                              style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem', borderRadius: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              style={{
+                                padding: '0.42rem 0.65rem',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                borderRadius: '0.45rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.3rem',
+                                border: 'none',
+                                cursor: 'pointer'
+                              }}
                               onClick={() => setCrudImages([...crudImages, ''])}
                             >
-                              <span>+ Baris</span>
+                              <Plus size={13} />
+                              <span>Tambah Baris</span>
                             </button>
                           </div>
                         )}

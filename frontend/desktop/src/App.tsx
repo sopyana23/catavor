@@ -25133,6 +25133,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               Foto Produk
                             </h3>
                             <span style={{
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap',
                               fontSize: '0.72rem',
                               fontWeight: 700,
                               padding: '0.12rem 0.55rem',
