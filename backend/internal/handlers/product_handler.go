@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -390,6 +391,31 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	oldPrice := product.Price
 	oldName := product.Name
 
+	// Capture existing images before update to detect removed files for hard deletion
+	oldImagesMap := make(map[string]bool)
+	if product.ImageURL != "" {
+		oldImagesMap[product.ImageURL] = true
+	}
+	var existingGalleryImgs []models.ProductImage
+	database.DB.Where("product_id = ?", product.ID).Find(&existingGalleryImgs)
+	for _, eg := range existingGalleryImgs {
+		if eg.ImageURL != "" {
+			oldImagesMap[eg.ImageURL] = true
+		}
+	}
+	if len(product.DetailedInfo) > 0 {
+		var dInfo map[string]interface{}
+		if err := json.Unmarshal(product.DetailedInfo, &dInfo); err == nil {
+			if rawImages, ok := dInfo["images"].([]interface{}); ok {
+				for _, itm := range rawImages {
+					if str, ok := itm.(string); ok && str != "" {
+						oldImagesMap[str] = true
+					}
+				}
+			}
+		}
+	}
+
 	var req ProductRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -517,6 +543,33 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			}
 		}
 	}
+
+	// Hard delete old images that are no longer referenced in new product images
+	newImagesMap := make(map[string]bool)
+	if product.ImageURL != "" {
+		newImagesMap[product.ImageURL] = true
+	}
+	for _, ug := range updateGallery {
+		if ug != "" {
+			newImagesMap[ug] = true
+		}
+	}
+
+	for oldImg := range oldImagesMap {
+		if !newImagesMap[oldImg] {
+			var otherProdCount int64
+			database.DB.Model(&models.Product{}).Where("store_id = ? AND id != ? AND image_url = ?", store.ID, product.ID, oldImg).Count(&otherProdCount)
+			var otherGalleryCount int64
+			database.DB.Model(&models.ProductImage{}).Where("product_id != ? AND image_url = ?", product.ID, oldImg).Count(&otherGalleryCount)
+			if otherProdCount == 0 && otherGalleryCount == 0 {
+				_, _ = services.HardDeleteLocalStorageFile(oldImg)
+			}
+		}
+	}
+
+	// Always sync store storage bytes and clear quota cache
+	services.SyncStoreStorageUsed(database.DB, store.ID)
+	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	// Trigger broadcast alert & report synchronization if product was resubmitted
 	if wasInNeedsFix {
@@ -651,7 +704,45 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	deletedTitle := product.Name
 	deletedID := product.ID
 
-	// Delete related records
+	// 1. Collect all images associated with this product before deletion
+	imagesToDelete := make([]string, 0)
+	if product.ImageURL != "" {
+		imagesToDelete = append(imagesToDelete, product.ImageURL)
+	}
+
+	var prodImages []models.ProductImage
+	database.DB.Where("product_id = ?", product.ID).Find(&prodImages)
+	for _, pi := range prodImages {
+		if pi.ImageURL != "" {
+			imagesToDelete = append(imagesToDelete, pi.ImageURL)
+		}
+	}
+
+	if len(product.DetailedInfo) > 0 {
+		var dInfo map[string]interface{}
+		if err := json.Unmarshal(product.DetailedInfo, &dInfo); err == nil {
+			if rawImages, ok := dInfo["images"].([]interface{}); ok {
+				for _, itm := range rawImages {
+					if str, ok := itm.(string); ok && str != "" {
+						imagesToDelete = append(imagesToDelete, str)
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Hard delete each local physical image file from storage if not used by any other product
+	for _, imgURL := range imagesToDelete {
+		var otherUseCount int64
+		database.DB.Model(&models.Product{}).Where("store_id = ? AND id != ? AND image_url = ?", store.ID, product.ID, imgURL).Count(&otherUseCount)
+		var otherImgCount int64
+		database.DB.Model(&models.ProductImage{}).Where("product_id != ? AND image_url = ?", product.ID, imgURL).Count(&otherImgCount)
+		if otherUseCount == 0 && otherImgCount == 0 {
+			_, _ = services.HardDeleteLocalStorageFile(imgURL)
+		}
+	}
+
+	// 3. Delete related database records
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductImage{})
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductVariant{})
 
@@ -661,6 +752,10 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 			"message": "Gagal menghapus produk.",
 		})
 	}
+
+	// 4. Recalculate store storage used and invalidate cache
+	services.SyncStoreStorageUsed(database.DB, store.ID)
+	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	// Record Activity Log
 	userVal := c.Locals("user")

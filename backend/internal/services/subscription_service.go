@@ -145,7 +145,9 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	if cachedVal, ok := database.GetStoreQuotaCache(context.Background(), storeID); ok && cachedVal != "" {
 		var cachedQuota StoreQuotaInfo
 		if err := json.Unmarshal([]byte(cachedVal), &cachedQuota); err == nil {
-			return &cachedQuota, nil
+			if cachedQuota.StorageUsedBytes > 0 {
+				return &cachedQuota, nil
+			}
 		}
 	}
 
@@ -662,16 +664,61 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	return GetStoreQuotaInfo(db, storeID)
 }
 
+func getStorageRoot() string {
+	candidates := []string{"public/storage", "../public/storage"}
+	for _, c := range candidates {
+		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+			return c
+		}
+	}
+	return "public/storage"
+}
+
+// HardDeleteLocalStorageFile safely deletes a local storage file and its pre-compressed gzip twin
+func HardDeleteLocalStorageFile(rawURL string) (int64, error) {
+	if strings.TrimSpace(rawURL) == "" {
+		return 0, nil
+	}
+
+	idx := strings.Index(rawURL, "/storage/")
+	if idx == -1 {
+		return 0, nil
+	}
+
+	relPath := rawURL[idx+len("/storage/"):]
+	cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+	if strings.Contains(cleanKey, "..") {
+		return 0, fmt.Errorf("invalid path traversal attempt")
+	}
+
+	diskPath := filepath.Join(getStorageRoot(), filepath.FromSlash(cleanKey))
+	var freedBytes int64 = 0
+
+	if fi, err := os.Stat(diskPath); err == nil && !fi.IsDir() {
+		freedBytes = fi.Size()
+		_ = os.Remove(diskPath)
+	}
+
+	gzPath := diskPath + ".fiber.gz"
+	if _, err := os.Stat(gzPath); err == nil {
+		_ = os.Remove(gzPath)
+	}
+
+	return freedBytes, nil
+}
+
 // SyncStoreStorageUsed audits and calculates the actual disk storage usage of a store
 func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	var totalBytes int64 = 0
 
 	// 1. Walk physical storage folder for this store: public/storage/stores/<storeID>
-	storeDir := filepath.Join("public", "storage", "stores", fmt.Sprintf("%d", storeID))
+	storeDir := filepath.Join(getStorageRoot(), "stores", fmt.Sprintf("%d", storeID))
 	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
 		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
 			if err == nil && !f.IsDir() {
-				totalBytes += f.Size()
+				if !strings.HasSuffix(f.Name(), ".fiber.gz") {
+					totalBytes += f.Size()
+				}
 			}
 			return nil
 		})
@@ -681,7 +728,7 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	// (handles cases where files were stored under another folder before strict slug routing)
 	countedFiles := make(map[string]bool)
 	var products []models.Product
-	db.Select("id, image_url, detailed_info").Where("store_id = ?", storeID).Find(&products)
+	db.Select("id, image_url, detailed_info").Where("store_id = ? AND deleted_at IS NULL", storeID).Find(&products)
 	for _, p := range products {
 		checkAndAddLocalFile := func(rawURL string) {
 			if strings.TrimSpace(rawURL) == "" {
@@ -690,8 +737,9 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 			idx := strings.Index(rawURL, "/storage/")
 			if idx != -1 {
 				relPath := rawURL[idx+len("/storage/"):]
-				localPath := filepath.Join("public", "storage", filepath.FromSlash(relPath))
-				if !strings.HasPrefix(filepath.ToSlash(relPath), fmt.Sprintf("stores/%d/", storeID)) {
+				cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+				localPath := filepath.Join(getStorageRoot(), filepath.FromSlash(cleanKey))
+				if !strings.HasPrefix(cleanKey, fmt.Sprintf("stores/%d/", storeID)) {
 					if !countedFiles[localPath] {
 						countedFiles[localPath] = true
 						if fi, err := os.Stat(localPath); err == nil && !fi.IsDir() {
@@ -703,6 +751,12 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		}
 
 		checkAndAddLocalFile(p.ImageURL)
+
+		var prodImages []models.ProductImage
+		db.Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
+		for _, pi := range prodImages {
+			checkAndAddLocalFile(pi.ImageURL)
+		}
 
 		if len(p.DetailedInfo) > 0 {
 			var dInfo map[string]interface{}
@@ -724,8 +778,9 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		idx := strings.Index(store.StoreLogoURL, "/storage/")
 		if idx != -1 {
 			relPath := store.StoreLogoURL[idx+len("/storage/"):]
-			localPath := filepath.Join("public", "storage", filepath.FromSlash(relPath))
-			if !strings.HasPrefix(filepath.ToSlash(relPath), fmt.Sprintf("stores/%d/", storeID)) && !countedFiles[localPath] {
+			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+			localPath := filepath.Join(getStorageRoot(), filepath.FromSlash(cleanKey))
+			if !strings.HasPrefix(cleanKey, fmt.Sprintf("stores/%d/", storeID)) && !countedFiles[localPath] {
 				countedFiles[localPath] = true
 				if fi, err := os.Stat(localPath); err == nil && !fi.IsDir() {
 					totalBytes += fi.Size()
