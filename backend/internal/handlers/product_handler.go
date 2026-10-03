@@ -361,6 +361,8 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	})
 
 	InvalidateStoreProductsCache(store.ID)
+	services.SyncStoreStorageUsed(database.DB, store.ID)
+	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
