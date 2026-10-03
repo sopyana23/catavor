@@ -66,8 +66,8 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			Name:               "Pro Starter",
 			BadgeLabel:         "Pro",
 			Description:        "Solusi bisnis berkembang dengan 100% bebas iklan sponsor, kuota 150 item & badge terpercaya.",
-			PriceMonthly:       49000,
-			PriceAnnual:        490000,
+			PriceMonthly:       30000,
+			PriceAnnual:        300000,
 			StorageLimitBytes:  2 * 1024 * 1024 * 1024, // 2 GB (~7.000-10.000 foto HD)
 			MaxItems:           150,                    // 150 items
 			MaxImagesPerItem:   10,                     // Standard 10 photos
@@ -110,6 +110,10 @@ func SeedSubscriptionPlans(db *gorm.DB) error {
 			existing.Name = p.Name
 			existing.Description = p.Description
 			existing.SortOrder = p.SortOrder
+			existing.PriceMonthly = p.PriceMonthly
+			existing.PriceAnnual = p.PriceAnnual
+			existing.StorageLimitBytes = p.StorageLimitBytes
+			existing.MaxItems = p.MaxItems
 			db.Save(&existing)
 		}
 	}
