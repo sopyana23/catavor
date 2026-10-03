@@ -23,6 +23,7 @@ import {
   UtensilsCrossed,
   Home,
   Heart,
+  Sprout,
   ShieldCheck,
   Video,
   Lightbulb,
@@ -567,7 +568,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     { key: 'digital', label: 'File Digital', icon: Download },
     { key: 'food', label: 'Kuliner & FnB', icon: UtensilsCrossed },
     { key: 'property', label: 'Properti', icon: Home },
-    { key: 'fauna', label: 'Satwa & Fauna', icon: Heart }
+    { key: 'fauna', label: 'Hewan', icon: Heart },
+    { key: 'plant', label: 'Tanaman', icon: Sprout }
   ];
 
   // Standard sort options for item performance (no emojis)
@@ -619,7 +621,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       case 'property':
         return { label: 'Properti', bg: 'rgba(236, 72, 153, 0.12)', color: '#ec4899', border: 'rgba(236, 72, 153, 0.25)' };
       case 'fauna':
-        return { label: 'Fauna', bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: 'rgba(16, 185, 129, 0.25)' };
+        return { label: 'Hewan', bg: 'var(--primary-glow)', color: 'var(--primary)', border: 'var(--border-light)' };
+      case 'plant':
+        return { label: 'Tanaman', bg: 'var(--primary-glow)', color: 'var(--primary)', border: 'var(--border-light)' };
       case 'physical':
       default:
         return { label: 'Fisik', bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.25)' };

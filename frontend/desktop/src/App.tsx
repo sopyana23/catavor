@@ -63,6 +63,7 @@ import {
   Shirt,
   Smartphone,
   PawPrint,
+  Sprout,
   Scissors,
   Zap,
   Store,
@@ -305,6 +306,8 @@ function getCatalogItemUnit(item: any): string {
   if (item.product_type === 'service') return 'Sesi';
   if (item.product_type === 'digital') return 'Lisensi';
   if (item.product_type === 'physical') return 'Pcs';
+  if (item.product_type === 'plant') return 'Pot / Bibit';
+  if (item.product_type === 'fauna') return 'Ekor';
 
   // For fauna or general showcase:
   const text = `${item.class || ''} ${item.name || ''} ${item.habitat || ''}`.toLowerCase();
@@ -402,17 +405,35 @@ export function getItemActionConfig(item: any) {
     return {
       type: 'fauna',
       shortLabel: 'Beli / Adopsi',
-      fullLabel: 'Beli / Adopsi Satwa Sekarang',
+      fullLabel: 'Beli / Adopsi Hewan Sekarang',
       Icon: ShoppingBag,
-      modalTitle: 'Pilih Jalur Transaksi Satwa / Tanaman',
-      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk satwa / tanaman ini:',
-      badgeText: 'Satwa & Flora',
-      directActionTitle: 'Chat WA (Tanya Satwa & Pembelian)',
+      modalTitle: 'Pilih Jalur Transaksi Hewan',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk hewan ini:',
+      badgeText: 'Hewan Peliharaan',
+      directActionTitle: 'Chat WA (Tanya Hewan & Pembelian)',
       directActionSubtitle: 'Tanyakan kondisi kesehatan, legalitas, serta garansi pengiriman',
       marketplaceTitle: 'Beli via Toko Online / Marketplace',
       marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
       rekberTitle: 'Chat WA & Rekber Syariah (Sangat Aman)',
-      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga hewan/tanaman tiba hidup & sehat)'
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga hewan tiba hidup & sehat)'
+    };
+  }
+
+  if (pType === 'plant') {
+    return {
+      type: 'plant',
+      shortLabel: 'Beli Sekarang',
+      fullLabel: 'Beli Tanaman Sekarang',
+      Icon: ShoppingCart,
+      modalTitle: 'Pilih Jalur Pembelian Tanaman',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk tanaman ini:',
+      badgeText: 'Tanaman',
+      directActionTitle: 'Chat WA (Tanya Tanaman & Pembelian)',
+      directActionSubtitle: 'Tanyakan ketersediaan bibit, kondisi segar, dan opsi packing aman',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+      rekberTitle: 'Chat WA & Rekber Syariah (Sangat Aman)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga tanaman tiba segar & aman)'
     };
   }
 
@@ -514,12 +535,23 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
 
   if (pType === 'fauna') {
     return [
-      { id: 'protected_species', title: 'Satwa atau Flora Langka Dilindungi Undang-Undang', desc: 'Menawarkan satwa/tumbuhan yang masuk daftar dilindungi (Apendiks CITES / regulasi KSDAE)' },
-      { id: 'animal_cruelty', title: 'Indikasi Kekejaman / Kondisi Satwa Sakit atau Terlantar', desc: 'Satwa dipelihara dalam kondisi mengenaskan, sakit parah, stres berat, atau dieksploitasi' },
+      { id: 'protected_species', title: 'Satwa / Hewan Langka Dilindungi Undang-Undang', desc: 'Menawarkan hewan yang masuk daftar dilindungi (Apendiks CITES / regulasi KSDAE)' },
+      { id: 'animal_cruelty', title: 'Indikasi Kekejaman / Kondisi Hewan Sakit atau Terlantar', desc: 'Hewan dipelihara dalam kondisi mengenaskan, sakit parah, stres berat, atau dieksploitasi' },
       { id: 'illegal_wildlife', title: 'Hasil Tangkapan Liar Ilegal / Tanpa Izin Tangkar (BKSDA)', desc: 'Hasil perburuan liar ilegal tanpa legalitas izin penangkaran atau dokumen resmi asal-usul' },
       { id: 'false_pedigree', title: 'Manipulasi Trah/Ras, Silsilah Bodong, atau Riwayat Palsu', desc: 'Pemalsuan silsilah (pedigree/stambum), buku vaksin palsu, atau foto indukan manipulatif' },
-      { id: 'transit_cruelty', title: 'Metode Pengiriman Membahayakan Keselamatan Hidup', desc: 'Pengiriman lewat kurir non-khusus tanpa standar keselamatan satwa/tanaman hidup' },
-      { id: 'other', title: 'Pelanggaran Lainnya pada Satwa & Flora', desc: 'Pelanggaran ketentuan satwa atau flora lainnya yang tidak tercantum di atas' }
+      { id: 'transit_cruelty', title: 'Metode Pengiriman Membahayakan Keselamatan Hidup', desc: 'Pengiriman lewat kurir non-khusus tanpa standar keselamatan hewan hidup' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Hewan Peliharaan', desc: 'Pelanggaran ketentuan hewan lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  if (pType === 'plant') {
+    return [
+      { id: 'protected_flora', title: 'Tanaman Langka / Dilindungi Tanpa Izin Legal', desc: 'Menawarkan tanaman yang dilindungi undang-undang / Apendiks CITES tanpa sertifikat legalitas karantina sah' },
+      { id: 'dead_withered', title: 'Tanaman Mati, Layu Parah, atau Rusak Saat Tiba', desc: 'Tanaman tiba dalam kondisi busuk akar parah, kering mati total, atau tidak ada penanganan garansi' },
+      { id: 'pest_disease', title: 'Terinfeksi Hama / Penyakit Tanaman Menular Berbahaya', desc: 'Tanaman terbukti membawa kutu, jamur parasit, atau penyakit tumbuhan yang dapat menular luas' },
+      { id: 'false_species', title: 'Spesies / Varietas Palsu (ID Tanaman Manipulatif)', desc: 'ID jenis bibit/varietas tidak sesuai, manipulasi varigata buatan, atau foto tanaman palsu' },
+      { id: 'unsafe_packaging', title: 'Metode Packing Sembarangan / Tanpa Pelindung', desc: 'Pengiriman bibit hidup tanpa pengaman batang/akar memadai sehingga tanaman hancur' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Tanaman & Flora', desc: 'Pelanggaran ketentuan tanaman atau flora lainnya yang tidak tercantum di atas' }
     ];
   }
 
@@ -544,7 +576,8 @@ export function getReportingSectorInfo(targetType: 'store' | 'item', item?: any)
     case 'food': return { label: 'Kuliner & F&B', color: '#ea580c', icon: Utensils };
     case 'digital': return { label: 'Produk Digital', color: '#8b5cf6', icon: Smartphone };
     case 'property': return { label: 'Properti & Real Estate', color: '#0d9488', icon: Building2 };
-    case 'fauna': return { label: 'Flora & Fauna', color: '#16a34a', icon: PawPrint };
+    case 'fauna': return { label: 'Hewan Peliharaan', color: 'var(--primary)', icon: PawPrint };
+    case 'plant': return { label: 'Tanaman & Tumbuhan', color: 'var(--primary)', icon: Sprout };
     default: return { label: 'Produk Fisik', color: '#e11d48', icon: Package };
   }
 }
@@ -589,7 +622,7 @@ export function isTokenExpired(token: string | null): boolean {
 }
 
 
-export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property';
+export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property' | 'plant';
 
 export interface ItemTypeConfig {
   type: ItemCategoryType;
@@ -706,8 +739,9 @@ export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
   food: ['Makanan Utama (Main Course)', 'Dessert & Manisan', 'Minuman & Olahan Kopi', 'Camilan & Kudapan (Appetizer)', 'Bakery, Roti & Pastry', 'Makanan Beku (Frozen)', 'Paket Hemat & Bundling', 'Lainnya'],
   service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
   digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
-  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
-  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya']
+  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Invertebrata & Serangga', 'Pakan & Perlengkapan Hewan', 'Lainnya'],
+  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya'],
+  plant: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya']
 };
 
 export const MAX_PRODUCT_PHOTOS = 10;
@@ -785,36 +819,75 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'fauna':
       return {
         type: 'fauna',
-        typeName: 'Satwa & Living Fauna',
-        badgeName: 'Satwa & Fauna',
+        typeName: 'Hewan & Satwa Peliharaan',
+        badgeName: 'Hewan',
         icon: PawPrint,
-        color: '#059669',
-        gradientBg: 'radial-gradient(circle at top left, rgba(5, 150, 105, 0.15) 0%, transparent 70%)',
-        modalTitle: (mode) => mode === 'create' ? 'Tambah Satwa / Living Fauna' : 'Edit Satwa / Living Fauna',
-        modalSubtitle: 'Lengkapi taksonomi ilmiah, kondisi satwa, masa hidup, dan garansi pengiriman hidup.',
-        nameLabel: 'Nama Hewan / Tanaman Hias *',
-        namePlaceholder: 'Contoh: Arwana Super Red Joey / Gecko Sunglow / Sugar Glider...',
-        categoryLabel: 'Kelas / Kategori Fauna *',
+        color: 'var(--primary)',
+        gradientBg: 'radial-gradient(circle at top left, var(--primary-glow) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Data Hewan' : 'Edit Data Hewan',
+        modalSubtitle: 'Lengkapi taksonomi, kondisi fisik hewan, masa hidup, dan garansi pengiriman aman.',
+        nameLabel: 'Nama Hewan Peliharaan *',
+        namePlaceholder: 'Contoh: Kucing British Shorthair / Arwana Super Red / Gecko Sunglow...',
+        categoryLabel: 'Kategori / Jenis Hewan *',
         defaultCategory: 'Ikan Hias',
-        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
+        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Invertebrata & Serangga', 'Pakan & Perlengkapan Hewan', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 350.000',
-        photoLabel: 'Foto Satwa & Kondisi Nyata (1-10 Foto) *',
-        photoHelper: 'Unggah hingga 10 foto asli satwa tampak depan, samping, dan detail motif/anatomi.',
-        videoLabel: 'Video Satwa / Feeding Video (Opsional)',
+        photoLabel: 'Foto Hewan & Kondisi Nyata (1-10 Foto) *',
+        photoHelper: 'Unggah hingga 10 foto asli hewan tampak depan, samping, dan detail motif/anatomi.',
+        videoLabel: 'Video Hewan / Feeding Video (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
-        deliveryLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
+        deliveryLabel: 'Pengiriman & Garansi Live Arrival (Hewan)',
         deliveryOptions: ['Bisa Kirim se-Indonesia (Legal & Berizin)', 'Khusus Pulau Jawa / Jalur Kereta', 'Ambil Sendiri di Toko (Pickup Only)', 'Kurir Instan Hewan (Gojek/Grab)'],
-        deliveryTermsLabel: 'Pengiriman & Garansi Live Arrival (Satwa)',
+        deliveryTermsLabel: 'Pengiriman & Garansi Live Arrival (Hewan)',
         deliveryTermsPlaceholder: 'Contoh: Pengiriman via Kereta Api Express (KIB/Herona) atau Bus se-Pulau Jawa. Packing boks styrofoam beroksigen, garansi D.O.A 100% dengan video unboxing full...',
         warrantyLabel: 'Ketentuan Garansi D.O.A (Dead On Arrival)',
         warrantyPlaceholder: 'Contoh: Garansi hidup sampai tujuan (D.O.A 100%) berlaku dengan menyertakan video unboxing full tanpa jeda/cut maksimal 2 jam setelah paket diterima...',
-        descLabel: 'Deskripsi & Kondisi Satwa *',
+        descLabel: 'Deskripsi & Kondisi Hewan *',
         descPlaceholder: 'Jelaskan riwayat kesehatan, pola makan, keaktifan, minus (jika ada), umur/size, dan petunjuk perawatan harian...',
         minOrderLabel: 'Minimal Beli (Ekor/Pack) *',
         minOrderPlaceholder: '1',
         maxOrderLabel: 'Maksimal Beli per Kiriman (Opsional)',
         maxOrderPlaceholder: 'Contoh: 10 (Batas aman packing)'
+      };
+    case 'plant':
+      return {
+        type: 'plant',
+        typeName: 'Tanaman & Tumbuhan',
+        badgeName: 'Tanaman',
+        icon: Sprout,
+        color: 'var(--primary)',
+        gradientBg: 'radial-gradient(circle at top left, var(--primary-glow) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Data Tanaman' : 'Edit Data Tanaman',
+        modalSubtitle: 'Lengkapi taksonomi botani, kebutuhan cahaya, penyiraman, dan media tanam.',
+        nameLabel: 'Nama Tanaman *',
+        namePlaceholder: 'Contoh: Monstera Deliciosa King / Bonsai Kimeng / Bibit Mangga Kiojay...',
+        categoryLabel: 'Kategori / Golongan Tanaman *',
+        defaultCategory: 'Tanaman Hias Daun',
+        categoryOptions: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya'],
+        priceLabel: 'Harga Satuan (IDR) *',
+        pricePlaceholder: 'Contoh: 125.000',
+        photoLabel: 'Foto Tanaman & Kondisi Segar (1-10 Foto) *',
+        photoHelper: 'Unggah hingga 10 foto asli tanaman tampak tajuk, daun, akar/batang, dan pot.',
+        videoLabel: 'Video Tanaman / Review Kondisi (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
+        deliveryLabel: 'Pengiriman & Ketentuan Packing Tanaman',
+        deliveryOptions: [
+          'Kirim Bersama Pot & Media Tanam',
+          'Kirim Bare Root (Kurangi Media Tanam agar Hemat Ongkir)',
+          'Khusus Kurir Instan / Sameday (Siap Pajang)',
+          'Bisa Kirim se-Indonesia (Packing Paralon / Kardus Tebal)'
+        ],
+        deliveryTermsLabel: 'Pengiriman & Ketentuan Packing Tanaman',
+        deliveryTermsPlaceholder: 'Contoh: Dikirim dengan pot dan media tanam terbungkus plastik rapat / pipa paralon kuat. Pengiriman se-Indonesia aman dengan kurir reguler atau kilat...',
+        warrantyLabel: 'Kebijakan Garansi Segar Sampai Tujuan',
+        warrantyPlaceholder: 'Contoh: Garansi tanaman hidup & segar sampai tujuan maksimal 3 hari ekspedisi. Penggantian bibit baru jika rusak parah/mati saat unboxing...',
+        descLabel: 'Deskripsi Lengkap Tanaman *',
+        descPlaceholder: 'Jelaskan karakteristik tanaman, tips penempatan, rekomendasi pupuk, dan panduan perawatan bagi pemula...',
+        minOrderLabel: 'Minimal Beli (Pot/Bibit) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Beli per Kiriman (Opsional)',
+        maxOrderPlaceholder: 'Kosongkan jika tanpa batas'
       };
     case 'service':
       return {
@@ -996,7 +1069,13 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
       facing: 'Timur',
       property_location: 'BSD City, Tangerang Selatan',
       facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
-      halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)'
+      halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+      sunlight: 'Partial Sun (Teduh Terang)',
+      watering: 'Sedang (2-3 Hari Sekali)',
+      planting_medium: 'Tanah Subur & Kompos',
+      plant_size: 'Tinggi 25-35 cm',
+      protection_status: 'Non-Dilindungi (Aman Diperjualbelikan)',
+      delivery_condition: 'Kirim Bersama Pot & Media Tanam'
     }
   };
 };
@@ -1043,6 +1122,12 @@ interface Fauna {
     property_location?: string
     facilities?: string
     halal_status?: string
+    sunlight?: string
+    watering?: string
+    planting_medium?: string
+    plant_size?: string
+    protection_status?: string
+    delivery_condition?: string
     enable_wa_rekber?: boolean
     enable_wa_direct?: boolean
     [key: string]: any
@@ -1970,9 +2055,9 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
       content: string;
     }[] = [];
 
-    // 1. Ketentuan Pengiriman / SOP / Akses File / Ketentuan Layanan / Akses & Survey Properti
+    // 1. Ketentuan Pengiriman / SOP / Akses File / Ketentuan Layanan / Akses & Survey Properti / Packing Tanaman
     const shippingTerms = (item.detailed_info?.shipping_terms || '').trim();
-    if (isNonEmptyValue(shippingTerms) || pType === 'digital' || pType === 'service' || pType === 'property' || pType === 'food') {
+    if (isNonEmptyValue(shippingTerms) || pType === 'digital' || pType === 'service' || pType === 'property' || pType === 'food' || pType === 'plant') {
       let label = 'Ketentuan Pengiriman';
       let fullTitle = 'Ketentuan Pengiriman & Logistik';
       let icon = Truck;
@@ -1986,9 +2071,16 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
           content = 'Jadwal kunjungan dan survey unit dapat dikoordinasikan langsung bersama agen/pemilik melalui kontak WhatsApp yang tersedia.';
         }
       } else if (pType === 'fauna') {
-        label = 'Pengiriman Satwa';
+        label = 'Pengiriman Hewan';
         fullTitle = 'Pengiriman & Garansi Live Arrival';
         icon = Truck;
+      } else if (pType === 'plant') {
+        label = 'Pengiriman Tanaman';
+        fullTitle = 'Pengiriman & Packing Tanaman Hidup';
+        icon = Truck;
+        if (!content) {
+          content = 'Tanaman dikemas rapi dan aman dengan pengaman akar serta media tanam. Disarankan menggunakan kurir instan/sameday atau ekspedisi kilat untuk menjaga kesegaran tanaman.';
+        }
       } else if (pType === 'service') {
         label = 'Area & Ketentuan';
         fullTitle = 'Area Layanan & Ketentuan Reservasi';
@@ -2019,9 +2111,9 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
       list.push({ id: 'shipping_terms', label, fullTitle, icon, content });
     }
 
-    // 2. Garansi / Kebijakan Toko / Lisensi / DOA / Legalitas Dokumen Properti (Kecuali Service yang tidak memiliki form garansi)
+    // 2. Garansi / Kebijakan Toko / Lisensi / DOA / Legalitas Dokumen Properti / Kesegaran Tanaman
     const warrantyInfo = (item.detailed_info?.warranty_info || '').trim();
-    const hasWarranty = pType !== 'service' && (isNonEmptyValue(warrantyInfo) || (pType === 'digital' && isNonEmptyValue(item.attributes?.license_type)) || pType === 'property');
+    const hasWarranty = pType !== 'service' && (isNonEmptyValue(warrantyInfo) || (pType === 'digital' && isNonEmptyValue(item.attributes?.license_type)) || pType === 'property' || pType === 'plant');
     if (hasWarranty) {
       let label = 'Kebijakan Garansi';
       let fullTitle = 'Kebijakan Garansi & Klaim';
@@ -2039,6 +2131,13 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
         label = 'Garansi D.O.A';
         fullTitle = 'Ketentuan Garansi D.O.A (Dead On Arrival)';
         icon = Heart;
+      } else if (pType === 'plant') {
+        label = 'Garansi Segar';
+        fullTitle = 'Jaminan Kesegaran & Garansi Tiba Aman';
+        icon = Sprout;
+        if (!content) {
+          content = 'Garansi tanaman hidup dan segar sampai tujuan. Klaim penggantian bibit berlaku dengan menyertakan video unboxing utuh tanpa jeda maksimal 2 jam setelah paket diterima.';
+        }
       } else if (pType === 'digital') {
         label = 'Lisensi & Hak Cipta';
         fullTitle = 'Ketentuan Lisensi & Hak Cipta';
@@ -6177,7 +6276,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Desktop Admin Inventory States & Filters
   const [adminSearch, setAdminSearch] = useState<string>('')
-  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property'>('all')
+  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant'>('all')
   const [adminClassFilter, setAdminClassFilter] = useState<string>('all')
   const [adminActiveFilter, setAdminActiveFilter] = useState<'all' | 'active' | 'archived'>('all')
   const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
@@ -10947,7 +11046,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
         facing: item.attributes?.facing ?? 'Timur',
         property_location: item.attributes?.property_location ?? 'BSD City, Tangerang Selatan',
         facilities: item.attributes?.facilities ?? 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
-        halal_status: item.attributes?.halal_status ?? 'Bersertifikat Halal Resmi (BPJPH / MUI)'
+        halal_status: item.attributes?.halal_status ?? 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+        sunlight: item.attributes?.sunlight ?? 'Partial Sun (Teduh Terang)',
+        watering: item.attributes?.watering ?? 'Sedang (2-3 Hari Sekali)',
+        planting_medium: item.attributes?.planting_medium ?? 'Campuran Tanah, Sekam & Kompos',
+        plant_size: item.attributes?.plant_size ?? 'Sedang (30 - 60 cm)',
+        protection_status: item.attributes?.protection_status ?? 'Non-Dilindungi (Aman Diperjualbelikan)',
+        delivery_condition: item.attributes?.delivery_condition ?? 'Tanaman + Pot Asli & Media'
       }
     })
     setCustomClass('')
@@ -15073,7 +15178,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {selectedFauna.name}
                 </h2>
                 
-                {selectedFauna.product_type === 'fauna' && isNonEmptyValue(selectedFauna.scientific_name) && (
+                {(selectedFauna.product_type === 'fauna' || selectedFauna.product_type === 'plant') && isNonEmptyValue(selectedFauna.scientific_name) && (
                   <div style={{ fontStyle: 'italic', fontSize: '1rem', color: 'var(--primary)', marginBottom: '1.25rem' }}>
                     {selectedFauna.scientific_name}
                   </div>
@@ -15086,7 +15191,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Specs List */}
                 <div style={{ borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.85rem' }}>
-                    {selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : 'Spesifikasi Satwa & Fauna'))))}
+                    {selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : (selectedFauna.product_type === 'plant' ? 'Spesifikasi Tanaman & Tumbuhan' : 'Spesifikasi Hewan')))))}
                   </h3>
                   
                   <div style={{
@@ -15186,14 +15291,32 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
                         return (
                           <>
-                            {renderRow('Kelas / Kategori', selectedFauna.class)}
-                            {renderRow('Nama Ilmiah / Taksonomi', selectedFauna.scientific_name)}
+                            {renderRow('Kategori Hewan', selectedFauna.class)}
+                            {renderRow('Nama Ilmiah (Latin)', selectedFauna.scientific_name)}
                             {renderRow('Asal Wilayah', selectedFauna.detailed_info?.native_region)}
                             {renderRow('Masa Hidup', selectedFauna.detailed_info?.lifespan)}
                             {renderRow('Bobot', selectedFauna.detailed_info?.weight)}
                             {renderRow('Status Ketersediaan', selectedFauna.conservation_status)}
                             {renderRow('Minimal Beli', `${minOrderVal} ${unit}`)}
                             {renderRow('Maksimal per Kiriman', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null)}
+                          </>
+                        );
+                      } else if (selectedFauna.product_type === 'plant') {
+                        const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                        const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                        return (
+                          <>
+                            {renderRow('Kategori Tanaman', selectedFauna.class)}
+                            {renderRow('Nama Ilmiah / Botani', selectedFauna.scientific_name)}
+                            {renderRow('Kebutuhan Cahaya', selectedFauna.attributes?.sunlight, true)}
+                            {renderRow('Penyiraman', selectedFauna.attributes?.watering, true)}
+                            {renderRow('Media Tanam', selectedFauna.attributes?.planting_medium)}
+                            {renderRow('Ukuran / Dimensi', selectedFauna.attributes?.plant_size)}
+                            {renderRow('Status Perlindungan', selectedFauna.attributes?.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)', true)}
+                            {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
+                            {renderRow('Kondisi Pengiriman', selectedFauna.attributes?.delivery_condition)}
+                            {minOrderVal > 1 && renderRow('Minimal Beli', `${minOrderVal} ${unit}`)}
+                            {maxOrderVal && Number(maxOrderVal) > 0 && renderRow('Maksimal Beli', `${maxOrderVal} ${unit}`)}
                           </>
                         );
                       } else if (selectedFauna.product_type === 'service') {
@@ -15229,7 +15352,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <ProductDescriptionView 
                   description={selectedFauna.description} 
                   isMobile={false} 
-                  title={selectedFauna.product_type === 'property' ? 'Deskripsi & Keunggulan Properti' : (selectedFauna.product_type === 'fauna' ? 'Deskripsi & Kondisi Satwa' : (selectedFauna.product_type === 'service' ? 'Deskripsi Cakupan Layanan' : (selectedFauna.product_type === 'digital' ? 'Deskripsi & Isi Materi Digital' : (selectedFauna.product_type === 'food' ? 'Deskripsi Menu & Komposisi' : 'Deskripsi Produk & Spesifikasi'))))}
+                  title={selectedFauna.product_type === 'property' ? 'Deskripsi & Keunggulan Properti' : (selectedFauna.product_type === 'fauna' ? 'Deskripsi & Kondisi Hewan' : (selectedFauna.product_type === 'plant' ? 'Deskripsi & Perawatan Tanaman' : (selectedFauna.product_type === 'service' ? 'Deskripsi Cakupan Layanan' : (selectedFauna.product_type === 'digital' ? 'Deskripsi & Isi Materi Digital' : (selectedFauna.product_type === 'food' ? 'Deskripsi Menu & Komposisi' : 'Deskripsi Produk & Spesifikasi')))))}
                 />
 
                 {/* Important Information with Dynamic Contextual Action Buttons */}
@@ -15240,7 +15363,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <div style={{ marginTop: '1.5rem' }}>
                     <VideoPlayerEmbed 
                       url={selectedFauna.video_url} 
-                      title={selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Portofolio' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing'))))} 
+                      title={selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Hewan' : (selectedFauna.product_type === 'plant' ? 'Video Tanaman' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Portofolio' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing')))))} 
                     />
                   </div>
                 )}
@@ -17222,7 +17345,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               }}
                             >
                               <PawPrint size={13} />
-                              <span>Fauna ({faunas.filter(f => f.product_type === 'fauna').length})</span>
+                              <span>Hewan ({faunas.filter(f => f.product_type === 'fauna').length})</span>
+                            </button>
+                          )}
+                          {availableProductTypes.includes('plant') && (
+                            <button
+                              type="button"
+                              className="desktop-chip-btn"
+                              onClick={() => { setProductTypeFilter('plant'); setClassFilter('all'); setHabitatFilter('all'); }}
+                              style={{
+                                border: productTypeFilter === 'plant' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: productTypeFilter === 'plant' ? 'var(--primary)' : 'var(--bg-card-hover)',
+                                color: productTypeFilter === 'plant' ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              <Sprout size={13} />
+                              <span>Tanaman ({faunas.filter(f => f.product_type === 'plant').length})</span>
                             </button>
                           )}
                           {availableProductTypes.includes('property') && (
@@ -18868,25 +19006,58 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       borderRadius: '20px',
                                       fontSize: '0.74rem',
                                       fontWeight: 700,
-                                      border: adminProductTypeFilter === 'fauna' ? '1px solid #10b981' : '1px solid var(--border-light)',
+                                      border: adminProductTypeFilter === 'fauna' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
                                       cursor: 'pointer',
-                                      backgroundColor: adminProductTypeFilter === 'fauna' ? 'rgba(16,185,129,0.15)' : 'transparent',
-                                      color: adminProductTypeFilter === 'fauna' ? '#34d399' : 'var(--text-secondary)',
+                                      backgroundColor: adminProductTypeFilter === 'fauna' ? 'var(--primary-glow)' : 'transparent',
+                                      color: adminProductTypeFilter === 'fauna' ? 'var(--primary)' : 'var(--text-secondary)',
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '0.35rem'
                                     }}
                                   >
-                                    <span>Fauna</span>
+                                    <PawPrint size={13} />
+                                    <span>Hewan</span>
                                     <span style={{
                                       padding: '0.06rem 0.42rem',
                                       borderRadius: '999px',
                                       fontSize: '0.68rem',
                                       fontWeight: 800,
-                                      backgroundColor: adminProductTypeFilter === 'fauna' ? '#10b981' : 'rgba(16,185,129,0.12)',
-                                      color: adminProductTypeFilter === 'fauna' ? '#ffffff' : '#34d399'
+                                      backgroundColor: adminProductTypeFilter === 'fauna' ? 'var(--primary)' : 'var(--primary-glow)',
+                                      color: adminProductTypeFilter === 'fauna' ? '#ffffff' : 'var(--primary)'
                                     }}>
                                       {productTypeCounts['fauna'] || 0}
+                                    </span>
+                                  </button>
+                                )}
+                                {availableProductTypes.includes('plant') && ((productTypeCounts['plant'] || 0) > 0 || adminProductTypeFilter === 'plant') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAdminProductTypeFilter('plant'); setAdminClassFilter('all'); setAdminPage(1); }}
+                                    style={{
+                                      padding: '0.28rem 0.75rem',
+                                      borderRadius: '20px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 700,
+                                      border: adminProductTypeFilter === 'plant' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      backgroundColor: adminProductTypeFilter === 'plant' ? 'var(--primary-glow)' : 'transparent',
+                                      color: adminProductTypeFilter === 'plant' ? 'var(--primary)' : 'var(--text-secondary)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem'
+                                    }}
+                                  >
+                                    <Sprout size={13} />
+                                    <span>Tanaman</span>
+                                    <span style={{
+                                      padding: '0.06rem 0.42rem',
+                                      borderRadius: '999px',
+                                      fontSize: '0.68rem',
+                                      fontWeight: 800,
+                                      backgroundColor: adminProductTypeFilter === 'plant' ? 'var(--primary)' : 'var(--primary-glow)',
+                                      color: adminProductTypeFilter === 'plant' ? '#ffffff' : 'var(--primary)'
+                                    }}>
+                                      {productTypeCounts['plant'] || 0}
                                     </span>
                                   </button>
                                 )}
@@ -18983,8 +19154,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           ) : (
                             displayedAdminItems.map((item) => {
                               const itemType = (item.product_type || 'physical') as ItemCategoryType;
-                              const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? '#10b981' : '#3b82f6';
-                              const typeLabel = itemType === 'food' ? 'Food' : itemType === 'service' ? 'Jasa' : itemType === 'digital' ? 'Digital' : itemType === 'fauna' ? 'Fauna' : 'Fisik';
+                              const typeBadgeBg = itemType === 'food' ? '#ef4444' : itemType === 'service' ? '#f59e0b' : itemType === 'digital' ? '#8b5cf6' : itemType === 'fauna' ? 'var(--primary)' : itemType === 'plant' ? 'var(--primary)' : itemType === 'property' ? '#0d9488' : '#3b82f6';
+                              const typeLabel = itemType === 'food' ? 'Food' : itemType === 'service' ? 'Jasa' : itemType === 'digital' ? 'Digital' : itemType === 'fauna' ? 'Hewan' : itemType === 'plant' ? 'Tanaman' : itemType === 'property' ? 'Properti' : 'Fisik';
 
                               return (
                                 <tr key={item.id}>
@@ -19026,6 +19197,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       {itemType === 'fauna' && (
                                         <span>{item.scientific_name ? <i>{item.scientific_name}</i> : (item.habitat || 'General')}</span>
                                       )}
+                                      {itemType === 'plant' && (
+                                        <span>{item.scientific_name ? <i>{item.scientific_name}</i> : (item.attributes?.sunlight || 'Tanaman Segar')}{item.attributes?.plant_size ? ` • ${item.attributes.plant_size}` : ''}</span>
+                                      )}
                                     </div>
                                   </td>
                                   <td>
@@ -19036,7 +19210,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         padding: '0.15rem 0.5rem',
                                         borderRadius: '4px',
                                         backgroundColor: `${typeBadgeBg}20`,
-                                        color: typeBadgeBg === '#ef4444' ? '#f87171' : typeBadgeBg === '#f59e0b' ? '#fbbf24' : typeBadgeBg === '#8b5cf6' ? '#c084fc' : typeBadgeBg === '#10b981' ? '#34d399' : '#60a5fa',
+                                        color: (typeBadgeBg as string) === '#ef4444' ? '#f87171' : (typeBadgeBg as string) === '#f59e0b' ? '#fbbf24' : (typeBadgeBg as string) === '#8b5cf6' ? '#c084fc' : (typeBadgeBg as string) === 'var(--primary)' ? 'var(--primary)' : '#60a5fa',
                                         border: `1px solid ${typeBadgeBg}40`
                                       }}>
                                         {item.class}
@@ -20131,7 +20305,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             {[
                               { key: 'physical', label: 'Retail & Barang Fisik', icon: Package, color: '#3b82f6', desc: 'Pakaian, Aksesoris, Elektronik, dll.' },
                               { key: 'digital', label: 'File & Item Digital', icon: FileCode, color: '#8b5cf6', desc: 'E-Book, Script, Desain, Video, dll.' },
-                              { key: 'fauna', label: 'Petshop & Satwa Hias', icon: Compass, color: '#10b981', desc: 'Reptil, Ikan, Burung, Pakan, dll.' },
+                              { key: 'fauna', label: 'Petshop & Hewan Peliharaan', icon: PawPrint, color: 'var(--primary)', desc: 'Reptil, Ikan, Burung, Anabul, dll.' },
+                              { key: 'plant', label: 'Nursery & Tanaman', icon: Sprout, color: 'var(--primary)', desc: 'Tanaman Hias, Bibit, Bonsai, dll.' },
                               { key: 'service', label: 'Jasa & Layanan', icon: Wrench, color: '#f59e0b', desc: 'Konsultasi, Servis, Desain, Kursus, dll.' },
                               { key: 'food', label: 'Kuliner & F&B', icon: Utensils, color: '#ef4444', desc: 'Makanan, Minuman, Snack, Frozen, dll.' },
                               { key: 'general', label: 'Universal / Umum', icon: Layers, color: '#06b6d4', desc: 'Template netral untuk semua bisnis' },
@@ -20151,7 +20326,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         : preset.key === 'digital'
                                         ? ['E-Book & Panduan', 'Source Code & Script', 'Template Desain', 'Video & Audio Materi', 'Tools & Aset Digital']
                                         : preset.key === 'fauna'
-                                        ? ['Reptil & Amfibi', 'Ikan Hias & Aquascape', 'Burung Kicau & Unggas', 'Mamalia Hias', 'Pakan & Perlengkapan']
+                                        ? ['Ikan Hias & Aquascape', 'Burung Kicau & Unggas', 'Reptil & Amfibi', 'Anabul & Kucing', 'Pakan & Perlengkapan']
+                                        : preset.key === 'plant'
+                                        ? ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah']
                                         : preset.key === 'service'
                                         ? ['Konsultasi & Advice', 'Desain & Kreatif', 'Perbaikan & Servis', 'Kursus & Pelatihan', 'Pembuatan Web & Aplikasi']
                                         : preset.key === 'food'
@@ -24497,14 +24674,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', fontWeight: 800, display: 'block', marginBottom: '0.45rem' }}>
                     Pilih Tipe Item Katalog:
                   </span>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem' }}>
                     {[
                       { id: 'physical', name: 'Barang Fisik', icon: Package, color: '#2563eb' },
                       { id: 'property', name: 'Properti', icon: Building2, color: '#0284c7' },
                       { id: 'food', name: 'Kuliner', icon: Utensils, color: '#dc2626' },
                       { id: 'service', name: 'Jasa & Layanan', icon: Wrench, color: '#d97706' },
                       { id: 'digital', name: 'Item Digital', icon: FileCode, color: '#8b5cf6' },
-                      { id: 'fauna', name: 'Satwa / Fauna', icon: PawPrint, color: '#059669' }
+                      { id: 'fauna', name: 'Hewan', icon: PawPrint, color: 'var(--primary)' },
+                      { id: 'plant', name: 'Tanaman', icon: Sprout, color: 'var(--primary)' }
                     ].map((cat) => {
                       const CatIcon = cat.icon;
                       const isSelected = crudForm.product_type === cat.id;
@@ -24636,7 +24814,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Price and Min/Max Orders - Desktop 3 Columns */}
                 <div style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: (crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'digital') ? '1.5fr 1fr 1fr' : '1fr', 
+                  gridTemplateColumns: (crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'plant' || crudForm.product_type === 'digital') ? '1.5fr 1fr 1fr' : '1fr', 
                   gap: '1rem', 
                   alignItems: 'start' 
                 }}>
@@ -24658,7 +24836,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
 
                   {/* Min & Max Order Inputs */}
-                  {(crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'digital') && (
+                  {(crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'plant' || crudForm.product_type === 'digital') && (
                     <>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
@@ -24806,20 +24984,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                 )}
 
-                {/* 3. SATWA & LIVING FAUNA */}
+                {/* 3. HEWAN & SATWA PELIHARAAN */}
                 {crudForm.product_type === 'fauna' && (
-                  <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.2)', padding: '1.25rem', borderRadius: '0.85rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
-                      Atribut Spesifik Satwa &amp; Living Fauna
+                  <div style={{ background: 'var(--primary-glow)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '0.85rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
+                      Atribut Spesifik Hewan Peliharaan
                     </span>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Nama Ilmiah / Taksonomi *</label>
+                        <label className="form-label">Nama Ilmiah / Taksonomi (Latin)</label>
                         <input 
                           type="text" 
                           className="form-input" 
                           placeholder="Contoh: Scleropages formosus..."
-                          required
                           value={crudForm.scientific_name}
                           onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
                           style={{ height: '42px' }}
@@ -24890,7 +25067,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Ukuran / Berat Satwa</label>
+                        <label className="form-label">Ukuran / Berat Hewan</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -24899,6 +25076,123 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, weight: e.target.value })}
                           style={{ height: '42px' }}
                         />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TANAMAN & TUMBUHAN */}
+                {crudForm.product_type === 'plant' && (
+                  <div style={{ background: 'var(--primary-glow)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '0.85rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
+                      Atribut Spesifik Tanaman &amp; Tumbuhan
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Nama Ilmiah / Botani (Latin)</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Monstera deliciosa / Ficus microcarpa..."
+                          value={crudForm.scientific_name}
+                          onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Status Perlindungan &amp; Legalitas *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes?.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)'}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, protection_status: e.target.value } })}
+                          style={{ height: '42px' }}
+                        >
+                          <option value="Non-Dilindungi (Aman Diperjualbelikan)">Non-Dilindungi (Aman & Bebas Diperjualbelikan)</option>
+                          <option value="Dilindungi / Budidaya Legal">Dilindungi / Budidaya Legal (Penangkar Bersertifikat)</option>
+                          <option value="Tanaman Endemik / Karantina">Tanaman Endemik / Bersertifikat Karantina</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Kebutuhan Sinar Matahari *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes?.sunlight || 'Partial Sun (Teduh Terang)'}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sunlight: e.target.value } })}
+                          style={{ height: '42px' }}
+                        >
+                          <option value="Full Sun (Matahari Penuh > 6 jam)">Full Sun (Matahari Penuh &gt; 6 Jam)</option>
+                          <option value="Partial Sun (Teduh Terang)">Partial Sun (Teduh Terang / Cahaya Tersaring)</option>
+                          <option value="Indoor / Low Light (Dalam Ruangan)">Indoor / Low Light (Dalam Ruangan)</option>
+                          <option value="Fleksibel (Indoor / Outdoor)">Fleksibel (Bisa Indoor / Outdoor)</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Kebutuhan Penyiraman *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes?.watering || 'Sedang (2-3 Hari Sekali)'}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, watering: e.target.value } })}
+                          style={{ height: '42px' }}
+                        >
+                          <option value="Rutin Harian (1-2x Sehari)">Rutin Harian (1-2x Sehari)</option>
+                          <option value="Sedang (2-3 Hari Sekali)">Sedang (2-3 Hari Sekali / Saat Media Kering)</option>
+                          <option value="Minim Air (1-2 Minggu Sekali)">Minim Air (1-2 Minggu Sekali - Sukulen/Kaktus)</option>
+                          <option value="Khusus / Hidroponik / Air">Khusus / Hidroponik / Terendam Air</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Status Ketersediaan *</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.conservation_status}
+                          onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
+                          style={{ height: '42px' }}
+                        >
+                          <option value="Tersedia">Tersedia (Ready Stock)</option>
+                          <option value="Pre-Order">Pre-Order (PO)</option>
+                          <option value="Koleksi / Display">Koleksi / Display Only</option>
+                          <option value="Habis Terjual">Habis Terjual (Sold Out)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Rekomendasi Media Tanam</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Tanah Humus / Sekam / Pasir Malang..."
+                          value={crudForm.attributes?.planting_medium || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, planting_medium: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Ukuran / Estimasi Tinggi</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Tinggi 25-35 cm / Pot D17..."
+                          value={crudForm.attributes?.plant_size || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, plant_size: e.target.value } })}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Kondisi Pengiriman Tanaman</label>
+                        <select 
+                          className="form-select"
+                          value={crudForm.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_condition: e.target.value } })}
+                          style={{ height: '42px' }}
+                        >
+                          <option value="Kirim Bersama Pot & Media Tanam">Kirim Bersama Pot & Media Tanam</option>
+                          <option value="Kirim Bare Root (Kurangi Media)">Kirim Bare Root (Kurangi Media - Hemat Ongkir)</option>
+                          <option value="Khusus Kurir Instan / Sameday">Khusus Kurir Instan / Sameday (Siap Pajang)</option>
+                          <option value="Bisa Kirim se-Indonesia">Bisa Kirim se-Indonesia (Packing Paralon/Kardus)</option>
+                        </select>
                       </div>
                     </div>
                   </div>
