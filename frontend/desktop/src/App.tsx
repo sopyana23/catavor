@@ -5640,6 +5640,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   // Navigation: 'catalog' or 'admin'
   const [view, setView] = useState<'catalog' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
+      const savedView = sessionStorage.getItem('catavor_desktop_view');
+      if (savedView && ['catalog', 'admin'].includes(savedView)) {
+        sessionStorage.removeItem('catavor_desktop_view');
+        return savedView as any;
+      }
       const path = window.location.pathname.toLowerCase();
       if (path.includes('/admin') || (path.split('/').filter(Boolean).length === 2 && path.endsWith('/login'))) {
         return 'admin';
@@ -5649,6 +5654,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   });
   const [adminTab, setAdminTab] = useState<'items' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal'>(() => {
     if (typeof window !== 'undefined') {
+      const savedTab = sessionStorage.getItem('catavor_desktop_admin_tab');
+      if (savedTab && ['items', 'analytics', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal'].includes(savedTab)) {
+        sessionStorage.removeItem('catavor_desktop_admin_tab');
+        return savedTab as any;
+      }
       const path = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
       const parts = path.split('/').filter(Boolean);
@@ -11021,7 +11031,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
         resetCrudState('physical')
         loadData()
         fetchMyQuota()
-        showToast('Item katalog berhasil disimpan!')
+        showToast(crudMode === 'create' ? 'Item katalog berhasil ditambahkan!' : 'Item katalog berhasil diperbarui!')
+        if (view === 'admin') {
+          sessionStorage.setItem('catavor_desktop_view', 'admin')
+          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items')
+        }
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -11312,7 +11329,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const data = await res.json()
       if (res.ok && data.success) {
         loadData()
+        fetchMyQuota()
         showToast('Data produk berhasil dihapus!')
+        if (view === 'admin') {
+          sessionStorage.setItem('catavor_desktop_view', 'admin')
+          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items')
+        }
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
         return true
       } else {
         if (res.status === 401) {

@@ -5776,6 +5776,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [view, setView] = useState<'tabs' | 'article-editor' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'articles' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
+      const savedTab = sessionStorage.getItem('catavor_mobile_active_tab');
+      if (savedTab && ['catalog', 'about', 'sightings', 'articles', 'admin'].includes(savedTab)) {
+        sessionStorage.removeItem('catavor_mobile_active_tab');
+        return savedTab as any;
+      }
       const path = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
       const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
@@ -5808,6 +5813,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [aboutSubView, setAboutSubView] = useState<'main' | 'qrcode'>('main')
   const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'articles' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
     if (typeof window !== 'undefined') {
+      const savedSub = sessionStorage.getItem('catavor_mobile_admin_subtab');
+      if (savedSub && ['menu', 'items', 'analytics', 'settings', 'profile', 'articles', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(savedSub)) {
+        sessionStorage.removeItem('catavor_mobile_admin_subtab');
+        return savedSub as any;
+      }
       const path = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
       const parts = path.split('/').filter(Boolean);
@@ -11521,12 +11531,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       if (res.ok && data.success) {
         setShowCrudSheet(false)
         setView('tabs')
-        setActiveTab('admin')
-        setAdminSubTab('items')
         resetCrudState('physical')
         loadData()
         fetchMyQuota()
-        showToast('Item katalog berhasil disimpan!')
+        showToast(crudMode === 'create' ? 'Item katalog berhasil ditambahkan!' : 'Item katalog berhasil diperbarui!')
+        sessionStorage.setItem('catavor_mobile_active_tab', 'admin')
+        sessionStorage.setItem('catavor_mobile_admin_subtab', 'items')
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
       } else {
         if (res.status === 401) {
           handleUnauthorized()
@@ -12075,7 +12088,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       const data = await res.json()
       if (res.ok && data.success) {
         loadData()
+        fetchMyQuota()
         showToast('Data produk berhasil dihapus!')
+        if (activeTab === 'admin') {
+          sessionStorage.setItem('catavor_mobile_active_tab', 'admin')
+          sessionStorage.setItem('catavor_mobile_admin_subtab', adminSubTab || 'items')
+        }
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
         return true
       } else {
         if (res.status === 401) {
