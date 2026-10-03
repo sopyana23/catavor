@@ -6122,12 +6122,44 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const activeDetailItemIdRef = useRef<string | null>(
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null
   )
+  const isDetailActiveRef = useRef<boolean>(false)
+  useEffect(() => {
+    isDetailActiveRef.current = isDetailActive;
+    if (isDetailActive) {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+    }
+  }, [isDetailActive]);
 
   const handleCloseDetail = useCallback(() => {
+    const wasDetail = isDetailActiveRef.current || !!activeDetailItemIdRef.current || isDetailActive;
     setIsDetailActive(false);
     setSelectedFauna(null);
     activeDetailItemIdRef.current = null;
-  }, [])
+    isDetailActiveRef.current = false;
+
+    if (wasDetail) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      });
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      }, 50);
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+      }, 150);
+    }
+  }, [isDetailActive])
   const [showPurchaseOptions, setShowPurchaseOptions] = useState<boolean>(false)
   const [showRekberExplainerModal, setShowRekberExplainerModal] = useState<boolean>(false)
   const [purchaseQty, setPurchaseQty] = useState<number>(1)
@@ -8510,7 +8542,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           } else {
             fetchDetails(parseInt(popItemId, 10));
           }
-        } else {
+        } else if (isDetailActiveRef.current || activeDetailItemIdRef.current) {
           handleCloseDetail();
         }
 
@@ -15435,7 +15467,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <>
                   <button 
                     type="button" 
-                    onClick={handleCloseDetail}
+                    onClick={() => {
+                      const slug = storeSlug || getStoreSlug() || '';
+                      smartBack(() => {
+                        handleCloseDetail();
+                        if (slug) {
+                          window.history.replaceState({}, '', `/${slug}`);
+                        } else {
+                          window.history.replaceState({}, '', '/');
+                        }
+                      });
+                    }}
                     style={{
                       height: '42px',
                       padding: '0 1.5rem',
