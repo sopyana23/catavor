@@ -6594,6 +6594,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (curToken) {
           fetchMyStores();
         }
+      } else {
+        setShowStoreSwitcherModal(false);
+        setStoreChooserComplianceAlert(null);
       }
     };
     handleRouteSync();
@@ -6622,13 +6625,19 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
       null;
 
+    const isChooserUrl = typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname);
+
     if (activeSlug && isValid(activeSlug)) {
       setStoreSlug(activeSlug);
       try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
       setView('tabs');
       setActiveTab('admin');
       if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', `/${activeSlug}/admin`);
+        if (isChooserUrl && window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.history.pushState({}, '', `/${activeSlug}/admin`);
+        }
       }
       loadData(activeSlug);
     } else {
@@ -6636,7 +6645,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       setActiveTab('catalog');
       setPortalTab('home');
       if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', '/');
+        if (isChooserUrl && window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.history.pushState({}, '', '/');
+        }
       }
     }
   };
@@ -8849,6 +8862,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       setStoreSlug(slug);
 
       if (slug) {
+        setShowStoreSwitcherModal(false);
+        setStoreChooserComplianceAlert(null);
         const path = window.location.pathname.toLowerCase();
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);

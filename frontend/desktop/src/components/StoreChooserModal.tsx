@@ -305,7 +305,7 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
             {effectiveActiveSlug ? (
               <button
                 type="button"
-                onClick={() => smartBack(onClose)}
+                onClick={onClose}
                 style={{
                   width: '42px',
                   height: '42px',

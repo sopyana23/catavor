@@ -6466,6 +6466,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (curToken) {
           fetchMyStores();
         }
+      } else {
+        setShowStoreSwitcherModal(false);
+        setStoreChooserComplianceAlert(null);
       }
     };
     handleRouteSync();
@@ -6494,19 +6497,29 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       (userStores && userStores.find(s => isValid(s.slug))?.slug) ||
       null;
 
+    const isChooserUrl = typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname);
+
     if (activeSlug && isValid(activeSlug)) {
       setStoreSlug(activeSlug);
       try { localStorage.setItem('catavor_active_slug', activeSlug); } catch {}
       setView('admin');
       if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', `/${activeSlug}/admin`);
+        if (isChooserUrl && window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.history.pushState({}, '', `/${activeSlug}/admin`);
+        }
       }
       loadData(activeSlug);
     } else {
       setView('catalog');
       setPortalTab('home');
       if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', '/');
+        if (isChooserUrl && window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.history.pushState({}, '', '/');
+        }
       }
     }
   };
@@ -8483,6 +8496,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const slug = getStoreSlug();
       setStoreSlug(slug);
       if (slug) {
+        setShowStoreSwitcherModal(false);
+        setStoreChooserComplianceAlert(null);
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);
         const popItemId = urlParams.get('item');
