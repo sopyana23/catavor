@@ -34,12 +34,12 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         platformLabel: isShorts ? 'YouTube Shorts' : 'YouTube Video',
         isValid: true,
         isNativeIframeSupported: true,
-        brandAccent: '#ff0000',
-        brandGlow: 'rgba(239, 68, 68, 0.35)',
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
         badgeBg: '#ff0000',
         badgeText: isShorts ? 'YouTube Shorts' : 'YouTube Video',
         badgeIcon: '▶',
-        cardBackground: 'linear-gradient(135deg, #120a0d 0%, #1f0d14 100%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
 
@@ -55,12 +55,12 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isValid: true,
         creatorHandle: handle,
         isNativeIframeSupported: false,
-        brandAccent: '#00f2fe',
-        brandGlow: 'rgba(0, 242, 254, 0.35)',
-        badgeBg: '#000000',
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
+        badgeBg: '#05070d',
         badgeText: 'TikTok Video',
         badgeIcon: '🎵',
-        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(0, 242, 254, 0.14) 0%, rgba(254, 44, 85, 0.1) 45%, #070c18 85%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
 
@@ -77,12 +77,12 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isValid: true,
         creatorHandle: handle,
         isNativeIframeSupported: false,
-        brandAccent: '#e1306c',
-        brandGlow: 'rgba(225, 48, 108, 0.35)',
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
         badgeBg: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
         badgeText: isReel ? 'Instagram Reel' : 'Instagram Video',
         badgeIcon: '📸',
-        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(225, 48, 108, 0.15) 0%, rgba(240, 148, 51, 0.08) 45%, #0e0916 85%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
 
@@ -96,12 +96,12 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         platformLabel: 'Facebook',
         isValid: true,
         isNativeIframeSupported: false,
-        brandAccent: '#1877f2',
-        brandGlow: 'rgba(24, 119, 242, 0.35)',
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
         badgeBg: '#1877f2',
         badgeText: isReel ? 'Facebook Reel' : 'Facebook Video',
         badgeIcon: '📘',
-        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(24, 119, 242, 0.15) 0%, rgba(13, 30, 60, 0.2) 50%, #090e1a 85%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
 
@@ -117,12 +117,12 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         isValid: true,
         creatorHandle: handle,
         isNativeIframeSupported: false,
-        brandAccent: '#1d9bf0',
-        brandGlow: 'rgba(29, 155, 240, 0.35)',
-        badgeBg: '#000000',
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
+        badgeBg: '#05070d',
         badgeText: 'Video di X',
         badgeIcon: '𝕏',
-        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(29, 155, 240, 0.12) 0%, rgba(20, 30, 45, 0.25) 50%, #080c14 85%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
 
@@ -135,12 +135,12 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         platformLabel: 'Pinterest',
         isValid: true,
         isNativeIframeSupported: false,
-        brandAccent: '#e60023',
-        brandGlow: 'rgba(230, 0, 35, 0.35)',
+        brandAccent: 'var(--primary, #10b981)',
+        brandGlow: 'var(--primary-glow, rgba(16, 185, 129, 0.35))',
         badgeBg: '#e60023',
         badgeText: 'Pinterest Video',
         badgeIcon: '📌',
-        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(230, 0, 35, 0.14) 0%, rgba(35, 12, 16, 0.25) 50%, #0f0709 85%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
 
@@ -159,7 +159,7 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
         badgeBg: 'var(--primary, #10b981)',
         badgeText: 'Video Produk',
         badgeIcon: '▶',
-        cardBackground: 'radial-gradient(circle at 50% 35%, rgba(16, 185, 129, 0.12) 0%, rgba(12, 28, 22, 0.25) 50%, #080f13 85%)'
+        cardBackground: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       };
     }
   } catch (err) {
@@ -183,14 +183,14 @@ export const VideoPlayerEmbed: React.FC<{
     return (
       <div style={{
         margin: '1rem 0',
-        borderRadius: '0.85rem',
+        borderRadius: '1rem',
         overflow: 'hidden',
         border: '1px solid var(--border-light)',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-        background: '#0a0f1d'
+        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+        background: 'var(--card-bg-gradient, var(--bg-card, #0f172a))'
       }}>
         <div style={{
-          padding: '0.5rem 0.85rem',
+          padding: '0.6rem 0.95rem',
           background: 'rgba(255,255,255,0.03)',
           borderBottom: '1px solid var(--border-light)',
           display: 'flex',
@@ -199,29 +199,30 @@ export const VideoPlayerEmbed: React.FC<{
           fontSize: '0.78rem',
           color: 'var(--text-secondary)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '18px',
-              height: '18px',
-              borderRadius: '4px',
+              width: '20px',
+              height: '20px',
+              borderRadius: '5px',
               background: '#ff0000',
               color: '#ffffff',
-              fontSize: '10px'
+              fontSize: '11px',
+              fontWeight: 800
             }}>
               ▶
             </span>
-            <strong style={{ color: 'var(--text-primary)' }}>{title || parsed.platformLabel}</strong>
+            <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{title || parsed.platformLabel}</strong>
           </div>
           <a
             href={parsed.originalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600, fontSize: '0.74rem' }}
+            style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, fontSize: '0.75rem' }}
           >
-            Buka YouTube <ExternalLink size={11} />
+            Buka YouTube <ExternalLink size={12} />
           </a>
         </div>
         <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden' }}>
@@ -242,10 +243,10 @@ export const VideoPlayerEmbed: React.FC<{
     return (
       <div style={{
         margin: '1rem 0',
-        borderRadius: '0.85rem',
+        borderRadius: '1rem',
         overflow: 'hidden',
         border: '1px solid var(--border-light)',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
         background: '#000000'
       }}>
         <video 
@@ -265,35 +266,58 @@ export const VideoPlayerEmbed: React.FC<{
       rel="noopener noreferrer"
       className="catavor-video-card"
       style={{
-        '--card-accent': parsed.brandAccent,
-        '--card-glow': parsed.brandGlow,
-        margin: '0.9rem 0',
+        margin: isMobile ? '0.85rem 0' : '1rem 0',
         width: '100%',
-        maxWidth: isMobile ? '100%' : '520px',
-        padding: isMobile ? '1.15rem 1.15rem 1.05rem' : '1.35rem 1.35rem 1.25rem',
-        background: parsed.cardBackground,
+        maxWidth: isMobile ? '100%' : '540px',
+        padding: isMobile ? '1.15rem 1.15rem 1.1rem' : '1.35rem 1.4rem 1.25rem',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         minHeight: isMobile ? '185px' : '205px',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        position: 'relative',
+        overflow: 'hidden'
       } as React.CSSProperties}
       title={`Tonton ${title || parsed.platformLabel} di ${parsed.platformLabel}`}
     >
-      {/* Top Header: Badge + Creator Tag / External Icon */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+      {/* Ambient Dynamic Theme Corner Glow */}
+      <div style={{
+        position: 'absolute',
+        top: '-40px',
+        right: '-40px',
+        width: '160px',
+        height: '160px',
+        borderRadius: '50%',
+        background: 'var(--primary-glow, rgba(16, 185, 129, 0.25))',
+        filter: 'blur(45px)',
+        opacity: 0.65,
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+
+      {/* Subtle Specular Sheen Overlay */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+
+      {/* Top Header: Platform Badge + Creator Pill / Open Tag */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%', zIndex: 1 }}>
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.4rem',
-          padding: '0.32rem 0.75rem',
+          padding: isMobile ? '0.28rem 0.65rem' : '0.32rem 0.75rem',
           borderRadius: '999px',
           background: parsed.badgeBg,
           color: '#ffffff',
-          fontSize: '0.74rem',
+          fontSize: isMobile ? '0.72rem' : '0.75rem',
           fontWeight: 800,
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
+          border: '1px solid rgba(255, 255, 255, 0.22)',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
           letterSpacing: '0.02em'
         }}>
           <span>{parsed.badgeIcon}</span>
@@ -302,54 +326,57 @@ export const VideoPlayerEmbed: React.FC<{
 
         {parsed.creatorHandle ? (
           <span style={{
-            fontSize: '0.72rem',
+            fontSize: isMobile ? '0.7rem' : '0.74rem',
             color: 'var(--text-secondary)',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            padding: '0.22rem 0.55rem',
-            borderRadius: '6px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            padding: '0.22rem 0.6rem',
+            borderRadius: '999px',
             fontWeight: 600,
-            border: '1px solid rgba(255, 255, 255, 0.1)'
+            border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem'
           }}>
             {parsed.creatorHandle}
           </span>
         ) : (
           <div style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: '0.3rem',
+            padding: '0.22rem 0.55rem',
+            borderRadius: '999px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
             color: 'var(--text-secondary)',
-            border: '1px solid rgba(255, 255, 255, 0.06)'
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))'
           }}>
-            <ExternalLink size={12} />
+            <span>Buka Media</span>
+            <ExternalLink size={11} />
           </div>
         )}
       </div>
 
-      {/* Center: Play Button */}
+      {/* Center: Hero Play Button with Dynamic Theme Primary Accent */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        margin: '0.75rem 0'
+        margin: isMobile ? '0.65rem 0' : '0.85rem 0',
+        zIndex: 1
       }}>
         <div 
           className="catavor-play-btn"
           style={{
-            width: isMobile ? '52px' : '58px',
-            height: isMobile ? '52px' : '58px',
+            width: isMobile ? '52px' : '60px',
+            height: isMobile ? '52px' : '60px',
             borderRadius: '50%',
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            border: `2px solid ${parsed.brandAccent}`,
-            boxShadow: `0 0 20px ${parsed.brandGlow}`,
+            background: 'linear-gradient(135deg, var(--primary, #10b981) 0%, var(--primary-hover, #059669) 100%)',
+            boxShadow: '0 0 0 5px var(--primary-glow, rgba(16, 185, 129, 0.25)), 0 8px 24px var(--primary-glow, rgba(16, 185, 129, 0.35))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
             color: '#ffffff'
           }}
         >
@@ -358,47 +385,54 @@ export const VideoPlayerEmbed: React.FC<{
       </div>
 
       {/* Bottom Footer: Video Title + Direct Watch CTA */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '0.75rem', width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', width: '100%', zIndex: 1 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: isMobile ? '0.84rem' : '0.88rem',
-            fontWeight: 700,
-            color: '#ffffff',
+            fontSize: isMobile ? '0.88rem' : '0.94rem',
+            fontWeight: 800,
+            color: 'var(--text-primary)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            marginBottom: '0.2rem'
+            marginBottom: '0.2rem',
+            letterSpacing: '-0.01em'
           }}>
-            {title || 'Video Showcase Produk'}
+            {title || `Video Showcase di ${parsed.platformLabel}`}
           </div>
           <div style={{
-            fontSize: '0.71rem',
+            fontSize: isMobile ? '0.72rem' : '0.76rem',
             color: 'var(--text-secondary)',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.3rem'
+            gap: '0.35rem',
+            fontWeight: 500
           }}>
-            <span>Klik untuk menonton di {parsed.platformLabel}</span>
-            <ExternalLink size={11} />
+            <span>Tonton selengkapnya di</span>
+            <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{parsed.platformLabel}</span>
+            <ExternalLink size={11} style={{ color: 'var(--primary)', flexShrink: 0 }} />
           </div>
         </div>
 
-        <div style={{
-          flexShrink: 0,
-          padding: '0.38rem 0.8rem',
-          borderRadius: '0.5rem',
-          background: parsed.badgeBg,
-          color: '#ffffff',
-          fontSize: '0.72rem',
-          fontWeight: 800,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
-          border: '1px solid rgba(255, 255, 255, 0.2)'
-        }}>
+        <div 
+          className="catavor-video-cta"
+          style={{
+            flexShrink: 0,
+            padding: isMobile ? '0.42rem 0.85rem' : '0.48rem 1rem',
+            borderRadius: '999px',
+            background: 'linear-gradient(135deg, var(--primary, #10b981) 0%, var(--primary-hover, #059669) 100%)',
+            color: '#ffffff',
+            fontSize: isMobile ? '0.72rem' : '0.76rem',
+            fontWeight: 800,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            boxShadow: '0 4px 14px var(--primary-glow, rgba(16, 185, 129, 0.35))',
+            border: '1px solid rgba(255, 255, 255, 0.25)',
+            letterSpacing: '0.02em'
+          }}
+        >
           <span>Tonton</span>
-          <span style={{ fontSize: '0.8rem' }}>&rarr;</span>
+          <span style={{ fontSize: '0.82rem', transform: 'translateY(-0.5px)' }}>&rarr;</span>
         </div>
       </div>
     </a>
