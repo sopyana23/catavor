@@ -41,25 +41,68 @@ function ensurePopstateListener() {
   isPopstateListenerActive = true;
 }
 
+declare global {
+  interface Window {
+    __catavor_internal_nav_count?: number;
+    __catavor_nav_initialized?: boolean;
+  }
+}
+
+export function initNavigationTracker(): void {
+  if (typeof window === 'undefined' || window.__catavor_nav_initialized) return;
+  window.__catavor_nav_initialized = true;
+
+  if (typeof window.__catavor_internal_nav_count !== 'number') {
+    window.__catavor_internal_nav_count = 0;
+  }
+
+  // Intercept pushState to track forward navigation within the SPA
+  const originalPushState = window.history.pushState;
+  window.history.pushState = function (...args) {
+    if (typeof window.__catavor_internal_nav_count === 'number') {
+      window.__catavor_internal_nav_count += 1;
+    }
+    return originalPushState.apply(this, args);
+  };
+
+  // On popstate, adjust navigation count
+  window.addEventListener('popstate', () => {
+    if (typeof window.__catavor_internal_nav_count === 'number' && window.__catavor_internal_nav_count > 0) {
+      window.__catavor_internal_nav_count -= 1;
+    }
+  });
+}
+
+// Auto-init on script load
+if (typeof window !== 'undefined') {
+  initNavigationTracker();
+}
+
 /**
  * Execute smart back navigation:
  * 1. If internal history exists within the current session, call window.history.back()
  * 2. If opened directly / cold start, fallback safely to semantic parent
  */
-export function smartBack(fallbackPath: string = '/'): void {
+export function smartBack(fallback: string | (() => void) = '/'): void {
   if (typeof window === 'undefined') return;
 
-  const hasHistory = window.history.length > 1;
-  const isInternalReferrer = !!document.referrer && document.referrer.includes(window.location.host);
+  initNavigationTracker();
 
-  if (hasHistory && (isInternalReferrer || window.history.state)) {
+  const internalCount = window.__catavor_internal_nav_count ?? 0;
+  const hasInternalHistory = internalCount > 0 || (
+    window.history.length > 1 && Boolean(window.history.state)
+  );
+
+  if (hasInternalHistory) {
     window.history.back();
   } else {
-    // Fallback to parent
-    if (fallbackPath.startsWith('/')) {
-      window.location.href = fallbackPath;
-    } else {
-      window.location.pathname = fallbackPath;
+    // Fallback to semantic parent
+    if (typeof fallback === 'function') {
+      fallback();
+    } else if (typeof fallback === 'string') {
+      const targetUrl = fallback.startsWith('/') ? fallback : '/' + fallback;
+      window.history.replaceState({}, '', targetUrl);
+      window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }
   }
 }
@@ -67,10 +110,10 @@ export function smartBack(fallbackPath: string = '/'): void {
 /**
  * React Hook for buttons with "Kembali" / "Back" action.
  */
-export function useSmartBack(fallbackPath: string = '/') {
+export function useSmartBack(fallback: string | (() => void) = '/') {
   return useCallback(() => {
-    smartBack(fallbackPath);
-  }, [fallbackPath]);
+    smartBack(fallback);
+  }, [fallback]);
 }
 
 /**

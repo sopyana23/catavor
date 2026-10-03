@@ -143,6 +143,7 @@ import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './ut
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
+import { smartBack, useModalBackHandler } from './utils/navigation'
 
 export interface UserStoreSummary {
   id: number;
@@ -8216,6 +8217,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     try { sessionStorage.setItem('catavor_last_mobile_settings_tab', tab); } catch (e) {}
   };
 
+  // Intercept back actions for open overlays/modals (conforming to AGENTS.md Rule 2)
+  useModalBackHandler({ isOpen: showLightbox, onClose: () => setShowLightbox(false), modalId: 'lightbox' });
+  useModalBackHandler({ isOpen: showPurchaseOptions, onClose: () => setShowPurchaseOptions(false), modalId: 'purchase-options' });
+  useModalBackHandler({ isOpen: Boolean(actionMenuData), onClose: () => setActionMenuData(null), modalId: 'action-menu' });
+  useModalBackHandler({ isOpen: showStoreSwitcherModal, onClose: () => setShowStoreSwitcherModal(false), modalId: 'store-switcher' });
+  useModalBackHandler({ isOpen: showCreateStoreModal, onClose: () => setShowCreateStoreModal(false), modalId: 'create-store' });
+
   const [customDomainInput, setCustomDomainInput] = useState<string>('');
   const [customDomainLoading, setCustomDomainLoading] = useState<boolean>(false);
 
@@ -12767,7 +12775,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             <div className="container">
               {['terms', 'privacy', 'acceptable_use'].includes(portalTab) ? (
                 <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <button type="button" onClick={() => setPortalTab(previousPortalTab || 'home')} className="btn-back-circle" title="Kembali" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}>
+                  <button type="button" onClick={() => smartBack('/')} className="btn-back-circle" title="Kembali" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}>
                     <ChevronLeft size={20} />
                   </button>
                   <span style={{ color: '#cbd5e1' }}>|</span>
@@ -13726,7 +13734,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       type="button" 
                       className="btn-portal-secondary" 
                       style={{ padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}
-                      onClick={() => setRegisterStep(1)}
+                      onClick={() => smartBack(() => setRegisterStep(1))}
                     >
                       <ChevronLeft size={15} />
                       <span>Kembali</span>
@@ -13907,7 +13915,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       type="button" 
                       className="btn-portal-secondary" 
                       style={{ padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}
-                      onClick={() => setRegisterStep(2)}
+                      onClick={() => smartBack(() => setRegisterStep(2))}
                     >
                       <ChevronLeft size={15} />
                       <span>Kembali</span>
@@ -14685,7 +14693,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button 
-                onClick={handleCloseDetailSheet}
+                onClick={() => smartBack(() => {
+                  handleCloseDetailSheet();
+                  const slug = storeSlug || getStoreSlug() || '';
+                  if (slug) {
+                    window.history.replaceState({}, '', '/' + slug);
+                  }
+                })}
                 className="btn-back-circle"
                 title="Kembali"
               >
@@ -15854,13 +15868,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             }}>
               <button 
                 type="button"
-                onClick={() => {
+                onClick={() => smartBack(() => {
                   resetCrudState('physical');
                   setView('tabs');
                   setActiveTab('admin');
                   setAdminSubTab('items');
                   setShowProductTypeSelector(false);
-                }}
+                  const slug = storeSlug || getStoreSlug() || '';
+                  if (slug) {
+                    window.history.replaceState({}, '', `/${slug}/admin/items`);
+                  }
+                })}
                 className="btn-back-circle"
                 title="Batal"
               >
@@ -17518,13 +17536,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '0.6rem' }}>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={() => smartBack(() => {
                         setAboutSubView('main');
                         const slug = storeSlug || getStoreSlug();
                         if (slug) {
-                          window.history.pushState({}, '', `/${slug}/about`);
+                          window.history.replaceState({}, '', `/${slug}/about`);
                         }
-                      }}
+                      })}
                       className="btn-back-circle"
                       title="Kembali"
                     >
@@ -17623,98 +17641,90 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         type="button"
                         onClick={() => {
                           const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
-                          if (adminSubTab === 'help') {
-                            const isStoreSuspended = settings.dormancy_status === 'suspended' || settings.is_suspended;
-                            if (isStoreSuspended) {
-                              setIsCreatingTicket(false);
-                              setSelectedTicket(null);
-                              setTicketNewAttachments([]);
+                          smartBack(() => {
+                            if (adminSubTab === 'help') {
+                              const isStoreSuspended = settings.dormancy_status === 'suspended' || settings.is_suspended;
+                              if (isStoreSuspended) {
+                                setIsCreatingTicket(false);
+                                setSelectedTicket(null);
+                                setTicketNewAttachments([]);
+                                setAdminSubTab('menu');
+                                try {
+                                  sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                  sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                                } catch {}
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin`);
+                                }
+                              } else if (isCreatingTicket) {
+                                setIsCreatingTicket(false);
+                                setTicketNewAttachments([]);
+                              } else if (selectedTicket) {
+                                setSelectedTicket(null);
+                                try {
+                                  sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                  sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                                } catch {}
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin/help`);
+                                }
+                              } else {
+                                setAdminSubTab('menu');
+                                setSelectedTicket(null);
+                                try {
+                                  sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                  sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                                } catch {}
+                                setIsCreatingTicket(false);
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin`);
+                                }
+                              }
+                            } else if (adminSubTab === 'subscription') {
+                              if (mobileSubPageView !== 'plans') {
+                                setMobileSubPageView('plans');
+                              } else {
+                                setAdminSubTab('menu');
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin`);
+                                }
+                              }
+                            } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
+                              setMobileSettingsTab('menu');
+                              if (slug) {
+                                window.history.replaceState({}, '', `/${slug}/admin/settings`);
+                              }
+                            } else if (adminSubTab === 'share') {
                               setAdminSubTab('menu');
-                              try {
-                                sessionStorage.removeItem('catavor_merchant_active_ticket_id');
-                                sessionStorage.removeItem('catavor_merchant_active_ticket_data');
-                              } catch {}
-                              try {
-                                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                              } catch {
-                                window.scrollTo(0, 0);
-                              }
                               if (slug) {
-                                window.history.pushState({}, '', `/${slug}/admin`);
+                                window.history.replaceState({}, '', `/${slug}/admin`);
                               }
-                            } else if (isCreatingTicket) {
-                              setIsCreatingTicket(false);
-                              setTicketNewAttachments([]);
-                            } else if (selectedTicket) {
-                              setSelectedTicket(null);
-                              try {
-                                sessionStorage.removeItem('catavor_merchant_active_ticket_id');
-                                sessionStorage.removeItem('catavor_merchant_active_ticket_data');
-                              } catch {}
-                              try {
-                                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                              } catch {
-                                window.scrollTo(0, 0);
-                              }
-                              if (slug) {
-                                window.history.pushState({}, '', `/${slug}/admin/help`);
+                            } else if (adminSubTab === 'notifications') {
+                              if (selectedNotification) {
+                                setSelectedNotification(null);
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin/notifications`);
+                                }
+                              } else {
+                                setAdminSubTab('menu');
+                                if (slug) {
+                                  window.history.replaceState({}, '', `/${slug}/admin`);
+                                }
                               }
                             } else {
                               setAdminSubTab('menu');
                               setSelectedTicket(null);
-                              try {
-                                sessionStorage.removeItem('catavor_merchant_active_ticket_id');
-                                sessionStorage.removeItem('catavor_merchant_active_ticket_data');
-                              } catch {}
                               setIsCreatingTicket(false);
-                              try {
-                                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                              } catch {
-                                window.scrollTo(0, 0);
-                              }
                               if (slug) {
-                                window.history.pushState({}, '', `/${slug}/admin`);
+                                window.history.replaceState({}, '', `/${slug}/admin`);
                               }
                             }
-                          } else if (adminSubTab === 'subscription') {
-                            if (mobileSubPageView !== 'plans') {
-                              setMobileSubPageView('plans');
-                            } else {
-                              setAdminSubTab('menu');
-                              if (slug) {
-                                window.history.pushState({}, '', `/${slug}/admin`);
-                              }
+                            try {
+                              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                            } catch {
+                              window.scrollTo(0, 0);
                             }
-                          } else if (adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') {
-                            setMobileSettingsTab('menu');
-                            if (slug) {
-                              window.history.pushState({}, '', `/${slug}/admin/settings`);
-                            }
-                          } else if (adminSubTab === 'share') {
-                            setAdminSubTab('menu');
-                            if (slug) {
-                              window.history.pushState({}, '', `/${slug}/admin`);
-                            }
-                          } else if (adminSubTab === 'notifications') {
-                            if (selectedNotification) {
-                              setSelectedNotification(null);
-                              if (slug) {
-                                window.history.pushState({}, '', `/${slug}/admin/notifications`);
-                              }
-                            } else {
-                              setAdminSubTab('menu');
-                              if (slug) {
-                                window.history.pushState({}, '', `/${slug}/admin`);
-                              }
-                            }
-                          } else {
-                            setAdminSubTab('menu');
-                            setSelectedTicket(null);
-                            setIsCreatingTicket(false);
-                            if (slug) {
-                              window.history.pushState({}, '', `/${slug}/admin`);
-                            }
-                          }
+                          });
                         }}
                         className="btn-back-circle"
                         title="Kembali"
@@ -18209,7 +18219,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button
                   type="button"
-                  onClick={handleExitProductTypeSelector}
+                  onClick={() => smartBack(handleExitProductTypeSelector)}
                   className="btn-back-circle"
                   title="Kembali"
                 >
@@ -18227,7 +18237,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
               <button 
                 type="button"
-                onClick={handleExitProductTypeSelector}
+                onClick={() => smartBack(handleExitProductTypeSelector)}
                 style={{ 
                   background: 'var(--btn-secondary-bg)', 
                   border: '1px solid var(--btn-secondary-border)', 
@@ -18596,7 +18606,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{ marginTop: '1.75rem', textAlign: 'center' }}>
                 <button
                   type="button"
-                  onClick={handleExitProductTypeSelector}
+                  onClick={() => smartBack(handleExitProductTypeSelector)}
                   style={{
                     width: '100%',
                     padding: '0.85rem',
