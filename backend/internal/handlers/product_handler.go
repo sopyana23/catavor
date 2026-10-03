@@ -571,11 +571,11 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	for oldImg := range oldImagesMap {
 		if !newImagesMap[oldImg] {
 			var otherProdCount int64
-			database.DB.Model(&models.Product{}).Where("image_url = ?", oldImg).Count(&otherProdCount)
+			database.DB.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", product.ID, oldImg).Count(&otherProdCount)
 			var otherGalleryCount int64
 			database.DB.Model(&models.ProductImage{}).
 				Joins("JOIN products ON products.id = product_images.product_id").
-				Where("products.deleted_at IS NULL AND product_images.image_url = ?", oldImg).
+				Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", product.ID, oldImg).
 				Count(&otherGalleryCount)
 			if otherProdCount == 0 && otherGalleryCount == 0 {
 				_, _ = services.HardDeleteLocalStorageFile(oldImg)
@@ -761,11 +761,11 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	// 3. Hard delete each local physical image file from storage if not used by any other active product
 	for _, imgURL := range imagesToDelete {
 		var otherProdCount int64
-		database.DB.Model(&models.Product{}).Where("image_url = ?", imgURL).Count(&otherProdCount)
+		database.DB.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", product.ID, imgURL).Count(&otherProdCount)
 		var otherImgCount int64
 		database.DB.Model(&models.ProductImage{}).
 			Joins("JOIN products ON products.id = product_images.product_id").
-			Where("products.deleted_at IS NULL AND product_images.image_url = ?", imgURL).
+			Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", product.ID, imgURL).
 			Count(&otherImgCount)
 		if otherProdCount == 0 && otherImgCount == 0 {
 			_, _ = services.HardDeleteLocalStorageFile(imgURL)

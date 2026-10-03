@@ -5659,6 +5659,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   }, [registerForm.store_slug]);
 
   const [faunas, setFaunas] = useState<Fauna[]>([])
+  const faunasRef = useRef<Fauna[]>([])
+  faunasRef.current = faunas
   const [isAppInitializing, setIsAppInitializing] = useState<boolean>(true)
 
   // Stable gate logo ref to prevent mid-stream flickering/swapping during initialization
@@ -8763,6 +8765,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             setSelectedTicket(null);
           } else {
             setAdminSubTab('menu');
+            setMobileSettingsTab('menu');
             setSelectedTicket(null);
           }
         } else if (parts.length >= 2 && parts[1] === 'about') {
@@ -8841,6 +8844,22 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         const path = window.location.pathname.toLowerCase();
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);
+        const popItemId = urlParams.get('item');
+        if (popItemId) {
+          activeDetailItemIdRef.current = popItemId;
+          const currentList = faunasRef.current && faunasRef.current.length > 0 ? faunasRef.current : faunas;
+          const found = currentList.find(f => f && String(f.id) === popItemId);
+          if (found) {
+            setSelectedFauna(found);
+            setIsDetailActive(true);
+            setActiveImageIndex(0);
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          } else {
+            openDetailsSheet(parseInt(popItemId, 10));
+          }
+        } else if (isDetailActive || activeDetailItemIdRef.current) {
+          handleCloseDetailSheet();
+        }
 
         if (parts.length >= 2) {
           const sub = parts[1];
@@ -8949,6 +8968,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               setView('tabs');
             } else {
               setAdminSubTab('menu');
+              setMobileSettingsTab('menu');
               setView('tabs');
             }
           } else if (sub === 'about') { setView('tabs'); setActiveTab('about'); }
