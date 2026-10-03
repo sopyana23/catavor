@@ -7,6 +7,8 @@ export interface ParsedVideoInfo {
   originalUrl: string;
   platformLabel: string;
   isValid: boolean;
+  isShortLink?: boolean;
+  shortLinkNote?: string;
 }
 
 export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo | null {
@@ -29,24 +31,30 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoInfo |
     }
 
     // 2. TikTok
-    // Formats: tiktok.com/@user/video/1234567890 or vt.tiktok.com/xxx
-    const ttMatch = raw.match(/tiktok\.com\/@?[^\/]+\/video\/(\d+)/i);
-    if (ttMatch && ttMatch[1]) {
+    // Matches standard full desktop links: tiktok.com/@user/video/1234567890 or /v/1234567890
+    const ttIdMatch = raw.match(/tiktok\.com\/(?:@?[^\/]+\/video|v|embed\/v2|embed|player\/v1)\/(\d+)/i);
+    if (ttIdMatch && ttIdMatch[1]) {
       return {
         platform: 'tiktok',
-        embedUrl: `https://www.tiktok.com/embed/v2/${ttMatch[1]}`,
+        embedUrl: `https://www.tiktok.com/embed/v2/${ttIdMatch[1]}`,
         originalUrl: raw,
         platformLabel: 'TikTok Video',
         isValid: true
       };
     }
+
     if (raw.includes('tiktok.com')) {
+      const isShort = raw.includes('vt.tiktok.com') || raw.includes('vm.tiktok.com') || raw.includes('/t/');
       return {
         platform: 'tiktok',
-        embedUrl: raw,
+        embedUrl: '',
         originalUrl: raw,
-        platformLabel: 'TikTok Video',
-        isValid: true
+        platformLabel: isShort ? 'TikTok Short Link' : 'TikTok Link',
+        isValid: true,
+        isShortLink: true,
+        shortLinkNote: isShort
+          ? 'Tautan pendek aplikasi (vt.tiktok.com) tidak dapat diputar langsung di iframe karena kebijakan keamanan TikTok. Calon pembeli dapat menonton via tombol langsung di bawah. Untuk memunculkan pemutar langsung di katalog, salin URL lengkap dari browser (tiktok.com/@username/video/1234567890).'
+          : 'Tautan video TikTok dapat dibuka langsung oleh calon pembeli di aplikasi TikTok.'
       };
     }
 
@@ -193,6 +201,74 @@ export const VideoPlayerEmbed: React.FC<{
   // TikTok or Instagram Reels Vertical Player
   if (parsed.platform === 'tiktok' || parsed.platform === 'instagram') {
     const isTikTok = parsed.platform === 'tiktok';
+
+    // If it's a short link or has no direct embedUrl, display a beautiful action card instead of a broken iframe
+    if (parsed.isShortLink || !parsed.embedUrl) {
+      return (
+        <div style={{
+          margin: '1rem 0',
+          borderRadius: '0.85rem',
+          overflow: 'hidden',
+          border: '1px solid var(--border-light)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+          background: 'linear-gradient(135deg, #0b1220 0%, #111a2e 100%)',
+          padding: '1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          gap: '0.75rem'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.35rem 0.85rem',
+            borderRadius: '999px',
+            background: isTikTok ? '#000000' : 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+            color: '#fff',
+            fontSize: '0.75rem',
+            fontWeight: 800,
+            border: '1px solid rgba(255,255,255,0.2)'
+          }}>
+            {isTikTok ? '🎵 Video TikTok' : '📸 Video Instagram'}
+          </div>
+
+          <div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+              {title || (isTikTok ? 'Tonton Video Showcase di TikTok' : 'Tonton Video Showcase di Instagram')}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', maxWidth: '380px', lineHeight: 1.5 }}>
+              {parsed.shortLinkNote || 'Video dapat disaksikan langsung oleh calon pembeli di aplikasi.'}
+            </div>
+          </div>
+
+          <a
+            href={parsed.originalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 1.25rem',
+              borderRadius: '0.55rem',
+              background: isTikTok ? 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)' : 'linear-gradient(45deg, #f09433 0%, #dc2743 100%)',
+              color: isTikTok ? '#000000' : '#ffffff',
+              fontSize: '0.8rem',
+              fontWeight: 800,
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
+              transition: 'transform 0.15s ease'
+            }}
+          >
+            <span>Buka di {isTikTok ? 'TikTok' : 'Instagram'}</span>
+            <ExternalLink size={13} />
+          </a>
+        </div>
+      );
+    }
+
     return (
       <div style={{
         margin: '1rem 0',
@@ -244,9 +320,17 @@ export const VideoPlayerEmbed: React.FC<{
             src={parsed.embedUrl}
             title={title || 'Social Video Embed'}
             style={{ width: '100%', height: '100%', border: 'none' }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             onError={() => setLoadError(true)}
           />
+        </div>
+
+        <div style={{ marginTop: '0.55rem', fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.45 }}>
+          Jika pemutar dibatasi oleh privasi kreator/adblocker, calon pembeli tetap dapat{' '}
+          <a href={parsed.originalUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline', fontWeight: 600 }}>
+            membuka langsung di TikTok &rarr;
+          </a>
         </div>
       </div>
     );
@@ -335,19 +419,24 @@ export const VideoPreviewInput: React.FC<{
       </div>
 
       <div style={{
-        padding: '0.55rem 0.75rem',
-        borderRadius: '0.5rem',
+        padding: '0.65rem 0.85rem',
+        borderRadius: '0.55rem',
         backgroundColor: 'rgba(255, 255, 255, 0.02)',
         border: '1px solid var(--border-light)',
         fontSize: '0.73rem',
         color: 'var(--text-secondary)',
-        lineHeight: 1.45
+        lineHeight: 1.5
       }}>
-        <div style={{ marginBottom: '0.15rem' }}>
-          <strong>Platform Didukung:</strong> Tautan video reguler & Shorts dari <strong>YouTube</strong>, video <strong>TikTok</strong>, dan <strong>Instagram Reels</strong>.
+        <div style={{ marginBottom: '0.25rem' }}>
+          <strong style={{ color: 'var(--text-primary)' }}>Format Link yang Didukung:</strong>
         </div>
-        <div style={{ color: 'var(--text-muted)' }}>
-          <strong>Ketentuan Visibilitas:</strong> Pastikan video disetel ke <strong>Publik</strong> atau <strong>Tidak Publik (Unlisted)</strong> agar dapat diputar langsung oleh calon pembeli (jangan disetel <em>Pribadi / Private</em>).
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.35rem' }}>
+          <div>• <strong>YouTube / Shorts:</strong> <code>youtube.com/watch?v=...</code> atau <code>youtu.be/...</code></div>
+          <div>• <strong>TikTok:</strong> Gunakan tautan lengkap browser <code>tiktok.com/@username/video/1234567890</code> agar pemutar dapat muncul langsung.</div>
+          <div>• <strong>Instagram:</strong> <code>instagram.com/reel/...</code> atau <code>instagram.com/p/...</code></div>
+        </div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+          <strong>Ketentuan Visibilitas:</strong> Pastikan video disetel ke <strong>Publik</strong>. Tautan pendek aplikasi seluler (seperti <code>vt.tiktok.com</code>) akan otomatis dialihkan ke aplikasi resmi TikTok.
         </div>
       </div>
 
