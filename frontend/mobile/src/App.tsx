@@ -11429,12 +11429,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
     const filteredImages = crudImages.map(img => img.trim()).filter(Boolean)
     if (filteredImages.length === 0) {
-      setCrudError('Minimal harus mengunggah 1 foto item.')
+      const msg = 'Minimal harus mengunggah 1 foto item.'
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
-    if (filteredImages.length > 5) {
-      setCrudError('Maksimal hanya dapat mengunggah 5 foto item.')
+    if (filteredImages.length > MAX_PRODUCT_PHOTOS) {
+      const msg = `Maksimal hanya dapat mengunggah ${MAX_PRODUCT_PHOTOS} foto item.`
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
@@ -11446,7 +11450,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     const isNoShipping = termsVal.toLowerCase().includes('ambil sendiri') || termsVal.toLowerCase().includes('no shipping') || termsVal.toLowerCase().includes('pickup only')
 
     if (!selectedClass) {
-      setCrudError('Kategori item wajib diisi.')
+      const msg = 'Kategori item wajib diisi.'
+      setCrudError(msg)
+      showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
@@ -11469,6 +11475,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       is_shipping_available: !isNoShipping,
       description: crudForm.description,
       image_url: filteredImages[0],
+      gallery_images: filteredImages,
       product_type: crudForm.product_type,
       attributes: {
         ...crudForm.attributes,
