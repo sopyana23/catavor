@@ -13,7 +13,7 @@ type Category struct {
 	StoreID     uint      `gorm:"index;not null" json:"store_id"`
 	Name        string    `gorm:"size:100;not null" json:"name"`
 	Slug        string    `gorm:"size:100;not null" json:"slug"`
-	ProductType string    `gorm:"size:50;default:'physical'" json:"product_type"` // physical | food | service | digital | property | fauna
+	ProductType string    `gorm:"size:50;default:'physical'" json:"product_type"` // physical | food | service | digital | property | fauna | plant
 	SortOrder   int       `gorm:"default:0" json:"sort_order"`
 	IsActive    bool      `gorm:"default:true" json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -43,7 +43,7 @@ type Product struct {
 	Description         string         `gorm:"type:text" json:"description"`
 	ImageURL            string         `gorm:"type:text" json:"image_url"`
 	DetailedInfo        datatypes.JSON `gorm:"type:jsonb" json:"detailed_info"`
-	ProductType         string         `gorm:"size:50;default:'physical';index" json:"product_type"` // physical | food | service | digital | property | fauna
+	ProductType         string         `gorm:"size:50;default:'physical';index" json:"product_type"` // physical | food | service | digital | property | fauna | plant
 	Attributes          datatypes.JSON `gorm:"type:jsonb" json:"attributes"`
 	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
 	ModerationStatus    string         `gorm:"size:50;default:'none';index" json:"moderation_status"` // none | needs_fix | in_review | locked | appeal_pending | hidden | suspended
