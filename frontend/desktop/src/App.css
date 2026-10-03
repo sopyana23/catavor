@@ -2115,3 +2115,58 @@
   border-color: var(--primary);
   color: #ffffff;
 }
+
+/* Catavor Sleek Store Switcher & Custom Scrollbar */
+.store-switcher-scroll-area::-webkit-scrollbar,
+.catavor-custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.store-switcher-scroll-area::-webkit-scrollbar-track,
+.catavor-custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.store-switcher-scroll-area::-webkit-scrollbar-thumb,
+.catavor-custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.store-switcher-scroll-area::-webkit-scrollbar-thumb:hover,
+.catavor-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--primary, #10b981);
+}
+
+.store-dropdown-item {
+  transition: all 0.15s ease;
+}
+
+.store-dropdown-item:not(.active):hover {
+  background-color: var(--bg-card-hover) !important;
+  border-color: var(--border-light) !important;
+}
+
+.store-dropdown-item:not(.active):hover .store-item-switch-pill {
+  color: var(--primary) !important;
+  background-color: var(--primary-glow);
+}
+
+.store-dropdown-item:not(.active):hover .store-item-switch-pill svg {
+  transform: translateX(2px);
+  transition: transform 0.15s ease;
+}
+
+@keyframes dropdownFadeInScale {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

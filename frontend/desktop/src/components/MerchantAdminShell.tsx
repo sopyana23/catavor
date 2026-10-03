@@ -21,7 +21,9 @@ import {
   Bell,
   ChevronRight,
   Menu,
-  HardDrive
+  HardDrive,
+  Search,
+  X
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
@@ -74,6 +76,34 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   children
 }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [storeSearchQuery, setStoreSearchQuery] = useState('');
+  const storeDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  React.useEffect(() => {
+    if (!showStoreDropdown) {
+      setStoreSearchQuery('');
+      return;
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (storeDropdownRef.current && !storeDropdownRef.current.contains(e.target as Node)) {
+        setShowStoreDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showStoreDropdown, setShowStoreDropdown]);
+
+  // Filter stores when search is typed
+  const filteredStores = React.useMemo(() => {
+    if (!storeSearchQuery.trim()) return userStores;
+    const q = storeSearchQuery.toLowerCase().trim();
+    return userStores.filter((s: any) => {
+      const title = (s.store_title || '').toLowerCase();
+      const slug = (s.slug || '').toLowerCase();
+      return title.includes(q) || slug.includes(q);
+    });
+  }, [userStores, storeSearchQuery]);
 
   // Grouped Navigation Items
   const navSections = [
@@ -234,6 +264,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       >
         {/* Sidebar Header: Store Switcher Anchor */}
         <div 
+          ref={storeDropdownRef}
           style={{
             padding: isSidebarCollapsed ? '1rem 0.5rem' : '1.15rem 1.15rem',
             borderBottom: '1px solid var(--border-light)',
@@ -292,7 +323,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                     {settings?.store_title || storeSlug || 'Katalog'}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.1rem' }}>
-                    <span>@{storeSlug}</span>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>@{storeSlug}</span>
                     <span style={{
                       fontSize: '0.6rem',
                       fontWeight: 800,
@@ -300,7 +331,8 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                       borderRadius: '4px',
                       backgroundColor: settings?.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.2)' : settings?.plan === 'pro_starter' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)',
                       color: settings?.plan === 'pro_business' ? '#f59e0b' : settings?.plan === 'pro_starter' ? '#38bdf8' : '#34d399',
-                      textTransform: 'uppercase'
+                      textTransform: 'uppercase',
+                      flexShrink: 0
                     }}>
                       {settings?.plan === 'pro_business' ? 'PRO' : settings?.plan === 'pro_starter' ? 'STARTER' : 'FREE'}
                     </span>
@@ -309,147 +341,6 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
 
                 <ChevronDown size={15} style={{ color: 'var(--text-muted)', transform: showStoreDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
               </button>
-
-              {/* Store Switcher Dropdown Popover */}
-              {showStoreDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  left: 0,
-                  width: '280px',
-                  backgroundColor: 'var(--bg-card, #0f172a)',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
-                  borderRadius: '0.85rem',
-                  boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5)',
-                  padding: '0.65rem',
-                  zIndex: 100,
-                  color: 'var(--text-primary)'
-                }}>
-                  <div style={{ padding: '0.4rem 0.5rem 0.55rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Katalog Anda ({userStores.length})
-                    </span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                      {adminUser?.email}
-                    </span>
-                  </div>
-
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '0.35rem 0', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                    {userStores.map((s: any) => {
-                      const isCurrent = s.slug.toLowerCase() === (storeSlug || '').toLowerCase();
-                      return (
-                        <div
-                          key={s.id}
-                          onClick={() => {
-                            setShowStoreDropdown(false);
-                            handleSwitchStore(s.slug);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.45rem 0.55rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: isCurrent ? 'var(--primary-glow)' : 'transparent',
-                            border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
-                            cursor: isCurrent ? 'default' : 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-                            <div style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-card-hover)',
-                              color: isCurrent ? '#ffffff' : 'var(--text-primary)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              fontSize: '0.78rem',
-                              flexShrink: 0,
-                              overflow: 'hidden'
-                            }}>
-                              {s.store_logo_url ? (
-                                <img src={s.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                (s.store_title || s.slug).charAt(0).toUpperCase()
-                              )}
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '0.78rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {s.store_title || s.slug}
-                              </div>
-                              <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)' }}>
-                                @{s.slug} {s.item_count !== undefined ? `• ${s.item_count} item` : ''}
-                              </div>
-                            </div>
-                          </div>
-                          {isCurrent ? (
-                            <Check size={14} color="var(--primary)" />
-                          ) : (
-                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>Pindah &rarr;</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div style={{ paddingTop: '0.45rem', borderTop: '1px solid var(--border-light)', marginTop: '0.2rem', display: 'flex', gap: '0.35rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowStoreDropdown(false);
-                        openStoreChooserModal();
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem',
-                        borderRadius: '0.45rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        fontWeight: 700,
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.3rem'
-                      }}
-                    >
-                      <Store size={13} />
-                      <span>Pusat Katalog</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowStoreDropdown(false);
-                        setShowCreateStoreModal(true);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem',
-                        borderRadius: '0.45rem',
-                        backgroundColor: 'var(--primary-glow)',
-                        border: '1px dashed var(--primary)',
-                        color: 'var(--primary)',
-                        fontWeight: 700,
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.3rem'
-                      }}
-                    >
-                      <Plus size={13} />
-                      <span>Buat Baru</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <div 
@@ -470,6 +361,316 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               title={settings?.store_title || storeSlug || 'Katalog'}
             >
               {(settings?.store_title || storeSlug || 'C').charAt(0).toUpperCase()}
+            </div>
+          )}
+
+          {/* Enhanced Store Switcher Dropdown Popover */}
+          {showStoreDropdown && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: isSidebarCollapsed ? '12px' : 'calc(100% + 8px)',
+                left: isSidebarCollapsed ? 'calc(100% + 10px)' : '1.15rem',
+                width: '320px',
+                maxWidth: 'calc(100vw - 32px)',
+                backgroundColor: 'var(--bg-card, #0f172a)',
+                border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
+                borderRadius: '0.85rem',
+                boxShadow: '0 20px 48px -6px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border-light)',
+                padding: '0.65rem',
+                zIndex: 100,
+                color: 'var(--text-primary)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                animation: 'dropdownFadeInScale 0.15s ease-out'
+              }}
+            >
+              {/* Header: Title and User Email */}
+              <div style={{
+                padding: '0.35rem 0.5rem 0.55rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>
+                  Katalog Anda ({userStores.length})
+                </span>
+                <span 
+                  style={{
+                    fontSize: '0.68rem',
+                    color: 'var(--text-muted)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '140px',
+                    textAlign: 'right'
+                  }}
+                  title={adminUser?.email}
+                >
+                  {adminUser?.email}
+                </span>
+              </div>
+
+              {/* Quick Search for 4+ Catalogs */}
+              {userStores.length >= 4 && (
+                <div style={{ position: 'relative', marginTop: '0.45rem', marginBottom: '0.2rem' }}>
+                  <Search
+                    size={13}
+                    style={{
+                      position: 'absolute',
+                      left: '0.65rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-muted)',
+                      pointerEvents: 'none'
+                    }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Cari katalog atau @slug..."
+                    value={storeSearchQuery}
+                    onChange={(e) => setStoreSearchQuery(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      width: '100%',
+                      padding: '0.38rem 1.8rem 0.38rem 1.85rem',
+                      fontSize: '0.74rem',
+                      borderRadius: '0.45rem',
+                      backgroundColor: 'var(--bg-deep, #090e17)',
+                      border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      transition: 'border-color 0.15s ease'
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = 'var(--primary)')}
+                    onBlur={(e) => (e.target.style.borderColor = 'var(--border-light, rgba(255, 255, 255, 0.1))')}
+                  />
+                  {storeSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStoreSearchQuery('');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title="Bersihkan pencarian"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Scrollable List with Smooth Aesthetic */}
+              <div 
+                className="store-switcher-scroll-area catavor-custom-scrollbar"
+                style={{
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                  padding: '0.35rem 0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.25rem'
+                }}
+              >
+                {filteredStores.length === 0 ? (
+                  <div style={{ padding: '1.25rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.74rem' }}>
+                    <Store size={22} style={{ margin: '0 auto 0.35rem', opacity: 0.35, display: 'block' }} />
+                    <div>Tidak ada katalog sesuai &quot;{storeSearchQuery}&quot;</div>
+                  </div>
+                ) : (
+                  filteredStores.map((s: any) => {
+                    const isCurrent = s.slug.toLowerCase() === (storeSlug || '').toLowerCase();
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          if (!isCurrent) {
+                            setShowStoreDropdown(false);
+                            handleSwitchStore(s.slug);
+                          }
+                        }}
+                        className={`store-dropdown-item ${isCurrent ? 'active' : ''}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.45rem 0.55rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: isCurrent ? 'var(--primary-glow)' : 'transparent',
+                          border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
+                          cursor: isCurrent ? 'default' : 'pointer',
+                          transition: 'all 0.15s ease',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+                          <div style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '7px',
+                            backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-card-hover)',
+                            color: isCurrent ? '#ffffff' : 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                            flexShrink: 0,
+                            overflow: 'hidden',
+                            border: isCurrent ? 'none' : '1px solid var(--border-light)'
+                          }}>
+                            {s.store_logo_url ? (
+                              <img src={s.store_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              (s.store_title || s.slug).charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div 
+                              style={{ 
+                                fontSize: '0.79rem', 
+                                fontWeight: 700, 
+                                whiteSpace: 'nowrap', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis',
+                                color: isCurrent ? 'var(--primary)' : 'var(--text-primary)'
+                              }}
+                              title={s.store_title || s.slug}
+                            >
+                              {s.store_title || s.slug}
+                            </div>
+                            <div 
+                              style={{ 
+                                fontSize: '0.67rem', 
+                                color: 'var(--text-secondary)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}
+                            >
+                              @{s.slug} {s.item_count !== undefined ? `• ${s.item_count} item` : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isCurrent ? (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.2rem',
+                              padding: '0.15rem 0.4rem',
+                              borderRadius: '4px',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              fontSize: '0.64rem',
+                              fontWeight: 800,
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Check size={12} strokeWidth={2.5} />
+                          </div>
+                        ) : (
+                          <span 
+                            className="store-item-switch-pill"
+                            style={{ 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.15rem',
+                              fontSize: '0.67rem', 
+                              fontWeight: 600,
+                              color: 'var(--text-muted)',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              padding: '0.15rem 0.35rem',
+                              borderRadius: '4px',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>Pindah</span>
+                            <ChevronRight size={12} />
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Bottom Actions */}
+              <div style={{ paddingTop: '0.45rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem', display: 'flex', gap: '0.35rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStoreDropdown(false);
+                    openStoreChooserModal();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.45rem 0.5rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-light)')}
+                >
+                  <Store size={13} />
+                  <span>Pusat Katalog</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStoreDropdown(false);
+                    setShowCreateStoreModal(true);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.45rem 0.5rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'var(--primary-glow)',
+                    border: '1px dashed var(--primary)',
+                    color: 'var(--primary)',
+                    fontWeight: 700,
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Plus size={13} />
+                  <span>Buat Baru</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
