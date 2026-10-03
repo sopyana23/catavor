@@ -12621,7 +12621,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pro Starter</span>
                       </div>
                       <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1rem 0', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                        <span style={{ color: '#0284c7' }}>{pricingBillingCycle === 'monthly' ? 'Rp 49.000' : 'Rp 40.833'}</span>
+                        <span style={{ color: '#0284c7' }}>{pricingBillingCycle === 'monthly' ? 'Rp 30.000' : 'Rp 25.000'}</span>
                         <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
                       </div>
                       <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
@@ -13409,7 +13409,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </div>
                         <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                           <span style={{ color: '#38bdf8', fontWeight: 800 }}>
-                            {registerBillingCycle === 'annual' ? 'Rp 490.000' : 'Rp 49.000'}
+                            {registerBillingCycle === 'annual' ? 'Rp 300.000' : 'Rp 30.000'}
                           </span>
                           <small style={{ fontSize: '0.65rem', color: '#9ca3af' }}>{registerBillingCycle === 'annual' ? '/tahun' : '/bulan'}</small>
                         </span>
