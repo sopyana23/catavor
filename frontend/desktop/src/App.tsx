@@ -157,6 +157,7 @@ import { SwipeableToast } from './components/SwipeableToast'
 import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
+import { smartBack } from './utils/navigation'
 
 export interface UserStoreSummary {
   id: number;
@@ -11996,7 +11997,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <button
                     type="button"
-                    onClick={() => setPortalTab('home')}
+                    onClick={() => smartBack(() => setPortalTab('home'))}
                     className="btn-portal-secondary"
                     style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
                     title="Kembali"
@@ -14360,7 +14361,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <button 
-                  onClick={handleCloseDetail}
+                  onClick={() => {
+                    const slug = storeSlug || getStoreSlug() || '';
+                    smartBack(() => {
+                      handleCloseDetail();
+                      if (slug) {
+                        window.history.replaceState({}, '', `/${slug}`);
+                      } else {
+                        window.history.replaceState({}, '', '/');
+                      }
+                    });
+                  }}
                   style={{
                     width: '36px',
                     height: '36px',
@@ -14383,7 +14394,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </button>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem' }}>
                   <span 
-                    onClick={handleCloseDetail}
+                    onClick={() => {
+                      const slug = storeSlug || getStoreSlug() || '';
+                      smartBack(() => {
+                        handleCloseDetail();
+                        if (slug) {
+                          window.history.replaceState({}, '', `/${slug}`);
+                        } else {
+                          window.history.replaceState({}, '', '/');
+                        }
+                      });
+                    }}
                     style={{ color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
                     title="Ke Katalog Utama"
                   >
@@ -16471,8 +16492,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <button
                         type="button"
                         onClick={() => {
-                          setActivePublicTab('catalog');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          const slug = storeSlug || getStoreSlug() || '';
+                          smartBack(() => {
+                            setActivePublicTab('catalog');
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            if (slug) {
+                              window.history.replaceState({}, '', `/${slug}`);
+                            }
+                          });
                         }}
                         className="btn-secondary"
                         style={{

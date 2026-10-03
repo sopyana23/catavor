@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { smartBack } from '../utils/navigation';
 import { 
   Layers, 
   ShieldAlert, 
@@ -304,7 +305,7 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
             {effectiveActiveSlug ? (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => smartBack(onClose)}
                 style={{
                   width: '42px',
                   height: '42px',

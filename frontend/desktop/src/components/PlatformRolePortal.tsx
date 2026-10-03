@@ -83,6 +83,7 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
+import { smartBack } from '../utils/navigation';
 import { apiClient } from '../utils/apiClient';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
@@ -4050,20 +4051,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             ) : (
               <button
                 onClick={() => {
-                  if (activeView === 'reports' && moderationModalReport) {
-                    handleCloseModerationPage();
-                  } else if (activeView === 'support' && selectedTicket) {
-                    handleCloseTicketChat();
-                  } else if (activeView === 'broadcast' && broadcastSubView === 'create') {
-                    handleCloseCreateBroadcast();
-                  } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
-                    handleCloseBroadcastDetail();
-                  } else if (activeView === 'master_data' && masterSubView !== 'menu') {
-                    setMasterSubView('menu');
-                    updatePlatformUrl('master_data', null, null);
-                  } else {
-                    handleSwitchView('dashboard');
-                  }
+                  smartBack(() => {
+                    if (activeView === 'reports' && moderationModalReport) {
+                      handleCloseModerationPage();
+                    } else if (activeView === 'support' && selectedTicket) {
+                      handleCloseTicketChat();
+                    } else if (activeView === 'broadcast' && broadcastSubView === 'create') {
+                      handleCloseCreateBroadcast();
+                    } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
+                      handleCloseBroadcastDetail();
+                    } else if (activeView === 'master_data' && masterSubView !== 'menu') {
+                      setMasterSubView('menu');
+                      updatePlatformUrl('master_data', null, null);
+                    } else {
+                      handleSwitchView('dashboard');
+                    }
+                  });
                 }}
                 title={
                   activeView === 'reports' && moderationModalReport
