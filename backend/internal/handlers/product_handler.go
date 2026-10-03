@@ -555,12 +555,28 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
+	if len(product.DetailedInfo) > 0 {
+		var dInfo map[string]interface{}
+		if err := json.Unmarshal(product.DetailedInfo, &dInfo); err == nil {
+			if rawImages, ok := dInfo["images"].([]interface{}); ok {
+				for _, itm := range rawImages {
+					if str, ok := itm.(string); ok && str != "" {
+						newImagesMap[str] = true
+					}
+				}
+			}
+		}
+	}
+
 	for oldImg := range oldImagesMap {
 		if !newImagesMap[oldImg] {
 			var otherProdCount int64
-			database.DB.Model(&models.Product{}).Where("store_id = ? AND id != ? AND image_url = ?", store.ID, product.ID, oldImg).Count(&otherProdCount)
+			database.DB.Model(&models.Product{}).Where("image_url = ?", oldImg).Count(&otherProdCount)
 			var otherGalleryCount int64
-			database.DB.Model(&models.ProductImage{}).Where("product_id != ? AND image_url = ?", product.ID, oldImg).Count(&otherGalleryCount)
+			database.DB.Model(&models.ProductImage{}).
+				Joins("JOIN products ON products.id = product_images.product_id").
+				Where("products.deleted_at IS NULL AND product_images.image_url = ?", oldImg).
+				Count(&otherGalleryCount)
 			if otherProdCount == 0 && otherGalleryCount == 0 {
 				_, _ = services.HardDeleteLocalStorageFile(oldImg)
 			}
@@ -731,18 +747,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		}
 	}
 
-	// 2. Hard delete each local physical image file from storage if not used by any other product
-	for _, imgURL := range imagesToDelete {
-		var otherUseCount int64
-		database.DB.Model(&models.Product{}).Where("store_id = ? AND id != ? AND image_url = ?", store.ID, product.ID, imgURL).Count(&otherUseCount)
-		var otherImgCount int64
-		database.DB.Model(&models.ProductImage{}).Where("product_id != ? AND image_url = ?", product.ID, imgURL).Count(&otherImgCount)
-		if otherUseCount == 0 && otherImgCount == 0 {
-			_, _ = services.HardDeleteLocalStorageFile(imgURL)
-		}
-	}
-
-	// 3. Delete related database records
+	// 2. Delete related database records first so product and its gallery images are marked deleted
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductImage{})
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductVariant{})
 
@@ -751,6 +756,20 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Gagal menghapus produk.",
 		})
+	}
+
+	// 3. Hard delete each local physical image file from storage if not used by any other active product
+	for _, imgURL := range imagesToDelete {
+		var otherProdCount int64
+		database.DB.Model(&models.Product{}).Where("image_url = ?", imgURL).Count(&otherProdCount)
+		var otherImgCount int64
+		database.DB.Model(&models.ProductImage{}).
+			Joins("JOIN products ON products.id = product_images.product_id").
+			Where("products.deleted_at IS NULL AND product_images.image_url = ?", imgURL).
+			Count(&otherImgCount)
+		if otherProdCount == 0 && otherImgCount == 0 {
+			_, _ = services.HardDeleteLocalStorageFile(imgURL)
+		}
 	}
 
 	// 4. Recalculate store storage used and invalidate cache

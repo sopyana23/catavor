@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 
@@ -665,9 +666,18 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 }
 
 func getStorageRoot() string {
+	if config.AppConfig != nil && config.AppConfig.StorageLocalRoot != "" {
+		if fi, err := os.Stat(config.AppConfig.StorageLocalRoot); err == nil && fi.IsDir() {
+			return config.AppConfig.StorageLocalRoot
+		}
+	}
 	candidates := []string{"public/storage", "../public/storage"}
 	for _, c := range candidates {
 		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+			abs, err := filepath.Abs(c)
+			if err == nil {
+				return abs
+			}
 			return c
 		}
 	}
@@ -707,55 +717,37 @@ func HardDeleteLocalStorageFile(rawURL string) (int64, error) {
 	return freedBytes, nil
 }
 
-// SyncStoreStorageUsed audits and calculates the actual disk storage usage of a store
+// SyncStoreStorageUsed audits and calculates the actual disk storage usage of a store,
+// while pruning orphaned files in the store's product directory.
 func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	var totalBytes int64 = 0
+	storageRoot := getStorageRoot()
 
-	// 1. Walk physical storage folder for this store: public/storage/stores/<storeID>
-	storeDir := filepath.Join(getStorageRoot(), "stores", fmt.Sprintf("%d", storeID))
-	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
-		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
-			if err == nil && !f.IsDir() {
-				if !strings.HasSuffix(f.Name(), ".fiber.gz") {
-					totalBytes += f.Size()
-				}
-			}
-			return nil
-		})
+	// 1. Gather all active referenced file paths for this store
+	activeFiles := make(map[string]bool)
+
+	registerURL := func(rawURL string) {
+		if strings.TrimSpace(rawURL) == "" {
+			return
+		}
+		idx := strings.Index(rawURL, "/storage/")
+		if idx != -1 {
+			relPath := rawURL[idx+len("/storage/"):]
+			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
+			activeFiles[filepath.Clean(localPath)] = true
+		}
 	}
 
-	// 2. Also check product images belonging to this store whose files are stored locally
-	// (handles cases where files were stored under another folder before strict slug routing)
-	countedFiles := make(map[string]bool)
 	var products []models.Product
 	db.Select("id, image_url, detailed_info").Where("store_id = ? AND deleted_at IS NULL", storeID).Find(&products)
 	for _, p := range products {
-		checkAndAddLocalFile := func(rawURL string) {
-			if strings.TrimSpace(rawURL) == "" {
-				return
-			}
-			idx := strings.Index(rawURL, "/storage/")
-			if idx != -1 {
-				relPath := rawURL[idx+len("/storage/"):]
-				cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
-				localPath := filepath.Join(getStorageRoot(), filepath.FromSlash(cleanKey))
-				if !strings.HasPrefix(cleanKey, fmt.Sprintf("stores/%d/", storeID)) {
-					if !countedFiles[localPath] {
-						countedFiles[localPath] = true
-						if fi, err := os.Stat(localPath); err == nil && !fi.IsDir() {
-							totalBytes += fi.Size()
-						}
-					}
-				}
-			}
-		}
-
-		checkAndAddLocalFile(p.ImageURL)
+		registerURL(p.ImageURL)
 
 		var prodImages []models.ProductImage
 		db.Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
 		for _, pi := range prodImages {
-			checkAndAddLocalFile(pi.ImageURL)
+			registerURL(pi.ImageURL)
 		}
 
 		if len(p.DetailedInfo) > 0 {
@@ -764,7 +756,7 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 				if rawImages, ok := dInfo["images"].([]interface{}); ok {
 					for _, itm := range rawImages {
 						if str, ok := itm.(string); ok {
-							checkAndAddLocalFile(str)
+							registerURL(str)
 						}
 					}
 				}
@@ -772,24 +764,40 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		}
 	}
 
-	// 3. Check branding logo
 	var store models.Store
 	if err := db.Select("id, store_logo_url").First(&store, storeID).Error; err == nil && store.StoreLogoURL != "" {
-		idx := strings.Index(store.StoreLogoURL, "/storage/")
-		if idx != -1 {
-			relPath := store.StoreLogoURL[idx+len("/storage/"):]
-			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
-			localPath := filepath.Join(getStorageRoot(), filepath.FromSlash(cleanKey))
-			if !strings.HasPrefix(cleanKey, fmt.Sprintf("stores/%d/", storeID)) && !countedFiles[localPath] {
-				countedFiles[localPath] = true
-				if fi, err := os.Stat(localPath); err == nil && !fi.IsDir() {
-					totalBytes += fi.Size()
-				}
-			}
-		}
+		registerURL(store.StoreLogoURL)
 	}
 
-	// Update DB record
+	// 2. Walk physical storage folder for this store: stores/<storeID>
+	storeDir := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID))
+	prodDirPrefix := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "products")
+	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
+		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
+			if err == nil && !f.IsDir() {
+				if strings.HasSuffix(f.Name(), ".fiber.gz") {
+					return nil
+				}
+
+				cleanPath := filepath.Clean(path)
+
+				// If file is inside store's products directory and not in activeFiles:
+				// Prune it if older than 5 minutes (avoids deleting files from in-flight product create forms)
+				if strings.HasPrefix(cleanPath, prodDirPrefix) && !activeFiles[cleanPath] {
+					if time.Since(f.ModTime()) > 5*time.Minute {
+						_ = os.Remove(cleanPath)
+						_ = os.Remove(cleanPath + ".fiber.gz")
+					}
+					return nil // Never count orphaned/unreferenced files towards merchant storage quota
+				}
+
+				totalBytes += f.Size()
+			}
+			return nil
+		})
+	}
+
+	// 3. Update DB record
 	db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", totalBytes)
 	return totalBytes
 }
