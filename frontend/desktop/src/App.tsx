@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { 
   Search, 
   Plus, 
@@ -2704,6 +2705,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDownGlobal);
   }, [isFullscreen]);
 
+  // Handle hardware / browser back to close Zen Fullscreen editor
+  useModalBackHandler({
+    isOpen: isFullscreen,
+    onClose: () => setIsFullscreen(false),
+    modalId: 'rich-textarea-fullscreen-desktop'
+  });
+
   const applyFormatToRef = (
     targetRef: React.RefObject<HTMLTextAreaElement | null>,
     prefix: string,
@@ -2934,190 +2942,284 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
       {/* ==========================================================
           FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Terbaik)
+          Desktop: Seukuran modal form inputan, bukan 100vw layar penuh
           ========================================================== */}
-      {isFullscreen && (
-        <div className="zen-fullscreen-overlay">
-          {/* Fullscreen Header Bar */}
-          <div className="zen-fullscreen-header">
-            {/* Title */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div className="zen-header-title">
-                <FileText size={18} color="var(--primary)" />
-                <span>{label || 'Editor Teks'}</span>
-              </div>
-            </div>
-
-            {/* Middle Formatting Tools */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="zen-btn-format"
-                title="Teks Tebal (Bold)"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
-              >
-                <strong>B</strong>
-              </button>
-              <button
-                type="button"
-                className="zen-btn-format"
-                title="Teks Miring (Italic)"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
-              >
-                <em>I</em>
-              </button>
-              <HeadingDropdown
-                onSelect={(level) => {
-                  if (level === 1) applyFormatToRef(fullscreenTextareaRef, '\n# ', '\n', 'Judul Utama H1');
-                  else if (level === 2) applyFormatToRef(fullscreenTextareaRef, '\n## ', '\n', 'Judul Bab H2');
-                  else if (level === 3) applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Sub Judul H3');
-                }}
-                btnClassName="zen-btn-format"
-                isZen
-              />
-              <ListDropdown
-                onSelect={(type) => {
-                  if (type === 'bullet') applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list');
-                  else if (type === 'number') applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah');
-                }}
-                btnClassName="zen-btn-format"
-                isZen
-              />
-            </div>
-
-            {/* Right Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              {/* Split Preview Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setShowFullscreenPreview(!showFullscreenPreview)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.42rem 0.85rem',
-                  borderRadius: '0.375rem',
-                  border: showFullscreenPreview ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                  backgroundColor: showFullscreenPreview ? 'var(--primary)' : 'var(--bg-card-hover)',
-                  color: showFullscreenPreview ? '#ffffff' : 'var(--text-primary)',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Columns size={14} />
-                <span>{showFullscreenPreview ? 'Split Preview: Aktif' : 'Tampilkan Preview'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Fullscreen Body */}
-          <div className="zen-fullscreen-body">
-            {/* Left: Fullscreen Textarea */}
-            <div 
-              className="zen-textarea-container"
-              style={{
-                maxWidth: showFullscreenPreview ? '50%' : '100%',
-                borderRight: showFullscreenPreview ? '1px solid var(--border-light)' : 'none'
-              }}
-            >
-              <textarea
-                ref={fullscreenTextareaRef}
-                className="zen-textarea"
-                placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value)}
-                onKeyDown={(e) => handleKeyDownSmartList(fullscreenTextareaRef, e)}
-              />
-            </div>
-
-            {/* Right: Fullscreen Live Preview Pane */}
-            {showFullscreenPreview && (
-              <div 
-                className="zen-preview-pane"
-                style={{ maxWidth: '50%' }}
-              >
+      {isFullscreen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="zen-modal-overlay"
+          onClick={() => setIsFullscreen(false)}
+        >
+          <div 
+            className="zen-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 1. Modal Top Bar: Title & Window Controls */}
+            <div className="zen-fullscreen-header">
+              {/* Title & Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                 <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.5rem',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--primary-glow)',
+                  color: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.4rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  color: 'var(--primary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  marginBottom: '1rem',
-                  paddingBottom: '0.5rem',
-                  borderBottom: '1px solid var(--border-light)'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
-                  <Eye size={14} />
-                  <span>Pratinjau Tampilan Konsumen (Live Preview)</span>
+                  <FileText size={17} />
                 </div>
-
-                {(value || '').trim() ? (
-                  <FormattedText
-                    text={value}
-                    style={{ fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: '1.7' }}
-                  />
-                ) : (
-                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                    Belum ada teks yang ditulis. Ketik sesuatu di panel editor sebelah kiri untuk melihat hasil pratinjaunya secara real-time.
-                  </div>
-                )}
+                <div 
+                  className="zen-header-title" 
+                  title={label || 'Editor Teks'}
+                  style={{ minWidth: 0 }}
+                >
+                  <span>{label || 'Editor Teks'}</span>
+                </div>
+                <span className="zen-header-badge">Fokus Editor</span>
               </div>
-            )}
-          </div>
 
-          {/* Fullscreen Footer: Counts on Left, Selesai Button on Right */}
-          <div className="zen-fullscreen-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-              <span style={{
-                padding: '0.2rem 0.6rem',
-                borderRadius: '0.375rem',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-secondary)',
-                fontWeight: 700
-              }}>
-                {wordCount} kata
-              </span>
-              <span>•</span>
-              <span style={{
-                padding: '0.2rem 0.6rem',
-                borderRadius: '0.375rem',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-secondary)',
-                fontWeight: 700
-              }}>
-                {charCount} karakter
-              </span>
+              {/* Right Window Action Controls (Split Preview Toggle & Close X) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                {/* Split Preview Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowFullscreenPreview(!showFullscreenPreview)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.38rem 0.85rem',
+                    borderRadius: '0.5rem',
+                    border: showFullscreenPreview ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                    background: showFullscreenPreview ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)' : 'var(--bg-card-hover)',
+                    color: showFullscreenPreview ? '#ffffff' : 'var(--text-primary)',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: showFullscreenPreview ? '0 2px 10px var(--primary-glow)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={showFullscreenPreview ? 'Sembunyikan panel pratinjau' : 'Tampilkan panel pratinjau berdampingan'}
+                >
+                  <Columns size={14} />
+                  <span>{showFullscreenPreview ? 'Split Preview: Aktif' : 'Tampilkan Preview'}</span>
+                </button>
+
+                {/* Subtle Divider */}
+                <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-light)', margin: '0 0.2rem' }} />
+
+                {/* Close Button X */}
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  title="Tutup (Esc)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-card-hover)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--primary)';
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                    e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                    e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(false)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.42rem 1.25rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: '#ffffff',
-                fontSize: '0.82rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Check size={14} strokeWidth={2.5} color="#ffffff" />
-              <span>Selesai</span>
-            </button>
+            {/* 2. Dedicated Text Formatting Toolbar Strip (Cleanly Docked Above Editor) */}
+            <div className="zen-fullscreen-toolbar">
+              {/* Left Formatting Group */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'nowrap' }}>
+                <button
+                  type="button"
+                  className="zen-btn-format"
+                  title="Teks Tebal (Bold)"
+                  onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
+                >
+                  <strong>B</strong>
+                </button>
+                <button
+                  type="button"
+                  className="zen-btn-format"
+                  title="Teks Miring (Italic)"
+                  onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
+                >
+                  <em>I</em>
+                </button>
+
+                <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-light)', margin: '0 0.15rem' }} />
+
+                <HeadingDropdown
+                  onSelect={(level) => {
+                    if (level === 1) applyFormatToRef(fullscreenTextareaRef, '\n# ', '\n', 'Judul Utama H1');
+                    else if (level === 2) applyFormatToRef(fullscreenTextareaRef, '\n## ', '\n', 'Judul Bab H2');
+                    else if (level === 3) applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Sub Judul H3');
+                  }}
+                  btnClassName="zen-btn-format"
+                  isZen
+                />
+                <ListDropdown
+                  onSelect={(type) => {
+                    if (type === 'bullet') applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list');
+                    else if (type === 'number') applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah');
+                  }}
+                  btnClassName="zen-btn-format"
+                  isZen
+                />
+
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 600 }}>
+                  💡 Format Markdown aktif
+                </span>
+              </div>
+
+              {/* Right Live Statistics Counter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                <span style={{
+                  padding: '0.18rem 0.55rem',
+                  borderRadius: '0.375rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 700
+                }}>
+                  {wordCount} kata
+                </span>
+                <span>•</span>
+                <span style={{
+                  padding: '0.18rem 0.55rem',
+                  borderRadius: '0.375rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 700
+                }}>
+                  {charCount} karakter
+                </span>
+              </div>
+            </div>
+
+            {/* Fullscreen Body */}
+            <div className="zen-fullscreen-body">
+              {/* Left: Fullscreen Textarea */}
+              <div 
+                className="zen-textarea-container"
+                style={{
+                  maxWidth: showFullscreenPreview ? '50%' : '100%',
+                  borderRight: showFullscreenPreview ? '1px solid var(--border-light)' : 'none'
+                }}
+              >
+                <textarea
+                  ref={fullscreenTextareaRef}
+                  className="zen-textarea"
+                  placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
+                  value={value || ''}
+                  onChange={(e) => onChange(e.target.value)}
+                  onKeyDown={(e) => handleKeyDownSmartList(fullscreenTextareaRef, e)}
+                />
+              </div>
+
+              {/* Right: Fullscreen Live Preview Pane */}
+              {showFullscreenPreview && (
+                <div 
+                  className="zen-preview-pane"
+                  style={{ maxWidth: '50%' }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    color: 'var(--primary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: '1rem',
+                    paddingBottom: '0.5rem',
+                    borderBottom: '1px solid var(--border-light)'
+                  }}>
+                    <Eye size={14} />
+                    <span>Pratinjau Tampilan Konsumen (Live Preview)</span>
+                  </div>
+
+                  {(value || '').trim() ? (
+                    <FormattedText
+                      text={value}
+                      style={{ fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: '1.7' }}
+                    />
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                      Belum ada teks yang ditulis. Ketik sesuatu di panel editor sebelah kiri untuk melihat hasil pratinjaunya secara real-time.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Fullscreen Footer: Auto-save note on Left, Selesai Button on Right */}
+            <div className="zen-fullscreen-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                <CheckCircle2 size={14} color="var(--primary)" />
+                <span>Perubahan otomatis tersinkronisasi di formulir</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Tekan <kbd style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', fontSize: '0.72rem' }}>Esc</kbd> atau
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    padding: '0.45rem 1.35rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 3px 12px var(--primary-glow)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 5px 18px var(--primary-glow)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = '0 3px 12px var(--primary-glow)';
+                    e.currentTarget.style.transform = 'none';
+                  }}
+                >
+                  <Check size={14} strokeWidth={2.5} color="#ffffff" />
+                  <span>Selesai</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

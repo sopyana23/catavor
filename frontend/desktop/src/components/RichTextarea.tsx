@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { sanitizeUrl, safeOpenUrl, checkUrlSecurity } from '../utils/urlSecurity';
 import { ExternalLinkWarningModal, type ExternalLinkWarningModalProps } from './ExternalLinkWarningModal';
+import { useModalBackHandler } from '../utils/navigation';
 
 export { ExternalLinkWarningModal };
 export type { ExternalLinkWarningModalProps };
@@ -1247,6 +1248,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDownGlobal);
   }, [isFullscreen]);
 
+  // Handle hardware / browser back to close Zen Fullscreen editor
+  useModalBackHandler({
+    isOpen: isFullscreen,
+    onClose: () => setIsFullscreen(false),
+    modalId: 'rich-textarea-portal-desktop'
+  });
+
   const applyFormatToRef = (
     targetRef: React.RefObject<HTMLTextAreaElement | null>,
     prefix: string,
@@ -1666,33 +1674,49 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
       {/* ========================================================================= */}
       {/* ZEN FULLSCREEN OVERLAY MODAL (Rendered in Portal)                         */}
+      {/* Desktop: Seukuran modal form inputan, bukan 100vw layar penuh              */}
       {/* ========================================================================= */}
       {isFullscreen && createPortal(
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: theme?.modalOverlay || 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(10px)',
-          zIndex: 999999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 0
-        }}>
-          <div style={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            backgroundColor: theme?.modalBg || (isDark ? '#0b0f19' : '#ffffff'),
+        <div 
+          onClick={() => setIsFullscreen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: theme?.modalOverlay || 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 1250,
             display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-          }}>
-            {/* Zen Header: Clean Single Row Bar (Icon + Title, Edit/Preview Tabs) */}
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '940px',
+              height: 'min(800px, calc(100vh - 3.5rem))',
+              maxHeight: 'calc(100vh - 3.5rem)',
+              backgroundColor: theme?.modalBg || (isDark ? '#0b0f19' : '#ffffff'),
+              borderRadius: '1.25rem',
+              border: `1px solid ${theme?.border || (isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0')}`,
+              boxShadow: '0 25px 70px rgba(0, 0, 0, 0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+              boxSizing: 'border-box'
+            }}
+          >
+            {/* Zen Header: Clean Single Row Bar (Icon + Title, Edit/Preview Tabs, Close X) */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -1710,11 +1734,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   width: '34px',
                   height: '34px',
                   borderRadius: '0.7rem',
-                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                  backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: isDark ? '#38bdf8' : '#0284c7',
+                  color: 'var(--primary, #10b981)',
                   flexShrink: 0
                 }}>
                   <Edit3 size={16} />
@@ -1731,68 +1755,96 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 </span>
               </div>
 
-              {/* Right: Segmented Edit/Preview Tabs */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-                borderRadius: '0.65rem',
-                padding: '0.2rem',
-                border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
-                flexShrink: 0
-              }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setMobileTab('editor');
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    border: 'none',
-                    background: mobileTab === 'editor' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
-                    color: mobileTab === 'editor' ? '#ffffff' : textSecondary,
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: mobileTab === 'editor' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Edit3 size={13} color={mobileTab === 'editor' ? '#ffffff' : textSecondary} />
-                  <span>Edit</span>
-                </button>
+              {/* Right: Segmented Edit/Preview Tabs + Close X Button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                  borderRadius: '0.65rem',
+                  padding: '0.2rem',
+                  border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0')}`,
+                  flexShrink: 0
+                }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMobileTab('editor');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      border: 'none',
+                      background: mobileTab === 'editor' ? 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)' : 'transparent',
+                      color: mobileTab === 'editor' ? '#ffffff' : textSecondary,
+                      fontSize: '0.74rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: mobileTab === 'editor' ? '0 2px 6px var(--primary-glow, rgba(2, 132, 199, 0.3))' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Edit3 size={13} color={mobileTab === 'editor' ? '#ffffff' : textSecondary} />
+                    <span>Edit</span>
+                  </button>
 
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMobileTab('preview');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      border: 'none',
+                      background: mobileTab === 'preview' ? 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)' : 'transparent',
+                      color: mobileTab === 'preview' ? '#ffffff' : textSecondary,
+                      fontSize: '0.74rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: mobileTab === 'preview' ? '0 2px 6px var(--primary-glow, rgba(2, 132, 199, 0.3))' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Eye size={13} color={mobileTab === 'preview' ? '#ffffff' : textSecondary} />
+                    <span>Pratinjau</span>
+                  </button>
+                </div>
+
+                {/* Close Button X */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setMobileTab('preview');
+                    setIsFullscreen(false);
                   }}
+                  title="Tutup (Esc)"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.3rem',
-                    padding: '0.35rem 0.75rem',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '0.5rem',
-                    border: 'none',
-                    background: mobileTab === 'preview' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'transparent',
-                    color: mobileTab === 'preview' ? '#ffffff' : textSecondary,
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
+                    border: `1px solid ${theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')}`,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                    color: textSecondary,
                     cursor: 'pointer',
-                    boxShadow: mobileTab === 'preview' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Eye size={13} color={mobileTab === 'preview' ? '#ffffff' : textSecondary} />
-                  <span>Pratinjau</span>
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -2033,13 +2085,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   gap: '0.4rem',
                   padding: '0.55rem 1.35rem',
                   borderRadius: '0.65rem',
-                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  background: 'linear-gradient(135deg, var(--primary, #0284c7) 0%, var(--primary-hover, #0369a1) 100%)',
                   border: 'none',
                   color: '#ffffff',
                   fontSize: '0.82rem',
                   fontWeight: 800,
                   cursor: 'pointer',
-                  boxShadow: '0 2px 10px rgba(2, 132, 199, 0.35)',
+                  boxShadow: '0 2px 10px var(--primary-glow, rgba(2, 132, 199, 0.35))',
                   flexShrink: 0,
                   transition: 'all 0.15s ease'
                 }}
