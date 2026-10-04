@@ -50,9 +50,8 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	if !cfg.DBAutoMigrate {
-		runPostMigrationOptimizations(db)
 		DB = db
-		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED, idempotent schema columns verified)")
+		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED)")
 		return db, nil
 	}
 

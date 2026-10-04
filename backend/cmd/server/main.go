@@ -40,8 +40,10 @@ func main() {
 	database.InitRedis()
 
 	// 3.1 Seed Default Subscription Plans
-	if err := services.SeedSubscriptionPlans(database.DB); err != nil {
-		log.Warn().Err(err).Msg("Failed to seed default subscription plans")
+	if cfg.DBAutoMigrate {
+		if err := services.SeedSubscriptionPlans(database.DB); err != nil {
+			log.Warn().Err(err).Msg("Failed to seed default subscription plans")
+		}
 	}
 
 	// 4. Initialize Fiber App with Industrial SaaS timeouts (WriteTimeout 0 for SSE streaming)
