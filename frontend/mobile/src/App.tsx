@@ -16916,8 +16916,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             icon: CheckCircle,
                             options: [
                               { value: 'Bersertifikat Halal Resmi (BPJPH / MUI)', label: 'Bersertifikat Halal Resmi (BPJPH / MUI)', desc: 'Telah terverifikasi & terdaftar resmi di BPJPH/MUI' },
-                              { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)', desc: '100% menggunakan bahan baku halal, bersih & higienis' },
-                              { value: 'Muslim Friendly / No Pork No Lard', label: 'Muslim Friendly / No Pork No Lard', desc: 'Bebas daging babi, minyak babi, dan alkohol' },
+                              { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)', desc: '100% menggunakan bahan baku halal, bebas babi/alkohol, bersih & higienis' },
                               { value: 'Dalam Proses Sertifikasi Halal', label: 'Dalam Proses Sertifikasi Halal', desc: 'Sedang dalam proses audit sertifikasi halal' },
                               { value: 'Non-Halal', label: 'Non-Halal', desc: 'Mengandung bahan non-halal / khusus non-muslim' }
                             ],

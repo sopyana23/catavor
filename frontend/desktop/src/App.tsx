@@ -25834,7 +25834,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         >
                           <option value="Bersertifikat Halal Resmi (BPJPH / MUI)">Bersertifikat Halal Resmi (BPJPH / MUI)</option>
                           <option value="Halal (Bahan Baku Halal & Thayyib)">Halal (Bahan Baku Halal &amp; Thayyib)</option>
-                          <option value="Muslim Friendly / No Pork No Lard">Muslim Friendly / No Pork No Lard</option>
                           <option value="Dalam Proses Sertifikasi Halal">Dalam Proses Sertifikasi Halal</option>
                           <option value="Non-Halal">Non-Halal</option>
                         </select>
