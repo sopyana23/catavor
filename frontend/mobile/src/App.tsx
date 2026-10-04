@@ -8377,30 +8377,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     return false;
   }, [crudForm, crudImages, crudImageFiles]);
 
-  // Auto-Save Draft to LocalStorage (Debounced 500ms)
-  useEffect(() => {
-    if (crudMode !== 'create') return;
-    const currentSlug = storeSlug || getStoreSlug() || 'default';
-    const prodType = crudForm.product_type || 'physical';
-    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
-
-    if (!isFormDirty()) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      try {
-        const serializableImages = crudImages.filter(img => img && !img.startsWith('blob:'));
-        localStorage.setItem(draftKey, JSON.stringify({
-          form: crudForm,
-          images: serializableImages,
-          savedAt: Date.now()
-        }));
-      } catch {}
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [crudForm, crudImages, crudMode, storeSlug, isFormDirty]);
 
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<ShopSettings>(() => ({
@@ -8441,32 +8417,19 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     modalId: 'mobile-discard-confirmation'
   });
 
-  const handleMobileConfirmSaveDraftAndExit = () => {
+  const handleMobileConfirmSaveAndExit = () => {
     setShowDiscardConfirmSheet(false);
-    resetCrudState('physical');
-    setView('tabs');
-    setActiveTab('admin');
-    setAdminSubTab('items');
-    setShowProductTypeSelector(false);
-    showToast('Draf formulir Anda tersimpan dengan aman.', 'success');
-    const slug = storeSlug || getStoreSlug() || '';
-    if (slug) {
-      window.history.replaceState({}, '', `/${slug}/admin/items`);
-    }
+    handleFaunaSubmit({ preventDefault: () => {} } as React.FormEvent);
   };
 
   const handleMobileConfirmDiscardAndExit = () => {
-    const currentSlug = storeSlug || getStoreSlug() || 'default';
-    try {
-      localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
-    } catch {}
     setShowDiscardConfirmSheet(false);
     resetCrudState('physical');
     setView('tabs');
     setActiveTab('admin');
     setAdminSubTab('items');
     setShowProductTypeSelector(false);
-    showToast('Perubahan berhasil dibuang.', 'info');
+    showToast('Perubahan dibatalkan.', 'info');
     const slug = storeSlug || getStoreSlug() || '';
     if (slug) {
       window.history.replaceState({}, '', `/${slug}/admin/items`);
@@ -8748,21 +8711,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
                 if (view !== 'fauna-editor') {
                   resetCrudState(prodType as any);
-                  const currentSlug = storeSlug || getStoreSlug() || 'default';
-                  const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
-                  try {
-                    const savedDraftRaw = localStorage.getItem(draftKey);
-                    if (savedDraftRaw) {
-                      const draft = JSON.parse(savedDraftRaw);
-                      if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
-                        setCrudForm(draft.form);
-                        if (draft.images && draft.images.length > 0) {
-                          setCrudImages(draft.images);
-                          setCrudImageFiles(new Array(draft.images.length).fill(null));
-                        }
-                      }
-                    }
-                  } catch {}
                   setCrudMode('create');
                   setView('fauna-editor');
                 }
@@ -9152,21 +9100,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
                 if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
                   if (view !== 'fauna-editor') {
                     resetCrudState(prodType as any);
-                    const currentSlug = storeSlug || getStoreSlug() || 'default';
-                    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
-                    try {
-                      const savedDraftRaw = localStorage.getItem(draftKey);
-                      if (savedDraftRaw) {
-                        const draft = JSON.parse(savedDraftRaw);
-                        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
-                          setCrudForm(draft.form);
-                          if (draft.images && draft.images.length > 0) {
-                            setCrudImages(draft.images);
-                            setCrudImageFiles(new Array(draft.images.length).fill(null));
-                          }
-                        }
-                      }
-                    } catch {}
                     setCrudMode('create');
                     setView('fauna-editor');
                   }
@@ -11574,22 +11507,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     // New item creation: completely fresh reset for the selected type
     resetCrudState(type)
-    const currentSlug = storeSlug || getStoreSlug() || 'default';
-    const draftKey = `catavor_draft_${currentSlug}_${type}`;
-    try {
-      const savedDraftRaw = localStorage.getItem(draftKey);
-      if (savedDraftRaw) {
-        const draft = JSON.parse(savedDraftRaw);
-        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
-          setCrudForm(draft.form);
-          if (draft.images && draft.images.length > 0) {
-            setCrudImages(draft.images);
-            setCrudImageFiles(new Array(draft.images.length).fill(null));
-          }
-          showToast('Draf produk Anda sebelumnya berhasil dipulihkan.', 'info');
-        }
-      }
-    } catch {}
     setView('fauna-editor')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -11935,10 +11852,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
       const data = await res.json()
       if (res.ok && data.success) {
-        const currentSlug = storeSlug || getStoreSlug() || 'default';
-        try {
-          localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
-        } catch {}
         setShowCrudSheet(false)
         setView('tabs')
         resetCrudState('physical')
@@ -30034,35 +29947,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             <div style={{ padding: '1rem 1.25rem 0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               <p style={{
                 margin: 0,
-                fontSize: '0.84rem',
+                fontSize: '0.85rem',
                 color: 'var(--text-secondary)',
                 lineHeight: 1.45
               }}>
-                Ada data atau gambar yang sedang Anda isi. Pilih tindakan sebelum meninggalkan formulir:
+                Ada data atau gambar yang belum disimpan. Simpan perubahan Anda sekarang atau buang perubahan sebelum meninggalkan formulir?
               </p>
 
-              {/* Local Draft Info Callout */}
-              <div style={{
-                padding: '0.65rem 0.85rem',
-                borderRadius: '0.75rem',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.6rem'
-              }}>
-                <Sparkles size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                  Draf formulir tersimpan otomatis di perangkat Anda sehingga dapat dilanjutkan nanti.
-                </span>
-              </div>
-
               {/* Action Buttons Stack */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.25rem' }}>
-                {/* Primary: Lanjut Mengedit */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.35rem' }}>
+                {/* Primary: Simpan Perubahan */}
                 <button
                   type="button"
-                  onClick={() => setShowDiscardConfirmSheet(false)}
+                  onClick={handleMobileConfirmSaveAndExit}
                   style={{
                     height: '46px',
                     width: '100%',
@@ -30081,20 +29978,21 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     WebkitTapHighlightColor: 'transparent'
                   }}
                 >
-                  <span>Lanjut Mengedit</span>
+                  <Save size={17} />
+                  <span>Simpan Perubahan</span>
                 </button>
 
-                {/* Secondary: Simpan Draf & Keluar */}
+                {/* Destructive: Buang Perubahan */}
                 <button
                   type="button"
-                  onClick={handleMobileConfirmSaveDraftAndExit}
+                  onClick={handleMobileConfirmDiscardAndExit}
                   style={{
-                    height: '46px',
+                    height: '44px',
                     width: '100%',
                     borderRadius: '0.85rem',
-                    backgroundColor: 'var(--bg-card-hover)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.28)',
+                    color: '#ef4444',
                     fontWeight: 600,
                     fontSize: '0.88rem',
                     cursor: 'pointer',
@@ -30105,33 +30003,31 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     WebkitTapHighlightColor: 'transparent'
                   }}
                 >
-                  <Save size={16} />
-                  <span>Simpan Draf & Keluar</span>
+                  <Trash2 size={16} />
+                  <span>Buang Perubahan</span>
                 </button>
 
-                {/* Destructive: Buang Perubahan */}
+                {/* Cancel / Keep Editing */}
                 <button
                   type="button"
-                  onClick={handleMobileConfirmDiscardAndExit}
+                  onClick={() => setShowDiscardConfirmSheet(false)}
                   style={{
                     height: '42px',
                     width: '100%',
                     borderRadius: '0.85rem',
                     backgroundColor: 'transparent',
-                    border: '1px solid rgba(239, 68, 68, 0.28)',
-                    color: '#ef4444',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-secondary)',
                     fontWeight: 600,
-                    fontSize: '0.85rem',
+                    fontSize: '0.86rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.45rem',
                     WebkitTapHighlightColor: 'transparent'
                   }}
                 >
-                  <Trash2 size={15} />
-                  <span>Buang Perubahan</span>
+                  <span>Lanjut Mengedit</span>
                 </button>
               </div>
             </div>
