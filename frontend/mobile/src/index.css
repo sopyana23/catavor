@@ -643,4 +643,21 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   transform: translateX(-2px) !important;
 }
 
+/* Mobile Discard Confirmation Bottom Sheet */
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.discard-sheet-content {
+  animation: slideUpSheet 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
 

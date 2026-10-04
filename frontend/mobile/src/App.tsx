@@ -40,6 +40,7 @@ import {
   Compass,
   ShoppingCart,
   AlertTriangle,
+  Save,
   Bold,
   Italic,
   Underline,
@@ -8430,6 +8431,47 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   useModalBackHandler({ isOpen: showStoreSwitcherModal, onClose: () => setShowStoreSwitcherModal(false), modalId: 'store-switcher' });
   useModalBackHandler({ isOpen: showCreateStoreModal, onClose: () => setShowCreateStoreModal(false), modalId: 'create-store' });
 
+  // Mobile Discard Confirmation Sheet State
+  const [showDiscardConfirmSheet, setShowDiscardConfirmSheet] = useState<boolean>(false);
+
+  useModalBackHandler({
+    isOpen: showDiscardConfirmSheet,
+    onClose: () => setShowDiscardConfirmSheet(false),
+    modalId: 'mobile-discard-confirmation'
+  });
+
+  const handleMobileConfirmSaveDraftAndExit = () => {
+    setShowDiscardConfirmSheet(false);
+    resetCrudState('physical');
+    setView('tabs');
+    setActiveTab('admin');
+    setAdminSubTab('items');
+    setShowProductTypeSelector(false);
+    showToast('Draf formulir Anda tersimpan dengan aman.', 'success');
+    const slug = storeSlug || getStoreSlug() || '';
+    if (slug) {
+      window.history.replaceState({}, '', `/${slug}/admin/items`);
+    }
+  };
+
+  const handleMobileConfirmDiscardAndExit = () => {
+    const currentSlug = storeSlug || getStoreSlug() || 'default';
+    try {
+      localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
+    } catch {}
+    setShowDiscardConfirmSheet(false);
+    resetCrudState('physical');
+    setView('tabs');
+    setActiveTab('admin');
+    setAdminSubTab('items');
+    setShowProductTypeSelector(false);
+    showToast('Perubahan berhasil dibuang.', 'info');
+    const slug = storeSlug || getStoreSlug() || '';
+    if (slug) {
+      window.history.replaceState({}, '', `/${slug}/admin/items`);
+    }
+  };
+
   const [customDomainInput, setCustomDomainInput] = useState<string>('');
   const [customDomainLoading, setCustomDomainLoading] = useState<boolean>(false);
 
@@ -16229,8 +16271,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 type="button"
                 onClick={() => {
                   if (isFormDirty()) {
-                    const confirmLeave = window.confirm('Anda memiliki perubahan yang belum disimpan. Yakin ingin keluar? Draf perubahan Anda tetap tersimpan.');
-                    if (!confirmLeave) return;
+                    setShowDiscardConfirmSheet(true);
+                    return;
                   }
                   smartBack(() => {
                     resetCrudState('physical');
@@ -29909,6 +29951,182 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           url={externalUrlWarning}
           onClose={() => setExternalUrlWarning(null)}
         />
+      )}
+
+      {/* ==========================================================
+         MOBILE DISCARD CONFIRMATION BOTTOM SHEET (PROFESSIONAL NATIVE FEEL)
+         ========================================================== */}
+      {showDiscardConfirmSheet && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowDiscardConfirmSheet(false)}
+          style={{
+            zIndex: 1300,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)'
+          }}
+        >
+          <div
+            className="discard-sheet-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: 'var(--bg-card)',
+              borderTop: '1px solid var(--border-light)',
+              borderRadius: '1.5rem 1.5rem 0 0',
+              padding: '1.25rem 1.25rem calc(1.75rem + env(safe-area-inset-bottom, 16px))',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.55)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}
+          >
+            {/* Sheet Handle Bar */}
+            <div style={{
+              width: '38px',
+              height: '4px',
+              borderRadius: '999px',
+              backgroundColor: 'var(--border-medium, rgba(255, 255, 255, 0.2))',
+              margin: '0 auto 0.25rem'
+            }} />
+
+            {/* Header with Amber Warning Badge */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 0 16px rgba(245, 158, 11, 0.15)'
+              }}>
+                <AlertTriangle size={22} color="#f59e0b" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{
+                  margin: '0 0 0.25rem 0',
+                  fontSize: '1.05rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  letterSpacing: '-0.01em'
+                }}>
+                  Perubahan Belum Disimpan
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '0.82rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.45
+                }}>
+                  Ada data atau gambar yang sedang Anda isi. Pilih tindakan sebelum meninggalkan formulir:
+                </p>
+              </div>
+            </div>
+
+            {/* Local Draft Info Callout */}
+            <div style={{
+              padding: '0.65rem 0.85rem',
+              borderRadius: '0.75rem',
+              backgroundColor: 'var(--bg-card-hover)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem'
+            }}>
+              <Sparkles size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                Draf formulir tersimpan otomatis di perangkat Anda sehingga dapat dilanjutkan nanti.
+              </span>
+            </div>
+
+            {/* Action Buttons Stack (Touch-Friendly Vertical Order) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.25rem' }}>
+              {/* Primary: Lanjut Mengedit */}
+              <button
+                type="button"
+                onClick={() => setShowDiscardConfirmSheet(false)}
+                style={{
+                  height: '46px',
+                  width: '100%',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 14px var(--primary-glow)',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                <span>Lanjut Mengedit</span>
+              </button>
+
+              {/* Secondary: Simpan Draf & Keluar */}
+              <button
+                type="button"
+                onClick={handleMobileConfirmSaveDraftAndExit}
+                style={{
+                  height: '46px',
+                  width: '100%',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'var(--bg-card-hover)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                <Save size={16} />
+                <span>Simpan Draf & Keluar</span>
+              </button>
+
+              {/* Destructive: Buang Perubahan */}
+              <button
+                type="button"
+                onClick={handleMobileConfirmDiscardAndExit}
+                style={{
+                  height: '42px',
+                  width: '100%',
+                  borderRadius: '0.85rem',
+                  backgroundColor: 'transparent',
+                  border: '1px solid rgba(239, 68, 68, 0.28)',
+                  color: '#ef4444',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                <Trash2 size={15} />
+                <span>Buang Perubahan</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
