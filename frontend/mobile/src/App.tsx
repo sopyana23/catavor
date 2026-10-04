@@ -8897,118 +8897,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   }, [adminUser, token])
 
-  // Browser Back/Forward PopState Event Listener for Mobile Navigation
-  useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname.toLowerCase();
-      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
-      if (isPlatformAdminPath) {
-        if (token && isPlatformAdmin(adminUser)) {
-          setActiveTab('admin');
-          setStoreSlug(null);
-          return;
-        }
-      }
-
-      const slug = getStoreSlug();
-      if (slug) {
-        const parts = path.split('/').filter(Boolean);
-        const urlParams = new URLSearchParams(window.location.search);
-
-        if (parts.length >= 2 && parts[1] === 'admin') {
-          setActiveTab('admin');
-          const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
-          const isSupportQuery = ['support', 'help', 'bantuan', 'tickets', 'chat'].includes(rawTabParam) || Boolean(urlParams.get('ticket'));
-          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || urlParams.get('tab');
-          const subSub = parts[3];
-          if (pageSub === 'notifications') {
-            setAdminSubTab('notifications');
-            setSelectedTicket(null);
-            setIsCreatingTicket(false);
-          } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
-            setAdminSubTab('help');
-            if (subSub === 'new' || subSub === 'create' || urlParams.get('action') === 'new' || urlParams.get('ticket') === 'new') {
-              setIsCreatingTicket(true);
-              setSelectedTicket(null);
-            } else {
-              setIsCreatingTicket(false);
-              const ticketParam = urlParams.get('ticket') || (subSub && subSub !== 'new' && subSub !== 'create' ? subSub : null);
-              if (ticketParam) {
-                const savedTickets = (() => {
-                  try {
-                    const s = localStorage.getItem('catavor_support_tickets');
-                    return s ? JSON.parse(s) : INITIAL_TICKETS;
-                  } catch {
-                    return INITIAL_TICKETS;
-                  }
-                })();
-                const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === ticketParam.toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === ticketParam.toLowerCase()));
-                if (found) setSelectedTicket(found);
-                else setSelectedTicket(null);
-                fetchTicketDetails(ticketParam);
-              } else {
-                setSelectedTicket(null);
-              }
-            }
-          } else if (pageSub === 'items') {
-            setAdminSubTab('items');
-            setSelectedTicket(null);
-            setIsCreatingTicket(false);
-          } else if (pageSub === 'settings') {
-            setAdminSubTab('settings');
-            const subSub = parts[3];
-            const sec = subSub || urlParams.get('section');
-            let mappedSec = sec ? sec.toLowerCase().trim() : '';
-            if (mappedSec === 'social') mappedSec = 'contact';
-            if (mappedSec === 'features') mappedSec = 'general';
-            if (['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(mappedSec)) {
-              setMobileSettingsTab(mappedSec as any);
-            } else {
-              const saved = sessionStorage.getItem('catavor_last_mobile_settings_tab');
-              if (saved && ['general', 'contact', 'about', 'theme', 'master', 'menu'].includes(saved)) {
-                setMobileSettingsTab(saved as any);
-              } else {
-                setMobileSettingsTab('menu');
-              }
-            }
-            setSelectedTicket(null);
-          } else if (pageSub === 'policies') {
-            setAdminSubTab('policies');
-            setSelectedTicket(null);
-          } else if (pageSub === 'profile') {
-            setAdminSubTab('profile');
-            setSelectedTicket(null);
-          } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
-            setAdminSubTab('audit_logs');
-            setSelectedTicket(null);
-            fetchActivityLogs(1, false);
-          } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
-            setAdminSubTab('rbac');
-            setSelectedTicket(null);
-          } else {
-            setAdminSubTab('menu');
-            setMobileSettingsTab('menu');
-            setSelectedTicket(null);
-          }
-        } else if (parts.length >= 2 && parts[1] === 'about') {
-          setActiveTab('about');
-          const subSub = parts[2];
-          if (subSub === 'share' || subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'share' || urlParams.get('sub') === 'qrcode') {
-            setAboutSubView('qrcode');
-          } else {
-            setAboutSubView('main');
-          }
-        } else if (parts.length >= 2 && (parts[1] === 'share' || parts[1] === 'qrcode' || parts[1] === 'qr')) {
-          setActiveTab('about');
-          setAboutSubView('qrcode');
-        }
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
   // Auto-open fauna item sheet if ?item=ID is in URL or /admin/items/edit/ID
   useEffect(() => {
     if (!faunas || faunas.length === 0) return;
@@ -9055,19 +8943,42 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   }, [showCrudSheet])
 
-  // Listen to popstate for clean policy & portal routes
+  // Unified Browser Back/Forward PopState Event Listener for Mobile Navigation
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      // 0. If this popstate was triggered by closing a modal/drawer, do NOT reset page routes!
+      if (window.__catavor_is_modal_popping || (event.state && event.state.__catavor_modal)) {
+        return;
+      }
+
       isPopStateRef.current = true;
+      setTimeout(() => {
+        isPopStateRef.current = false;
+      }, 150);
+
+      const path = window.location.pathname.toLowerCase();
+      const parts = path.split('/').filter(Boolean);
+      const urlParams = new URLSearchParams(window.location.search);
+
+      // Check Platform Admin paths first
+      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
+      if (isPlatformAdminPath) {
+        if (token && isPlatformAdmin(adminUser)) {
+          setActiveTab('admin');
+          setStoreSlug(null);
+          setView('tabs');
+          return;
+        }
+      }
+
       const slug = getStoreSlug();
       setStoreSlug(slug);
 
       if (slug) {
         setShowStoreSwitcherModal(false);
         setStoreChooserComplianceAlert(null);
-        const path = window.location.pathname.toLowerCase();
-        const parts = path.split('/').filter(Boolean);
-        const urlParams = new URLSearchParams(window.location.search);
+
+        // Check if item detail query exists
         const popItemId = urlParams.get('item');
         if (popItemId) {
           activeDetailItemIdRef.current = popItemId;
@@ -9077,7 +8988,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             setSelectedFauna(found);
             setIsDetailActive(true);
             setActiveImageIndex(0);
-            window.scrollTo({ top: 0, behavior: 'instant' });
           } else {
             openDetailsSheet(parseInt(popItemId, 10));
           }
@@ -9089,7 +8999,9 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           const sub = parts[1];
           if (sub === 'admin') {
             setActiveTab('admin');
-            const pageSub = parts[2] || urlParams.get('sub');
+            const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
+            const isSupportQuery = ['support', 'help', 'bantuan', 'tickets', 'chat'].includes(rawTabParam) || Boolean(urlParams.get('ticket'));
+            const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || urlParams.get('tab');
             const subSub = parts[3];
             const paramId = parts[4];
 
@@ -9143,6 +9055,10 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
                   setMobileSettingsTab('menu');
                 }
               }
+            } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik' || pageSub === 'trafik') {
+              setAdminSubTab('analytics');
+              setView('tabs');
+              fetchAnalytics(analyticsPeriod);
             } else if (pageSub === 'profile') {
               setAdminSubTab('profile');
               setView('tabs');
@@ -9152,35 +9068,38 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             } else if (pageSub === 'notifications') {
               setAdminSubTab('notifications');
               setView('tabs');
+              const notifId = urlParams.get('id');
+              if (notifId) {
+                const found = notifications.find(n => String(n.id) === String(notifId));
+                if (found) setSelectedNotification(found);
+              }
             } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
               setAdminSubTab('subscription');
               setView('tabs');
-            } else if (pageSub === 'help' || pageSub === 'bantuan') {
+              setMobileSubPageView('plans');
+            } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
               setAdminSubTab('help');
               setView('tabs');
-              const subSub = parts[3];
-              if (subSub === 'new' || subSub === 'create' || urlParams.get('action') === 'new' || urlParams.get('ticket') === 'new') {
+              const ticketParam = urlParams.get('ticket') || (subSub && subSub !== 'new' && subSub !== 'create' ? subSub : null);
+              if (subSub === 'new' || subSub === 'create' || urlParams.get('action') === 'new') {
                 setIsCreatingTicket(true);
                 setSelectedTicket(null);
+              } else if (ticketParam) {
+                setIsCreatingTicket(false);
+                const savedTickets = (() => {
+                  try {
+                    const s = localStorage.getItem('catavor_support_tickets');
+                    return s ? JSON.parse(s) : INITIAL_TICKETS;
+                  } catch {
+                    return INITIAL_TICKETS;
+                  }
+                })();
+                const found = savedTickets.find((t: any) => String(t.id).toLowerCase() === ticketParam.toLowerCase() || (t.ticket_number && t.ticket_number.toLowerCase() === ticketParam.toLowerCase()));
+                if (found) setSelectedTicket(found);
+                fetchTicketDetails(ticketParam);
               } else {
                 setIsCreatingTicket(false);
-                const ticketParam = urlParams.get('ticket') || (subSub && subSub !== 'new' && subSub !== 'create' ? subSub : null);
-                if (ticketParam) {
-                  const savedTickets = (() => {
-                    try {
-                      const s = localStorage.getItem('catavor_support_tickets');
-                      return s ? JSON.parse(s) : INITIAL_TICKETS;
-                    } catch {
-                      return INITIAL_TICKETS;
-                    }
-                  })();
-                  const found = savedTickets.find((t: any) => t.id.toLowerCase() === ticketParam.toLowerCase());
-                  if (found) setSelectedTicket(found);
-                  else setSelectedTicket(null);
-                  fetchTicketDetails(ticketParam);
-                } else {
-                  setSelectedTicket(null);
-                }
+                setSelectedTicket(null);
               }
             } else if (pageSub === 'share' || pageSub === 'qrcode' || pageSub === 'qr') {
               setAdminSubTab('share');
@@ -9192,15 +9111,30 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
               setAdminSubTab('rbac');
               setView('tabs');
+            } else if (pageSub === 'portal') {
+              setAdminSubTab('portal');
+              setView('tabs');
             } else {
               setAdminSubTab('menu');
               setMobileSettingsTab('menu');
               setView('tabs');
             }
-          } else if (sub === 'about') { setView('tabs'); setActiveTab('about'); }
-          else if (sub === 'sightings') { setView('tabs'); setActiveTab('sightings'); }
-          else if (sub === 'login') { setView('tabs'); setActiveTab('admin'); setAdminSubTab('items'); }
-          else { setView('tabs'); setActiveTab('catalog'); }
+          } else if (sub === 'about') {
+            setView('tabs');
+            setActiveTab('about');
+            const subSub = parts[2];
+            if (subSub === 'share' || subSub === 'qrcode' || subSub === 'qr' || urlParams.get('sub') === 'share' || urlParams.get('sub') === 'qrcode') {
+              setAboutSubView('qrcode');
+            } else {
+              setAboutSubView('main');
+            }
+          } else if (sub === 'sightings') {
+            setView('tabs');
+            setActiveTab('sightings');
+          } else {
+            setView('tabs');
+            setActiveTab('catalog');
+          }
         } else {
           setView('tabs');
           setActiveTab('catalog');
@@ -9208,48 +9142,12 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         return;
       }
 
-      const path = window.location.pathname.toLowerCase();
-      const urlParams = new URLSearchParams(window.location.search);
+      // Non-store platform routes
       const urlPlan = urlParams.get('plan');
-
-      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
-      if (isPlatformAdminPath || path === '/dashboard') {
-        const savedToken = token || localStorage.getItem('catavor_token');
-        const savedUserStr = localStorage.getItem('catavor_user');
-        if (savedUserStr) {
-          try {
-            const u = JSON.parse(savedUserStr);
-            if (isPlatformAdmin(u)) {
-              setActiveTab('admin');
-              return;
-            }
-          } catch {}
-        }
-        let activeSlug = storeSlug || adminUser?.store_slug || (userStores && userStores[0]?.slug);
-        if (!activeSlug && savedUserStr) {
-          try {
-            const u = JSON.parse(savedUserStr);
-            activeSlug = u.store_slug || '';
-          } catch {}
-        }
-        if (savedToken && activeSlug) {
-          window.history.replaceState({}, '', `/${activeSlug}/admin`);
-          setStoreSlug(activeSlug);
-          setActiveTab('admin');
-          setAdminSubTab('menu');
-          setView('tabs');
-        } else {
-          setPortalTab('login');
-          try {
-            sessionStorage.setItem('catavor_auth_redirect', JSON.stringify({ path: window.location.pathname + window.location.search }));
-          } catch {}
-        }
-      } else if (isCatalogChooserRoute(path)) {
+      if (isCatalogChooserRoute(path)) {
         setStoreSlug(null);
         setIsFirstTimeLogin(true);
         fetchMyStores();
-        document.documentElement.setAttribute('data-theme', 'navy');
-        document.body.setAttribute('data-theme', 'navy');
         setShowStoreSwitcherModal(true);
       } else if (path === '/login') {
         setPortalTab('login');
@@ -9286,24 +9184,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  // Sync active portalTab to Browser Address Bar URL and Session Storage
-  useEffect(() => {
-    if (storeSlug) return;
-    const path = window.location.pathname.toLowerCase();
-    if (path.includes('/admin') || isCatalogChooserRoute(path)) return;
-    let targetPath = '/';
-    if (portalTab === 'login') targetPath = '/login';
-    else if (portalTab === 'register') targetPath = `/register/step-${registerStep}`;
-    else if (portalTab === 'terms') targetPath = '/terms';
-    else if (portalTab === 'privacy') targetPath = '/privacy';
-    else if (portalTab === 'acceptable_use') targetPath = '/acceptable-use';
-
-    if (window.location.pathname.toLowerCase() !== targetPath.toLowerCase()) {
-      window.history.pushState({ tab: portalTab, step: registerStep }, '', targetPath);
-    }
-    sessionStorage.setItem('catavor_portal_tab', portalTab);
-  }, [portalTab, registerStep, storeSlug]);
 
   // Scroll ke atas saat berpindah tab utama / sub-halaman admin (TIDAK saat chat tiket aktif)
   useEffect(() => {
@@ -10126,7 +10006,6 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     if (window.location.pathname + window.location.search !== fullTarget) {
       if (isPopStateRef.current) {
-        isPopStateRef.current = false;
         window.history.replaceState(
           { tab: activeTab, subTab: adminSubTab, isCreatingTicket, section: mobileSettingsTab, view, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotification?.id, articleId: selectedArticle?.id },
           '',
@@ -10161,71 +10040,32 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       if (registerStep === 1) targetPath = '/register';
       else if (registerStep === 2) targetPath = '/register/step-2';
       else if (registerStep === 3) targetPath = `/register/step-3${registerPlan !== 'free' ? '?plan=' + registerPlan : ''}`;
+    } else if (portalTab === 'terms') {
+      targetPath = '/terms';
+    } else if (portalTab === 'privacy') {
+      targetPath = '/privacy';
+    } else if (portalTab === 'acceptable_use') {
+      targetPath = '/acceptable-use';
     }
 
     const currentFull = window.location.pathname + window.location.search;
 
     if (currentFull !== targetPath) {
-      window.history.pushState(
-        { tab: portalTab, step: registerStep, plan: registerPlan },
-        '',
-        targetPath
-      );
+      if (isPopStateRef.current) {
+        window.history.replaceState(
+          { tab: portalTab, step: registerStep, plan: registerPlan },
+          '',
+          targetPath
+        );
+      } else {
+        window.history.pushState(
+          { tab: portalTab, step: registerStep, plan: registerPlan },
+          '',
+          targetPath
+        );
+      }
     }
   }, [portalTab, registerStep, registerPlan, registerForm, storeSlug, error]);
-
-  // Mobile PopState listener for Back/Forward & gesture back navigation across clean paths
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      const path = window.location.pathname.toLowerCase();
-      const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
-      if (isPlatformAdminPath) {
-        if (token && isPlatformAdmin(adminUser)) {
-          setActiveTab('admin');
-          setStoreSlug(null);
-          return;
-        }
-      }
-
-      const slug = getStoreSlug();
-      setStoreSlug(slug);
-      if (slug) return;
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlPlan = urlParams.get('plan');
-
-      if (isCatalogChooserRoute(path)) {
-        setStoreSlug(null);
-        setIsFirstTimeLogin(true);
-        fetchMyStores();
-        document.documentElement.setAttribute('data-theme', 'navy');
-        document.body.setAttribute('data-theme', 'navy');
-        setShowStoreSwitcherModal(true);
-      } else if (path === '/login') {
-        setPortalTab('login');
-      } else if (path === '/register' || path === '/register/step-1') {
-        setPortalTab('register');
-        setRegisterStep(1);
-      } else if (path === '/register/step-2') {
-        setPortalTab('register');
-        setRegisterStep(2);
-      } else if (path === '/register/step-3') {
-        setPortalTab('register');
-        setRegisterStep(3);
-        if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
-          setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
-        }
-      } else if (path === '/' || path === '') {
-        setPortalTab('home');
-      } else if (event.state?.tab) {
-        setPortalTab(event.state.tab);
-        if (event.state.step) setRegisterStep(event.state.step);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
 
 
   // Reset displayLimit on search or filter change

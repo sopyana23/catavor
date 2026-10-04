@@ -27,11 +27,15 @@ function ensurePopstateListener() {
       const topModal = modalStack.pop();
       if (topModal) {
         isInternalBackTriggered = true;
+        window.__catavor_is_modal_popping = true;
         try {
           topModal.onClose();
         } catch (err) {
           console.error('[MobileModalBackHandler] Error closing modal on back:', err);
         }
+        setTimeout(() => {
+          window.__catavor_is_modal_popping = false;
+        }, 120);
         // Modal closed; prevent page navigation
         return;
       }
@@ -45,7 +49,22 @@ declare global {
   interface Window {
     __catavor_internal_nav_count?: number;
     __catavor_nav_initialized?: boolean;
+    __catavor_is_modal_popping?: boolean;
   }
+}
+
+const SESSION_DEPTH_KEY = 'catavor_session_history_depth';
+
+export function getSessionHistoryDepth(): number {
+  if (typeof window === 'undefined') return 1;
+  const raw = sessionStorage.getItem(SESSION_DEPTH_KEY);
+  const parsed = raw ? parseInt(raw, 10) : 1;
+  return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+}
+
+export function setSessionHistoryDepth(depth: number): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(SESSION_DEPTH_KEY, String(Math.max(1, depth)));
 }
 
 export function initNavigationTracker(): void {
@@ -59,14 +78,32 @@ export function initNavigationTracker(): void {
   // Intercept pushState to track forward navigation within the SPA
   const originalPushState = window.history.pushState;
   window.history.pushState = function (...args) {
+    const stateObj = args[0];
+    const isModal = stateObj && typeof stateObj === 'object' && stateObj.__catavor_modal;
+    
+    if (!isModal) {
+      const newDepth = getSessionHistoryDepth() + 1;
+      setSessionHistoryDepth(newDepth);
+      if (stateObj && typeof stateObj === 'object') {
+        stateObj.__catavor_depth = newDepth;
+      }
+    }
+
     if (typeof window.__catavor_internal_nav_count === 'number') {
       window.__catavor_internal_nav_count += 1;
     }
     return originalPushState.apply(this, args);
   };
 
-  // On popstate, adjust navigation count
-  window.addEventListener('popstate', () => {
+  // On popstate, adjust navigation count & session depth
+  window.addEventListener('popstate', (e) => {
+    if (e.state && typeof e.state.__catavor_depth === 'number') {
+      setSessionHistoryDepth(e.state.__catavor_depth);
+    } else {
+      const cur = getSessionHistoryDepth();
+      if (cur > 1) setSessionHistoryDepth(cur - 1);
+    }
+
     if (typeof window.__catavor_internal_nav_count === 'number' && window.__catavor_internal_nav_count > 0) {
       window.__catavor_internal_nav_count -= 1;
     }
@@ -89,8 +126,14 @@ export function smartBack(fallback: string | (() => void) = '/'): void {
   initNavigationTracker();
 
   const internalCount = window.__catavor_internal_nav_count ?? 0;
-  const hasInternalHistory = internalCount > 0 || (
-    window.history.length > 1 && Boolean(window.history.state)
+  const sessionDepth = getSessionHistoryDepth();
+  const stateDepth = window.history.state?.__catavor_depth;
+
+  const hasInternalHistory = (
+    sessionDepth > 1 ||
+    (typeof stateDepth === 'number' && stateDepth > 1) ||
+    internalCount > 0 ||
+    (window.history.length > 2 && Boolean(window.history.state))
   );
 
   if (hasInternalHistory) {
@@ -147,7 +190,7 @@ export function useModalBackHandler({
     stateKeyRef.current = uniqueKey;
 
     // Push dummy state to capture back button/gesture
-    window.history.pushState({ modalKey: uniqueKey }, '');
+    window.history.pushState({ modalKey: uniqueKey, __catavor_modal: true }, '');
 
     const entry: ModalEntry = {
       id: modalId,
@@ -167,7 +210,11 @@ export function useModalBackHandler({
 
       // If closed by UI action (click ✕ or backdrop, not via popstate), pop the dummy history entry
       if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
+        window.__catavor_is_modal_popping = true;
         window.history.back();
+        setTimeout(() => {
+          window.__catavor_is_modal_popping = false;
+        }, 120);
       }
       isInternalBackTriggered = false;
     };

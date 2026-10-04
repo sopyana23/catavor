@@ -8697,7 +8697,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
   // Listen to popstate for back navigation & gesture support across clean URL paths (/ , /login , /register/step-X)
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      // 0. If this popstate was triggered by closing a modal/drawer, do NOT reset page routes!
+      if (window.__catavor_is_modal_popping || (event.state && event.state.__catavor_modal)) {
+        return;
+      }
+
       isPopStateRef.current = true;
+      setTimeout(() => {
+        isPopStateRef.current = false;
+      }, 150);
       const path = window.location.pathname.toLowerCase();
       const isPlatformAdminPath = !isCatalogChooserRoute(path) && (path === '/admin' || (path.startsWith('/admin/') && !isCatalogChooserRoute(path)) || path === '/platform' || path.startsWith('/platform/') || path === '/ops' || path.startsWith('/ops/'));
       if (isPlatformAdminPath) {
@@ -8886,24 +8894,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  // Sync active portalTab to Browser Address Bar URL and Session Storage
-  useEffect(() => {
-    if (storeSlug) return;
-    const path = window.location.pathname.toLowerCase();
-    if (path.includes('/admin') || isCatalogChooserRoute(path)) return;
-    let targetPath = '/';
-    if (portalTab === 'login') targetPath = '/login';
-    else if (portalTab === 'register') targetPath = `/register/step-${registerStep}`;
-    else if (portalTab === 'terms') targetPath = '/terms';
-    else if (portalTab === 'privacy') targetPath = '/privacy';
-    else if (portalTab === 'acceptable_use') targetPath = '/acceptable-use';
-
-    if (window.location.pathname.toLowerCase() !== targetPath.toLowerCase()) {
-      window.history.pushState({ tab: portalTab, step: registerStep }, '', targetPath);
-    }
-    sessionStorage.setItem('catavor_portal_tab', portalTab);
-  }, [portalTab, registerStep, storeSlug]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -9667,7 +9657,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     if (window.location.pathname + window.location.search !== fullTarget) {
       if (isPopStateRef.current) {
-        isPopStateRef.current = false;
         window.history.replaceState(
           { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotificationDetail?.id },
           '',
@@ -9704,16 +9693,30 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (registerStep === 1) targetPath = '/register';
       else if (registerStep === 2) targetPath = '/register/step-2';
       else if (registerStep === 3) targetPath = `/register/step-3${registerPlan !== 'free' ? '?plan=' + registerPlan : ''}`;
+    } else if (portalTab === 'terms') {
+      targetPath = '/terms';
+    } else if (portalTab === 'privacy') {
+      targetPath = '/privacy';
+    } else if (portalTab === 'acceptable_use') {
+      targetPath = '/acceptable-use';
     }
 
     const currentFull = window.location.pathname + window.location.search;
 
     if (currentFull !== targetPath) {
-      window.history.pushState(
-        { tab: portalTab, step: registerStep, plan: registerPlan },
-        '',
-        targetPath
-      );
+      if (isPopStateRef.current) {
+        window.history.replaceState(
+          { tab: portalTab, step: registerStep, plan: registerPlan },
+          '',
+          targetPath
+        );
+      } else {
+        window.history.pushState(
+          { tab: portalTab, step: registerStep, plan: registerPlan },
+          '',
+          targetPath
+        );
+      }
     }
   }, [portalTab, registerStep, registerPlan, registerForm, storeSlug, error]);
 
@@ -14630,10 +14633,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     const slug = storeSlug || getStoreSlug() || '';
                     smartBack(() => {
                       handleCloseDetail();
-                      if (slug) {
-                        window.history.replaceState({}, '', `/${slug}`);
+                      if (view === 'admin') {
+                        if (slug) window.history.replaceState({}, '', `/${slug}/admin/items`);
+                        else window.history.replaceState({}, '', '/admin');
                       } else {
-                        window.history.replaceState({}, '', '/');
+                        if (slug) window.history.replaceState({}, '', `/${slug}`);
+                        else window.history.replaceState({}, '', '/');
                       }
                     });
                   }}
@@ -14663,10 +14668,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       const slug = storeSlug || getStoreSlug() || '';
                       smartBack(() => {
                         handleCloseDetail();
-                        if (slug) {
-                          window.history.replaceState({}, '', `/${slug}`);
+                        if (view === 'admin') {
+                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/items`);
+                          else window.history.replaceState({}, '', '/admin');
                         } else {
-                          window.history.replaceState({}, '', '/');
+                          if (slug) window.history.replaceState({}, '', `/${slug}`);
+                          else window.history.replaceState({}, '', '/');
                         }
                       });
                     }}
@@ -15707,10 +15714,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       const slug = storeSlug || getStoreSlug() || '';
                       smartBack(() => {
                         handleCloseDetail();
-                        if (slug) {
-                          window.history.replaceState({}, '', `/${slug}`);
+                        if (view === 'admin') {
+                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/items`);
+                          else window.history.replaceState({}, '', '/admin');
                         } else {
-                          window.history.replaceState({}, '', '/');
+                          if (slug) window.history.replaceState({}, '', `/${slug}`);
+                          else window.history.replaceState({}, '', '/');
                         }
                       });
                     }}
@@ -22910,9 +22919,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         <button
                           type="button"
                           onClick={() => {
-                            setAdminTab('items');
                             const slug = storeSlug || getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                            smartBack(() => {
+                              setAdminTab('items');
+                              if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                            });
                           }}
                           style={{
                             padding: '0.55rem 0.95rem',
