@@ -23,6 +23,7 @@ import {
   UtensilsCrossed,
   Home,
   Heart,
+  Sprout,
   ShieldCheck,
   Video,
   Lightbulb,
@@ -607,7 +608,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     { key: 'digital', label: 'File Digital', icon: Download },
     { key: 'food', label: 'Kuliner & FnB', icon: UtensilsCrossed },
     { key: 'property', label: 'Properti', icon: Home },
-    { key: 'fauna', label: 'Satwa & Fauna', icon: Heart }
+    { key: 'fauna', label: 'Satwa', icon: Heart },
+    { key: 'plant', label: 'Tanaman', icon: Sprout }
   ];
 
   // Standard sort options for item performance (no emojis)

@@ -410,9 +410,9 @@ export function getItemActionConfig(item: any) {
       shortLabel: 'Beli / Adopsi',
       fullLabel: 'Beli / Adopsi Satwa Sekarang',
       Icon: ShoppingBag,
-      modalTitle: 'Pilih Jalur Transaksi Satwa / Tanaman',
-      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk satwa / tanaman ini:',
-      badgeText: 'Satwa & Flora',
+      modalTitle: 'Pilih Jalur Transaksi Satwa',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk satwa ini:',
+      badgeText: 'Satwa',
       directActionTitle: 'Chat WA (Tanya Satwa & Pembelian)',
       directActionSubtitle: 'Tanyakan kondisi kesehatan, legalitas, serta garansi pengiriman',
       marketplaceTitle: 'Beli via Toko Online / Marketplace',
@@ -538,12 +538,12 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
 
   if (pType === 'fauna') {
     return [
-      { id: 'protected_species', title: 'Satwa atau Flora Langka Dilindungi Undang-Undang', desc: 'Menawarkan satwa/tumbuhan yang masuk daftar dilindungi (Apendiks CITES / regulasi KSDAE)' },
+      { id: 'protected_species', title: 'Satwa Langka Dilindungi Undang-Undang', desc: 'Menawarkan satwa yang masuk daftar dilindungi (Apendiks CITES / regulasi KSDAE)' },
       { id: 'animal_cruelty', title: 'Indikasi Kekejaman / Kondisi Satwa Sakit atau Terlantar', desc: 'Satwa dipelihara dalam kondisi mengenaskan, sakit parah, stres berat, atau dieksploitasi' },
       { id: 'illegal_wildlife', title: 'Hasil Tangkapan Liar Ilegal / Tanpa Izin Tangkar (BKSDA)', desc: 'Hasil perburuan liar ilegal tanpa legalitas izin penangkaran atau dokumen resmi asal-usul' },
       { id: 'false_pedigree', title: 'Manipulasi Trah/Ras, Silsilah Bodong, atau Riwayat Palsu', desc: 'Pemalsuan silsilah (pedigree/stambum), buku vaksin palsu, atau foto indukan manipulatif' },
-      { id: 'transit_cruelty', title: 'Metode Pengiriman Membahayakan Keselamatan Hidup', desc: 'Pengiriman lewat kurir non-khusus tanpa standar keselamatan satwa/tanaman hidup' },
-      { id: 'other', title: 'Pelanggaran Lainnya pada Satwa & Flora', desc: 'Pelanggaran ketentuan satwa atau flora lainnya yang tidak tercantum di atas' }
+      { id: 'transit_cruelty', title: 'Metode Pengiriman Membahayakan Keselamatan Hidup', desc: 'Pengiriman lewat kurir non-khusus tanpa standar keselamatan satwa hidup' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Satwa', desc: 'Pelanggaran ketentuan satwa lainnya yang tidak tercantum di atas' }
     ];
   }
 
@@ -554,7 +554,7 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
       { id: 'pest_disease', title: 'Terinfeksi Hama / Penyakit Tanaman Menular Berbahaya', desc: 'Tanaman terbukti membawa kutu, jamur parasit, atau penyakit tumbuhan yang dapat menular luas' },
       { id: 'false_species', title: 'Spesies / Varietas Palsu (ID Tanaman Manipulatif)', desc: 'ID jenis bibit/varietas tidak sesuai, manipulasi varigata buatan, atau foto tanaman palsu' },
       { id: 'unsafe_packaging', title: 'Metode Packing Sembarangan / Tanpa Pelindung', desc: 'Pengiriman bibit hidup tanpa pengaman batang/akar memadai sehingga tanaman hancur' },
-      { id: 'other', title: 'Pelanggaran Lainnya pada Tanaman & Flora', desc: 'Pelanggaran ketentuan tanaman atau flora lainnya yang tidak tercantum di atas' }
+      { id: 'other', title: 'Pelanggaran Lainnya pada Tanaman', desc: 'Pelanggaran ketentuan tanaman lainnya yang tidak tercantum di atas' }
     ];
   }
 
@@ -1228,7 +1228,7 @@ export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
   food: ['Makanan Utama (Main Course)', 'Dessert & Manisan', 'Minuman & Olahan Kopi', 'Camilan & Kudapan (Appetizer)', 'Bakery, Roti & Pastry', 'Makanan Beku (Frozen)', 'Paket Hemat & Bundling', 'Lainnya'],
   service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
   digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
-  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
+  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
   property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya'],
   plant: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya']
 };
@@ -1306,18 +1306,18 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'fauna':
       return {
         type: 'fauna',
-        typeName: 'Satwa & Living Fauna',
-        badgeName: 'Satwa & Fauna',
+        typeName: 'Satwa',
+        badgeName: 'Satwa',
         icon: PawPrint,
         color: '#059669',
         gradientBg: 'radial-gradient(circle at top left, rgba(5, 150, 105, 0.15) 0%, transparent 70%)',
-        modalTitle: (mode) => mode === 'create' ? 'Tambah Satwa / Living Fauna' : 'Edit Satwa / Living Fauna',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Data Satwa' : 'Edit Data Satwa',
         modalSubtitle: 'Lengkapi taksonomi ilmiah, kondisi satwa, masa hidup, dan garansi pengiriman hidup.',
-        nameLabel: 'Nama Hewan / Tanaman Hias *',
-        namePlaceholder: 'Contoh: Arwana Super Red Joey / Gecko Sunglow / Sugar Glider...',
-        categoryLabel: 'Kelas / Kategori Fauna *',
+        nameLabel: 'Nama Satwa *',
+        namePlaceholder: 'Contoh: Arwana Super Red / Gecko Sunglow / Sugar Glider...',
+        categoryLabel: 'Kategori Satwa *',
         defaultCategory: 'Ikan Hias',
-        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Lainnya'],
+        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 350.000',
         photoLabel: 'Foto Satwa & Kondisi Nyata (1-10 Foto) *',
@@ -1464,13 +1464,13 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'plant':
       return {
         type: 'plant',
-        typeName: 'Tanaman & Tumbuhan',
+        typeName: 'Tanaman',
         badgeName: 'Tanaman',
         icon: Sprout,
         color: 'var(--primary)',
         gradientBg: 'radial-gradient(circle at top left, var(--primary-glow) 0%, transparent 70%)',
         modalTitle: (mode) => mode === 'create' ? 'Tambah Data Tanaman' : 'Edit Data Tanaman',
-        modalSubtitle: 'Lengkapi taksonomi botani, kebutuhan cahaya, penyiraman, dan media tanam.',
+        modalSubtitle: 'Lengkapi nama botani, kebutuhan cahaya, penyiraman, dan media tanam.',
         nameLabel: 'Nama Tanaman *',
         namePlaceholder: 'Contoh: Monstera Deliciosa King / Bonsai Kimeng / Bibit Mangga Kiojay...',
         categoryLabel: 'Kategori / Golongan Tanaman *',
@@ -6389,6 +6389,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     switch (prodType) {
       case 'food': return 'Semua Menu / Saji';
       case 'fauna': return 'Semua Asal / Habitat';
+      case 'plant': return 'Semua Tipe Tanaman';
       case 'service': return 'Semua Model Layanan';
       case 'digital': return 'Semua Format / Lisensi';
       case 'property': return 'Semua Tipe Properti';
@@ -6483,7 +6484,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Admin Inventory State & Server/Client-Side Filtering
   const [adminSearch, setAdminSearch] = useState<string>('')
-  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property'>('all')
+  const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant'>('all')
   const [adminClassFilter, setAdminClassFilter] = useState<string>('all')
   const [adminActiveFilter, setAdminActiveFilter] = useState<'all' | 'active' | 'archived'>('all')
   const [adminSortBy, setAdminSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'price_asc' | 'price_desc'>('newest')
@@ -8651,7 +8652,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             setAdminSubTab('items');
             if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
               const prodType = parts[4];
-              if (['physical', 'digital', 'service', 'food', 'fauna', 'property'].includes(prodType)) {
+              if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
                 resetCrudState(prodType as any);
                 setCrudMode('create');
                 setView('fauna-editor');
@@ -9038,7 +9039,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               setAdminSubTab('items');
               if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
                 const prodType = parts[4];
-                if (['physical', 'digital', 'service', 'food', 'fauna', 'property'].includes(prodType)) {
+                if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
                   resetCrudState(prodType as any);
                   setCrudMode('create');
                   setView('fauna-editor');
@@ -11668,7 +11669,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
     const payload = {
       name: crudForm.name,
-      scientific_name: crudForm.product_type === 'fauna' ? (crudForm.scientific_name || '') : '',
+      scientific_name: (crudForm.product_type === 'fauna' || crudForm.product_type === 'plant') ? (crudForm.scientific_name || '') : '',
       class: selectedClass || 'Umum',
       habitat: selectedHabitat || 'General',
       diet: crudForm.diet || 'N/A',
@@ -11761,6 +11762,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     return `${(mb / 1024).toFixed(1)} GB`;
   };
 
+  // Helper to normalize storage URL to root-relative path for reliable loading & CSP compliance
+  const normalizeUploadedUrl = (rawUrl?: string): string => {
+    if (!rawUrl) return '';
+    const idx = rawUrl.indexOf('/storage/');
+    if (idx !== -1) {
+      return rawUrl.substring(idx);
+    }
+    return rawUrl;
+  };
+
+  const BROKEN_IMG_FALLBACK = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2264%22%20height%3D%2264%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%221.5%22%3E%3Crect%20width%3D%2218%22%20height%3D%2218%22%20x%3D%223%22%20y%3D%223%22%20rx%3D%222%22%20ry%3D%222%22%2F%3E%3Ccircle%20cx%3D%229%22%20cy%3D%229%22%20r%3D%222%22%2F%3E%3Cpath%20d%3D%22m21%2015-3.086-3.086a2%202%200%200%200-2.828%200L6%2021%22%2F%3E%3Cline%20x1%3D%222%22%20y1%3D%222%22%20x2%3D%2222%22%20y2%3D%2222%22%20stroke%3D%22%23ef4444%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E";
+
   // Handle File Upload from Device
   const handleImageUpload = async (index: number, file: File) => {
     setUploadingIndex(index)
@@ -11785,7 +11798,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       const data = await res.json()
       if (res.ok && data.success) {
         const newImages = [...crudImages]
-        newImages[index] = data.url
+        newImages[index] = normalizeUploadedUrl(data.url)
         setCrudImages(newImages)
         fetchMyQuota()
       } else {
@@ -11827,7 +11840,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         })
         const data = await res.json()
         if (res.ok && data.success && data.url) {
-          return data.url
+          return normalizeUploadedUrl(data.url)
         }
         return null
       })
@@ -15213,7 +15226,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             {/* Product Specifications */}
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-                {selectedFauna.product_type === 'plant' ? 'Spesifikasi Tanaman & Flora' : (selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : 'Spesifikasi Satwa & Fauna')))))}
+                {selectedFauna.product_type === 'plant' ? 'Spesifikasi Tanaman' : (selectedFauna.product_type === 'property' ? 'Spesifikasi Properti' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi Berkas Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : 'Spesifikasi Satwa')))))}
               </h3>
               
               <div style={{
@@ -15264,14 +15277,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
                     return (
                       <>
-                        {renderRow('Kategori Flora', selectedFauna.class)}
+                        {renderRow('Kategori Tanaman', selectedFauna.class)}
                         {renderRow('Nama Ilmiah / Botani', selectedFauna.scientific_name)}
-                        {renderRow('Kebutuhan Cahaya', selectedFauna.attributes?.light_requirement, false, true)}
-                        {renderRow('Penyiraman', selectedFauna.attributes?.watering_frequency)}
-                        {renderRow('Media Tanam', selectedFauna.attributes?.growing_media)}
+                        {renderRow('Kebutuhan Cahaya', selectedFauna.attributes?.sunlight || selectedFauna.attributes?.light_requirement, false, true)}
+                        {renderRow('Penyiraman', selectedFauna.attributes?.watering || selectedFauna.attributes?.watering_frequency)}
+                        {renderRow('Media Tanam', selectedFauna.attributes?.planting_medium || selectedFauna.attributes?.growing_media)}
                         {renderRow('Ukuran / Tinggi', selectedFauna.attributes?.plant_size)}
-                        {renderRow('Status Legalitas', selectedFauna.attributes?.plant_legality)}
-                        {renderRow('Kondisi Pengiriman', selectedFauna.attributes?.ship_condition)}
+                        {renderRow('Status Legalitas', selectedFauna.attributes?.protection_status || selectedFauna.attributes?.plant_legality)}
+                        {renderRow('Kondisi Pengiriman', selectedFauna.attributes?.delivery_condition || selectedFauna.attributes?.ship_condition)}
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Ready Stock')}
                         {renderRow('Minimal Pemesanan', `${minOrderVal} ${unit}`)}
                         {renderRow('Maksimal Pemesanan', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null, true)}
                       </>
@@ -15372,7 +15386,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             <ProductDescriptionView 
               description={selectedFauna.description} 
               isMobile={true} 
-              title={selectedFauna.product_type === 'property' ? 'Deskripsi & Keunggulan Properti' : (selectedFauna.product_type === 'fauna' ? 'Deskripsi & Kondisi Satwa' : (selectedFauna.product_type === 'service' ? 'Deskripsi Cakupan Layanan' : (selectedFauna.product_type === 'digital' ? 'Deskripsi & Isi Materi Digital' : (selectedFauna.product_type === 'food' ? 'Deskripsi Menu & Komposisi' : 'Deskripsi Produk & Spesifikasi'))))}
+              title={selectedFauna.product_type === 'plant' ? 'Deskripsi & Karakteristik Tanaman' : (selectedFauna.product_type === 'property' ? 'Deskripsi & Keunggulan Properti' : (selectedFauna.product_type === 'fauna' ? 'Deskripsi & Kondisi Satwa' : (selectedFauna.product_type === 'service' ? 'Deskripsi Cakupan Layanan' : (selectedFauna.product_type === 'digital' ? 'Deskripsi & Isi Materi Digital' : (selectedFauna.product_type === 'food' ? 'Deskripsi Menu & Komposisi' : 'Deskripsi Produk & Spesifikasi')))))}
             />
 
             {/* Important Information with Dynamic Contextual Action Buttons */}
@@ -15383,7 +15397,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
                 <VideoPlayerEmbed 
                   url={selectedFauna.video_url} 
-                  title={selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Hasil Kerja' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing'))))} 
+                  title={selectedFauna.product_type === 'plant' ? 'Video Kondisi & Review Tanaman' : (selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Hasil Kerja' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing')))))} 
                 />
               </div>
             )}
@@ -16052,7 +16066,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           /* ==========================================================
              MOBILE FULL-PAGE UNIVERSAL ITEM EDITOR (PREMIUM FORM VIEW)
              ========================================================== */
-          <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', padding: '1rem', paddingTop: '4.5rem', paddingBottom: '4rem', overflowY: 'auto' }}>
+          <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', padding: '1rem', paddingTop: '4.5rem', paddingBottom: '5rem', overflowY: 'auto', overflowX: 'hidden', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
             {/* Sub-Header / Back Bar (Fixed Top) */}
             <div style={{ 
               display: 'flex', 
@@ -16069,7 +16083,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               WebkitBackdropFilter: 'blur(16px)',
               padding: '0 1rem', 
               borderBottom: '1px solid var(--border-light)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+              maxWidth: '100vw',
+              boxSizing: 'border-box'
             }}>
               <button 
                 type="button"
@@ -16096,7 +16112,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             </div>
 
             {/* Form Content */}
-            <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+            <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
               {/* Banner Switcher Tipe Item (Premium Design) */}
               <div style={{ 
                 padding: '0.85rem 1rem', 
@@ -16201,8 +16217,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
               <form onSubmit={handleFaunaSubmit}>
                 {/* Standar Fields: Nama & Harga */}
-                <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '0.6rem', alignItems: 'end' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
+                <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem', alignItems: 'end', width: '100%', boxSizing: 'border-box' }}>
+                  <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                     <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>{typeConfig.nameLabel}</label>
                     <input 
                       type="text" 
@@ -16211,9 +16227,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       required
                       value={crudForm.name}
                       onChange={(e) => setCrudForm({ ...crudForm, name: e.target.value })}
+                      style={{ boxSizing: 'border-box' }}
                     />
                   </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
+                  <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                     <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>{typeConfig.priceLabel}</label>
                     <input 
                       type="text" 
@@ -16222,14 +16239,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       required
                       value={formatRupiahInput(crudForm.price)}
                       onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
+                      style={{ boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
 
                 {/* Batas Pembelian: Minimal & Maksimal Beli (Dikecualikan dari Jasa) */}
                 {typeConfig.minOrderLabel && (
-                  <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', alignItems: 'end', marginTop: '0.5rem' }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
+                  <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem', alignItems: 'end', marginTop: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                    <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                       <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem', fontSize: '0.78rem' }}>
                         {typeConfig.minOrderLabel}
                       </label>
@@ -16241,9 +16259,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         required
                         value={crudForm.min_order ?? 1}
                         onChange={(e) => setCrudForm({ ...crudForm, min_order: Math.max(1, parseInt(e.target.value) || 1) })}
+                        style={{ boxSizing: 'border-box' }}
                       />
                     </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                       <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem', fontSize: '0.78rem' }}>
                         {typeConfig.maxOrderLabel || 'Maksimal Beli'}
                       </label>
@@ -16257,6 +16276,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1);
                           setCrudForm({ ...crudForm, max_order: val });
                         }}
+                        style={{ boxSizing: 'border-box' }}
                       />
                     </div>
                   </div>
@@ -16481,7 +16501,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 )}
 
-                {/* 3. SATWA & LIVING FAUNA */}
+                {/* 3. SATWA */}
                 {crudForm.product_type === 'fauna' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
@@ -16972,12 +16992,69 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 )}
 
-                {/* 7. TANAMAN & FLORA */}
+                {/* 7. TANAMAN (PREMIUM TIDY MOBILE SECTION) */}
                 {crudForm.product_type === 'plant' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kebutuhan Cahaya *</label>
+                  <div style={{
+                    marginTop: '0.85rem',
+                    marginBottom: '0.5rem',
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'rgba(16, 185, 129, 0.04)',
+                    border: '1px solid rgba(16, 185, 129, 0.22)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    boxSizing: 'border-box',
+                    width: '100%',
+                    maxWidth: '100%'
+                  }}>
+                    {/* Header badge & title */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        color: 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Sprout size={16} />
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Spesifikasi & Perawatan Tanaman
+                        </h4>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', lineHeight: 1.2 }}>
+                          Kebutuhan cahaya, penyiraman, media tanam, dan legalitas bibit
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 1. Nama Ilmiah / Botani (Latin) */}
+                    <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700 }}>
+                        Nama Ilmiah / Botani (Latin) <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: '0.72rem' }}>(Opsional)</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Contoh: Monstera deliciosa, Sansevieria..."
+                        value={crudForm.scientific_name}
+                        onChange={(e) => setCrudForm({ ...crudForm, scientific_name: e.target.value })}
+                        style={{ height: '42px', fontStyle: 'italic', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    {/* 2. Kebutuhan Cahaya & Frekuensi Siram (2 Column Grid with minmax(0, 1fr)) */}
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Sun size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                          <span>Cahaya *</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
@@ -16987,7 +17064,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               options: [
                                 { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Langsung)', desc: 'Butuh 6+ jam sinar matahari langsung per hari' },
                                 { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang)', desc: 'Cahaya terang tidak langsung / naungan paranet' },
-                                { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor', desc: 'Cocok dalam ruangan dengan pencahayaan minim' }
+                                { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor', desc: 'Cocok dalam ruangan dengan pencahayaan minim' },
+                                { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Indoor/Outdoor)', desc: 'Bisa beradaptasi di dalam maupun luar ruangan' }
                               ],
                               selectedValue: crudForm.attributes.sunlight || 'Partial Sun (Teduh Terang)',
                               onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, sunlight: val } }))
@@ -16996,8 +17074,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           className="form-input"
                           style={{
                             height: '42px',
-                            padding: '0 0.85rem',
-                            fontSize: '0.85rem',
+                            padding: '0 0.65rem',
+                            fontSize: '0.82rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -17005,17 +17083,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             textAlign: 'left',
                             color: 'var(--text-primary)',
                             backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)'
+                            border: '1px solid var(--border-light)',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
                           }}
                         >
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.25rem' }}>
                             {crudForm.attributes.sunlight || 'Partial Sun (Teduh Terang)'}
                           </span>
-                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                          <ChevronDown size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                         </button>
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Frekuensi Penyiraman *</label>
+
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Droplets size={13} style={{ color: '#0ea5e9', flexShrink: 0 }} />
+                          <span>Penyiraman *</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
@@ -17025,7 +17109,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               options: [
                                 { value: 'Banyak (Setiap Hari)', label: 'Banyak (Setiap Hari)', desc: 'Media harus selalu lembab & rutin disiram' },
                                 { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali)', desc: 'Siram saat media tanam mulai agak kering' },
-                                { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali)', desc: 'Tahan kering, sukulen, kaktus, sansiviera' }
+                                { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali)', desc: 'Tahan kering, sukulen, kaktus, sansiviera' },
+                                { value: 'Khusus / Tanaman Air', label: 'Khusus / Hidroponik & Air', desc: 'Aquascape atau media terendam air' }
                               ],
                               selectedValue: crudForm.attributes.watering || 'Sedang (2-3 Hari Sekali)',
                               onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, watering: val } }))
@@ -17034,8 +17119,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           className="form-input"
                           style={{
                             height: '42px',
-                            padding: '0 0.85rem',
-                            fontSize: '0.85rem',
+                            padding: '0 0.65rem',
+                            fontSize: '0.82rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -17043,54 +17128,67 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             textAlign: 'left',
                             color: 'var(--text-primary)',
                             backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)'
+                            border: '1px solid var(--border-light)',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
                           }}
                         >
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.25rem' }}>
                             {crudForm.attributes.watering || 'Sedang (2-3 Hari Sekali)'}
                           </span>
-                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                          <ChevronDown size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Media Tanam *</label>
+                    {/* 3. Media Tanam & Ukuran / Tinggi Tanaman (2 Column Grid with minmax(0, 1fr)) */}
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700 }}>
+                          Media Tanam *
+                        </label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: Tanah Humus, Sekam Bakar"
+                          placeholder="Contoh: Sekam Bakar, Humus"
                           required
                           value={crudForm.attributes.planting_medium || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, planting_medium: e.target.value } })}
+                          style={{ height: '42px', fontSize: '0.82rem', padding: '0 0.65rem', boxSizing: 'border-box' }}
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Ukuran / Tinggi Tanaman</label>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Ukuran / Tinggi
+                        </label>
                         <input 
                           type="text" 
                           className="form-input" 
-                          placeholder="Contoh: Tinggi 30-40 cm, Pot 15 cm"
+                          placeholder="Contoh: 25-35 cm, Pot D15"
                           value={crudForm.attributes.plant_size || ''}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, plant_size: e.target.value } })}
+                          style={{ height: '42px', fontSize: '0.82rem', padding: '0 0.65rem', boxSizing: 'border-box' }}
                         />
                       </div>
                     </div>
 
-                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Status Legalitas Flora *</label>
+                    {/* 4. Legalitas & Kondisi Pengiriman (2 Column Grid with minmax(0, 1fr)) */}
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <ShieldCheck size={13} style={{ color: '#10b981', flexShrink: 0 }} />
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Legalitas Bibit *</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
                             setCrudDropdownPicker({
-                              title: 'Pilih Status Legalitas Flora',
+                              title: 'Pilih Status Legalitas Tanaman',
                               icon: ShieldCheck,
                               options: [
-                                { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman)', desc: 'Flora umum bebas izin' },
-                                { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Bersertifikat)', desc: 'Wajib sertifikasi BKSDA / CITES' },
-                                { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery', desc: 'Perbanyakan legal dari kebun/nursery' }
+                                { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas)', desc: 'Tanaman umum bebas izin diperjualbelikan' },
+                                { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery Resmi', desc: 'Perbanyakan legal dari kebun/nursery bersertifikat' },
+                                { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Izin Khusus/CITES)', desc: 'Wajib sertifikasi BKSDA / CITES resmi' }
                               ],
                               selectedValue: crudForm.attributes.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)',
                               onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, protection_status: val } }))
@@ -17099,8 +17197,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           className="form-input"
                           style={{
                             height: '42px',
-                            padding: '0 0.85rem',
-                            fontSize: '0.85rem',
+                            padding: '0 0.65rem',
+                            fontSize: '0.82rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -17108,17 +17206,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             textAlign: 'left',
                             color: 'var(--text-primary)',
                             backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)'
+                            border: '1px solid var(--border-light)',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
                           }}
                         >
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.25rem' }}>
                             {crudForm.attributes.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)'}
                           </span>
-                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                          <ChevronDown size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                         </button>
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi Kirim *</label>
+
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Package size={13} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kondisi Kirim *</span>
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
@@ -17126,9 +17230,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               title: 'Pilih Kondisi Pengiriman',
                               icon: Package,
                               options: [
-                                { value: 'Kirim Bersama Pot & Media Tanam', label: 'Dengan Pot & Media', desc: 'Aman dan siap pajang' },
-                                { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Bare Root (Tanpa Pot)', desc: 'Akar dibungkus cocopeat lembab' },
-                                { value: 'Kirim Polybag', label: 'Polybag', desc: 'Kemasan polybag bibit hemat ongkir' }
+                                { value: 'Kirim Bersama Pot & Media Tanam', label: 'Dengan Pot & Media Tanam', desc: 'Tanaman aman dan siap langsung dipajang' },
+                                { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Bare Root (Hemat Ongkir)', desc: 'Akar dibungkus cocopeat lembab rapi' },
+                                { value: 'Kirim Polybag', label: 'Polybag (Bibit)', desc: 'Kemasan polybag bibit kebun hemat tempat' },
+                                { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday', desc: 'Siap pajang, tanpa risiko rusak di perjalanan' }
                               ],
                               selectedValue: crudForm.attributes.delivery_condition || 'Kirim Bersama Pot & Media Tanam',
                               onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, delivery_condition: val } }))
@@ -17137,8 +17242,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           className="form-input"
                           style={{
                             height: '42px',
-                            padding: '0 0.85rem',
-                            fontSize: '0.85rem',
+                            padding: '0 0.65rem',
+                            fontSize: '0.82rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -17146,15 +17251,63 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             textAlign: 'left',
                             color: 'var(--text-primary)',
                             backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)'
+                            border: '1px solid var(--border-light)',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
                           }}
                         >
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.25rem' }}>
                             {crudForm.attributes.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
                           </span>
-                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                          <ChevronDown size={15} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                         </button>
                       </div>
+                    </div>
+
+                    {/* 5. Status Ketersediaan / Stok Tanaman */}
+                    <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.3rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <CheckCircle2 size={13} style={{ color: '#059669', flexShrink: 0 }} />
+                        <span>Status Ketersediaan Tanaman *</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCrudDropdownPicker({
+                            title: 'Pilih Status Ketersediaan',
+                            icon: CheckCircle2,
+                            options: [
+                              { value: 'Ready Stock', label: 'Ready Stock (Tersedia)', desc: 'Tanaman siap kirim segera dari kebun/nursery' },
+                              { value: 'Pre-Order', label: 'Pre-Order (PO / Inden)', desc: 'Pemesanan terlebih dahulu / bibit dalam tahap rawatan' },
+                              { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual via WA' },
+                              { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok tanaman saat ini sedang kosong' }
+                            ],
+                            selectedValue: crudForm.conservation_status || 'Ready Stock',
+                            onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
+                          });
+                        }}
+                        className="form-input"
+                        style={{
+                          height: '42px',
+                          padding: '0 0.85rem',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          minWidth: 0,
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600, minWidth: 0, flex: 1, paddingRight: '0.5rem' }}>
+                          {crudForm.conservation_status || 'Ready Stock'}
+                        </span>
+                        <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -17259,9 +17412,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {crudImages.map((imgUrl, index) => (
-                          <div key={index} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.55rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+                          <div key={index} style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', background: 'var(--card-bg-gradient)', padding: '0.5rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)', width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0 }}>
                             {/* Role Badge: Sampul vs Nomor Foto */}
-                            <div style={{ minWidth: '55px', textAlign: 'center', flexShrink: 0 }}>
+                            <div style={{ minWidth: '50px', textAlign: 'center', flexShrink: 0 }}>
                               {index === 0 ? (
                                 <span style={{
                                   display: 'inline-block',
@@ -17270,7 +17423,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   color: 'var(--primary)',
                                   backgroundColor: 'var(--primary-glow)',
                                   border: '1px solid rgba(16, 185, 129, 0.3)',
-                                  padding: '0.12rem 0.35rem',
+                                  padding: '0.12rem 0.3rem',
                                   borderRadius: '0.3rem',
                                   whiteSpace: 'nowrap'
                                 }}>
@@ -17284,7 +17437,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   color: 'var(--text-secondary)',
                                   backgroundColor: 'var(--bg-deep)',
                                   border: '1px solid var(--border-light)',
-                                  padding: '0.12rem 0.35rem',
+                                  padding: '0.12rem 0.3rem',
                                   borderRadius: '0.3rem',
                                   whiteSpace: 'nowrap'
                                 }}>
@@ -17294,13 +17447,21 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
 
                             {/* Preview Thumbnail */}
-                            <div style={{ width: '42px', height: '42px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                            <div style={{ width: '38px', height: '38px', borderRadius: '0.4rem', overflow: 'hidden', border: '1px solid var(--btn-secondary-border)', background: 'var(--btn-secondary-bg)', color: 'var(--btn-secondary-text)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                               {imgUrl ? (
-                                <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
+                                <img 
+                                  src={normalizeUploadedUrl(imgUrl)} 
+                                  alt={`Preview ${index + 1}`} 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                  onError={(e) => { 
+                                    e.currentTarget.onerror = null; 
+                                    e.currentTarget.src = BROKEN_IMG_FALLBACK; 
+                                  }} 
+                                />
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
                                   <Image size={13} style={{ color: 'var(--primary)' }} />
-                                  <span style={{ fontSize: '0.52rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
+                                  <span style={{ fontSize: '0.5rem', color: 'var(--btn-secondary-text)', fontWeight: 700 }}>Foto</span>
                                 </div>
                               )}
                               {uploadingIndex === index && (
@@ -17311,7 +17472,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
 
                             {/* Input & Upload Controls */}
-                            <div style={{ flexGrow: 1, display: 'flex', gap: '0.35rem' }}>
+                            <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                               <input
                                 type="text"
                                 className="form-input"
@@ -17323,74 +17484,77 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   setCrudImages(newImages)
                                 }}
                                 required={index === 0}
-                                style={{ height: '36px', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+                                style={{ height: '36px', fontSize: '0.78rem', padding: '0.25rem 0.5rem', flex: 1, minWidth: 0, boxSizing: 'border-box' }}
                               />
                           
-                          {/* Device File Upload Button */}
-                          <label 
-                            className="btn-secondary" 
-                            style={{ 
-                              padding: '0.35rem 0.65rem', 
-                              height: '36px', 
-                              borderRadius: '0.4rem', 
-                              fontSize: '0.75rem', 
-                              fontWeight: 700,
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: '0.25rem', 
-                              cursor: 'pointer', 
-                              whiteSpace: 'nowrap',
-                              background: 'var(--btn-secondary-bg)',
-                              color: 'var(--btn-secondary-text)',
-                              border: '1px solid var(--btn-secondary-border)'
-                            }}
-                          >
-                            <Upload size={12} style={{ color: 'var(--primary)' }} />
-                            <span>Upload</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: 'none' }}
-                              onChange={(e) => {
-                                if (e.target.files && e.target.files[0]) {
-                                  handleImageUpload(index, e.target.files[0])
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
+                              {/* Device File Upload Button */}
+                              <label 
+                                className="btn-secondary" 
+                                style={{ 
+                                  padding: '0.35rem 0.5rem', 
+                                  height: '36px', 
+                                  borderRadius: '0.4rem', 
+                                  fontSize: '0.72rem', 
+                                  fontWeight: 700,
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '0.2rem', 
+                                  cursor: 'pointer', 
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                  background: 'var(--btn-secondary-bg)',
+                                  color: 'var(--btn-secondary-text)',
+                                  border: '1px solid var(--btn-secondary-border)'
+                                }}
+                                title="Pilih foto dari perangkat"
+                              >
+                                <Upload size={12} style={{ color: 'var(--primary)' }} />
+                                <span>Pilih</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  style={{ display: 'none' }}
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      handleImageUpload(index, e.target.files[0])
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
 
-                        {/* Delete Row Button */}
-                        {crudImages.length > 1 && (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ 
-                              padding: '0.35rem', 
-                              color: '#f87171', 
-                              backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-                              border: '1px solid rgba(239, 68, 68, 0.3)', 
-                              height: '36px', 
-                              width: '36px', 
-                              borderRadius: '0.4rem', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              flexShrink: 0, 
-                              cursor: 'pointer' 
-                            }}
-                            onClick={() => {
-                              const newImages = crudImages.filter((_, i) => i !== index)
-                              setCrudImages(newImages)
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                            {/* Delete Row Button */}
+                            {crudImages.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{ 
+                                  padding: '0.35rem', 
+                                  color: '#f87171', 
+                                  backgroundColor: 'rgba(239, 68, 68, 0.12)', 
+                                  border: '1px solid rgba(239, 68, 68, 0.3)', 
+                                  height: '36px', 
+                                  width: '36px', 
+                                  borderRadius: '0.4rem', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center', 
+                                  flexShrink: 0, 
+                                  cursor: 'pointer' 
+                                }}
+                                title="Hapus Baris Foto"
+                                onClick={() => {
+                                  const newImages = crudImages.filter((_, i) => i !== index)
+                                  setCrudImages(newImages)
+                                }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
               );
             })()}
 
@@ -18805,7 +18969,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                 </div>
 
-                {/* 3. Satwa & Living Fauna */}
+                {/* 3. Satwa */}
                 <div 
                   onClick={() => handleSelectProductType('fauna')}
                   style={{ 
@@ -18840,14 +19004,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                        Satwa & Living Fauna
+                        Satwa
                       </h4>
                       <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                        Satwa & Fauna
+                        Satwa Peliharaan
                       </span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                      Pet Shop, Reptil, Burung, Ikan Hias, Tanaman Hias, & Biota.
+                      Pet Shop, Reptil, Burung, Ikan Hias, Mamalia, &amp; Hewan Peliharaan.
                     </p>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
                       ⚡ Form: Nama Latin, Asal, Bobot, Masa Hidup
@@ -19014,6 +19178,59 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   </div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(2, 132, 199, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <ChevronRight size={18} style={{ color: '#0284c7' }} />
+                  </div>
+                </div>
+
+                {/* 7. Tanaman */}
+                <div 
+                  onClick={() => handleSelectProductType('plant')}
+                  style={{ 
+                    padding: '1.05rem 1.15rem', 
+                    borderRadius: '1rem', 
+                    backgroundColor: 'var(--bg-card)', 
+                    border: '1px solid var(--border-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  className="mobile-card-hover"
+                >
+                  <div style={{ 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '0.85rem', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)', 
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.2)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: '#10b981', 
+                    flexShrink: 0 
+                  }}>
+                    <Sprout size={24} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        Tanaman
+                      </h4>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        Tanaman &amp; Bibit
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                      Tanaman Hias Daun, Bibit Buah, Bunga, Kaktus, Bonsai, &amp; Tanaman Air.
+                    </p>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      ⚡ Form: Kebutuhan Cahaya, Penyiraman, Media Tanam, Ukuran
+                    </div>
+                  </div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <ChevronRight size={18} style={{ color: '#10b981' }} />
                   </div>
                 </div>
 
@@ -19452,6 +19669,27 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               }}
                             >
                               Properti ({faunas.filter(f => f.product_type === 'property').length})
+                            </button>
+                          )}
+                          {availableProductTypes.includes('plant') && (
+                            <button
+                              type="button"
+                              onClick={() => { setProductTypeFilter('plant'); setClassFilter('all'); }}
+                              style={{
+                                padding: '0.32rem 0.75rem',
+                                borderRadius: '20px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                border: productTypeFilter === 'plant' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: productTypeFilter === 'plant' ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: productTypeFilter === 'plant' ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: productTypeFilter === 'plant' ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              Tanaman ({faunas.filter(f => f.product_type === 'plant').length})
                             </button>
                           )}
                         </div>
@@ -21348,7 +21586,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         {isHybridStore && availableProductTypes.map(t => {
                           const isSelected = adminProductTypeFilter === t;
                           const typeCount = faunas.filter(f => (f.product_type || 'physical') === t).length;
-                          const typeLabel = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
+                          const typeLabel = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : t === 'plant' ? 'Tanaman' : 'Fauna';
                           return (
                             <button
                               key={t}
@@ -22579,7 +22817,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 {[
                                   { key: 'physical', label: 'Retail & Fisik', color: '#3b82f6', desc: 'Pakaian, Gadget, Aksesoris' },
                                   { key: 'digital', label: 'File & Digital', color: '#8b5cf6', desc: 'E-Book, Script, Video' },
-                                  { key: 'fauna', label: 'Satwa & Flora', color: '#10b981', desc: 'Reptil, Ikan, Burung, Pakan' },
+                                  { key: 'fauna', label: 'Satwa', color: '#10b981', desc: 'Reptil, Ikan, Burung, Pakan' },
+                                  { key: 'plant', label: 'Tanaman', color: '#10b981', desc: 'Tanaman Hias, Bunga, Bibit' },
                                   { key: 'service', label: 'Jasa & Layanan', color: '#f59e0b', desc: 'Konsultasi, Servis, Desain' },
                                   { key: 'food', label: 'Menu Kuliner', color: '#ef4444', desc: 'Makanan, Minuman, Snack' },
                                   { key: 'general', label: 'Universal', color: '#06b6d4', desc: 'Template netral umum' },
@@ -22645,10 +22884,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
                               {[
                                 { id: 'physical', label: 'Barang Fisik' },
+                                { id: 'property', label: 'Properti' },
                                 { id: 'food', label: 'Kuliner' },
                                 { id: 'service', label: 'Jasa' },
                                 { id: 'digital', label: 'Digital' },
-                                { id: 'fauna', label: 'Fauna' }
+                                { id: 'fauna', label: 'Fauna' },
+                                { id: 'plant', label: 'Tanaman' }
                               ].map(tab => (
                                 <button
                                   key={tab.id}
@@ -28257,7 +28498,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </button>
                     {availableProductTypes.map(t => {
                       const isSelected = adminProductTypeFilter === t;
-                      const label = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : 'Fauna';
+                      const label = t === 'physical' ? 'Barang' : t === 'property' ? 'Properti' : t === 'food' ? 'Kuliner' : t === 'service' ? 'Jasa' : t === 'digital' ? 'Digital' : t === 'plant' ? 'Tanaman' : 'Fauna';
                       return (
                         <button
                           key={t}

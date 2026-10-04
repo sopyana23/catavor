@@ -781,6 +781,9 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	storeDir := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID))
 	prodDirPrefix := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "products")
 	normProdPrefix := normPath(prodDirPrefix)
+	if !strings.HasSuffix(normProdPrefix, "/") {
+		normProdPrefix += "/"
+	}
 
 	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
 		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
@@ -793,8 +796,13 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 				normClean := normPath(cleanPath)
 
 				// If file is inside store's products directory and not in activeFiles:
-				// Delete it physically and do not count towards storage
 				if strings.HasPrefix(normClean, normProdPrefix) && !activeFiles[normClean] {
+					// Protect recently uploaded files (drafts / pending form saves) with a 2-hour grace period
+					if time.Since(f.ModTime()) < 2*time.Hour {
+						totalBytes += f.Size()
+						return nil
+					}
+					// Only prune abandoned orphans older than 2 hours
 					_ = os.Remove(cleanPath)
 					_ = os.Remove(cleanPath + ".fiber.gz")
 					return nil

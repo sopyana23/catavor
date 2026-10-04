@@ -1023,9 +1023,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const clean = (pType || '').toLowerCase().trim();
     switch (clean) {
       case 'fauna':
-        return 'Hewan & Satwa Peliharaan';
+        return 'Hewan';
       case 'plant':
-        return 'Tanaman & Tumbuhan';
+        return 'Tanaman';
       case 'physical':
         return 'Barang Fisik';
       case 'digital':
