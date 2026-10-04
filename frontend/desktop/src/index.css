@@ -649,3 +649,15 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
 .btn-back-circle:active svg {
   transform: translateX(-1px);
 }
+
+/* Static Backdrop Accidental Click Protection Shake Animation */
+@keyframes modalShake {
+  0%, 100% { transform: scale(1) translateX(0); }
+  15%, 55%, 85% { transform: scale(1.008) translateX(-7px); }
+  35%, 75% { transform: scale(1.008) translateX(7px); }
+}
+
+.modal-shake {
+  animation: modalShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  box-shadow: 0 0 0 2px var(--primary), 0 25px 70px rgba(0, 0, 0, 0.7) !important;
+}
