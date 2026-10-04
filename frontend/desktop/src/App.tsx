@@ -8073,9 +8073,26 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [editId, setEditId] = useState<number | null>(null)
   const [crudForm, setCrudForm] = useState(() => getInitialCrudForm('physical'))
 
+  // Multi-image management states (Deferred Upload Architecture)
+  const [crudImages, setCrudImages] = useState<string[]>([''])
+  const [crudImageFiles, setCrudImageFiles] = useState<(File | null)[]>([null])
+  const [uploadProgressText, setUploadProgressText] = useState<string | null>(null)
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0)
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
+  const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false)
+
   const resetCrudState = (type: ItemCategoryType = 'physical') => {
+    if (crudImages && Array.isArray(crudImages)) {
+      crudImages.forEach(img => {
+        if (img && img.startsWith('blob:')) {
+          try { URL.revokeObjectURL(img); } catch (_) {}
+        }
+      });
+    }
     setCrudForm(getInitialCrudForm(type));
     setCrudImages(['']);
+    setCrudImageFiles([null]);
+    setUploadProgressText(null);
     setCustomClass('');
     setShowCustomClassInput(false);
     setCustomHabitat('');
@@ -8106,12 +8123,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [panPosition, setPanPosition] = useState<{ x: number, y: number }>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const [dragStart, setDragStart] = useState<{ x: number, y: number }>({ x: 0, y: 0 })
-
-  // Multi-image management states
-  const [crudImages, setCrudImages] = useState<string[]>([''])
-  const [activeImageIndex, setActiveImageIndex] = useState<number>(0)
-  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
-  const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false)
 
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<ShopSettings>(() => ({
@@ -11067,11 +11078,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
       ? item.detailed_info.images
       : [item.image_url];
     setCrudImages(initialImages)
+    setCrudImageFiles(initialImages.map(() => null))
+    setUploadProgressText(null)
     setCrudError(null)
     setShowCrudModal(true)
   }
 
-  // Handle Fauna Submit (Create / Update)
+  // Handle Fauna Submit (Create / Update) with Deferred Upload Architecture (Zero Storage Leak on Cancel/DC)
   const handleFaunaSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setCrudLoading(true)
@@ -11079,15 +11092,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     const typeConfig = getItemTypeFormConfig(crudForm.product_type)
 
-    const filteredImages = crudImages.map(img => img.trim()).filter(Boolean)
-    if (filteredImages.length === 0) {
+    const rawFilteredImages = crudImages.map(img => img.trim()).filter(Boolean)
+    if (rawFilteredImages.length === 0) {
       const msg = 'Minimal harus menginput 1 foto.'
       setCrudError(msg)
       showToast(msg, 'error')
       setCrudLoading(false)
       return
     }
-    if (filteredImages.length > MAX_PRODUCT_PHOTOS) {
+    if (rawFilteredImages.length > MAX_PRODUCT_PHOTOS) {
       const msg = `Maksimal hanya dapat menginput ${MAX_PRODUCT_PHOTOS} foto.`
       setCrudError(msg)
       showToast(msg, 'error')
@@ -11127,46 +11140,82 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const maxOrderParsed = crudForm.max_order !== '' && crudForm.max_order !== null && crudForm.max_order !== undefined ? parseInt(String(crudForm.max_order)) : null;
     const maxOrderNum = (maxOrderParsed && maxOrderParsed > 0) ? Math.max(minOrderNum, maxOrderParsed) : null;
 
-    const payload = {
-      name: crudForm.name,
-      scientific_name: (crudForm.product_type === 'fauna' || crudForm.product_type === 'plant') ? (crudForm.scientific_name || '') : '',
-      class: selectedClass,
-      habitat: crudForm.product_type === 'fauna' ? selectedHabitat : 'General',
-      diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
-      conservation_status: crudForm.product_type === 'fauna' ? selectedConservationStatus : 'Tersedia',
-      price: crudForm.price,
-      min_order: minOrderNum,
-      max_order: maxOrderNum,
-      video_url: crudForm.video_url || null,
-      is_shipping_available: !isNoShipping,
-      description: crudForm.description,
-      image_url: filteredImages[0],
-      gallery_images: filteredImages,
-      product_type: crudForm.product_type,
-      attributes: {
-        ...crudForm.attributes,
+    try {
+      // Step A: Deferred Upload Execution - upload any staged File objects right now
+      const currentSlug = getStoreSlug() || storeSlug || '';
+      const uploadedImages: string[] = [];
+
+      for (let i = 0; i < crudImages.length; i++) {
+        const imgVal = crudImages[i].trim();
+        if (!imgVal) continue;
+
+        const pendingFile = crudImageFiles[i];
+        if (pendingFile && imgVal.startsWith('blob:')) {
+          setUploadProgressText(`Mengunggah foto ${uploadedImages.length + 1}...`);
+          const formData = new FormData();
+          formData.append('image', pendingFile);
+
+          const uploadRes = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+              ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
+            },
+            body: formData
+          });
+
+          const uploadData = await uploadRes.json();
+          if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
+            throw new Error(uploadData.message || `Gagal mengunggah foto ke-${i + 1}`);
+          }
+          uploadedImages.push(normalizeUploadedUrl(uploadData.url));
+        } else {
+          uploadedImages.push(imgVal);
+        }
+      }
+
+      setUploadProgressText('Menyimpan data item...');
+
+      const payload = {
+        name: crudForm.name,
+        scientific_name: (crudForm.product_type === 'fauna' || crudForm.product_type === 'plant') ? (crudForm.scientific_name || '') : '',
+        class: selectedClass,
+        habitat: crudForm.product_type === 'fauna' ? selectedHabitat : 'General',
+        diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
+        conservation_status: crudForm.product_type === 'fauna' ? selectedConservationStatus : 'Tersedia',
+        price: crudForm.price,
         min_order: minOrderNum,
         max_order: maxOrderNum,
-        file_format: crudForm.attributes.file_format || 'PDF',
-        enable_wa_rekber: crudForm.enable_wa_rekber !== false,
-        enable_wa_direct: crudForm.enable_wa_direct !== false
-      },
-      detailed_info: {
-        native_region: crudForm.native_region,
-        lifespan: crudForm.lifespan,
-        weight: crudForm.weight,
-        shipping_terms: termsVal,
-        warranty_info: crudForm.product_type === 'service' ? '' : crudForm.warranty_info,
-        shipping_coverage: termsVal || 'Bisa Kirim se-Indonesia',
-        images: filteredImages,
-        purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== ''),
-        enable_wa_rekber: crudForm.enable_wa_rekber !== false,
-        enable_wa_direct: crudForm.enable_wa_direct !== false,
-        whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
+        video_url: crudForm.video_url || null,
+        is_shipping_available: !isNoShipping,
+        description: crudForm.description,
+        image_url: uploadedImages[0],
+        gallery_images: uploadedImages,
+        product_type: crudForm.product_type,
+        attributes: {
+          ...crudForm.attributes,
+          min_order: minOrderNum,
+          max_order: maxOrderNum,
+          file_format: crudForm.attributes.file_format || 'PDF',
+          enable_wa_rekber: crudForm.enable_wa_rekber !== false,
+          enable_wa_direct: crudForm.enable_wa_direct !== false
+        },
+        detailed_info: {
+          native_region: crudForm.native_region,
+          lifespan: crudForm.lifespan,
+          weight: crudForm.weight,
+          shipping_terms: termsVal,
+          warranty_info: crudForm.product_type === 'service' ? '' : crudForm.warranty_info,
+          shipping_coverage: termsVal || 'Bisa Kirim se-Indonesia',
+          images: uploadedImages,
+          purchase_links: crudForm.purchase_links.filter(link => link.platform.trim() !== '' && link.url.trim() !== ''),
+          enable_wa_rekber: crudForm.enable_wa_rekber !== false,
+          enable_wa_direct: crudForm.enable_wa_direct !== false,
+          whatsapp_contact_id: crudForm.whatsapp_contact_id || 'default'
+        }
       }
-    }
 
-    try {
       const url = crudMode === 'create' 
         ? `${API_BASE}/products` 
         : `${API_BASE}/products/${editId}`
@@ -11180,6 +11229,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       const data = await res.json()
       if (res.ok && data.success) {
+        if (crudImages && Array.isArray(crudImages)) {
+          crudImages.forEach(img => {
+            if (img && img.startsWith('blob:')) {
+              try { URL.revokeObjectURL(img); } catch (_) {}
+            }
+          });
+        }
         setShowCrudModal(false)
         resetCrudState('physical')
         loadData()
@@ -11204,12 +11260,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
           showToast(data.message || 'Gagal menyimpan item katalog.', 'error')
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      setCrudError('Koneksi terputus ke server.')
-      showToast('Koneksi terputus ke server. Periksa jaringan Anda.', 'error')
+      const errDetail = err?.message || 'Koneksi terputus ke server.'
+      setCrudError(errDetail)
+      showToast(errDetail, 'error')
     } finally {
       setCrudLoading(false)
+      setUploadProgressText(null)
     }
   }
 
@@ -11225,97 +11283,60 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   const BROKEN_IMG_FALLBACK = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22100%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%221.5%22%3E%3Crect%20width%3D%2218%22%20height%3D%2218%22%20x%3D%223%22%20y%3D%223%22%20rx%3D%222%22%20ry%3D%222%22%2F%3E%3Ccircle%20cx%3D%229%22%20cy%3D%229%22%20r%3D%222%22%2F%3E%3Cpath%20d%3D%22m21%2015-3.086-3.086a2%202%200%200%200-2.828%200L6%2021%22%2F%3E%3Cline%20x1%3D%222%22%20y1%3D%222%22%20x2%3D%2222%22%20y2%3D%2222%22%20stroke%3D%22%23ef4444%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E";
 
-  // Handle File Upload from Device
-  const handleImageUpload = async (index: number, file: File) => {
-    setUploadingIndex(index)
+  // Handle File Upload from Device (Deferred: Instant Local Preview with 0 Storage Leak)
+  const handleImageUpload = (index: number, file: File) => {
     setCrudError(null)
+    const previewUrl = URL.createObjectURL(file)
 
-    const formData = new FormData()
-    formData.append('image', file)
-
-    const currentSlug = getStoreSlug() || storeSlug || '';
-
-    try {
-      const res = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
-        },
-        body: formData
-      })
-
-      const data = await res.json()
-      if (res.ok && data.success) {
-        const newImages = [...crudImages]
-        newImages[index] = normalizeUploadedUrl(data.url)
-        setCrudImages(newImages)
-        fetchMyQuota()
-      } else {
-        setCrudError(data.message || 'Gagal mengunggah gambar.')
+    setCrudImages(prev => {
+      const next = [...prev]
+      if (next[index] && next[index].startsWith('blob:')) {
+        try { URL.revokeObjectURL(next[index]) } catch (_) {}
       }
-    } catch (err) {
-      console.error(err)
-      setCrudError('Koneksi terputus ke server saat mengunggah gambar.')
-    } finally {
-      setUploadingIndex(null)
-    }
+      next[index] = previewUrl
+      return next
+    })
+
+    setCrudImageFiles(prev => {
+      const next = [...prev]
+      next[index] = file
+      return next
+    })
   }
 
-  // Handle Multiple Files Upload at once from Device
-  const handleBatchImageUpload = async (files: FileList) => {
+  // Handle Multiple Files Upload at once from Device (Deferred: Instant Local Preview with 0 Storage Leak)
+  const handleBatchImageUpload = (files: FileList) => {
     if (!files || files.length === 0) return
-    setIsBatchUploading(true)
     setCrudError(null)
 
     const fileArray = Array.from(files)
     if (fileArray.length > MAX_PRODUCT_PHOTOS) {
       showToast(`Maksimal ${MAX_PRODUCT_PHOTOS} foto. Hanya ${MAX_PRODUCT_PHOTOS} foto pertama yang akan diproses.`, 'info')
     }
-    const filesToUpload = fileArray.slice(0, MAX_PRODUCT_PHOTOS)
-    const currentSlug = getStoreSlug() || storeSlug || '';
+    const filesToAdd = fileArray.slice(0, MAX_PRODUCT_PHOTOS)
 
-    try {
-      const uploadPromises = filesToUpload.map(async (file) => {
-        const formData = new FormData()
-        formData.append('image', file)
-        const res = await fetch(`${API_BASE}/storage/upload?category=products${currentSlug ? `&slug=${encodeURIComponent(currentSlug)}` : ''}`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            ...(currentSlug ? { 'X-Store-Slug': currentSlug } : {})
-          },
-          body: formData
-        })
-        const data = await res.json()
-        if (res.ok && data.success && data.url) {
-          return normalizeUploadedUrl(data.url)
-        }
-        return null
-      })
-
-      const results = await Promise.all(uploadPromises)
-      const successfulUrls = results.filter(Boolean) as string[]
-
-      if (successfulUrls.length > 0) {
-        setCrudImages(prev => {
-          const existing = prev.map(u => u.trim()).filter(Boolean)
-          const combined = [...existing, ...successfulUrls].slice(0, MAX_PRODUCT_PHOTOS)
-          return combined.length > 0 ? combined : ['']
-        })
-        fetchMyQuota()
-        showToast(`${successfulUrls.length} foto berhasil diunggah!`)
-      } else {
-        showToast('Gagal mengunggah foto. Pastikan format file gambar valid.', 'error')
+    const existingPairs: { url: string; file: File | null }[] = []
+    crudImages.forEach((u, i) => {
+      const trimmed = u.trim()
+      if (trimmed) {
+        existingPairs.push({ url: trimmed, file: crudImageFiles[i] || null })
       }
-    } catch (err) {
-      console.error(err)
-      showToast('Koneksi terputus saat mengunggah foto.', 'error')
-    } finally {
-      setIsBatchUploading(false)
+    })
+
+    const newPairs = filesToAdd.map(file => ({
+      url: URL.createObjectURL(file),
+      file
+    }))
+
+    const combinedPairs = [...existingPairs, ...newPairs].slice(0, MAX_PRODUCT_PHOTOS)
+    if (combinedPairs.length === 0) {
+      setCrudImages([''])
+      setCrudImageFiles([null])
+    } else {
+      setCrudImages(combinedPairs.map(p => p.url))
+      setCrudImageFiles(combinedPairs.map(p => p.file))
     }
+    showToast(`${filesToAdd.length} foto berhasil dipilih! Klik "Simpan Item" untuk mengunggah.`)
   }
 
   // Formatter helper for Rupiah with dots thousands separator
@@ -25540,7 +25561,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               type="button"
                               className="btn-primary"
                               style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '0.45rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                              onClick={() => setCrudImages([...crudImages, ''])}
+                              onClick={() => {
+                                setCrudImages([...crudImages, ''])
+                                setCrudImageFiles(prev => [...prev, null])
+                              }}
                             >
                               <span>+ Tambah Baris</span>
                             </button>
@@ -25620,6 +25644,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   const newImages = [...crudImages]
                                   newImages[index] = e.target.value
                                   setCrudImages(newImages)
+                                  setCrudImageFiles(prev => {
+                                    const next = [...prev]
+                                    if (next[index] && crudImages[index]?.startsWith('blob:')) {
+                                      try { URL.revokeObjectURL(crudImages[index]); } catch (_) {}
+                                    }
+                                    next[index] = null
+                                    return next
+                                  })
                                 }}
                                 required={index === 0}
                                 style={{ height: '38px', fontSize: '0.84rem' }}
@@ -25648,8 +25680,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 type="button"
                                 style={{ padding: '0.5rem', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', height: '38px', width: '38px', borderRadius: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                                 onClick={() => {
+                                  if (crudImages[index]?.startsWith('blob:')) {
+                                    try { URL.revokeObjectURL(crudImages[index]); } catch (_) {}
+                                  }
                                   const newImages = crudImages.filter((_, i) => i !== index)
                                   setCrudImages(newImages)
+                                  setCrudImageFiles(prev => prev.filter((_, i) => i !== index))
                                 }}
                                 title="Hapus baris foto ini"
                               >
@@ -26066,7 +26102,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {crudLoading ? (
                     <>
                       <Loader className="animate-spin" size={16} />
-                      <span>Menyimpan...</span>
+                      <span>{uploadProgressText || 'Menyimpan...'}</span>
                     </>
                   ) : (
                     <span>Simpan Item</span>

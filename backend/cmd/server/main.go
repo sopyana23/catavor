@@ -89,6 +89,9 @@ func main() {
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
 
+	// Start Background Storage Sweeper Worker (Audits store disk storage and purges orphaned uploads every hour)
+	services.StartStorageSweeper(context.Background(), database.DB, 1*time.Hour)
+
 	// Start Background Activity Log Retention Cleaner Worker (Runs daily)
 	services.StartActivityLogCleaner(context.Background(), database.DB, 24*time.Hour)
 
