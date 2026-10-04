@@ -1754,13 +1754,22 @@ select option {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 999999;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  z-index: 999999 !important;
   background-color: var(--bg-deep) !important;
   color: var(--text-primary) !important;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  animation: fadeIn 0.18s ease-out;
+  animation: zenFadeIn 0.15s ease-out;
+}
+
+@keyframes zenFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Mobile App Bar Header - Sleek, Minimalist & Professional */

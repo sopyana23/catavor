@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { 
   Search, 
   Plus, 
@@ -2616,6 +2617,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDownGlobal);
   }, [isFullscreen]);
 
+  // Handle hardware / browser back to close Zen Fullscreen editor
+  useModalBackHandler({
+    isOpen: isFullscreen,
+    onClose: () => setIsFullscreen(false),
+    modalId: 'rich-textarea-fullscreen-mobile'
+  });
+
   const applyFormatToRef = (
     targetRef: React.RefObject<HTMLTextAreaElement | null>,
     prefix: string,
@@ -2847,7 +2855,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       {/* ==========================================================
           FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Mobile)
           ========================================================== */}
-      {isFullscreen && (
+      {isFullscreen && typeof document !== 'undefined' && createPortal(
         <div className="zen-fullscreen-overlay">
           {/* Mobile App Bar Header: Minimalist & Clean Bar */}
           <div className="zen-fullscreen-header-mobile">
@@ -3000,7 +3008,8 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               <Check size={14} /> Selesai
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
