@@ -103,6 +103,8 @@ import {
   BadgeCheck,
   LifeBuoy,
   Trees,
+  Sprout,
+  Droplets,
   Waves,
   Flower2,
   Leaf,
@@ -308,6 +310,7 @@ function getCatalogItemUnit(item: any): string {
   if (item.product_type === 'service') return 'Sesi';
   if (item.product_type === 'digital') return 'Lisensi';
   if (item.product_type === 'physical') return 'Pcs';
+  if (item.product_type === 'plant') return 'Pot / Bibit';
 
   // For fauna or general showcase:
   const text = `${item.class || ''} ${item.name || ''} ${item.habitat || ''}`.toLowerCase();
@@ -419,6 +422,24 @@ export function getItemActionConfig(item: any) {
     };
   }
 
+  if (pType === 'plant') {
+    return {
+      type: 'plant',
+      shortLabel: 'Beli Sekarang',
+      fullLabel: 'Beli Tanaman Sekarang',
+      Icon: ShoppingCart,
+      modalTitle: 'Pilih Jalur Pembelian Tanaman',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk tanaman ini:',
+      badgeText: 'Tanaman',
+      directActionTitle: 'Chat WA (Tanya Tanaman & Pembelian)',
+      directActionSubtitle: 'Tanyakan ketersediaan bibit, kondisi segar, dan opsi packing aman',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+      rekberTitle: 'Chat WA & Rekber Syariah (Sangat Aman)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga tanaman tiba segar & aman)'
+    };
+  }
+
   // Default: physical
   return {
     type: 'physical',
@@ -523,6 +544,17 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
       { id: 'false_pedigree', title: 'Manipulasi Trah/Ras, Silsilah Bodong, atau Riwayat Palsu', desc: 'Pemalsuan silsilah (pedigree/stambum), buku vaksin palsu, atau foto indukan manipulatif' },
       { id: 'transit_cruelty', title: 'Metode Pengiriman Membahayakan Keselamatan Hidup', desc: 'Pengiriman lewat kurir non-khusus tanpa standar keselamatan satwa/tanaman hidup' },
       { id: 'other', title: 'Pelanggaran Lainnya pada Satwa & Flora', desc: 'Pelanggaran ketentuan satwa atau flora lainnya yang tidak tercantum di atas' }
+    ];
+  }
+
+  if (pType === 'plant') {
+    return [
+      { id: 'protected_flora', title: 'Tanaman Langka / Dilindungi Tanpa Izin Legal', desc: 'Menawarkan tanaman yang dilindungi undang-undang / Apendiks CITES tanpa sertifikat legalitas karantina sah' },
+      { id: 'dead_withered', title: 'Tanaman Mati, Layu Parah, atau Rusak Saat Tiba', desc: 'Tanaman tiba dalam kondisi busuk akar parah, kering mati total, atau tidak ada penanganan garansi' },
+      { id: 'pest_disease', title: 'Terinfeksi Hama / Penyakit Tanaman Menular Berbahaya', desc: 'Tanaman terbukti membawa kutu, jamur parasit, atau penyakit tumbuhan yang dapat menular luas' },
+      { id: 'false_species', title: 'Spesies / Varietas Palsu (ID Tanaman Manipulatif)', desc: 'ID jenis bibit/varietas tidak sesuai, manipulasi varigata buatan, atau foto tanaman palsu' },
+      { id: 'unsafe_packaging', title: 'Metode Packing Sembarangan / Tanpa Pelindung', desc: 'Pengiriman bibit hidup tanpa pengaman batang/akar memadai sehingga tanaman hancur' },
+      { id: 'other', title: 'Pelanggaran Lainnya pada Tanaman & Flora', desc: 'Pelanggaran ketentuan tanaman atau flora lainnya yang tidak tercantum di atas' }
     ];
   }
 
@@ -1079,7 +1111,7 @@ export const LANDING_FAQS = [
   }
 ];
 
-export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property';
+export type ItemCategoryType = 'physical' | 'digital' | 'fauna' | 'service' | 'food' | 'property' | 'plant';
 
 export interface ItemTypeConfig {
   type: ItemCategoryType;
@@ -1197,7 +1229,8 @@ export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
   service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
   digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
   fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Tanaman Hias & Flora', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
-  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya']
+  property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya'],
+  plant: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya']
 };
 
 export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): ItemTypeConfig {
@@ -1428,6 +1461,79 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         maxOrderLabel: 'Maksimal Unit per Pembeli (Opsional)',
         maxOrderPlaceholder: '1'
       };
+    case 'plant':
+      return {
+        type: 'plant',
+        typeName: 'Tanaman & Tumbuhan',
+        badgeName: 'Tanaman',
+        icon: Sprout,
+        color: 'var(--primary)',
+        gradientBg: 'radial-gradient(circle at top left, var(--primary-glow) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Data Tanaman' : 'Edit Data Tanaman',
+        modalSubtitle: 'Lengkapi taksonomi botani, kebutuhan cahaya, penyiraman, dan media tanam.',
+        nameLabel: 'Nama Tanaman *',
+        namePlaceholder: 'Contoh: Monstera Deliciosa King / Bonsai Kimeng / Bibit Mangga Kiojay...',
+        categoryLabel: 'Kategori / Golongan Tanaman *',
+        defaultCategory: 'Tanaman Hias Daun',
+        categoryOptions: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya'],
+        priceLabel: 'Harga Satuan (IDR) *',
+        pricePlaceholder: 'Contoh: 125.000',
+        photoLabel: 'Foto Tanaman & Kondisi Segar (1-10 Foto) *',
+        photoHelper: 'Unggah hingga 10 foto asli tanaman tampak tajuk, daun, akar/batang, dan pot.',
+        videoLabel: 'Video Tanaman / Review Kondisi (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
+        deliveryLabel: 'Pengiriman & Ketentuan Packing Tanaman',
+        deliveryOptions: [
+          'Kirim Bersama Pot & Media Tanam',
+          'Kirim Bare Root (Kurangi Media Tanam agar Hemat Ongkir)',
+          'Khusus Kurir Instan / Sameday (Siap Pajang)',
+          'Bisa Kirim se-Indonesia (Packing Paralon / Kardus Tebal)'
+        ],
+        deliveryTermsLabel: 'Pengiriman & Ketentuan Packing Tanaman',
+        deliveryTermsPlaceholder: 'Contoh: Dikirim dengan pot dan media tanam terbungkus plastik rapat / pipa paralon kuat. Pengiriman se-Indonesia aman dengan kurir reguler atau kilat...',
+        warrantyLabel: 'Kebijakan Garansi Segar Sampai Tujuan',
+        warrantyPlaceholder: 'Contoh: Garansi tanaman hidup & segar sampai tujuan maksimal 3 hari ekspedisi. Penggantian bibit baru jika rusak parah/mati saat unboxing...',
+        descLabel: 'Deskripsi Lengkap Tanaman *',
+        descPlaceholder: 'Jelaskan karakteristik tanaman, tips penempatan, rekomendasi pupuk, dan panduan perawatan bagi pemula...',
+        minOrderLabel: 'Minimal Beli (Pot/Bibit) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Beli per Kiriman (Opsional)',
+        maxOrderPlaceholder: 'Kosongkan jika tanpa batas'
+      };
+    default:
+      return {
+        type: 'physical',
+        typeName: 'Barang Fisik',
+        badgeName: 'Barang Fisik',
+        icon: Package,
+        color: '#2563eb',
+        gradientBg: 'radial-gradient(circle at top left, rgba(37, 99, 235, 0.15) 0%, transparent 70%)',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Barang Fisik' : 'Edit Barang Fisik',
+        modalSubtitle: 'Lengkapi spesifikasi barang fisik, merek, varian, dan opsi pengiriman.',
+        nameLabel: 'Nama Barang *',
+        namePlaceholder: 'Contoh: Kaos Oversize Cotton Combed 24s / Keyboard Mechanical...',
+        categoryLabel: 'Kategori / Jenis Barang *',
+        defaultCategory: 'Pakaian & Fashion',
+        categoryOptions: ['Pakaian & Fashion', 'Aksesoris & Gadget', 'Elektronik & Komputer', 'Perlengkapan Rumah', 'Kerajinan & Kriya', 'Koleksi & Hobi', 'Lainnya'],
+        priceLabel: 'Harga Satuan (IDR) *',
+        pricePlaceholder: 'Contoh: 150.000',
+        photoLabel: 'Foto Barang (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto barang fisik beresolusi jelas.',
+        videoLabel: 'Video Review / Unboxing (Opsional)',
+        videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
+        deliveryLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
+        deliveryOptions: ['Bisa Kirim se-Indonesia', 'Khusus Pulau Jawa / Satu Wilayah', 'Ambil Sendiri di Toko (No Shipping)', 'Kurir Instan / Sameday Only'],
+        deliveryTermsLabel: 'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)',
+        deliveryTermsPlaceholder: 'Contoh: Bisa kirim ke seluruh Indonesia via JNE / J&T / SiCepat atau Kurir Instan (Jabodetabek). Packing aman bubble wrap tebal + kardus gratis...',
+        warrantyLabel: 'Kebijakan Garansi / Retur Barang',
+        warrantyPlaceholder: 'Contoh: Garansi tukar baru 7 hari jika barang cacat produksi dengan melampirkan video unboxing...',
+        descLabel: 'Deskripsi Lengkap Barang *',
+        descPlaceholder: 'Jelaskan detail spesifikasi bahan/material, dimensi ukuran, kelengkapan isi kemasan, dan fitur unggulan barang ini...',
+        minOrderLabel: 'Minimal Beli (Pcs) *',
+        minOrderPlaceholder: '1',
+        maxOrderLabel: 'Maksimal Beli per Transaksi (Opsional)',
+        maxOrderPlaceholder: 'Kosongkan jika tanpa batas'
+      };
   }
 }
 
@@ -1484,7 +1590,13 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
       facing: 'Timur',
       property_location: 'BSD City, Tangerang Selatan',
       facilities: 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
-      halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)'
+      halal_status: 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+      sunlight: 'Partial Sun (Teduh Terang)',
+      watering: 'Sedang (2-3 Hari Sekali)',
+      planting_medium: 'Tanah Subur & Kompos',
+      plant_size: 'Tinggi 25-35 cm',
+      protection_status: 'Non-Dilindungi (Aman Diperjualbelikan)',
+      delivery_condition: 'Kirim Bersama Pot & Media Tanam'
     }
   };
 };
@@ -1536,6 +1648,12 @@ interface Fauna {
     property_location?: string
     facilities?: string
     halal_status?: string
+    sunlight?: string
+    watering?: string
+    planting_medium?: string
+    plant_size?: string
+    protection_status?: string
+    delivery_condition?: string
     enable_wa_rekber?: boolean
     enable_wa_direct?: boolean
     [key: string]: any
@@ -1848,9 +1966,9 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
       content: string;
     }[] = [];
 
-    // 1. Ketentuan Pengiriman / SOP / Akses File / Ketentuan Layanan / Akses & Survey Properti
+    // 1. Ketentuan Pengiriman / SOP / Akses File / Ketentuan Layanan / Akses & Survey Properti / Packing Tanaman
     const shippingTerms = (item.detailed_info?.shipping_terms || '').trim();
-    if (isNonEmptyValue(shippingTerms) || pType === 'digital' || pType === 'service' || pType === 'property' || pType === 'food') {
+    if (isNonEmptyValue(shippingTerms) || pType === 'digital' || pType === 'service' || pType === 'property' || pType === 'food' || pType === 'plant') {
       let label = 'Ketentuan Pengiriman';
       let fullTitle = 'Ketentuan Pengiriman & Logistik';
       let icon = Truck;
@@ -1867,6 +1985,13 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
         label = 'Pengiriman Satwa';
         fullTitle = 'Pengiriman & Garansi Live Arrival';
         icon = Truck;
+      } else if (pType === 'plant') {
+        label = 'Pengiriman Tanaman';
+        fullTitle = 'Pengiriman & Packing Tanaman Hidup';
+        icon = Truck;
+        if (!content) {
+          content = 'Tanaman dikemas rapi dan aman dengan pengaman akar serta media tanam. Disarankan menggunakan kurir instan/sameday atau ekspedisi kilat untuk menjaga kesegaran tanaman.';
+        }
       } else if (pType === 'service') {
         label = 'Area & Ketentuan';
         fullTitle = 'Area Layanan & Ketentuan Reservasi';
@@ -1897,9 +2022,9 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
       list.push({ id: 'shipping_terms', label, fullTitle, icon, content });
     }
 
-    // 2. Garansi / Kebijakan Toko / Lisensi / DOA / Legalitas Dokumen Properti (Kecuali Service yang tidak memiliki form garansi)
+    // 2. Garansi / Kebijakan Toko / Lisensi / DOA / Legalitas Dokumen Properti / Garansi Segar Tanaman
     const warrantyInfo = (item.detailed_info?.warranty_info || '').trim();
-    const hasWarranty = pType !== 'service' && (isNonEmptyValue(warrantyInfo) || (pType === 'digital' && isNonEmptyValue(item.attributes?.license_type)) || pType === 'property');
+    const hasWarranty = pType !== 'service' && (isNonEmptyValue(warrantyInfo) || (pType === 'digital' && isNonEmptyValue(item.attributes?.license_type)) || pType === 'property' || pType === 'plant');
     if (hasWarranty) {
       let label = 'Kebijakan Garansi';
       let fullTitle = 'Kebijakan Garansi & Klaim';
@@ -1917,6 +2042,13 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
         label = 'Garansi D.O.A';
         fullTitle = 'Ketentuan Garansi D.O.A (Dead On Arrival)';
         icon = Heart;
+      } else if (pType === 'plant') {
+        label = 'Garansi Segar';
+        fullTitle = 'Jaminan Kesegaran & Garansi Tiba Aman';
+        icon = Sprout;
+        if (!content) {
+          content = 'Garansi tanaman hidup dan segar sampai tujuan. Klaim penggantian bibit berlaku dengan menyertakan video unboxing utuh tanpa jeda maksimal 2 jam setelah paket diterima.';
+        }
       } else if (pType === 'digital') {
         label = 'Lisensi & Hak Cipta';
         fullTitle = 'Ketentuan Lisensi & Hak Cipta';
@@ -11468,7 +11600,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         facing: item.attributes?.facing || 'Timur',
         property_location: item.attributes?.property_location || 'BSD City, Tangerang Selatan',
         facilities: item.attributes?.facilities || 'One Gate System, Keamanan 24 Jam, Taman Bermain, Akses Jalan 2 Mobil',
-        halal_status: item.attributes?.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'
+        halal_status: item.attributes?.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)',
+        sunlight: item.attributes?.sunlight || 'Partial Sun (Teduh Terang)',
+        watering: item.attributes?.watering || 'Sedang (2-3 Hari Sekali)',
+        planting_medium: item.attributes?.planting_medium || 'Tanah Subur & Kompos',
+        plant_size: item.attributes?.plant_size || 'Tinggi 25-35 cm',
+        protection_status: item.attributes?.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)',
+        delivery_condition: item.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'
       }
     })
     setCustomClass('')
@@ -15062,7 +15200,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: '0.5rem' }}>
                 {selectedFauna.name}
               </h2>
-              {selectedFauna.product_type === 'fauna' && isNonEmptyValue(selectedFauna.scientific_name) && (
+              {(selectedFauna.product_type === 'fauna' || selectedFauna.product_type === 'plant') && isNonEmptyValue(selectedFauna.scientific_name) && (
                 <div style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>
                   {selectedFauna.scientific_name}
                 </div>
@@ -15075,7 +15213,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             {/* Product Specifications */}
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)' }}>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-                {selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : 'Spesifikasi Satwa & Fauna'))))}
+                {selectedFauna.product_type === 'plant' ? 'Spesifikasi Tanaman & Flora' : (selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : 'Spesifikasi Satwa & Fauna')))))}
               </h3>
               
               <div style={{
@@ -15099,7 +15237,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           alignItems: 'baseline', 
                           padding: '0.55rem 0', 
                           borderBottom: isLast ? 'none' : '1px solid var(--border-light)', 
-                          fontSize: '0.83rem',
+                          fontSize: '0.83rem', 
                           lineHeight: 1.45 
                         }}
                       >
@@ -15121,7 +15259,24 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                   const unit = getCatalogItemUnit(selectedFauna);
 
-                  if (selectedFauna.product_type === 'property') {
+                  if (selectedFauna.product_type === 'plant') {
+                    const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
+                    const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
+                    return (
+                      <>
+                        {renderRow('Kategori Flora', selectedFauna.class)}
+                        {renderRow('Nama Ilmiah / Botani', selectedFauna.scientific_name)}
+                        {renderRow('Kebutuhan Cahaya', selectedFauna.attributes?.light_requirement, false, true)}
+                        {renderRow('Penyiraman', selectedFauna.attributes?.watering_frequency)}
+                        {renderRow('Media Tanam', selectedFauna.attributes?.growing_media)}
+                        {renderRow('Ukuran / Tinggi', selectedFauna.attributes?.plant_size)}
+                        {renderRow('Status Legalitas', selectedFauna.attributes?.plant_legality)}
+                        {renderRow('Kondisi Pengiriman', selectedFauna.attributes?.ship_condition)}
+                        {renderRow('Minimal Pemesanan', `${minOrderVal} ${unit}`)}
+                        {renderRow('Maksimal Pemesanan', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null, true)}
+                      </>
+                    );
+                  } else if (selectedFauna.product_type === 'property') {
                     const minOrderVal = selectedFauna.min_order || selectedFauna.attributes?.min_order || 1;
                     const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
                     return (
@@ -16813,6 +16968,193 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         value={crudForm.attributes.variant || ''}
                         onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, variant: e.target.value } })}
                       />
+                    </div>
+                  </div>
+                )}
+
+                {/* 7. TANAMAN & FLORA */}
+                {crudForm.product_type === 'plant' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kebutuhan Cahaya *</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Kebutuhan Cahaya',
+                              icon: Sun,
+                              options: [
+                                { value: 'Full Sun (Matahari Langsung)', label: 'Full Sun (Matahari Langsung)', desc: 'Butuh 6+ jam sinar matahari langsung per hari' },
+                                { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang)', desc: 'Cahaya terang tidak langsung / naungan paranet' },
+                                { value: 'Low Light / Indoor (Cahaya Rendah)', label: 'Low Light / Indoor', desc: 'Cocok dalam ruangan dengan pencahayaan minim' }
+                              ],
+                              selectedValue: crudForm.attributes.sunlight || 'Partial Sun (Teduh Terang)',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, sunlight: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.sunlight || 'Partial Sun (Teduh Terang)'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Frekuensi Penyiraman *</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Frekuensi Siram',
+                              icon: Droplets,
+                              options: [
+                                { value: 'Banyak (Setiap Hari)', label: 'Banyak (Setiap Hari)', desc: 'Media harus selalu lembab & rutin disiram' },
+                                { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali)', desc: 'Siram saat media tanam mulai agak kering' },
+                                { value: 'Sedikit (1-2 Minggu Sekali / Sukulen & Kaktus)', label: 'Sedikit (1-2 Minggu Sekali)', desc: 'Tahan kering, sukulen, kaktus, sansiviera' }
+                              ],
+                              selectedValue: crudForm.attributes.watering || 'Sedang (2-3 Hari Sekali)',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, watering: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.watering || 'Sedang (2-3 Hari Sekali)'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Media Tanam *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Tanah Humus, Sekam Bakar"
+                          required
+                          value={crudForm.attributes.planting_medium || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, planting_medium: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Ukuran / Tinggi Tanaman</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Contoh: Tinggi 30-40 cm, Pot 15 cm"
+                          value={crudForm.attributes.plant_size || ''}
+                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, plant_size: e.target.value } })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Status Legalitas Flora *</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Status Legalitas Flora',
+                              icon: ShieldCheck,
+                              options: [
+                                { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman)', desc: 'Flora umum bebas izin' },
+                                { value: 'Dilindungi (Sertifikasi/Izin Khusus)', label: 'Dilindungi (Bersertifikat)', desc: 'Wajib sertifikasi BKSDA / CITES' },
+                                { value: 'Hasil Budidaya Nursery', label: 'Hasil Budidaya Nursery', desc: 'Perbanyakan legal dari kebun/nursery' }
+                              ],
+                              selectedValue: crudForm.attributes.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, protection_status: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'flex-end', marginBottom: '0.35rem' }}>Kondisi Kirim *</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCrudDropdownPicker({
+                              title: 'Pilih Kondisi Pengiriman',
+                              icon: Package,
+                              options: [
+                                { value: 'Kirim Bersama Pot & Media Tanam', label: 'Dengan Pot & Media', desc: 'Aman dan siap pajang' },
+                                { value: 'Kirim Bare Root (Tanpa Pot/Media Dikurangi)', label: 'Bare Root (Tanpa Pot)', desc: 'Akar dibungkus cocopeat lembab' },
+                                { value: 'Kirim Polybag', label: 'Polybag', desc: 'Kemasan polybag bibit hemat ongkir' }
+                              ],
+                              selectedValue: crudForm.attributes.delivery_condition || 'Kirim Bersama Pot & Media Tanam',
+                              onSelect: (val) => setCrudForm(prev => ({ ...prev, attributes: { ...prev.attributes, delivery_condition: val } }))
+                            });
+                          }}
+                          className="form-input"
+                          style={{
+                            height: '42px',
+                            padding: '0 0.85rem',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: 'var(--text-primary)',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                            {crudForm.attributes.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
+                          </span>
+                          <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
