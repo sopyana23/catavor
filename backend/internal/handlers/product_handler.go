@@ -262,14 +262,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		IsActive:            true,
 	}
 
-	if err := database.DB.Create(&product).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menyimpan produk baru.",
-		})
-	}
-
-	// Process multi-images gallery if provided (direct or fallback to detailed_info.images)
+	// Pre-validate multi-images gallery if provided (direct or fallback to detailed_info.images)
 	galleryImages := req.GalleryImages
 	if len(galleryImages) == 0 && req.DetailedInfo != nil {
 		if rawImgs, ok := req.DetailedInfo["images"]; ok {
@@ -283,51 +276,15 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		}
 	}
 
-	if len(galleryImages) > 0 {
-		const maxImages = 10
-		if len(galleryImages) > maxImages {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
-			})
-		}
-
-		for idx, imgURL := range galleryImages {
-			cleanURL := security.SanitizeURL(imgURL)
-			if cleanURL != "" {
-				prodImg := models.ProductImage{
-					ProductID: product.ID,
-					ImageURL:  cleanURL,
-					SortOrder: idx,
-					IsPrimary: idx == 0,
-				}
-				database.DB.Create(&prodImg)
-			}
-		}
+	const maxImages = 10
+	if len(galleryImages) > maxImages {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
+		})
 	}
 
-	// Process variants if provided
-	if len(req.Variants) > 0 {
-		for _, v := range req.Variants {
-			vName := security.SanitizePlainText(v.VariantName, 100)
-			if vName != "" {
-				variant := models.ProductVariant{
-					ProductID:     product.ID,
-					VariantName:   vName,
-					SKU:           security.SanitizePlainText(v.SKU, 100),
-					PriceOverride: v.PriceOverride,
-					StockQty:      v.StockQty,
-					IsActive:      true,
-				}
-				database.DB.Create(&variant)
-			}
-		}
-	}
-
-	// Reload complete product with relations
-	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
-
-	// Record Activity Log
+	// Actor context for audit log
 	userVal := c.Locals("user")
 	var userID *uint
 	actorName := "Pemilik Toko"
@@ -339,26 +296,85 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		actorEmail = u.Email
 	}
 
-	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
-		StoreID:     &store.ID,
-		UserID:      userID,
-		ActorRole:   "merchant",
-		ActorName:   actorName,
-		ActorEmail:  actorEmail,
-		Action:      "product.create",
-		Category:    "catalog",
-		EntityType:  "product",
-		EntityID:    &product.ID,
-		EntityTitle: product.Name,
-		Description: fmt.Sprintf("Menambahkan produk baru '%s' dengan harga Rp %s.", product.Name, formatRupiahInt(int(product.Price))),
-		Changes: map[string]interface{}{
-			"price": product.Price,
-			"type":  product.ProductType,
-		},
-		IPAddress: c.IP(),
-		UserAgent: c.Get("User-Agent"),
+	// ACID Database Transaction: All-or-Nothing (No half-baked / orphaned product records)
+	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. Insert product record
+		if err := tx.Create(&product).Error; err != nil {
+			return err
+		}
+
+		// 2. Insert gallery images
+		if len(galleryImages) > 0 {
+			for idx, imgURL := range galleryImages {
+				cleanURL := security.SanitizeURL(imgURL)
+				if cleanURL != "" {
+					prodImg := models.ProductImage{
+						ProductID: product.ID,
+						ImageURL:  cleanURL,
+						SortOrder: idx,
+						IsPrimary: idx == 0,
+					}
+					if err := tx.Create(&prodImg).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// 3. Insert variants if provided
+		if len(req.Variants) > 0 {
+			for _, v := range req.Variants {
+				vName := security.SanitizePlainText(v.VariantName, 100)
+				if vName != "" {
+					variant := models.ProductVariant{
+						ProductID:     product.ID,
+						VariantName:   vName,
+						SKU:           security.SanitizePlainText(v.SKU, 100),
+						PriceOverride: v.PriceOverride,
+						StockQty:      v.StockQty,
+						IsActive:      true,
+					}
+					if err := tx.Create(&variant).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// 4. Record Activity Log atomically
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          tx,
+			StoreID:     &store.ID,
+			UserID:      userID,
+			ActorRole:   "merchant",
+			ActorName:   actorName,
+			ActorEmail:  actorEmail,
+			Action:      "product.create",
+			Category:    "catalog",
+			EntityType:  "product",
+			EntityID:    &product.ID,
+			EntityTitle: product.Name,
+			Description: fmt.Sprintf("Menambahkan produk baru '%s' dengan harga Rp %s.", product.Name, formatRupiahInt(int(product.Price))),
+			Changes: map[string]interface{}{
+				"price": product.Price,
+				"type":  product.ProductType,
+			},
+			IPAddress: c.IP(),
+			UserAgent: c.Get("User-Agent"),
+		})
+
+		return nil
 	})
+
+	if txErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan produk baru: " + txErr.Error(),
+		})
+	}
+
+	// Reload complete product with relations
+	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
 	InvalidateStoreProductsCache(store.ID)
 	services.SyncStoreStorageUsed(database.DB, store.ID)
@@ -501,14 +517,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		product.ResubmitCount = product.ResubmitCount + 1
 	}
 
-	if err := database.DB.Save(&product).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal memperbarui produk.",
-		})
-	}
-
-	// Update gallery images if provided (direct or fallback to detailed_info.images)
+	// Pre-validate update gallery images before starting transaction
 	updateGallery := req.GalleryImages
 	if len(updateGallery) == 0 && req.DetailedInfo != nil {
 		if rawImgs, ok := req.DetailedInfo["images"]; ok {
@@ -522,28 +531,113 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
-	if len(updateGallery) > 0 {
-		const maxImages = 10
-		if len(updateGallery) > maxImages {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
-			})
+	const maxImages = 10
+	if len(updateGallery) > maxImages {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
+		})
+	}
+
+	// Actor context for audit log
+	userVal := c.Locals("user")
+	var uID *uint
+	actName := "Pemilik Toko"
+	actEmail := "owner@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		uID = &u.ID
+		actName = u.Name
+		actEmail = u.Email
+	}
+
+	actionType := "product.update"
+	desc := fmt.Sprintf("Memperbarui data produk '%s'.", product.Name)
+	if wasInNeedsFix {
+		actionType = "product.resubmit"
+		desc = fmt.Sprintf("Mengajukan ulang perbaikan untuk produk '%s' yang sebelumnya disembunyikan.", product.Name)
+	} else if oldPrice != product.Price {
+		actionType = "product.price_change"
+		desc = fmt.Sprintf("Mengubah harga produk '%s' dari Rp %s menjadi Rp %s.", product.Name, formatRupiahInt(int(oldPrice)), formatRupiahInt(int(product.Price)))
+	}
+
+	var itemReports []models.Report
+	now := time.Now().UTC()
+
+	// ACID Database Transaction: All-or-Nothing (No half-baked / inconsistent state)
+	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. Save product record
+		if err := tx.Save(&product).Error; err != nil {
+			return err
 		}
 
-		database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductImage{})
-		for idx, imgURL := range updateGallery {
-			cleanURL := security.SanitizeURL(imgURL)
-			if cleanURL != "" {
-				prodImg := models.ProductImage{
-					ProductID: product.ID,
-					ImageURL:  cleanURL,
-					SortOrder: idx,
-					IsPrimary: idx == 0,
+		// 2. Update gallery images
+		if len(updateGallery) > 0 {
+			if err := tx.Where("product_id = ?", product.ID).Delete(&models.ProductImage{}).Error; err != nil {
+				return err
+			}
+			for idx, imgURL := range updateGallery {
+				cleanURL := security.SanitizeURL(imgURL)
+				if cleanURL != "" {
+					prodImg := models.ProductImage{
+						ProductID: product.ID,
+						ImageURL:  cleanURL,
+						SortOrder: idx,
+						IsPrimary: idx == 0,
+					}
+					if err := tx.Create(&prodImg).Error; err != nil {
+						return err
+					}
 				}
-				database.DB.Create(&prodImg)
 			}
 		}
+
+		// 3. Update moderation report statuses if resubmitted
+		if wasInNeedsFix {
+			if err := tx.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports).Error; err == nil {
+				for _, r := range itemReports {
+					noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah memperbarui data produk dan mengajukan peninjauan ulang.", now.Format("02 Jan 2006 15:04 WIB")))
+					if err := tx.Model(&r).Updates(map[string]interface{}{
+						"status":      "re_review",
+						"admin_notes": noteUpdate,
+						"updated_at":  now,
+					}).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// 4. Record Activity Log atomically
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          tx,
+			StoreID:     &store.ID,
+			UserID:      uID,
+			ActorRole:   "merchant",
+			ActorName:   actName,
+			ActorEmail:  actEmail,
+			Action:      actionType,
+			Category:    "catalog",
+			EntityType:  "product",
+			EntityID:    &product.ID,
+			EntityTitle: product.Name,
+			Description: desc,
+			Changes: map[string]interface{}{
+				"before": map[string]interface{}{"price": oldPrice, "name": oldName},
+				"after":  map[string]interface{}{"price": product.Price, "name": product.Name},
+			},
+			IPAddress: c.IP(),
+			UserAgent: c.Get("User-Agent"),
+		})
+
+		return nil
+	})
+
+	if txErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui produk: " + txErr.Error(),
+		})
 	}
 
 	// Hard delete old images that are no longer referenced in new product images
@@ -591,21 +685,9 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 	// Trigger broadcast alert & report synchronization if product was resubmitted
 	if wasInNeedsFix {
-		now := time.Now().UTC()
-		// 1. Update any pending/investigating/action_taken reports for this item to 're_review'
-		var itemReports []models.Report
-		database.DB.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
-		for _, r := range itemReports {
-			noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah memperbarui data produk dan mengajukan peninjauan ulang.", now.Format("02 Jan 2006 15:04 WIB")))
-			database.DB.Model(&r).Updates(map[string]interface{}{
-				"status":      "re_review",
-				"admin_notes": noteUpdate,
-				"updated_at":  now,
-			})
-		}
 		InvalidateReportMetricsCache()
 
-		// 2. Broadcast and record notification for platform admins
+		// 1. Broadcast and record notification for platform admins
 		go func(pID uint, pName, sTitle string) {
 			adminMsg := fmt.Sprintf("Merchant \"%s\" telah memperbarui data produk \"%s\" dan mengajukan peninjauan ulang.", sTitle, pName)
 			adminNotif := models.Notification{
@@ -626,7 +708,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			services.GetNotificationHub().Broadcast(&adminNotif)
 		}(product.ID, product.Name, store.StoreTitle)
 
-		// 3. Create acknowledgement notification for merchant
+		// 2. Create acknowledgement notification for merchant
 		merchantNotif := models.Notification{
 			ID:         fmt.Sprintf("notif_resubmit_ack_%d_%d", product.ID, now.UnixNano()),
 			TargetType: "store",
@@ -642,49 +724,6 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 
 	database.DB.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
-
-	// Record Activity Log
-	userVal := c.Locals("user")
-	var uID *uint
-	actName := "Pemilik Toko"
-	actEmail := "owner@catavor.com"
-	if userVal != nil {
-		u := userVal.(*models.User)
-		uID = &u.ID
-		actName = u.Name
-		actEmail = u.Email
-	}
-
-	actionType := "product.update"
-	desc := fmt.Sprintf("Memperbarui data produk '%s'.", product.Name)
-	if wasInNeedsFix {
-		actionType = "product.resubmit"
-		desc = fmt.Sprintf("Mengajukan ulang perbaikan untuk produk '%s' yang sebelumnya disembunyikan.", product.Name)
-	} else if oldPrice != product.Price {
-		actionType = "product.price_change"
-		desc = fmt.Sprintf("Mengubah harga produk '%s' dari Rp %s menjadi Rp %s.", product.Name, formatRupiahInt(int(oldPrice)), formatRupiahInt(int(product.Price)))
-	}
-
-	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
-		StoreID:     &store.ID,
-		UserID:      uID,
-		ActorRole:   "merchant",
-		ActorName:   actName,
-		ActorEmail:  actEmail,
-		Action:      actionType,
-		Category:    "catalog",
-		EntityType:  "product",
-		EntityID:    &product.ID,
-		EntityTitle: product.Name,
-		Description: desc,
-		Changes: map[string]interface{}{
-			"before": map[string]interface{}{"price": oldPrice, "name": oldName},
-			"after":  map[string]interface{}{"price": product.Price, "name": product.Name},
-		},
-		IPAddress: c.IP(),
-		UserAgent: c.Get("User-Agent"),
-	})
 
 	respMsg := "Produk berhasil diperbarui."
 	if wasInNeedsFix {
@@ -749,14 +788,55 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		}
 	}
 
-	// 2. Delete related database records first so product and its gallery images are marked deleted
-	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductImage{})
-	database.DB.Where("product_id = ?", product.ID).Delete(&models.ProductVariant{})
+	// Actor context for audit log
+	userVal := c.Locals("user")
+	var uID *uint
+	actName := "Pemilik Toko"
+	actEmail := "owner@catavor.com"
+	if userVal != nil {
+		u := userVal.(*models.User)
+		uID = &u.ID
+		actName = u.Name
+		actEmail = u.Email
+	}
 
-	if err := database.DB.Delete(&product).Error; err != nil {
+	// 2. ACID Database Transaction: All-or-Nothing (No partial deletions)
+	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("product_id = ?", product.ID).Delete(&models.ProductImage{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("product_id = ?", product.ID).Delete(&models.ProductVariant{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&product).Error; err != nil {
+			return err
+		}
+
+		// Record Activity Log atomically within transaction
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          tx,
+			StoreID:     &store.ID,
+			UserID:      uID,
+			ActorRole:   "merchant",
+			ActorName:   actName,
+			ActorEmail:  actEmail,
+			Action:      "product.delete",
+			Category:    "catalog",
+			EntityType:  "product",
+			EntityID:    &deletedID,
+			EntityTitle: deletedTitle,
+			Description: fmt.Sprintf("Menghapus produk '%s' dari katalog.", deletedTitle),
+			IPAddress:   c.IP(),
+			UserAgent:   c.Get("User-Agent"),
+		})
+
+		return nil
+	})
+
+	if txErr != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal menghapus produk.",
+			"message": "Gagal menghapus produk: " + txErr.Error(),
 		})
 	}
 
@@ -777,35 +857,6 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	// 4. Recalculate store storage used and invalidate cache
 	services.SyncStoreStorageUsed(database.DB, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
-
-	// Record Activity Log
-	userVal := c.Locals("user")
-	var uID *uint
-	actName := "Pemilik Toko"
-	actEmail := "owner@catavor.com"
-	if userVal != nil {
-		u := userVal.(*models.User)
-		uID = &u.ID
-		actName = u.Name
-		actEmail = u.Email
-	}
-
-	services.RecordActivity(services.RecordActivityParams{
-		DB:          database.DB,
-		StoreID:     &store.ID,
-		UserID:      uID,
-		ActorRole:   "merchant",
-		ActorName:   actName,
-		ActorEmail:  actEmail,
-		Action:      "product.delete",
-		Category:    "catalog",
-		EntityType:  "product",
-		EntityID:    &deletedID,
-		EntityTitle: deletedTitle,
-		Description: fmt.Sprintf("Menghapus produk '%s' dari katalog.", deletedTitle),
-		IPAddress:   c.IP(),
-		UserAgent:   c.Get("User-Agent"),
-	})
 
 	InvalidateStoreProductsCache(store.ID)
 
