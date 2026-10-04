@@ -24873,17 +24873,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   />
                 </div>
 
-                {/* Category Dropdown with Custom Add Button */}
+                {/* Category Dropdown with Single Prominent Custom Add Button */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <label className="form-label" style={{ margin: 0, fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
-                        {typeConfig.categoryLabel}
-                      </label>
-                      <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
-                    </div>
+                    <label className="form-label" style={{ margin: 0, fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                      {typeConfig.categoryLabel}
+                    </label>
 
-                    {/* Prominent Action Button with Tactile Button Design */}
+                    {/* Single Prominent Action Button with Tactile Button Design */}
                     <button 
                       type="button" 
                       onClick={() => {
@@ -24933,7 +24930,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       ) : (
                         <>
                           <Plus size={13} strokeWidth={2.5} />
-                          <span>+ Buat Kategori Baru</span>
+                          <span>Buat Kategori Baru</span>
                         </>
                       )}
                     </button>
@@ -25073,85 +25070,29 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                     </div>
                   ) : (
-                    <div>
-                      <select 
-                        className="form-select"
-                        value={crudForm.class}
-                        onChange={(e) => {
-                          if (e.target.value === '__ADD_NEW_CATEGORY__') {
-                            setShowCustomClassInput(true);
-                            setCustomClass('');
-                          } else {
-                            setCrudForm({ ...crudForm, class: e.target.value });
-                          }
-                        }}
-                        style={{ height: '42px', fontSize: '0.88rem' }}
+                    <select 
+                      className="form-select"
+                      value={crudForm.class}
+                      onChange={(e) => {
+                        if (e.target.value === '__ADD_NEW_CATEGORY__') {
+                          setShowCustomClassInput(true);
+                          setCustomClass('');
+                        } else {
+                          setCrudForm({ ...crudForm, class: e.target.value });
+                        }
+                      }}
+                      style={{ height: '42px', fontSize: '0.88rem' }}
+                    >
+                      {getCategoryOptionsForType(crudForm.product_type).map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option 
+                        value="__ADD_NEW_CATEGORY__" 
+                        style={{ fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--bg-card-hover)' }}
                       >
-                        {getCategoryOptionsForType(crudForm.product_type).map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                        <option 
-                          value="__ADD_NEW_CATEGORY__" 
-                          style={{ fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--bg-card-hover)' }}
-                        >
-                          ➕ Buat Kategori Baru (Ketik Sendiri)...
-                        </option>
-                      </select>
-
-                      {/* Intuitive Notice / CTA Bar directly underneath the select */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.75rem',
-                        marginTop: '0.45rem',
-                        padding: '0.5rem 0.75rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px dashed var(--border-light)',
-                        transition: 'all 0.15s ease'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                          <Layers size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
-                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                            Kategori yang Anda cari tidak tersedia di pilihan?
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCustomClassInput(true);
-                            setCustomClass('');
-                          }}
-                          style={{
-                            padding: '0.3rem 0.75rem',
-                            borderRadius: '0.45rem',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            border: '1px solid var(--primary)',
-                            color: 'var(--primary)',
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            flexShrink: 0,
-                            transition: 'all 0.15s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--primary)';
-                            e.currentTarget.style.color = '#ffffff';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
-                            e.currentTarget.style.color = 'var(--primary)';
-                          }}
-                        >
-                          <Plus size={12} strokeWidth={2.5} />
-                          <span>Buat Kategori Baru</span>
-                        </button>
-                      </div>
-                    </div>
+                        ➕ Buat Kategori Baru (Ketik Sendiri)...
+                      </option>
+                    </select>
                   )}
                 </div>
 
