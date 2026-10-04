@@ -6365,10 +6365,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
-  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store') => {
+  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm') => {
     if (!isSheetDragging) return;
     setIsSheetDragging(false);
     if (sheetDragY > 75) {
+      if (type === 'discard_confirm') setShowDiscardConfirmSheet(false);
       if (type === 'category') setShowCategorySheet(false);
       if (type === 'sort') setShowSortSheet(false);
       if (type === 'filter') setShowFilterSheet(false);
@@ -29954,176 +29955,185 @@ Mohon info ketersediaan stok & pengiriman ya!`}
       )}
 
       {/* ==========================================================
-         MOBILE DISCARD CONFIRMATION BOTTOM SHEET (PROFESSIONAL NATIVE FEEL)
+         MOBILE DISCARD CONFIRMATION BOTTOM SHEET (FLUSH AT BOTTOM WITH DRAG DISMISS)
          ========================================================== */}
       {showDiscardConfirmSheet && (
         <div
-          className="modal-overlay"
+          className="bottom-sheet-backdrop"
+          style={{ zIndex: 100010 }}
           onClick={() => setShowDiscardConfirmSheet(false)}
-          style={{
-            zIndex: 1300,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            background: 'rgba(0, 0, 0, 0.72)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)'
-          }}
         >
           <div
-            className="discard-sheet-content"
+            className="bottom-sheet-content"
             onClick={(e) => e.stopPropagation()}
             style={{
+              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '88vh',
+              padding: '0.65rem 0 calc(1.75rem + env(safe-area-inset-bottom, 16px)) 0',
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
               width: '100%',
-              maxWidth: '520px',
-              backgroundColor: 'var(--bg-card)',
-              borderTop: '1px solid var(--border-light)',
-              borderRadius: '1.5rem 1.5rem 0 0',
-              padding: '1.25rem 1.25rem calc(1.75rem + env(safe-area-inset-bottom, 16px))',
-              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.55)',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
+              flexDirection: 'column'
             }}
           >
-            {/* Sheet Handle Bar */}
-            <div style={{
-              width: '38px',
-              height: '4px',
-              borderRadius: '999px',
-              backgroundColor: 'var(--border-medium, rgba(255, 255, 255, 0.2))',
-              margin: '0 auto 0.25rem'
-            }} />
+            {/* Smooth Drag Handle Area */}
+            <div
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('discard_confirm')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('discard_confirm')}
+            >
+              <div className="bottom-sheet-handle" />
+            </div>
 
-            {/* Header with Amber Warning Badge */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+            {/* Header (Interactive Drag Area with Icon & Title) */}
+            <div
+              className="bottom-sheet-header"
+              style={{
+                padding: '0 1.25rem 0.75rem',
+                borderBottom: '1px solid var(--border-light)',
+                cursor: 'grab',
+                touchAction: 'none',
+                userSelect: 'none'
+              }}
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={() => handleSheetDragEnd('discard_confirm')}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={() => handleSheetDragEnd('discard_confirm')}
+            >
+              <div className="bottom-sheet-title-box" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(245, 158, 11, 0.14)',
+                  border: '1px solid rgba(245, 158, 11, 0.28)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <AlertTriangle size={18} color="#f59e0b" />
+                </div>
+                <div>
+                  <h3 className="bottom-sheet-title" style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800 }}>
+                    Perubahan Belum Disimpan
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Sheet Body Content */}
+            <div style={{ padding: '1rem 1.25rem 0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <p style={{
+                margin: 0,
+                fontSize: '0.84rem',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.45
+              }}>
+                Ada data atau gambar yang sedang Anda isi. Pilih tindakan sebelum meninggalkan formulir:
+              </p>
+
+              {/* Local Draft Info Callout */}
               <div style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                border: '1px solid rgba(245, 158, 11, 0.25)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                boxShadow: '0 0 16px rgba(245, 158, 11, 0.15)'
+                gap: '0.6rem'
               }}>
-                <AlertTriangle size={22} color="#f59e0b" />
+                <Sparkles size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                  Draf formulir tersimpan otomatis di perangkat Anda sehingga dapat dilanjutkan nanti.
+                </span>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{
-                  margin: '0 0 0.25rem 0',
-                  fontSize: '1.05rem',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  letterSpacing: '-0.01em'
-                }}>
-                  Perubahan Belum Disimpan
-                </h3>
-                <p style={{
-                  margin: 0,
-                  fontSize: '0.82rem',
-                  color: 'var(--text-secondary)',
-                  lineHeight: 1.45
-                }}>
-                  Ada data atau gambar yang sedang Anda isi. Pilih tindakan sebelum meninggalkan formulir:
-                </p>
+
+              {/* Action Buttons Stack */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.25rem' }}>
+                {/* Primary: Lanjut Mengedit */}
+                <button
+                  type="button"
+                  onClick={() => setShowDiscardConfirmSheet(false)}
+                  style={{
+                    height: '46px',
+                    width: '100%',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 14px var(--primary-glow)',
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  <span>Lanjut Mengedit</span>
+                </button>
+
+                {/* Secondary: Simpan Draf & Keluar */}
+                <button
+                  type="button"
+                  onClick={handleMobileConfirmSaveDraftAndExit}
+                  style={{
+                    height: '46px',
+                    width: '100%',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'var(--bg-card-hover)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  <Save size={16} />
+                  <span>Simpan Draf & Keluar</span>
+                </button>
+
+                {/* Destructive: Buang Perubahan */}
+                <button
+                  type="button"
+                  onClick={handleMobileConfirmDiscardAndExit}
+                  style={{
+                    height: '42px',
+                    width: '100%',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'transparent',
+                    border: '1px solid rgba(239, 68, 68, 0.28)',
+                    color: '#ef4444',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  <Trash2 size={15} />
+                  <span>Buang Perubahan</span>
+                </button>
               </div>
-            </div>
-
-            {/* Local Draft Info Callout */}
-            <div style={{
-              padding: '0.65rem 0.85rem',
-              borderRadius: '0.75rem',
-              backgroundColor: 'var(--bg-card-hover)',
-              border: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem'
-            }}>
-              <Sparkles size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
-              <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                Draf formulir tersimpan otomatis di perangkat Anda sehingga dapat dilanjutkan nanti.
-              </span>
-            </div>
-
-            {/* Action Buttons Stack (Touch-Friendly Vertical Order) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.25rem' }}>
-              {/* Primary: Lanjut Mengedit */}
-              <button
-                type="button"
-                onClick={() => setShowDiscardConfirmSheet(false)}
-                style={{
-                  height: '46px',
-                  width: '100%',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '0.92rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  boxShadow: '0 4px 14px var(--primary-glow)',
-                  WebkitTapHighlightColor: 'transparent'
-                }}
-              >
-                <span>Lanjut Mengedit</span>
-              </button>
-
-              {/* Secondary: Simpan Draf & Keluar */}
-              <button
-                type="button"
-                onClick={handleMobileConfirmSaveDraftAndExit}
-                style={{
-                  height: '46px',
-                  width: '100%',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'var(--bg-card-hover)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.45rem',
-                  WebkitTapHighlightColor: 'transparent'
-                }}
-              >
-                <Save size={16} />
-                <span>Simpan Draf & Keluar</span>
-              </button>
-
-              {/* Destructive: Buang Perubahan */}
-              <button
-                type="button"
-                onClick={handleMobileConfirmDiscardAndExit}
-                style={{
-                  height: '42px',
-                  width: '100%',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'transparent',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  color: '#ef4444',
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.45rem',
-                  WebkitTapHighlightColor: 'transparent'
-                }}
-              >
-                <Trash2 size={15} />
-                <span>Buang Perubahan</span>
-              </button>
             </div>
           </div>
         </div>
