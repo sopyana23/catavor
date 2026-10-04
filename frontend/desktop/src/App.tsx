@@ -551,7 +551,7 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
       { id: 'pest_disease', title: 'Terinfeksi Hama / Penyakit Tanaman Menular Berbahaya', desc: 'Tanaman terbukti membawa kutu, jamur parasit, atau penyakit tumbuhan yang dapat menular luas' },
       { id: 'false_species', title: 'Spesies / Varietas Palsu (ID Tanaman Manipulatif)', desc: 'ID jenis bibit/varietas tidak sesuai, manipulasi varigata buatan, atau foto tanaman palsu' },
       { id: 'unsafe_packaging', title: 'Metode Packing Sembarangan / Tanpa Pelindung', desc: 'Pengiriman bibit hidup tanpa pengaman batang/akar memadai sehingga tanaman hancur' },
-      { id: 'other', title: 'Pelanggaran Lainnya pada Tanaman & Flora', desc: 'Pelanggaran ketentuan tanaman atau flora lainnya yang tidak tercantum di atas' }
+      { id: 'other', title: 'Pelanggaran Lainnya pada Tanaman', desc: 'Pelanggaran ketentuan tanaman lainnya yang tidak tercantum di atas' }
     ];
   }
 
@@ -576,8 +576,8 @@ export function getReportingSectorInfo(targetType: 'store' | 'item', item?: any)
     case 'food': return { label: 'Kuliner & F&B', color: '#ea580c', icon: Utensils };
     case 'digital': return { label: 'Produk Digital', color: '#8b5cf6', icon: Smartphone };
     case 'property': return { label: 'Properti & Real Estate', color: '#0d9488', icon: Building2 };
-    case 'fauna': return { label: 'Hewan Peliharaan', color: 'var(--primary)', icon: PawPrint };
-    case 'plant': return { label: 'Tanaman & Tumbuhan', color: 'var(--primary)', icon: Sprout };
+    case 'fauna': return { label: 'Hewan', color: 'var(--primary)', icon: PawPrint };
+    case 'plant': return { label: 'Tanaman', color: 'var(--primary)', icon: Sprout };
     default: return { label: 'Produk Fisik', color: '#e11d48', icon: Package };
   }
 }
@@ -819,7 +819,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'fauna':
       return {
         type: 'fauna',
-        typeName: 'Hewan & Satwa Peliharaan',
+        typeName: 'Hewan',
         badgeName: 'Hewan',
         icon: PawPrint,
         color: 'var(--primary)',
@@ -853,7 +853,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'plant':
       return {
         type: 'plant',
-        typeName: 'Tanaman & Tumbuhan',
+        typeName: 'Tanaman',
         badgeName: 'Tanaman',
         icon: Sprout,
         color: 'var(--primary)',
@@ -11129,7 +11129,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     const payload = {
       name: crudForm.name,
-      scientific_name: crudForm.product_type === 'fauna' ? (crudForm.scientific_name || '') : '',
+      scientific_name: (crudForm.product_type === 'fauna' || crudForm.product_type === 'plant') ? (crudForm.scientific_name || '') : '',
       class: selectedClass,
       habitat: crudForm.product_type === 'fauna' ? selectedHabitat : 'General',
       diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
@@ -11213,6 +11213,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   }
 
+  // Helper to normalize storage URL to root-relative path for reliable loading & CSP compliance
+  const normalizeUploadedUrl = (rawUrl?: string): string => {
+    if (!rawUrl) return '';
+    const idx = rawUrl.indexOf('/storage/');
+    if (idx !== -1) {
+      return rawUrl.substring(idx);
+    }
+    return rawUrl;
+  };
+
+  const BROKEN_IMG_FALLBACK = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%22%20height%3D%22100%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%221.5%22%3E%3Crect%20width%3D%2218%22%20height%3D%2218%22%20x%3D%223%22%20y%3D%223%22%20rx%3D%222%22%20ry%3D%222%22%2F%3E%3Ccircle%20cx%3D%229%22%20cy%3D%229%22%20r%3D%222%22%2F%3E%3Cpath%20d%3D%22m21%2015-3.086-3.086a2%202%200%200%200-2.828%200L6%2021%22%2F%3E%3Cline%20x1%3D%222%22%20y1%3D%222%22%20x2%3D%2222%22%20y2%3D%2222%22%20stroke%3D%22%23ef4444%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E";
+
   // Handle File Upload from Device
   const handleImageUpload = async (index: number, file: File) => {
     setUploadingIndex(index)
@@ -11237,7 +11249,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const data = await res.json()
       if (res.ok && data.success) {
         const newImages = [...crudImages]
-        newImages[index] = data.url
+        newImages[index] = normalizeUploadedUrl(data.url)
         setCrudImages(newImages)
         fetchMyQuota()
       } else {
@@ -11279,7 +11291,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         })
         const data = await res.json()
         if (res.ok && data.success && data.url) {
-          return data.url
+          return normalizeUploadedUrl(data.url)
         }
         return null
       })
@@ -15191,7 +15203,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Specs List */}
                 <div style={{ borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)', padding: '1.25rem 0', marginBottom: '1.5rem' }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.85rem' }}>
-                    {selectedFauna.product_type === 'property' ? 'Spesifikasi Properti & Listing' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi File Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : (selectedFauna.product_type === 'plant' ? 'Spesifikasi Tanaman & Tumbuhan' : 'Spesifikasi Hewan')))))}
+                    {selectedFauna.product_type === 'property' ? 'Spesifikasi Properti' : (selectedFauna.product_type === 'food' ? 'Spesifikasi Kuliner' : (selectedFauna.product_type === 'service' ? 'Spesifikasi Layanan' : (selectedFauna.product_type === 'digital' ? 'Spesifikasi Berkas Digital' : (selectedFauna.product_type === 'physical' ? 'Spesifikasi Produk Fisik' : (selectedFauna.product_type === 'plant' ? 'Spesifikasi Tanaman' : 'Spesifikasi Hewan')))))}
                   </h3>
                   
                   <div style={{
@@ -20398,10 +20410,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                             {[
                               { id: 'physical', label: 'Barang Fisik' },
-                              { id: 'food', label: 'Kuliner & F&B' },
+                              { id: 'property', label: 'Properti' },
+                              { id: 'food', label: 'Kuliner' },
                               { id: 'service', label: 'Jasa & Layanan' },
                               { id: 'digital', label: 'Produk Digital' },
-                              { id: 'fauna', label: 'Satwa & Fauna' }
+                              { id: 'fauna', label: 'Hewan' },
+                              { id: 'plant', label: 'Tanaman' }
                             ].map(tab => (
                               <button
                                 key={tab.id}
@@ -25081,11 +25095,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
                 )}
 
-                {/* TANAMAN & TUMBUHAN */}
+                {/* TANAMAN */}
                 {crudForm.product_type === 'plant' && (
                   <div style={{ background: 'var(--primary-glow)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '0.85rem' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
-                      Atribut Spesifik Tanaman &amp; Tumbuhan
+                      Atribut Spesifik Tanaman
                     </span>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -25573,7 +25587,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             {/* Preview Thumbnail */}
                             <div style={{ width: '46px', height: '46px', borderRadius: '0.45rem', overflow: 'hidden', border: '1px solid var(--border-light)', background: 'var(--bg-card)', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                               {imgUrl ? (
-                                <img src={imgUrl} alt={`Preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80'; }} />
+                                <img 
+                                  src={normalizeUploadedUrl(imgUrl)} 
+                                  alt={`Preview ${index + 1}`} 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                  onError={(e) => { 
+                                    e.currentTarget.onerror = null; 
+                                    e.currentTarget.src = BROKEN_IMG_FALLBACK; 
+                                  }} 
+                                />
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                   <Image size={15} style={{ color: 'var(--primary)' }} />

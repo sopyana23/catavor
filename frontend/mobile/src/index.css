@@ -364,6 +364,18 @@ button, input, textarea, select {
 
 .form-row, .form-row-aligned, .form-grid-row, div[style*="gridTemplateColumns"] {
   align-items: end;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.form-row > .form-group,
+.form-row-aligned > .form-group,
+.form-grid-row > .form-group,
+div[style*="gridTemplateColumns"] > .form-group {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .form-row > .form-group > .form-label,

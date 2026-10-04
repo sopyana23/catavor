@@ -107,6 +107,14 @@ func SanitizeURL(rawURL string) string {
 		return ""
 	}
 
+	// Allow safe relative paths (e.g. /storage/stores/...)
+	if strings.HasPrefix(trimmed, "/") {
+		if strings.HasPrefix(trimmed, "//") {
+			return ""
+		}
+		return trimmed
+	}
+
 	// Auto prefix http/https if it looks like a domain without scheme (e.g. instagram.com/myuser)
 	if !strings.Contains(trimmed, "://") && !strings.HasPrefix(lower, "mailto:") && !strings.HasPrefix(lower, "tel:") {
 		trimmed = "https://" + trimmed
