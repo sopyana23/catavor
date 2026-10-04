@@ -8080,6 +8080,81 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0)
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
   const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false)
+  const [isModalShaking, setIsModalShaking] = useState<boolean>(false)
+
+  // Form dirty check: protects user input from accidental dismissal or automatic route resets
+  const isFormDirty = useCallback((): boolean => {
+    if (!crudForm) return false;
+    if (crudForm.name && crudForm.name.trim() !== '') return true;
+    if (crudForm.price && Number(crudForm.price) > 0) return true;
+    if (crudForm.description && crudForm.description.trim() !== '') return true;
+    if (crudImages && crudImages.some(img => img && img.trim() !== '')) return true;
+    if (crudImageFiles && crudImageFiles.some(f => f !== null)) return true;
+    if (crudForm.video_url && crudForm.video_url.trim() !== '') return true;
+    if (crudForm.scientific_name && crudForm.scientific_name.trim() !== '') return true;
+    return false;
+  }, [crudForm, crudImages, crudImageFiles]);
+
+  // Industry-Standard Static Backdrop Click Guard: Resists accidental outside clicks when form is dirty
+  const handleOverlayClick = () => {
+    if (!isFormDirty()) {
+      setShowCrudModal(false);
+      resetCrudState('physical');
+      const slug = storeSlug || getStoreSlug() || '';
+      if (slug) {
+        window.history.replaceState({}, '', `/${slug}/admin/items`);
+      }
+      return;
+    }
+    // Prevent accidental close: trigger visual resistance cue (shake animation) + alert
+    setIsModalShaking(true);
+    setTimeout(() => setIsModalShaking(false), 500);
+    showToast('Form memiliki perubahan yang belum disimpan. Klik "Batal" atau tombol ✕ jika ingin keluar.', 'info');
+  };
+
+  // Safe Explicit Modal Close Handler with confirmation guard
+  const handleCloseModal = () => {
+    if (isFormDirty()) {
+      if (!window.confirm('Ada perubahan yang belum disimpan. Yakin ingin menutup form dan membuang perubahan?')) {
+        return;
+      }
+      const currentSlug = storeSlug || getStoreSlug() || 'default';
+      try {
+        localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
+      } catch {}
+    }
+    setShowCrudModal(false);
+    resetCrudState('physical');
+    const slug = storeSlug || getStoreSlug() || '';
+    if (slug) {
+      window.history.replaceState({}, '', `/${slug}/admin/items`);
+    }
+  };
+
+  // Auto-Save Draft to LocalStorage (Debounced 500ms)
+  useEffect(() => {
+    if (crudMode !== 'create') return;
+    const currentSlug = storeSlug || getStoreSlug() || 'default';
+    const prodType = crudForm.product_type || 'physical';
+    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
+
+    if (!isFormDirty()) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        const serializableImages = crudImages.filter(img => img && !img.startsWith('blob:'));
+        localStorage.setItem(draftKey, JSON.stringify({
+          form: crudForm,
+          images: serializableImages,
+          savedAt: Date.now()
+        }));
+      } catch {}
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [crudForm, crudImages, crudMode, storeSlug, isFormDirty]);
 
   const resetCrudState = (type: ItemCategoryType = 'physical') => {
     if (crudImages && Array.isArray(crudImages)) {
@@ -8418,12 +8493,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
           if (pageSub === 'items') {
             setAdminTab('items');
             if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
-              const prodType = parts[4];
-              if (['physical', 'digital', 'service', 'food', 'fauna', 'property'].includes(prodType)) {
-                resetCrudState(prodType as any);
+              const prodType = parts[4] || 'physical';
+              if (!showCrudModal) {
+                if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
+                  resetCrudState(prodType as any);
+                  const currentSlug = storeSlug || getStoreSlug() || 'default';
+                  const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
+                  try {
+                    const savedDraftRaw = localStorage.getItem(draftKey);
+                    if (savedDraftRaw) {
+                      const draft = JSON.parse(savedDraftRaw);
+                      if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
+                        setCrudForm(draft.form);
+                        if (draft.images && draft.images.length > 0) {
+                          setCrudImages(draft.images);
+                          setCrudImageFiles(new Array(draft.images.length).fill(null));
+                        }
+                      }
+                    }
+                  } catch {}
+                }
+                setCrudMode('create');
+                setShowCrudModal(true);
               }
-              setCrudMode('create');
-              setShowCrudModal(true);
             } else if (subSub === 'edit' && paramId) {
               let actualId = paramId;
               let prodType = 'physical';
@@ -8667,12 +8759,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
             if (pageSub === 'items') {
               setAdminTab('items');
               if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
-                const prodType = parts[4];
-                if (['physical', 'digital', 'service', 'food', 'fauna', 'property'].includes(prodType)) {
-                  resetCrudState(prodType as any);
+                const prodType = parts[4] || 'physical';
+                if (!showCrudModal) {
+                  if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
+                    resetCrudState(prodType as any);
+                    const currentSlug = storeSlug || getStoreSlug() || 'default';
+                    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
+                    try {
+                      const savedDraftRaw = localStorage.getItem(draftKey);
+                      if (savedDraftRaw) {
+                        const draft = JSON.parse(savedDraftRaw);
+                        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
+                          setCrudForm(draft.form);
+                          if (draft.images && draft.images.length > 0) {
+                            setCrudImages(draft.images);
+                            setCrudImageFiles(new Array(draft.images.length).fill(null));
+                          }
+                        }
+                      }
+                    } catch {}
+                  }
+                  setCrudMode('create');
+                  setShowCrudModal(true);
                 }
-                setCrudMode('create');
-                setShowCrudModal(true);
               } else if (subSub === 'edit' && paramId) {
                 let actualId = paramId;
                 let prodType = 'physical';
@@ -10966,6 +11075,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return;
     }
     resetCrudState(initialType);
+    const currentSlug = storeSlug || getStoreSlug() || 'default';
+    const draftKey = `catavor_draft_${currentSlug}_${initialType}`;
+    try {
+      const savedDraftRaw = localStorage.getItem(draftKey);
+      if (savedDraftRaw) {
+        const draft = JSON.parse(savedDraftRaw);
+        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
+          setCrudForm(draft.form);
+          if (draft.images && draft.images.length > 0) {
+            setCrudImages(draft.images);
+            setCrudImageFiles(new Array(draft.images.length).fill(null));
+          }
+          showToast('Draf produk Anda sebelumnya berhasil dipulihkan.', 'info');
+        }
+      }
+    } catch {}
     setShowCrudModal(true);
   };
 
@@ -11236,6 +11361,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           });
         }
+        const currentSlug = storeSlug || getStoreSlug() || 'default';
+        try {
+          localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
+        } catch {}
         setShowCrudModal(false)
         resetCrudState('physical')
         loadData()
@@ -24617,7 +24746,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         return (
           <div 
             className="modal-overlay" 
-            onClick={() => { setShowCrudModal(false); resetCrudState('physical'); }}
+            onClick={handleOverlayClick}
             style={{ 
               zIndex: 1100, 
               padding: '1.5rem',
@@ -24627,7 +24756,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             }}
           >
             <div 
-              className="glass-panel" 
+              className={`glass-panel ${isModalShaking ? 'modal-shake' : ''}`}
               onClick={(e) => e.stopPropagation()} 
               style={{ 
                 maxWidth: '940px', 
@@ -24681,7 +24810,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   {/* Clean Close Button (Never overlaps category tabs) */}
                   <button 
                     type="button"
-                    onClick={() => { setShowCrudModal(false); resetCrudState('physical'); }}
+                    onClick={handleCloseModal}
                     style={{
                       width: '36px',
                       height: '36px',
@@ -26059,7 +26188,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               }}>
                 <button 
                   type="button" 
-                  onClick={() => { setShowCrudModal(false); resetCrudState('physical'); }}
+                  onClick={handleCloseModal}
                   style={{
                     height: '42px',
                     padding: '0 1.5rem',

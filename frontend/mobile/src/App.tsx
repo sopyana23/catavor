@@ -8362,6 +8362,44 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
   const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false)
 
+  // Form dirty check: protects user input from accidental dismissal or automatic route resets
+  const isFormDirty = useCallback((): boolean => {
+    if (!crudForm) return false;
+    if (crudForm.name && crudForm.name.trim() !== '') return true;
+    if (crudForm.price && Number(crudForm.price) > 0) return true;
+    if (crudForm.description && crudForm.description.trim() !== '') return true;
+    if (crudImages && crudImages.some(img => img && img.trim() !== '')) return true;
+    if (crudImageFiles && crudImageFiles.some(f => f !== null)) return true;
+    if (crudForm.video_url && crudForm.video_url.trim() !== '') return true;
+    if (crudForm.scientific_name && crudForm.scientific_name.trim() !== '') return true;
+    return false;
+  }, [crudForm, crudImages, crudImageFiles]);
+
+  // Auto-Save Draft to LocalStorage (Debounced 500ms)
+  useEffect(() => {
+    if (crudMode !== 'create') return;
+    const currentSlug = storeSlug || getStoreSlug() || 'default';
+    const prodType = crudForm.product_type || 'physical';
+    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
+
+    if (!isFormDirty()) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        const serializableImages = crudImages.filter(img => img && !img.startsWith('blob:'));
+        localStorage.setItem(draftKey, JSON.stringify({
+          form: crudForm,
+          images: serializableImages,
+          savedAt: Date.now()
+        }));
+      } catch {}
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [crudForm, crudImages, crudMode, storeSlug, isFormDirty]);
+
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<ShopSettings>(() => ({
     whatsapp_number: '',
@@ -8665,9 +8703,26 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
               const prodType = parts[4];
               if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
-                resetCrudState(prodType as any);
-                setCrudMode('create');
-                setView('fauna-editor');
+                if (view !== 'fauna-editor') {
+                  resetCrudState(prodType as any);
+                  const currentSlug = storeSlug || getStoreSlug() || 'default';
+                  const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
+                  try {
+                    const savedDraftRaw = localStorage.getItem(draftKey);
+                    if (savedDraftRaw) {
+                      const draft = JSON.parse(savedDraftRaw);
+                      if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
+                        setCrudForm(draft.form);
+                        if (draft.images && draft.images.length > 0) {
+                          setCrudImages(draft.images);
+                          setCrudImageFiles(new Array(draft.images.length).fill(null));
+                        }
+                      }
+                    }
+                  } catch {}
+                  setCrudMode('create');
+                  setView('fauna-editor');
+                }
                 setShowProductTypeSelector(false);
               } else {
                 setShowProductTypeSelector(true);
@@ -9052,9 +9107,26 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
                 const prodType = parts[4];
                 if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
-                  resetCrudState(prodType as any);
-                  setCrudMode('create');
-                  setView('fauna-editor');
+                  if (view !== 'fauna-editor') {
+                    resetCrudState(prodType as any);
+                    const currentSlug = storeSlug || getStoreSlug() || 'default';
+                    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
+                    try {
+                      const savedDraftRaw = localStorage.getItem(draftKey);
+                      if (savedDraftRaw) {
+                        const draft = JSON.parse(savedDraftRaw);
+                        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
+                          setCrudForm(draft.form);
+                          if (draft.images && draft.images.length > 0) {
+                            setCrudImages(draft.images);
+                            setCrudImageFiles(new Array(draft.images.length).fill(null));
+                          }
+                        }
+                      }
+                    } catch {}
+                    setCrudMode('create');
+                    setView('fauna-editor');
+                  }
                   setShowProductTypeSelector(false);
                 } else {
                   setShowProductTypeSelector(true);
@@ -11459,6 +11531,22 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     // New item creation: completely fresh reset for the selected type
     resetCrudState(type)
+    const currentSlug = storeSlug || getStoreSlug() || 'default';
+    const draftKey = `catavor_draft_${currentSlug}_${type}`;
+    try {
+      const savedDraftRaw = localStorage.getItem(draftKey);
+      if (savedDraftRaw) {
+        const draft = JSON.parse(savedDraftRaw);
+        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
+          setCrudForm(draft.form);
+          if (draft.images && draft.images.length > 0) {
+            setCrudImages(draft.images);
+            setCrudImageFiles(new Array(draft.images.length).fill(null));
+          }
+          showToast('Draf produk Anda sebelumnya berhasil dipulihkan.', 'info');
+        }
+      }
+    } catch {}
     setView('fauna-editor')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -11804,6 +11892,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
       const data = await res.json()
       if (res.ok && data.success) {
+        const currentSlug = storeSlug || getStoreSlug() || 'default';
+        try {
+          localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
+        } catch {}
         setShowCrudSheet(false)
         setView('tabs')
         resetCrudState('physical')
@@ -16135,17 +16227,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             }}>
               <button 
                 type="button"
-                onClick={() => smartBack(() => {
-                  resetCrudState('physical');
-                  setView('tabs');
-                  setActiveTab('admin');
-                  setAdminSubTab('items');
-                  setShowProductTypeSelector(false);
-                  const slug = storeSlug || getStoreSlug() || '';
-                  if (slug) {
-                    window.history.replaceState({}, '', `/${slug}/admin/items`);
+                onClick={() => {
+                  if (isFormDirty()) {
+                    const confirmLeave = window.confirm('Anda memiliki perubahan yang belum disimpan. Yakin ingin keluar? Draf perubahan Anda tetap tersimpan.');
+                    if (!confirmLeave) return;
                   }
-                })}
+                  smartBack(() => {
+                    resetCrudState('physical');
+                    setView('tabs');
+                    setActiveTab('admin');
+                    setAdminSubTab('items');
+                    setShowProductTypeSelector(false);
+                    const slug = storeSlug || getStoreSlug() || '';
+                    if (slug) {
+                      window.history.replaceState({}, '', `/${slug}/admin/items`);
+                    }
+                  });
+                }}
                 className="btn-back-circle"
                 title="Batal"
               >
