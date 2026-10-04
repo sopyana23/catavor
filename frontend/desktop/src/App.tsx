@@ -57,6 +57,7 @@ import {
   Wrench,
   Star,
   AlertTriangle,
+  Save,
   ArrowRight,
   Share2,
   Utensils,
@@ -158,7 +159,7 @@ import { SwipeableToast } from './components/SwipeableToast'
 import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
-import { smartBack } from './utils/navigation'
+import { smartBack, useModalBackHandler } from './utils/navigation'
 
 export interface UserStoreSummary {
   id: number;
@@ -8112,19 +8113,49 @@ Terima kasih atas perhatian dan kerja samanya.`;
     showToast('Form memiliki perubahan yang belum disimpan. Klik "Batal" atau tombol ✕ jika ingin keluar.', 'info');
   };
 
+  // Discard Confirmation Modal State for Desktop
+  const [showDiscardConfirmModal, setShowDiscardConfirmModal] = useState<boolean>(false);
+
+  useModalBackHandler({
+    isOpen: showDiscardConfirmModal,
+    onClose: () => setShowDiscardConfirmModal(false),
+    modalId: 'desktop-discard-confirmation'
+  });
+
   // Safe Explicit Modal Close Handler with confirmation guard
   const handleCloseModal = () => {
     if (isFormDirty()) {
-      if (!window.confirm('Ada perubahan yang belum disimpan. Yakin ingin menutup form dan membuang perubahan?')) {
-        return;
-      }
-      const currentSlug = storeSlug || getStoreSlug() || 'default';
-      try {
-        localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
-      } catch {}
+      setShowDiscardConfirmModal(true);
+      return;
     }
     setShowCrudModal(false);
     resetCrudState('physical');
+    const slug = storeSlug || getStoreSlug() || '';
+    if (slug) {
+      window.history.replaceState({}, '', `/${slug}/admin/items`);
+    }
+  };
+
+  const handleConfirmSaveDraftAndExit = () => {
+    setShowDiscardConfirmModal(false);
+    setShowCrudModal(false);
+    resetCrudState('physical');
+    showToast('Draf formulir Anda tersimpan dengan aman.', 'success');
+    const slug = storeSlug || getStoreSlug() || '';
+    if (slug) {
+      window.history.replaceState({}, '', `/${slug}/admin/items`);
+    }
+  };
+
+  const handleConfirmDiscardAndExit = () => {
+    const currentSlug = storeSlug || getStoreSlug() || 'default';
+    try {
+      localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
+    } catch {}
+    setShowDiscardConfirmModal(false);
+    setShowCrudModal(false);
+    resetCrudState('physical');
+    showToast('Perubahan berhasil dibuang.', 'info');
     const slug = storeSlug || getStoreSlug() || '';
     if (slug) {
       window.history.replaceState({}, '', `/${slug}/admin/items`);
@@ -26242,6 +26273,186 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
         );
       })()}
+
+      {/* DESKTOP PROFESSIONAL DISCARD CONFIRMATION MODAL */}
+      {showDiscardConfirmModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowDiscardConfirmModal(false)}
+          style={{
+            zIndex: 1300,
+            padding: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)'
+          }}
+        >
+          <div
+            className="discard-modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '460px',
+              width: '100%',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '1.25rem',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06)',
+              padding: '1.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem'
+            }}
+          >
+            {/* Header with amber glowing warning icon */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '1rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 0 20px rgba(245, 158, 11, 0.18)'
+              }}>
+                <AlertTriangle size={24} color="#f59e0b" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{
+                  margin: '0 0 0.35rem 0',
+                  fontSize: '1.15rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  letterSpacing: '-0.01em'
+                }}>
+                  Perubahan Belum Disimpan
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '0.86rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5
+                }}>
+                  Ada data atau gambar yang baru saja diubah. Pilih tindakan yang ingin Anda ambil sebelum keluar:
+                </p>
+              </div>
+            </div>
+
+            {/* Local Draft Info Card */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '0.75rem',
+              backgroundColor: 'var(--bg-card-hover)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}>
+              <Sparkles size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                Sistem menyimpan <strong>draf lokal otomatis</strong> sehingga Anda dapat melanjutkannya kapan saja.
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.25rem' }}>
+              {/* Lanjut Mengedit (Primary recommended action) */}
+              <button
+                type="button"
+                onClick={() => setShowDiscardConfirmModal(false)}
+                style={{
+                  height: '44px',
+                  width: '100%',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 4px 14px var(--primary-glow)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.92'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+              >
+                <span>Lanjut Mengedit</span>
+              </button>
+
+              <div style={{ display: 'flex', gap: '0.6rem' }}>
+                {/* Simpan Draf & Keluar */}
+                <button
+                  type="button"
+                  onClick={handleConfirmSaveDraftAndExit}
+                  style={{
+                    flex: 1,
+                    height: '42px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'var(--bg-card-hover)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 600,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                >
+                  <Save size={15} />
+                  <span>Simpan Draf & Keluar</span>
+                </button>
+
+                {/* Buang Perubahan (Destructive) */}
+                <button
+                  type="button"
+                  onClick={handleConfirmDiscardAndExit}
+                  style={{
+                    height: '42px',
+                    padding: '0 1rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#ef4444',
+                    fontWeight: 600,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.16)';
+                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+                  }}
+                >
+                  <Trash2 size={15} />
+                  <span>Buang</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* LIGHTBOX OVERLAY WITH ZOOM & PAN */}
       {showLightbox && selectedFauna && (
