@@ -11481,7 +11481,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const handleAddMasterOption = async (
     field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage',
     value: string,
-    resetInput: (val: string) => void
+    resetInput: (val: string) => void,
+    productTypeOverride?: ItemCategoryType
   ) => {
     const trimmed = value.trim()
     if (!trimmed) {
@@ -11494,7 +11495,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const res = await fetch(`${API_BASE}/stores/add-master-option`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ field, value: trimmed, product_type: field === 'class' ? masterCategoryContextTab : undefined })
+        body: JSON.stringify({ 
+          field, 
+          value: trimmed, 
+          product_type: field === 'class' ? (productTypeOverride || crudForm.product_type || masterCategoryContextTab) : undefined 
+        })
       })
       const data = await res.json()
       if (!checkAuthResponse(res, data)) return
@@ -24870,54 +24875,283 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                 {/* Category Dropdown with Custom Add Button */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <label className="form-label" style={{ margin: 0, fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{typeConfig.categoryLabel}</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <label className="form-label" style={{ margin: 0, fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                        {typeConfig.categoryLabel}
+                      </label>
+                      <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
+                    </div>
+
+                    {/* Prominent Action Button with Tactile Button Design */}
                     <button 
                       type="button" 
-                      onClick={() => setShowCustomClassInput(!showCustomClassInput)}
-                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                      onClick={() => {
+                        const nextState = !showCustomClassInput;
+                        setShowCustomClassInput(nextState);
+                        if (!nextState) {
+                          setCustomClass('');
+                        }
+                      }}
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.28rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: showCustomClassInput ? '1px solid var(--border-light)' : '1px solid var(--primary)',
+                        backgroundColor: showCustomClassInput ? 'var(--bg-card-hover)' : 'rgba(16, 185, 129, 0.08)',
+                        color: showCustomClassInput ? 'var(--text-secondary)' : 'var(--primary)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        boxShadow: showCustomClassInput ? 'none' : '0 1px 4px var(--primary-glow)'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!showCustomClassInput) {
+                          e.currentTarget.style.backgroundColor = 'var(--primary)';
+                          e.currentTarget.style.color = '#ffffff';
+                        } else {
+                          e.currentTarget.style.borderColor = 'var(--text-muted)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!showCustomClassInput) {
+                          e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.08)';
+                          e.currentTarget.style.color = 'var(--primary)';
+                        } else {
+                          e.currentTarget.style.borderColor = 'var(--border-light)';
+                        }
+                      }}
                     >
-                      {showCustomClassInput ? 'Batal Tambah' : '+ Buat Kategori Baru'}
+                      {showCustomClassInput ? (
+                        <>
+                          <ArrowLeft size={13} />
+                          <span>Pilih dari Daftar Kategori</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={13} strokeWidth={2.5} />
+                          <span>+ Buat Kategori Baru</span>
+                        </>
+                      )}
                     </button>
                   </div>
 
                   {showCustomClassInput ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Ketik kategori kustom..."
-                        value={customClass}
-                        onChange={(e) => setCustomClass(e.target.value)}
-                        style={{ height: '42px', fontSize: '0.88rem' }}
-                      />
-                      <button 
-                        type="button" 
-                        className="btn-primary" 
-                        style={{ padding: '0 1.25rem', height: '42px', fontSize: '0.84rem', borderRadius: '0.5rem' }}
-                        onClick={async () => {
-                          if (!customClass.trim()) return;
-                          await handleAddMasterOption('class', customClass.trim(), (val) => {
-                            setCrudForm({ ...crudForm, class: customClass.trim() });
-                            setCustomClass(val);
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1.5px solid var(--primary)',
+                      boxShadow: '0 4px 14px var(--primary-glow)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.65rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Tag size={15} color="var(--primary)" />
+                          <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            Buat Kategori Kustom Baru
+                          </span>
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '0.35rem',
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            color: 'var(--primary)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em'
+                          }}>
+                            Kategori Baru
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
                             setShowCustomClassInput(false);
-                          });
-                        }}
-                      >
-                        Simpan
-                      </button>
+                            setCustomClass('');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.76rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.2rem 0.4rem',
+                            borderRadius: '0.35rem'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                        >
+                          <X size={13} />
+                          <span>Batal</span>
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder={`Ketik nama kategori baru yang Anda inginkan...`}
+                            value={customClass}
+                            onChange={(e) => {
+                              setCustomClass(e.target.value);
+                              setCrudForm({ ...crudForm, class: e.target.value });
+                            }}
+                            autoFocus
+                            style={{ 
+                              height: '42px', 
+                              fontSize: '0.88rem', 
+                              paddingRight: customClass ? '2rem' : '0.85rem',
+                              borderColor: 'var(--primary)'
+                            }}
+                          />
+                          {customClass && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomClass('');
+                                setCrudForm({ ...crudForm, class: '' });
+                              }}
+                              style={{
+                                position: 'absolute',
+                                right: '0.65rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: 0
+                              }}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                        <button 
+                          type="button" 
+                          className="btn-primary" 
+                          disabled={!customClass.trim()}
+                          style={{ 
+                            padding: '0 1.25rem', 
+                            height: '42px', 
+                            fontSize: '0.84rem', 
+                            borderRadius: '0.5rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            opacity: !customClass.trim() ? 0.6 : 1,
+                            cursor: !customClass.trim() ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                          onClick={async () => {
+                            if (!customClass.trim()) return;
+                            await handleAddMasterOption('class', customClass.trim(), (val) => {
+                              setCrudForm({ ...crudForm, class: customClass.trim() });
+                              setCustomClass(val);
+                              setShowCustomClassInput(false);
+                            }, crudForm.product_type);
+                          }}
+                        >
+                          <Check size={14} strokeWidth={2.5} />
+                          <span>Simpan & Gunakan</span>
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                        <Sparkles size={12} color="var(--primary)" />
+                        <span>Kategori ini akan otomatis tersimpan ke daftar master toko dan dapat Anda gunakan kembali nanti.</span>
+                      </div>
                     </div>
                   ) : (
-                    <select 
-                      className="form-select"
-                      value={crudForm.class}
-                      onChange={(e) => setCrudForm({ ...crudForm, class: e.target.value })}
-                      style={{ height: '42px', fontSize: '0.88rem' }}
-                    >
-                      {getCategoryOptionsForType(crudForm.product_type).map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <select 
+                        className="form-select"
+                        value={crudForm.class}
+                        onChange={(e) => {
+                          if (e.target.value === '__ADD_NEW_CATEGORY__') {
+                            setShowCustomClassInput(true);
+                            setCustomClass('');
+                          } else {
+                            setCrudForm({ ...crudForm, class: e.target.value });
+                          }
+                        }}
+                        style={{ height: '42px', fontSize: '0.88rem' }}
+                      >
+                        {getCategoryOptionsForType(crudForm.product_type).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option 
+                          value="__ADD_NEW_CATEGORY__" 
+                          style={{ fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--bg-card-hover)' }}
+                        >
+                          ➕ Buat Kategori Baru (Ketik Sendiri)...
+                        </option>
+                      </select>
+
+                      {/* Intuitive Notice / CTA Bar directly underneath the select */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        marginTop: '0.45rem',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px dashed var(--border-light)',
+                        transition: 'all 0.15s ease'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                          <Layers size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                            Kategori yang Anda cari tidak tersedia di pilihan?
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomClassInput(true);
+                            setCustomClass('');
+                          }}
+                          style={{
+                            padding: '0.3rem 0.75rem',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid var(--primary)',
+                            color: 'var(--primary)',
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            flexShrink: 0,
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--primary)';
+                            e.currentTarget.style.color = '#ffffff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+                            e.currentTarget.style.color = 'var(--primary)';
+                          }}
+                        >
+                          <Plus size={12} strokeWidth={2.5} />
+                          <span>Buat Kategori Baru</span>
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
 
