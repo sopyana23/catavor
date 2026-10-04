@@ -8136,56 +8136,21 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
-  const handleConfirmSaveDraftAndExit = () => {
+  const handleDesktopConfirmSaveAndExit = () => {
     setShowDiscardConfirmModal(false);
-    setShowCrudModal(false);
-    resetCrudState('physical');
-    showToast('Draf formulir Anda tersimpan dengan aman.', 'success');
-    const slug = storeSlug || getStoreSlug() || '';
-    if (slug) {
-      window.history.replaceState({}, '', `/${slug}/admin/items`);
-    }
+    handleFaunaSubmit({ preventDefault: () => {} } as React.FormEvent);
   };
 
   const handleConfirmDiscardAndExit = () => {
-    const currentSlug = storeSlug || getStoreSlug() || 'default';
-    try {
-      localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
-    } catch {}
     setShowDiscardConfirmModal(false);
     setShowCrudModal(false);
     resetCrudState('physical');
-    showToast('Perubahan berhasil dibuang.', 'info');
+    showToast('Perubahan dibatalkan.', 'info');
     const slug = storeSlug || getStoreSlug() || '';
     if (slug) {
       window.history.replaceState({}, '', `/${slug}/admin/items`);
     }
   };
-
-  // Auto-Save Draft to LocalStorage (Debounced 500ms)
-  useEffect(() => {
-    if (crudMode !== 'create') return;
-    const currentSlug = storeSlug || getStoreSlug() || 'default';
-    const prodType = crudForm.product_type || 'physical';
-    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
-
-    if (!isFormDirty()) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      try {
-        const serializableImages = crudImages.filter(img => img && !img.startsWith('blob:'));
-        localStorage.setItem(draftKey, JSON.stringify({
-          form: crudForm,
-          images: serializableImages,
-          savedAt: Date.now()
-        }));
-      } catch {}
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [crudForm, crudImages, crudMode, storeSlug, isFormDirty]);
 
   const resetCrudState = (type: ItemCategoryType = 'physical') => {
     if (crudImages && Array.isArray(crudImages)) {
@@ -8528,21 +8493,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
               if (!showCrudModal) {
                 if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
                   resetCrudState(prodType as any);
-                  const currentSlug = storeSlug || getStoreSlug() || 'default';
-                  const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
-                  try {
-                    const savedDraftRaw = localStorage.getItem(draftKey);
-                    if (savedDraftRaw) {
-                      const draft = JSON.parse(savedDraftRaw);
-                      if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
-                        setCrudForm(draft.form);
-                        if (draft.images && draft.images.length > 0) {
-                          setCrudImages(draft.images);
-                          setCrudImageFiles(new Array(draft.images.length).fill(null));
-                        }
-                      }
-                    }
-                  } catch {}
                 }
                 setCrudMode('create');
                 setShowCrudModal(true);
@@ -8794,21 +8744,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 if (!showCrudModal) {
                   if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
                     resetCrudState(prodType as any);
-                    const currentSlug = storeSlug || getStoreSlug() || 'default';
-                    const draftKey = `catavor_draft_${currentSlug}_${prodType}`;
-                    try {
-                      const savedDraftRaw = localStorage.getItem(draftKey);
-                      if (savedDraftRaw) {
-                        const draft = JSON.parse(savedDraftRaw);
-                        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
-                          setCrudForm(draft.form);
-                          if (draft.images && draft.images.length > 0) {
-                            setCrudImages(draft.images);
-                            setCrudImageFiles(new Array(draft.images.length).fill(null));
-                          }
-                        }
-                      }
-                    } catch {}
                   }
                   setCrudMode('create');
                   setShowCrudModal(true);
@@ -11106,22 +11041,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return;
     }
     resetCrudState(initialType);
-    const currentSlug = storeSlug || getStoreSlug() || 'default';
-    const draftKey = `catavor_draft_${currentSlug}_${initialType}`;
-    try {
-      const savedDraftRaw = localStorage.getItem(draftKey);
-      if (savedDraftRaw) {
-        const draft = JSON.parse(savedDraftRaw);
-        if (draft && draft.form && Date.now() - (draft.savedAt || 0) < 7 * 24 * 3600 * 1000) {
-          setCrudForm(draft.form);
-          if (draft.images && draft.images.length > 0) {
-            setCrudImages(draft.images);
-            setCrudImageFiles(new Array(draft.images.length).fill(null));
-          }
-          showToast('Draf produk Anda sebelumnya berhasil dipulihkan.', 'info');
-        }
-      }
-    } catch {}
     setShowCrudModal(true);
   };
 
@@ -11392,10 +11311,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           });
         }
-        const currentSlug = storeSlug || getStoreSlug() || 'default';
-        try {
-          localStorage.removeItem(`catavor_draft_${currentSlug}_${crudForm.product_type || 'physical'}`);
-        } catch {}
         setShowCrudModal(false)
         resetCrudState('physical')
         loadData()
@@ -26338,33 +26253,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   color: 'var(--text-secondary)',
                   lineHeight: 1.5
                 }}>
-                  Ada data atau gambar yang baru saja diubah. Pilih tindakan yang ingin Anda ambil sebelum keluar:
+                  Ada data atau gambar yang belum disimpan. Simpan perubahan Anda sekarang atau buang perubahan sebelum meninggalkan formulir?
                 </p>
               </div>
             </div>
 
-            {/* Local Draft Info Card */}
-            <div style={{
-              padding: '0.75rem 1rem',
-              borderRadius: '0.75rem',
-              backgroundColor: 'var(--bg-card-hover)',
-              border: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem'
-            }}>
-              <Sparkles size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                Sistem menyimpan <strong>draf lokal otomatis</strong> sehingga Anda dapat melanjutkannya kapan saja.
-              </span>
-            </div>
-
             {/* Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.25rem' }}>
-              {/* Lanjut Mengedit (Primary recommended action) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.35rem' }}>
+              {/* Simpan Perubahan (Primary Action) */}
               <button
                 type="button"
-                onClick={() => setShowDiscardConfirmModal(false)}
+                onClick={handleDesktopConfirmSaveAndExit}
                 style={{
                   height: '44px',
                   width: '100%',
@@ -26385,44 +26284,18 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.92'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
               >
-                <span>Lanjut Mengedit</span>
+                <Save size={16} />
+                <span>Simpan Perubahan</span>
               </button>
 
               <div style={{ display: 'flex', gap: '0.6rem' }}>
-                {/* Simpan Draf & Keluar */}
-                <button
-                  type="button"
-                  onClick={handleConfirmSaveDraftAndExit}
-                  style={{
-                    flex: 1,
-                    height: '42px',
-                    borderRadius: '0.75rem',
-                    backgroundColor: 'var(--bg-card-hover)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontWeight: 600,
-                    fontSize: '0.84rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; }}
-                >
-                  <Save size={15} />
-                  <span>Simpan Draf & Keluar</span>
-                </button>
-
                 {/* Buang Perubahan (Destructive) */}
                 <button
                   type="button"
                   onClick={handleConfirmDiscardAndExit}
                   style={{
+                    flex: 1,
                     height: '42px',
-                    padding: '0 1rem',
                     borderRadius: '0.75rem',
                     backgroundColor: 'rgba(239, 68, 68, 0.08)',
                     border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -26446,7 +26319,33 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   }}
                 >
                   <Trash2 size={15} />
-                  <span>Buang</span>
+                  <span>Buang Perubahan</span>
+                </button>
+
+                {/* Lanjut Mengedit (Cancel / Keep Editing) */}
+                <button
+                  type="button"
+                  onClick={() => setShowDiscardConfirmModal(false)}
+                  style={{
+                    flex: 1,
+                    height: '42px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'transparent',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--text-muted)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                >
+                  <span>Lanjut Mengedit</span>
                 </button>
               </div>
             </div>
