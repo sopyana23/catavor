@@ -94,16 +94,27 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStoreDropdown, setShowStoreDropdown]);
 
-  // Filter stores when search is typed
+  // Filter stores when search is typed and keep active store at the very top
   const filteredStores = React.useMemo(() => {
-    if (!storeSearchQuery.trim()) return userStores;
-    const q = storeSearchQuery.toLowerCase().trim();
-    return userStores.filter((s: any) => {
-      const title = (s.store_title || '').toLowerCase();
-      const slug = (s.slug || '').toLowerCase();
-      return title.includes(q) || slug.includes(q);
+    let list = userStores;
+    if (storeSearchQuery.trim()) {
+      const q = storeSearchQuery.toLowerCase().trim();
+      list = userStores.filter((s: any) => {
+        const title = (s.store_title || '').toLowerCase();
+        const slug = (s.slug || '').toLowerCase();
+        return title.includes(q) || slug.includes(q);
+      });
+    }
+
+    const curSlug = (storeSlug || '').toLowerCase();
+    return [...list].sort((a: any, b: any) => {
+      const isACurrent = (a.slug || '').toLowerCase() === curSlug;
+      const isBCurrent = (b.slug || '').toLowerCase() === curSlug;
+      if (isACurrent && !isBCurrent) return -1;
+      if (!isACurrent && isBCurrent) return 1;
+      return 0;
     });
-  }, [userStores, storeSearchQuery]);
+  }, [userStores, storeSearchQuery, storeSlug]);
 
   // Grouped Navigation Items
   const navSections = [
@@ -371,13 +382,13 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                 position: 'absolute',
                 top: isSidebarCollapsed ? '12px' : 'calc(100% + 8px)',
                 left: isSidebarCollapsed ? 'calc(100% + 10px)' : '1.15rem',
-                width: '320px',
+                width: '348px',
                 maxWidth: 'calc(100vw - 32px)',
                 backgroundColor: 'var(--bg-card, #0f172a)',
                 border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
-                borderRadius: '0.85rem',
+                borderRadius: '0.9rem',
                 boxShadow: '0 20px 48px -6px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border-light)',
-                padding: '0.65rem',
+                padding: '0.75rem',
                 zIndex: 100,
                 color: 'var(--text-primary)',
                 backdropFilter: 'blur(16px)',
@@ -387,7 +398,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
             >
               {/* Header: Title and User Email */}
               <div style={{
-                padding: '0.35rem 0.5rem 0.55rem',
+                padding: '0.2rem 0.25rem 0.55rem',
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -399,12 +410,12 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                 </span>
                 <span 
                   style={{
-                    fontSize: '0.68rem',
+                    fontSize: '0.7rem',
                     color: 'var(--text-muted)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    maxWidth: '140px',
+                    maxWidth: '170px',
                     textAlign: 'right'
                   }}
                   title={adminUser?.email}
@@ -415,7 +426,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
 
               {/* Quick Search for 4+ Catalogs */}
               {userStores.length >= 4 && (
-                <div style={{ position: 'relative', marginTop: '0.45rem', marginBottom: '0.2rem' }}>
+                <div style={{ position: 'relative', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
                   <Search
                     size={13}
                     style={{
@@ -480,12 +491,14 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               <div 
                 className="store-switcher-scroll-area catavor-custom-scrollbar"
                 style={{
-                  maxHeight: '260px',
+                  maxHeight: '275px',
                   overflowY: 'auto',
-                  padding: '0.35rem 0',
+                  overflowX: 'hidden',
+                  padding: '0.4rem 0.35rem 0.4rem 0.15rem',
+                  margin: '0 -0.15rem',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.25rem'
+                  gap: '0.35rem'
                 }}
               >
                 {filteredStores.length === 0 ? (
@@ -510,27 +523,29 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          padding: '0.45rem 0.55rem',
-                          borderRadius: '0.55rem',
+                          padding: '0.52rem 0.65rem',
+                          borderRadius: '0.65rem',
                           backgroundColor: isCurrent ? 'var(--primary-glow)' : 'transparent',
-                          border: isCurrent ? '1px solid var(--primary)' : '1px solid transparent',
+                          border: isCurrent ? '1.5px solid var(--primary)' : '1px solid transparent',
+                          boxShadow: isCurrent ? '0 0 0 1px var(--primary-glow)' : 'none',
                           cursor: isCurrent ? 'default' : 'pointer',
                           transition: 'all 0.15s ease',
-                          gap: '0.5rem'
+                          gap: '0.55rem',
+                          boxSizing: 'border-box'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
                           <div style={{
-                            width: '30px',
-                            height: '30px',
-                            borderRadius: '7px',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
                             backgroundColor: isCurrent ? 'var(--primary)' : 'var(--bg-card-hover)',
                             color: isCurrent ? '#ffffff' : 'var(--text-primary)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: 800,
-                            fontSize: '0.8rem',
+                            fontSize: '0.82rem',
                             flexShrink: 0,
                             overflow: 'hidden',
                             border: isCurrent ? 'none' : '1px solid var(--border-light)'
@@ -544,7 +559,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div 
                               style={{ 
-                                fontSize: '0.79rem', 
+                                fontSize: '0.8rem', 
                                 fontWeight: 700, 
                                 whiteSpace: 'nowrap', 
                                 overflow: 'hidden', 
@@ -574,18 +589,17 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.2rem',
-                              padding: '0.15rem 0.4rem',
-                              borderRadius: '4px',
+                              justifyContent: 'center',
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '6px',
                               backgroundColor: 'var(--primary)',
                               color: '#ffffff',
-                              fontSize: '0.64rem',
-                              fontWeight: 800,
-                              flexShrink: 0,
-                              whiteSpace: 'nowrap'
+                              flexShrink: 0
                             }}
+                            title="Katalog Aktif"
                           >
-                            <Check size={12} strokeWidth={2.5} />
+                            <Check size={13} strokeWidth={2.5} />
                           </div>
                         ) : (
                           <span 
@@ -593,14 +607,16 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                             style={{ 
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.15rem',
-                              fontSize: '0.67rem', 
+                              gap: '0.2rem',
+                              fontSize: '0.68rem', 
                               fontWeight: 600,
                               color: 'var(--text-muted)',
                               whiteSpace: 'nowrap',
                               flexShrink: 0,
-                              padding: '0.15rem 0.35rem',
-                              borderRadius: '4px',
+                              padding: '0.2rem 0.45rem',
+                              borderRadius: '5px',
+                              backgroundColor: 'var(--bg-deep, rgba(0,0,0,0.05))',
+                              border: '1px solid var(--border-light)',
                               transition: 'all 0.15s ease'
                             }}
                           >
@@ -615,7 +631,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               </div>
 
               {/* Bottom Actions */}
-              <div style={{ paddingTop: '0.45rem', borderTop: '1px solid var(--border-light)', marginTop: '0.25rem', display: 'flex', gap: '0.35rem' }}>
+              <div style={{ paddingTop: '0.55rem', borderTop: '1px solid var(--border-light)', marginTop: '0.35rem', display: 'flex', gap: '0.45rem' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -624,24 +640,24 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                   }}
                   style={{
                     flex: 1,
-                    padding: '0.45rem 0.5rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.5rem 0.6rem',
+                    borderRadius: '0.55rem',
                     backgroundColor: 'var(--bg-deep)',
                     border: '1px solid var(--border-light)',
                     color: 'var(--text-primary)',
                     fontWeight: 700,
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.35rem',
+                    gap: '0.4rem',
                     transition: 'all 0.15s ease'
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                 >
-                  <Store size={13} />
+                  <Store size={14} />
                   <span>Pusat Katalog</span>
                 </button>
                 <button
@@ -652,22 +668,22 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                   }}
                   style={{
                     flex: 1,
-                    padding: '0.45rem 0.5rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.5rem 0.6rem',
+                    borderRadius: '0.55rem',
                     backgroundColor: 'var(--primary-glow)',
                     border: '1px dashed var(--primary)',
                     color: 'var(--primary)',
                     fontWeight: 700,
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.35rem',
+                    gap: '0.4rem',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Plus size={13} />
+                  <Plus size={14} />
                   <span>Buat Baru</span>
                 </button>
               </div>
