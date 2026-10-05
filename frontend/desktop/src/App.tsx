@@ -5512,6 +5512,101 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   };
 
+  const [platformSettings, setPlatformSettings] = useState<Record<string, string>>({
+    rekber_enabled: '1',
+    rekber_partner_name: 'Rekber Syariah',
+    rekber_website_url: 'https://rekbersyariah.com',
+    rekber_wa_number: '',
+    rekber_template_physical: '',
+    rekber_template_general: '',
+    rekber_template_food: '',
+    rekber_template_digital: '',
+    rekber_template_service: '',
+    rekber_template_plant: '',
+    rekber_template_fauna: '',
+  });
+
+  const getCleanDomain = (rawUrl?: string) => {
+    if (!rawUrl) return 'rekbersyariah.com';
+    try {
+      const u = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+      return u.hostname || 'rekbersyariah.com';
+    } catch {
+      return rawUrl.replace(/^https?:\/\//i, '').split('/')[0] || 'rekbersyariah.com';
+    }
+  };
+
+  const generateRekberMessage = (
+    product: any,
+    shopSettings: any,
+    pSettings: Record<string, string>
+  ) => {
+    const pType = (product?.product_type || 'physical') as string;
+    const storeTitle = shopSettings?.store_title || 'Catavor';
+    const prodName = product?.name || 'Item';
+    const prodPrice = formatRupiah(product?.price || 0);
+    const rekberUrl = pSettings?.rekber_website_url || 'https://rekbersyariah.com';
+    const rekberDomain = getCleanDomain(rekberUrl);
+    const rekberWA = (pSettings?.rekber_wa_number || '').trim();
+    const waSection = rekberWA 
+      ? ` atau menghubungi Admin Rekber Syariah (WA: +${rekberWA.replace(/\D/g, '')}) agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)`
+      : ' atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)';
+
+    const typeLabels: Record<string, string> = {
+      physical: 'Barang Fisik',
+      food: 'Menu Kuliner',
+      digital: 'Item Digital',
+      service: 'Layanan Jasa',
+      plant: 'Tanaman',
+      fauna: 'Satwa / Hewan',
+      property: 'Properti',
+    };
+    const itemTypeLabel = typeLabels[pType] || 'Item';
+
+    let template = '';
+    if (pType === 'food') {
+      template = pSettings?.rekber_template_food || '';
+    } else if (pType === 'digital') {
+      template = pSettings?.rekber_template_digital || '';
+    } else if (pType === 'service') {
+      template = pSettings?.rekber_template_service || '';
+    } else if (pType === 'plant') {
+      template = pSettings?.rekber_template_plant || '';
+    } else if (pType === 'fauna') {
+      template = pSettings?.rekber_template_fauna || '';
+    } else {
+      template = pSettings?.rekber_template_physical || pSettings?.rekber_template_general || '';
+    }
+
+    if (!template) {
+      if (pType === 'food') {
+        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`;
+      } else if (pType === 'digital') {
+        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+      } else if (pType === 'service') {
+        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.`;
+      } else if (pType === 'plant') {
+        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+      } else if (pType === 'fauna') {
+        template = `Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih.`;
+      } else {
+        template = `Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+      }
+    }
+
+    return template
+      .replace(/{store_title}/g, storeTitle)
+      .replace(/{item_name}/g, prodName)
+      .replace(/{product_name}/g, prodName)
+      .replace(/{item_price}/g, prodPrice)
+      .replace(/{product_price}/g, prodPrice)
+      .replace(/{item_type_label}/g, itemTypeLabel)
+      .replace(/{rekber_website_url}/g, rekberUrl)
+      .replace(/{rekber_website_domain}/g, rekberDomain)
+      .replace(/{rekber_wa_number}/g, rekberWA)
+      .replace(/{rekber_wa_section}/g, waSection);
+  };
+
   const fetchPlatformSettings = async () => {
     try {
       const res = await fetch('/api/settings');
@@ -5519,6 +5614,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         const data = await res.json();
         const settingsData = data.data || data;
         if (settingsData) {
+          setPlatformSettings(prev => ({
+            ...prev,
+            ...settingsData,
+          }));
           if (settingsData.ga_measurement_id) {
             const isGaEnabled = settingsData.ga_enabled === '1' || settingsData.ga_enabled === 'true';
             initGoogleAnalytics(settingsData.ga_measurement_id, isGaEnabled);
@@ -26259,10 +26358,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
                             <span style={{ fontSize: '0.84rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
                               {crudForm.product_type === 'service' 
-                                ? 'Rekber Syariah (Escrow Aman)' 
+                                ? 'Rekber Syariah (Escrow Jasa)' 
                                 : (crudForm.product_type === 'food'
-                                    ? 'Rekber Syariah (Frozen / Katering)'
-                                    : 'Chat WA & Rekber Syariah')}
+                                    ? 'Rekber Syariah (Kuliner & Katering)'
+                                    : (crudForm.product_type === 'digital'
+                                        ? 'Rekber Syariah (Item Digital & Lisensi)'
+                                        : (crudForm.product_type === 'plant'
+                                            ? 'Rekber Syariah (Tanaman & Bibit)'
+                                            : (crudForm.product_type === 'fauna'
+                                                ? 'Rekber Syariah (Satwa & Garansi Hidup)'
+                                                : 'Chat WA & Rekber Syariah (Barang Fisik)'))))}
                             </span>
                             <button
                               type="button"
@@ -26293,9 +26398,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             </button>
                           </div>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.15rem', lineHeight: 1.35 }}>
-                            {crudForm.product_type === 'food'
-                              ? 'Cocok untuk makanan beku, hampers, atau pesanan katering partai besar.'
-                              : 'Dana ditahan aman di rekening penampung syariah hingga pesanan selesai.'}
+                            {platformSettings.rekber_enabled === '0' ? (
+                              <span style={{ color: '#eab308', fontWeight: 600 }}>
+                                ⚠️ Fitur Rekber Syariah sedang dinonaktifkan secara global oleh Pengelola Platform.
+                              </span>
+                            ) : crudForm.product_type === 'service'
+                              ? `Dana ditahan aman di escrow ${platformSettings.rekber_partner_name || 'Rekber Syariah'} hingga pengerjaan tuntas & diverifikasi klien.`
+                              : crudForm.product_type === 'food'
+                                ? `Cocok untuk makanan beku, hampers, atau katering partai besar via ${platformSettings.rekber_partner_name || 'Rekber Syariah'}.`
+                                : crudForm.product_type === 'digital'
+                                  ? `Proteksi pembayaran aman hingga link unduh file atau lisensi resmi diterima pembeli.`
+                                  : crudForm.product_type === 'plant'
+                                    ? `Proteksi dana pembeli hingga tanaman hias / bibit tiba dalam kondisi segar & sehat.`
+                                    : crudForm.product_type === 'fauna'
+                                      ? `Proteksi dana pembeli dengan jaminan garansi hidup & kesehatan saat hewan tiba.`
+                                      : `Dana ditahan aman di escrow ${platformSettings.rekber_partner_name || 'Rekber Syariah'} (${getCleanDomain(platformSettings.rekber_website_url)}) hingga barang diterima & dicek pembeli.`}
                           </span>
                         </div>
                       </label>
@@ -27511,7 +27628,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
         const isProperty = selectedFauna.product_type === 'property';
         const itemWA = resolveProductWAContact(selectedFauna, storeWAContacts, settings.whatsapp_number);
         const hasPhone = Boolean(itemWA.cleanNumber);
-        const showRekberOption = !isProperty && hasPhone && settings.enable_wa_rekber !== false && isItemWARekberEnabled;
+        const showRekberOption = !isProperty && hasPhone && settings.enable_wa_rekber !== false && isItemWARekberEnabled && platformSettings.rekber_enabled !== '0';
         const showDirectOption = hasPhone && settings.enable_wa_direct !== false && isItemWADirectEnabled;
         const hasAnyOptions = normalizedLinks.length > 0 || showRekberOption || showDirectOption;
 
@@ -27632,13 +27749,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                             {showRekberOption && (
                               <a 
-                                href={buildWALink(itemWA.cleanNumber, 
-                                  selectedFauna.product_type === 'service'
-                                    ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`
-                                    : selectedFauna.product_type === 'food'
-                                    ? `Halo Admin Rekber Syariah *${settings.store_title || 'Catavor'}*, saya ingin memesan produk kuliner/katering dengan perlindungan Rekber Syariah:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`
-                                    : `Halo *${settings.store_title || 'Catavor'}*, saya berminat membeli produk berikut:\n📦 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah (rekbersyariah.com)*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website https://rekbersyariah.com atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli). Terima kasih.`
-                                )}
+                                href={buildWALink(itemWA.cleanNumber, generateRekberMessage(selectedFauna, settings, platformSettings))}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => {
@@ -28612,7 +28723,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     Mengenal Layanan Rekber Syariah
                   </h3>
                   <p style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 600, margin: '0.15rem 0 0 0' }}>
-                    Transparan • Amanah • Bebas Riba (rekbersyariah.com)
+                    Transparan • Amanah • Bebas Riba ({getCleanDomain(platformSettings.rekber_website_url)})
                   </p>
                 </div>
               </div>
@@ -28728,7 +28839,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 </h4>
                 <ol style={{ margin: 0, paddingLeft: '1.15rem', fontSize: '0.76rem', display: 'flex', flexDirection: 'column', gap: '0.45rem', color: 'var(--text-secondary)' }}>
                   <li><strong style={{ color: 'var(--text-primary)' }}>Hubungi Penjual:</strong> Pembeli mengontak WhatsApp penjual dengan format pesan resmi permohonan transaksi via Rekber Syariah.</li>
-                  <li><strong style={{ color: 'var(--text-primary)' }}>Pendaftaran Transaksi:</strong> Penjual / Pembeli mendaftarkan detail transaksi ke website rekbersyariah.com atau langsung menghubungi admin resmi Rekber Syariah.</li>
+                  <li><strong style={{ color: 'var(--text-primary)' }}>Pendaftaran Transaksi:</strong> Penjual / Pembeli mendaftarkan detail transaksi ke website {getCleanDomain(platformSettings.rekber_website_url)} atau langsung menghubungi admin resmi Rekber Syariah.</li>
                   <li><strong style={{ color: 'var(--text-primary)' }}>Pembuatan Grup WA Resmi:</strong> Admin Rekber Syariah membuat grup WhatsApp khusus yang beranggotakan Admin Rekber, Pembeli, dan Penjual untuk memandu transaksi.</li>
                   <li><strong style={{ color: 'var(--text-primary)' }}>Penyetoran Dana &amp; Pengiriman:</strong> Pembeli menyetorkan dana aman ke Rekening Bersama Syariah, lalu penjual mengirimkan barang / memulai jasa.</li>
                   <li><strong style={{ color: 'var(--text-primary)' }}>Verifikasi &amp; Pencairan Dana:</strong> Barang diterima dan diperiksa pembeli. Setelah sesuai kesepakatan, dana di Rekber Syariah langsung dicairkan ke rekening penjual.</li>
@@ -28747,7 +28858,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               flexShrink: 0
             }}>
               <a 
-                href="https://rekbersyariah.com" 
+                href={platformSettings.rekber_website_url || 'https://rekbersyariah.com'} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 style={{
@@ -28760,7 +28871,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   textDecoration: 'none'
                 }}
               >
-                <span>Kunjungi rekbersyariah.com</span>
+                <span>Kunjungi {getCleanDomain(platformSettings.rekber_website_url)}</span>
                 <ExternalLink size={13} />
               </a>
 

@@ -443,9 +443,10 @@ func main() {
 		adminApi.Get("/stores/search", notificationHandler.SearchStores)
 		adminApi.Get("/users/search", notificationHandler.SearchUsers)
 
-		// Monetization & Google Analytics Settings
-		adminApi.Get("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Index)
-		adminApi.Post("/settings", middleware.RequirePermission(cfg, "monetization:google:manage"), settingHandler.Store)
+		// Monetization, Rekber Syariah & Platform Settings
+		adminApi.Get("/settings", settingHandler.Index)
+		adminApi.Post("/settings", settingHandler.Store)
+		adminApi.Post("/settings/rekber/reset-defaults", settingHandler.ResetRekberDefaults)
 
 		// Master Safe Domains (Ecosystem URL Whitelist)
 		adminApi.Get("/safe-domains", safeDomainHandler.GetAdminSafeDomains)

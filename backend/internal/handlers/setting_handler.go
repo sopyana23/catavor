@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"time"
 
 	"catavor-backend/internal/database"
@@ -72,6 +73,42 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 		res["market_intel_enabled"] = "1"
 	}
 
+	// Master Settings: Mitra Rekber Syariah (rekbersyariah.com)
+	// Applicable exclusively to 6 transactional catalog types: Physical, Food, Digital, Service, Plant, Fauna (Property is excluded).
+	if _, ok := res["rekber_enabled"]; !ok {
+		res["rekber_enabled"] = "1"
+	}
+	if _, ok := res["rekber_partner_name"]; !ok {
+		res["rekber_partner_name"] = "Rekber Syariah"
+	}
+	if _, ok := res["rekber_website_url"]; !ok {
+		res["rekber_website_url"] = "https://rekbersyariah.com"
+	}
+	if _, ok := res["rekber_wa_number"]; !ok {
+		res["rekber_wa_number"] = ""
+	}
+	if _, ok := res["rekber_template_physical"]; !ok {
+		res["rekber_template_physical"] = "Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	}
+	if _, ok := res["rekber_template_general"]; !ok {
+		res["rekber_template_general"] = res["rekber_template_physical"]
+	}
+	if _, ok := res["rekber_template_food"]; !ok {
+		res["rekber_template_food"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih."
+	}
+	if _, ok := res["rekber_template_digital"]; !ok {
+		res["rekber_template_digital"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	}
+	if _, ok := res["rekber_template_service"]; !ok {
+		res["rekber_template_service"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih."
+	}
+	if _, ok := res["rekber_template_plant"]; !ok {
+		res["rekber_template_plant"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	}
+	if _, ok := res["rekber_template_fauna"]; !ok {
+		res["rekber_template_fauna"] = "Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih."
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    res,
@@ -96,6 +133,38 @@ func (h *SettingHandler) GetAdsTxt(c *fiber.Ctx) error {
 }
 
 func (h *SettingHandler) Store(c *fiber.Ctx) error {
+	// Security check: Only Platform Admin (Super Admin or operational staff) can mutate platform settings.
+	// Merchants are strictly disallowed to prevent tampering with platform monetization, ads, or partner credentials.
+	userVal := c.Locals("user")
+	var user *models.User
+	if userVal != nil {
+		user, _ = userVal.(*models.User)
+	}
+	if user == nil {
+		if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
+			var u models.User
+			if err := database.DB.First(&u, uid).Error; err == nil {
+				user = &u
+			}
+		}
+	}
+
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	role := strings.ToLower(strings.TrimSpace(user.PlatformRole))
+	if role == "" || role == "merchant" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_ROLE",
+			"message": "Akses Ditolak: Hanya Pengelola Platform (Admin/Superadmin) yang berwenang mengubah konfigurasi sistem.",
+		})
+	}
+
 	var payload map[string]string
 	if err := c.BodyParser(&payload); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -122,7 +191,61 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Pengaturan berhasil disimpan.",
+		"message": "Pengaturan platform berhasil disimpan.",
+	})
+}
+
+// ResetRekberDefaults restores Rekber Syariah configuration back to official factory defaults
+func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
+	userVal := c.Locals("user")
+	var user *models.User
+	if userVal != nil {
+		user, _ = userVal.(*models.User)
+	}
+	if user == nil {
+		if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
+			var u models.User
+			if err := database.DB.First(&u, uid).Error; err == nil {
+				user = &u
+			}
+		}
+	}
+
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+
+	role := strings.ToLower(strings.TrimSpace(user.PlatformRole))
+	if role == "" || role == "merchant" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_ROLE",
+			"message": "Akses Ditolak: Hanya Pengelola Platform yang berwenang.",
+		})
+	}
+
+	keys := []string{
+		"rekber_enabled",
+		"rekber_partner_name",
+		"rekber_website_url",
+		"rekber_wa_number",
+		"rekber_template_physical",
+		"rekber_template_general",
+		"rekber_template_food",
+		"rekber_template_digital",
+		"rekber_template_service",
+		"rekber_template_plant",
+		"rekber_template_fauna",
+	}
+
+	database.DB.Where("key IN ?", keys).Delete(&models.Setting{})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Konfigurasi Rekber Syariah berhasil direset ke standar resmi rekbersyariah.com.",
 	})
 }
 
