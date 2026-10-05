@@ -87,26 +87,26 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if _, ok := res["rekber_wa_number"]; !ok {
 		res["rekber_wa_number"] = ""
 	}
-	if _, ok := res["rekber_template_physical"]; !ok {
-		res["rekber_template_physical"] = "Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	if _, ok := res["rekber_template_physical"]; !ok || res["rekber_template_physical"] == "" {
+		res["rekber_template_physical"] = "Halo *{store_title}*, saya berminat membeli produk berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
 	}
-	if _, ok := res["rekber_template_general"]; !ok {
+	if _, ok := res["rekber_template_general"]; !ok || res["rekber_template_general"] == "" {
 		res["rekber_template_general"] = res["rekber_template_physical"]
 	}
-	if _, ok := res["rekber_template_food"]; !ok {
-		res["rekber_template_food"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih."
+	if _, ok := res["rekber_template_food"]; !ok || res["rekber_template_food"] == "" {
+		res["rekber_template_food"] = "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih."
 	}
-	if _, ok := res["rekber_template_digital"]; !ok {
-		res["rekber_template_digital"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	if _, ok := res["rekber_template_digital"]; !ok || res["rekber_template_digital"] == "" {
+		res["rekber_template_digital"] = "Halo *{store_title}*, saya ingin membeli item digital berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) agar file dan lisensi terlindungi secara aman.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
 	}
-	if _, ok := res["rekber_template_service"]; !ok {
-		res["rekber_template_service"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih."
+	if _, ok := res["rekber_template_service"]; !ok || res["rekber_template_service"] == "" {
+		res["rekber_template_service"] = "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n*{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan escrow Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih."
 	}
-	if _, ok := res["rekber_template_plant"]; !ok {
-		res["rekber_template_plant"] = "Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	if _, ok := res["rekber_template_plant"]; !ok || res["rekber_template_plant"] == "" {
+		res["rekber_template_plant"] = "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
 	}
-	if _, ok := res["rekber_template_fauna"]; !ok {
-		res["rekber_template_fauna"] = "Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih."
+	if _, ok := res["rekber_template_fauna"]; !ok || res["rekber_template_fauna"] == "" {
+		res["rekber_template_fauna"] = "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih."
 	}
 
 	return c.JSON(fiber.Map{
