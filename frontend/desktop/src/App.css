@@ -2316,4 +2316,63 @@
   transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* ========================================================
+   Desktop Product Gallery Thumbnails Custom Horizontal Scrollbar
+   ======================================================== */
+.gallery-thumbnails-track {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary, #10b981) rgba(148, 163, 184, 0.18);
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Chrome, Edge, Safari WebKit Scrollbar Styling */
+.gallery-thumbnails-track::-webkit-scrollbar {
+  height: 6px !important;
+  background: transparent;
+}
+
+.gallery-thumbnails-track::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.16) !important;
+  border-radius: 9999px !important;
+  margin: 0 4px !important;
+}
+
+:root[data-theme="light"] .gallery-thumbnails-track::-webkit-scrollbar-track,
+:root[data-theme="minimalist"] .gallery-thumbnails-track::-webkit-scrollbar-track,
+:root[data-theme="navy"] .gallery-thumbnails-track::-webkit-scrollbar-track,
+[data-theme="light"] .gallery-thumbnails-track::-webkit-scrollbar-track,
+[data-theme="minimalist"] .gallery-thumbnails-track::-webkit-scrollbar-track,
+[data-theme="navy"] .gallery-thumbnails-track::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.gallery-thumbnails-track::-webkit-scrollbar-thumb {
+  background: var(--primary, #10b981) !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 8px var(--primary-glow, rgba(16, 185, 129, 0.35)) !important;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gallery-thumbnails-track::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-hover, #059669) !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35), 0 0 12px var(--primary-glow, rgba(16, 185, 129, 0.6)) !important;
+}
+
+.gallery-thumbnails-track::-webkit-scrollbar-thumb:active {
+  background: var(--primary-hover, #047857) !important;
+}
+
+/* Remove Windows native scrollbar arrow buttons (< >) */
+.gallery-thumbnails-track::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.gallery-thumbnails-track::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
 
