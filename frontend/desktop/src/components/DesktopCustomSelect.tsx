@@ -158,6 +158,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
       style={{
         position: 'relative',
         width: '100%',
+        minWidth: 0,
         userSelect: 'none',
         zIndex: isOpen ? 60 : 1,
         ...style,
@@ -178,6 +179,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           width: '100%',
+          minWidth: 0,
           height: style?.height ? String(style.height) : '40px',
           padding: style?.height && Number(style.height) <= 34 ? '0 0.6rem' : '0 0.85rem',
           borderRadius: '0.6rem',
