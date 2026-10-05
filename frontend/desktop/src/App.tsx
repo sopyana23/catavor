@@ -6577,11 +6577,19 @@ Terima kasih.`;
   }, [isDetailActive]);
 
   const handleCloseDetail = useCallback(() => {
+    setShowCrudModal(false);
+    setShowDiscardConfirmModal(false);
     const wasDetail = isDetailActiveRef.current || !!activeDetailItemIdRef.current || isDetailActive;
     setIsDetailActive(false);
     setSelectedFauna(null);
     activeDetailItemIdRef.current = null;
     isDetailActiveRef.current = false;
+
+    const slug = storeSlug || getStoreSlug() || '';
+    if (slug) {
+      const cleanUrl = view === 'admin' ? `/${slug}/admin/items` : `/${slug}`;
+      window.history.replaceState({}, '', cleanUrl);
+    }
 
     if (wasDetail) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -6603,7 +6611,7 @@ Terima kasih.`;
         if (document.body) document.body.scrollTop = 0;
       }, 150);
     }
-  }, [isDetailActive])
+  }, [isDetailActive, view, storeSlug])
   const [showPurchaseOptions, setShowPurchaseOptions] = useState<boolean>(false)
   const [showRekberExplainerModal, setShowRekberExplainerModal] = useState<boolean>(false)
   const [purchaseQty, setPurchaseQty] = useState<number>(1)
@@ -8447,7 +8455,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       resetCrudState('physical');
       const slug = storeSlug || getStoreSlug() || '';
       if (slug) {
-        window.history.replaceState({}, '', `/${slug}/admin/items`);
+        const cleanUrl = isDetailActive && selectedFauna?.id ? `/${slug}/admin/items?item=${selectedFauna.id}` : `/${slug}/admin/items`;
+        window.history.replaceState({}, '', cleanUrl);
       }
       return;
     }
@@ -8466,6 +8475,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
     modalId: 'desktop-discard-confirmation'
   });
 
+  useModalBackHandler({
+    isOpen: showCrudModal,
+    onClose: () => {
+      if (isFormDirty()) {
+        setShowDiscardConfirmModal(true);
+      } else {
+        setShowCrudModal(false);
+        resetCrudState('physical');
+        const slug = storeSlug || getStoreSlug() || '';
+        if (slug) {
+          const cleanUrl = isDetailActive && selectedFauna?.id ? `/${slug}/admin/items?item=${selectedFauna.id}` : `/${slug}/admin/items`;
+          window.history.replaceState({}, '', cleanUrl);
+        }
+      }
+    },
+    modalId: 'desktop-crud-modal'
+  });
+
   // Safe Explicit Modal Close Handler with confirmation guard
   const handleCloseModal = () => {
     if (isFormDirty()) {
@@ -8476,7 +8503,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     resetCrudState('physical');
     const slug = storeSlug || getStoreSlug() || '';
     if (slug) {
-      window.history.replaceState({}, '', `/${slug}/admin/items`);
+      const cleanUrl = isDetailActive && selectedFauna?.id ? `/${slug}/admin/items?item=${selectedFauna.id}` : `/${slug}/admin/items`;
+      window.history.replaceState({}, '', cleanUrl);
     }
   };
 
@@ -8492,7 +8520,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     showToast('Perubahan dibatalkan.', 'info');
     const slug = storeSlug || getStoreSlug() || '';
     if (slug) {
-      window.history.replaceState({}, '', `/${slug}/admin/items`);
+      const cleanUrl = isDetailActive && selectedFauna?.id ? `/${slug}/admin/items?item=${selectedFauna.id}` : `/${slug}/admin/items`;
+      window.history.replaceState({}, '', cleanUrl);
     }
   };
 
@@ -9068,6 +9097,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         const parts = path.split('/').filter(Boolean);
         const urlParams = new URLSearchParams(window.location.search);
         const popItemId = urlParams.get('item');
+        const wasClosingDetail = isDetailActiveRef.current || !!activeDetailItemIdRef.current;
         if (popItemId) {
           activeDetailItemIdRef.current = popItemId;
           const found = faunas.find(f => f && String(f.id) === popItemId);
@@ -9091,7 +9121,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
             if (pageSub === 'items') {
               setAdminTab('items');
-              if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
+              if (wasClosingDetail) {
+                setShowCrudModal(false);
+                if (slug) {
+                  window.history.replaceState({}, '', `/${slug}/admin/items`);
+                }
+              } else if (subSub === 'create' || subSub === 'new' || subSub === 'create-type' || subSub === 'select-type') {
                 const prodType = parts[4] || 'physical';
                 if (!showCrudModal) {
                   if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(prodType)) {
@@ -9102,17 +9137,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 }
               } else if (subSub === 'edit' && paramId) {
                 let actualId = paramId;
-                let prodType = 'physical';
                 if (parts.length >= 6) {
-                  prodType = parts[4];
                   actualId = parts[5];
                 } else if (parts.length >= 5) {
                   actualId = parts[4];
                 }
-                setCrudForm(prev => ({ ...prev, product_type: (prodType as any) || 'physical' }));
-                setCrudMode('edit');
-                setEditId(parseInt(actualId, 10));
-                setShowCrudModal(true);
+                const targetId = parseInt(actualId, 10);
+                const found = faunas.find(f => f.id === targetId);
+                if (found && (!showCrudModal || editId !== targetId)) {
+                  openEditModal(found);
+                } else if (!found) {
+                  setShowCrudModal(false);
+                }
               } else {
                 setShowCrudModal(false);
               }
@@ -10000,7 +10036,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
     const fullTarget = `${targetPath}${queryString}`;
 
     if (window.location.pathname + window.location.search !== fullTarget) {
-      if (isPopStateRef.current) {
+      const isModalTransition = Boolean(
+        showCrudModal ||
+        showQRModal ||
+        window.location.pathname.includes('/create/') ||
+        window.location.pathname.includes('/edit/') ||
+        window.location.pathname.includes('/share')
+      );
+
+      if (isPopStateRef.current || isModalTransition) {
         window.history.replaceState(
           { view, adminTab, settingsSubTab, activePublicTab, item: selectedFauna?.id, ticket: selectedTicket?.id, notifId: selectedNotificationDetail?.id },
           '',
@@ -11662,18 +11706,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           });
         }
-        setShowCrudModal(false)
-        resetCrudState('physical')
-        loadData()
-        fetchMyQuota()
-        showToast(crudMode === 'create' ? 'Item katalog berhasil ditambahkan!' : 'Item katalog berhasil diperbarui!')
+        setShowCrudModal(false);
+        resetCrudState('physical');
+
+        const slug = storeSlug || getStoreSlug() || '';
+        const targetCleanUrl = (isDetailActive && selectedFauna?.id)
+          ? `/${slug}/admin/items?item=${selectedFauna.id}`
+          : `/${slug}/admin/items`;
+        if (slug) {
+          window.history.replaceState({}, '', targetCleanUrl);
+        }
+
+        if (data.data && isDetailActive && selectedFauna) {
+          setSelectedFauna(data.data);
+        }
+
+        loadData();
+        fetchMyQuota();
+        showToast(crudMode === 'create' ? 'Item katalog berhasil ditambahkan!' : 'Item katalog berhasil diperbarui!');
         if (view === 'admin') {
-          sessionStorage.setItem('catavor_desktop_view', 'admin')
-          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items')
+          sessionStorage.setItem('catavor_desktop_view', 'admin');
+          sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items');
         }
         setTimeout(() => {
-          window.location.reload()
-        }, 500)
+          window.location.reload();
+        }, 500);
       } else {
         if (res.status === 401) {
           handleUnauthorized()
