@@ -75,7 +75,15 @@ import {
   VolumeX,
   ArrowUp,
   Database,
-  Package
+  Package,
+  Utensils,
+  FileCode,
+  Briefcase,
+  Sprout,
+  PawPrint,
+  ShoppingBag,
+  PhoneCall,
+  Link as LinkIcon
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { AdminRBACManagement } from './AdminRBACManagement';
@@ -83,6 +91,16 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
+
+export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
+  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
+  rekber_template_general: "Halo *{store_title}*, saya berminat membeli produk berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
+  rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.",
+  rekber_template_digital: "Halo *{store_title}*, saya ingin membeli item digital berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) agar file dan lisensi terlindungi secara aman.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
+  rekber_template_service: "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n*{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan escrow Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.",
+  rekber_template_plant: "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
+  rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.",
+};
 import { smartBack } from '../utils/navigation';
 import { apiClient } from '../utils/apiClient';
 import appLogoImg from '../assets/logo.png';
@@ -1223,13 +1241,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
     rekber_wa_number: '',
-    rekber_template_physical: '',
-    rekber_template_general: '',
-    rekber_template_food: '',
-    rekber_template_digital: '',
-    rekber_template_service: '',
-    rekber_template_plant: '',
-    rekber_template_fauna: '',
+    ...REKBER_FACTORY_DEFAULTS
   });
   const [rekberActiveTemplateTab, setRekberActiveTemplateTab] = useState<'physical' | 'food' | 'digital' | 'service' | 'plant' | 'fauna'>('physical');
   const [savingSettings, setSavingSettings] = useState(false);
@@ -2195,9 +2207,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         if (setRes.ok) {
           const setData = await setRes.json();
           if (setData.data) {
+            const d = setData.data;
             setGoogleSettings(prev => ({
               ...prev,
-              ...setData.data,
+              ...d,
+              rekber_template_physical: d.rekber_template_physical || d.rekber_template_general || REKBER_FACTORY_DEFAULTS.rekber_template_physical,
+              rekber_template_general: d.rekber_template_general || d.rekber_template_physical || REKBER_FACTORY_DEFAULTS.rekber_template_general,
+              rekber_template_food: d.rekber_template_food || REKBER_FACTORY_DEFAULTS.rekber_template_food,
+              rekber_template_digital: d.rekber_template_digital || REKBER_FACTORY_DEFAULTS.rekber_template_digital,
+              rekber_template_service: d.rekber_template_service || REKBER_FACTORY_DEFAULTS.rekber_template_service,
+              rekber_template_plant: d.rekber_template_plant || REKBER_FACTORY_DEFAULTS.rekber_template_plant,
+              rekber_template_fauna: d.rekber_template_fauna || REKBER_FACTORY_DEFAULTS.rekber_template_fauna,
             }));
           }
         }
@@ -3047,6 +3067,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       });
       if (res.ok) {
         showToast('Konfigurasi Rekber Syariah berhasil direset ke standar resmi rekbersyariah.com!', 'success');
+        setGoogleSettings(prev => ({
+          ...prev,
+          rekber_enabled: '1',
+          rekber_partner_name: 'Rekber Syariah',
+          rekber_website_url: 'https://rekbersyariah.com',
+          rekber_wa_number: '',
+          ...REKBER_FACTORY_DEFAULTS
+        }));
         loadData();
       } else {
         showToast('Gagal mereset konfigurasi Rekber', 'error');
@@ -12815,32 +12843,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     flexDirection: 'column',
                     gap: '0.45rem'
                   }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: theme.textPrimary }}>
-                      🏷️ Variabel Dinamis yang Didukung:
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Tag size={13} style={{ color: '#0284c7' }} />
+                      <span>Variabel Dinamis yang Didukung:</span>
                     </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                       {[
-                        { code: '{item_name}', desc: 'Nama Item/Barang/Jasa' },
-                        { code: '{item_price}', desc: 'Harga / Tarif / Biaya' },
-                        { code: '{item_type_label}', desc: 'Tipe Katalog' },
-                        { code: '{store_title}', desc: 'Nama Toko / Usaha' },
-                        { code: '{rekber_website_url}', desc: 'URL Website Rekber' },
-                        { code: '{rekber_website_domain}', desc: 'Domain Rekber' },
-                        { code: '{rekber_wa_number}', desc: 'No. WA Admin Rekber' },
-                        { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin' },
+                        { code: '{item_name}', desc: 'Nama Item/Barang/Jasa', icon: <ShoppingBag size={11} /> },
+                        { code: '{item_price}', desc: 'Harga / Tarif / Biaya', icon: <DollarSign size={11} /> },
+                        { code: '{item_type_label}', desc: 'Tipe Katalog', icon: <Layers size={11} /> },
+                        { code: '{store_title}', desc: 'Nama Toko / Usaha', icon: <Store size={11} /> },
+                        { code: '{rekber_website_url}', desc: 'URL Website Rekber', icon: <Globe size={11} /> },
+                        { code: '{rekber_website_domain}', desc: 'Domain Rekber', icon: <LinkIcon size={11} /> },
+                        { code: '{rekber_wa_number}', desc: 'No. WA Admin Rekber', icon: <PhoneCall size={11} /> },
+                        { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin', icon: <ShieldCheck size={11} /> },
                       ].map((item, idx) => (
                         <span
                           key={idx}
                           style={{
                             fontSize: '0.67rem',
                             fontWeight: 600,
-                            padding: '0.18rem 0.5rem',
+                            padding: '0.2rem 0.5rem',
                             borderRadius: '0.45rem',
-                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.08)',
                             color: isDark ? '#38bdf8' : '#0284c7',
-                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`
+                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
                           }}
                         >
+                          <span style={{ opacity: 0.85, display: 'flex', alignItems: 'center' }}>{item.icon}</span>
                           <code>{item.code}</code> : {item.desc}
                         </span>
                       ))}
@@ -12850,12 +12883,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   {/* Template Tabs: 6 Allowed Catalog Types */}
                   <div style={{ display: 'flex', gap: '0.45rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.5rem', overflowX: 'auto' }}>
                     {[
-                      { key: 'physical', label: '📦 Barang Fisik' },
-                      { key: 'food', label: '🍲 Menu Kuliner' },
-                      { key: 'digital', label: '💾 Item Digital' },
-                      { key: 'service', label: '💼 Jasa & Layanan' },
-                      { key: 'plant', label: '🌱 Tanaman' },
-                      { key: 'fauna', label: '🐾 Satwa / Hewan' },
+                      { key: 'physical', label: 'Barang Fisik', icon: <Package size={14} /> },
+                      { key: 'food', label: 'Menu Kuliner', icon: <Utensils size={14} /> },
+                      { key: 'digital', label: 'Item Digital', icon: <FileCode size={14} /> },
+                      { key: 'service', label: 'Jasa & Layanan', icon: <Briefcase size={14} /> },
+                      { key: 'plant', label: 'Tanaman', icon: <Sprout size={14} /> },
+                      { key: 'fauna', label: 'Satwa / Hewan', icon: <PawPrint size={14} /> },
                     ].map((tab) => (
                       <button
                         key={tab.key}
@@ -12873,10 +12906,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           fontWeight: 700,
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem'
                         }}
                       >
-                        {tab.label}
+                        <span style={{ display: 'flex', alignItems: 'center' }}>{tab.icon}</span>
+                        <span>{tab.label}</span>
                       </button>
                     ))}
                   </div>
@@ -12886,11 +12923,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {rekberActiveTemplateTab === 'physical' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
-                            Template Pemesanan Barang Fisik:
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Package size={13} style={{ color: '#10b981' }} />
+                            <span>Template Pemesanan Barang Fisik:</span>
                           </label>
                           <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
-                            Kosongkan jika ingin memakai standar pabrik
+                            Dapat dihapus & disesuaikan langsung
                           </span>
                         </div>
                         <textarea
@@ -12901,7 +12939,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             rekber_template_physical: e.target.value,
                             rekber_template_general: e.target.value,
                           }))}
-                          placeholder={`Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`}
+                          placeholder={REKBER_FACTORY_DEFAULTS.rekber_template_physical}
                           className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                           style={{
                             width: '100%',
@@ -12923,11 +12961,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {rekberActiveTemplateTab === 'food' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
-                            Template Pemesanan Menu Kuliner / F&B:
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Utensils size={13} style={{ color: '#10b981' }} />
+                            <span>Template Pemesanan Menu Kuliner / F&B:</span>
                           </label>
                           <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
-                            Kosongkan jika ingin memakai standar pabrik
+                            Dapat dihapus & disesuaikan langsung
                           </span>
                         </div>
                         <textarea
@@ -12937,7 +12976,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ...prev,
                             rekber_template_food: e.target.value
                           }))}
-                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`}
+                          placeholder={REKBER_FACTORY_DEFAULTS.rekber_template_food}
                           className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                           style={{
                             width: '100%',
@@ -12959,11 +12998,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {rekberActiveTemplateTab === 'digital' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
-                            Template Pemesanan Item Digital & Lisensi:
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <FileCode size={13} style={{ color: '#10b981' }} />
+                            <span>Template Pemesanan Item Digital & Lisensi:</span>
                           </label>
                           <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
-                            Kosongkan jika ingin memakai standar pabrik
+                            Dapat dihapus & disesuaikan langsung
                           </span>
                         </div>
                         <textarea
@@ -12973,7 +13013,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ...prev,
                             rekber_template_digital: e.target.value
                           }))}
-                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`}
+                          placeholder={REKBER_FACTORY_DEFAULTS.rekber_template_digital}
                           className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                           style={{
                             width: '100%',
@@ -12995,11 +13035,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {rekberActiveTemplateTab === 'service' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
-                            Template Pemesanan Jasa & Layanan (Escrow Masa Pengerjaan):
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Briefcase size={13} style={{ color: '#10b981' }} />
+                            <span>Template Pemesanan Jasa & Layanan (Escrow Pengerjaan):</span>
                           </label>
                           <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
-                            Kosongkan jika ingin memakai standar pabrik
+                            Dapat dihapus & disesuaikan langsung
                           </span>
                         </div>
                         <textarea
@@ -13009,7 +13050,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ...prev,
                             rekber_template_service: e.target.value
                           }))}
-                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`}
+                          placeholder={REKBER_FACTORY_DEFAULTS.rekber_template_service}
                           className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                           style={{
                             width: '100%',
@@ -13031,11 +13072,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {rekberActiveTemplateTab === 'plant' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
-                            Template Pemesanan Tanaman Hias & Bibit:
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Sprout size={13} style={{ color: '#10b981' }} />
+                            <span>Template Pemesanan Tanaman Hias & Bibit:</span>
                           </label>
                           <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
-                            Kosongkan jika ingin memakai standar pabrik
+                            Dapat dihapus & disesuaikan langsung
                           </span>
                         </div>
                         <textarea
@@ -13045,7 +13087,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ...prev,
                             rekber_template_plant: e.target.value
                           }))}
-                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`}
+                          placeholder={REKBER_FACTORY_DEFAULTS.rekber_template_plant}
                           className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                           style={{
                             width: '100%',
@@ -13067,11 +13109,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     {rekberActiveTemplateTab === 'fauna' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
-                            Template Transaksi & Adopsi Satwa / Hewan (Garansi Hidup):
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <PawPrint size={13} style={{ color: '#10b981' }} />
+                            <span>Template Transaksi Satwa / Hewan (Garansi Hidup):</span>
                           </label>
                           <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
-                            Kosongkan jika ingin memakai standar pabrik
+                            Dapat dihapus & disesuaikan langsung
                           </span>
                         </div>
                         <textarea
@@ -13081,7 +13124,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ...prev,
                             rekber_template_fauna: e.target.value
                           }))}
-                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih.`}
+                          placeholder={REKBER_FACTORY_DEFAULTS.rekber_template_fauna}
                           className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                           style={{
                             width: '100%',
@@ -13160,32 +13203,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         let typeLabel = 'Barang Fisik';
 
                         if (rekberActiveTemplateTab === 'food') {
-                          tmpl = googleSettings.rekber_template_food || `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`;
+                          tmpl = googleSettings.rekber_template_food || REKBER_FACTORY_DEFAULTS.rekber_template_food;
                           sampleName = 'Paket Nasi Kebuli Kambing Spesial';
                           samplePrice = 'Rp 85.000';
                           typeLabel = 'Menu Kuliner';
                         } else if (rekberActiveTemplateTab === 'digital') {
-                          tmpl = googleSettings.rekber_template_digital || `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+                          tmpl = googleSettings.rekber_template_digital || REKBER_FACTORY_DEFAULTS.rekber_template_digital;
                           sampleName = 'Preset Lightroom Pro & Lisensi E-Book';
                           samplePrice = 'Rp 120.000';
                           typeLabel = 'Item Digital';
                         } else if (rekberActiveTemplateTab === 'service') {
-                          tmpl = googleSettings.rekber_template_service || `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`;
+                          tmpl = googleSettings.rekber_template_service || REKBER_FACTORY_DEFAULTS.rekber_template_service;
                           sampleName = 'Jasa Desain Arsitektur & Denah 3D';
                           samplePrice = 'Rp 1.500.000';
                           typeLabel = 'Layanan Jasa';
                         } else if (rekberActiveTemplateTab === 'plant') {
-                          tmpl = googleSettings.rekber_template_plant || `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+                          tmpl = googleSettings.rekber_template_plant || REKBER_FACTORY_DEFAULTS.rekber_template_plant;
                           sampleName = 'Tanaman Hias Monstera Variegata Albo';
                           samplePrice = 'Rp 650.000';
                           typeLabel = 'Tanaman';
                         } else if (rekberActiveTemplateTab === 'fauna') {
-                          tmpl = googleSettings.rekber_template_fauna || `Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih.`;
+                          tmpl = googleSettings.rekber_template_fauna || REKBER_FACTORY_DEFAULTS.rekber_template_fauna;
                           sampleName = 'Kucing British Shorthair Pedigree';
                           samplePrice = 'Rp 4.500.000';
                           typeLabel = 'Satwa / Hewan';
                         } else {
-                          tmpl = googleSettings.rekber_template_physical || googleSettings.rekber_template_general || `Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+                          tmpl = googleSettings.rekber_template_physical || googleSettings.rekber_template_general || REKBER_FACTORY_DEFAULTS.rekber_template_physical;
                         }
 
                         return tmpl
