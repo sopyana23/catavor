@@ -386,7 +386,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setSelectedBroadcastDetail(null);
     }
     if (targetView === 'master_data') {
-      const sub = (subView === 'templates' || subView === 'domains') 
+      const sub = (subView === 'templates' || subView === 'domains' || subView === 'rekber') 
         ? subView 
         : (view === 'safe_domains' ? 'domains' : (subView === 'menu' ? 'menu' : (subView ? (subView as any) : 'menu')));
       setMasterSubView(sub);
@@ -465,11 +465,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Support Division & Master Data Sub-Navigation State
   const [supportSubView, setSupportSubView] = useState<'tickets'>('tickets');
-  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates'>(() => {
+  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates' | 'rekber'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const sub = (params.get('subtab') || params.get('subview') || params.get('sub') || '').toLowerCase();
       const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['rekber', 'rekbersyariah', 'escrow'].includes(sub) || ['rekber', 'rekbersyariah'].includes(tab)) return 'rekber';
       if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
       if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
     } catch {}
@@ -1218,7 +1219,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     ads_txt_content: 'google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0',
     ga_enabled: '0',
     ga_measurement_id: '',
+    rekber_enabled: '1',
+    rekber_partner_name: 'Rekber Syariah',
+    rekber_website_url: 'https://rekbersyariah.com',
+    rekber_wa_number: '',
+    rekber_template_physical: '',
+    rekber_template_general: '',
+    rekber_template_food: '',
+    rekber_template_digital: '',
+    rekber_template_service: '',
+    rekber_template_plant: '',
+    rekber_template_fauna: '',
   });
+  const [rekberActiveTemplateTab, setRekberActiveTemplateTab] = useState<'physical' | 'food' | 'digital' | 'service' | 'plant' | 'fauna'>('physical');
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedAdsTxt, setCopiedAdsTxt] = useState(false);
 
@@ -2177,7 +2190,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (canAccessAutomation) {
         fetchAutomationData();
       }
-      if (canAccessMonetization) {
+      if (canAccessMonetization || canAccessMasterData) {
         const setRes = await fetch('/api/settings');
         if (setRes.ok) {
           const setData = await setRes.json();
@@ -2983,6 +2996,68 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Save Rekber Syariah Global Platform Settings
+  const handleSaveRekberSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingSettings(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rekber_enabled: googleSettings.rekber_enabled !== undefined ? googleSettings.rekber_enabled : '1',
+          rekber_partner_name: googleSettings.rekber_partner_name || 'Rekber Syariah',
+          rekber_website_url: googleSettings.rekber_website_url || 'https://rekbersyariah.com',
+          rekber_wa_number: (googleSettings.rekber_wa_number || '').trim(),
+          rekber_template_physical: googleSettings.rekber_template_physical || '',
+          rekber_template_general: googleSettings.rekber_template_physical || googleSettings.rekber_template_general || '',
+          rekber_template_food: googleSettings.rekber_template_food || '',
+          rekber_template_digital: googleSettings.rekber_template_digital || '',
+          rekber_template_service: googleSettings.rekber_template_service || '',
+          rekber_template_plant: googleSettings.rekber_template_plant || '',
+          rekber_template_fauna: googleSettings.rekber_template_fauna || '',
+        }),
+      });
+      if (res.ok) {
+        showToast('Konfigurasi Rekber Syariah berhasil disimpan!', 'success');
+        loadData();
+      } else {
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan konfigurasi Rekber', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat menyimpan', 'error');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleResetRekberDefaults = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin mereset seluruh konfigurasi Rekber Syariah ke standar resmi pabrik rekbersyariah.com?')) return;
+    setSavingSettings(true);
+    try {
+      const res = await fetch('/api/admin/settings/rekber/reset-defaults', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        showToast('Konfigurasi Rekber Syariah berhasil direset ke standar resmi rekbersyariah.com!', 'success');
+        loadData();
+      } else {
+        showToast('Gagal mereset konfigurasi Rekber', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat reset', 'error');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   const pendingReportsCount = reports.filter(r => r.status === 'pending').length;
   const actionRequiredTicketsCount = (ticketsMetrics && typeof ticketsMetrics.action_required === 'number' && ticketsMetrics.action_required > 0)
     ? ticketsMetrics.action_required
@@ -3035,7 +3110,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       title: 'Data Master Platform', 
       subtitle: masterSubView === 'domains' 
         ? 'Whitelist URL & Navigasi Ekosistem' 
-        : (masterSubView === 'templates' ? `${cannedTemplates.length} Template Pesan Cepat CS` : 'Pusat Konfigurasi Master Data')
+        : (masterSubView === 'templates' 
+          ? `${cannedTemplates.length} Template Pesan Cepat CS` 
+          : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : 'Pusat Konfigurasi Master Data'))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
   };
@@ -4128,7 +4205,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           ? 'Master Domain Aman'
                           : (activeView === 'master_data' && masterSubView === 'templates')
                             ? 'Template Pesan Cepat CS'
-                            : (currentItem?.title || 'Panel Modul')}
+                            : (activeView === 'master_data' && masterSubView === 'rekber')
+                              ? 'Mitra Rekber Syariah'
+                              : (currentItem?.title || 'Panel Modul')}
               </h3>
               <span style={{
                 fontSize: '0.67rem',
@@ -4150,9 +4229,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           ? 'Whitelist URL & Proteksi Ekosistem'
                           : (activeView === 'master_data' && masterSubView === 'templates')
                             ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
-                            : (activeView === 'master_data' && masterSubView === 'menu')
-                              ? 'Pusat Entitas & Konfigurasi Master'
-                              : subStatusText}
+                            : (activeView === 'master_data' && masterSubView === 'rekber')
+                              ? 'Integrasi Escrow Amanah (rekbersyariah.com)'
+                              : (activeView === 'master_data' && masterSubView === 'menu')
+                                ? 'Pusat Entitas & Konfigurasi Master'
+                                : subStatusText}
               </span>
             </div>
 
@@ -11868,6 +11949,122 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Master Option 3: Mitra Rekber Syariah (rekbersyariah.com) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMasterSubView('rekber');
+                    updatePlatformUrl('master_data', null, 'rekber');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setMasterSubView('rekber');
+                      updatePlatformUrl('master_data', null, 'rekber');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '1.1rem',
+                    borderRadius: '1rem',
+                    backgroundColor: theme.card,
+                    border: `1.5px solid ${isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#10b981';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)',
+                        border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.25)'}`,
+                        color: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <ShieldCheck size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Mitra Rekber Syariah
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700 }}>
+                          Integrasi Escrow Amanah
+                        </span>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: googleSettings.rekber_enabled !== '0'
+                        ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)')
+                        : (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)'),
+                      color: googleSettings.rekber_enabled !== '0' ? '#10b981' : '#ef4444',
+                      border: `1px solid ${googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {googleSettings.rekber_enabled !== '0' ? '● Aktif' : '○ Dinonaktifkan'}
+                    </span>
+                  </div>
+
+                  <p style={{
+                    margin: '0 0 0.95rem 0',
+                    fontSize: '0.76rem',
+                    color: theme.textSecondary,
+                    lineHeight: 1.45
+                  }}>
+                    Kelola URL website resmi rekbersyariah.com, nomor WhatsApp resmi admin rekber, dan kustomisasi template pesan WhatsApp transaksi aman.
+                  </p>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '0.7rem',
+                    borderTop: `1px solid ${theme.border}`,
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: '#10b981'
+                  }}>
+                    <span>Buka Pengaturan Rekber</span>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <ChevronRight size={15} />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Extensibility & Scalability Information Card */}
@@ -12283,6 +12480,779 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* SUB-VIEW 3: MASTER REKBER SYARIAH (INTEGRASI ESCROW RESMI) */}
+          {masterSubView === 'rekber' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Top Sub-Header & Navigation */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.1rem',
+                borderRadius: '1rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                boxShadow: theme.cardShadow,
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMasterSubView('menu');
+                      updatePlatformUrl('master_data', null, null);
+                    }}
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kembali ke Menu Master"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <ShieldCheck size={18} color="#10b981" />
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                        Konfigurasi Mitra Rekber Syariah
+                      </h4>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                      Integrasi Eksklusif Escrow Amanah (rekbersyariah.com) • Khusus Pengelola Platform
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleResetRekberDefaults}
+                    disabled={savingSettings}
+                    style={{
+                      padding: '0.55rem 0.95rem',
+                      borderRadius: '0.75rem',
+                      border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                      color: '#ef4444',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Reset Default</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveRekberSettings()}
+                    disabled={savingSettings}
+                    style={{
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      fontSize: '0.76rem',
+                      fontWeight: 800,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    <span>{savingSettings ? 'Menyimpan...' : 'Simpan Konfigurasi'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Security Advisory Callout */}
+              <div style={{
+                padding: '0.9rem 1.1rem',
+                borderRadius: '0.95rem',
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.06)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem'
+              }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Lock size={16} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <strong style={{ fontSize: '0.8rem', color: '#10b981' }}>
+                    Perlindungan Keamanan Otoritas Terpusat Platform
+                  </strong>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.45 }}>
+                    Platform Catavor bermitra resmi secara eksklusif dengan <strong>rekbersyariah.com</strong>. Layanan Rekber Syariah aktif untuk 6 tipe katalog: <strong>Barang Fisik, Menu Kuliner, Item Digital, Jasa & Layanan, Tanaman, dan Satwa/Hewan</strong>. Tipe <strong>Properti</strong> secara otomatis dikecualikan karena proses transaksi properti bertransaksi melalui jalur legal Notaris / PPAT / AJB langsung. Konfigurasi ini dikontrol terpusat oleh Admin Platform untuk menjamin keamanan dana pembeli.
+                  </p>
+                </div>
+              </div>
+
+              {/* Main Configuration Grid */}
+              <form onSubmit={handleSaveRekberSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* 1. MASTER TOGGLE & CREDENTIALS CARD */}
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.1rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.85rem', borderBottom: `1px solid ${theme.border}`, flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                        Status Master Layanan Rekber
+                      </h4>
+                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.73rem', color: theme.textSecondary }}>
+                        Kontrol global apakah transaksi Rekber Syariah diizinkan di seluruh platform
+                      </p>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }}>
+                      <span style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '999px',
+                        backgroundColor: googleSettings.rekber_enabled !== '0'
+                          ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)')
+                          : (isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)'),
+                        color: googleSettings.rekber_enabled !== '0' ? '#10b981' : '#ef4444',
+                        border: `1px solid ${googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+                      }}>
+                        {googleSettings.rekber_enabled !== '0' ? 'Aktif Global' : 'Nonaktif Global'}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={googleSettings.rekber_enabled !== '0'}
+                        onChange={(e) => setGoogleSettings(prev => ({
+                          ...prev,
+                          rekber_enabled: e.target.checked ? '1' : '0'
+                        }))}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {/* Partner Name */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <label style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary }}>
+                        Nama Layanan Mitra
+                      </label>
+                      <input
+                        type="text"
+                        value={googleSettings.rekber_partner_name || 'Rekber Syariah'}
+                        onChange={(e) => setGoogleSettings(prev => ({
+                          ...prev,
+                          rekber_partner_name: e.target.value
+                        }))}
+                        placeholder="Contoh: Rekber Syariah"
+                        className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                        Nama resmi yang ditampilkan pada tombol dan edukasi modal katalog.
+                      </span>
+                    </div>
+
+                    {/* Official Website URL */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <label style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary }}>
+                          Alamat Website Resmi Mitra
+                        </label>
+                        {googleSettings.rekber_website_url && (
+                          <a
+                            href={googleSettings.rekber_website_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontSize: '0.68rem',
+                              color: '#10b981',
+                              fontWeight: 700,
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <span>Tes Buka</span>
+                            <ExternalLink size={11} />
+                          </a>
+                        )}
+                      </div>
+                      <input
+                        type="url"
+                        value={googleSettings.rekber_website_url !== undefined ? googleSettings.rekber_website_url : 'https://rekbersyariah.com'}
+                        onChange={(e) => setGoogleSettings(prev => ({
+                          ...prev,
+                          rekber_website_url: e.target.value
+                        }))}
+                        placeholder="https://rekbersyariah.com"
+                        className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                        Default: https://rekbersyariah.com. Digunakan untuk tautan pendaftaran transaksi.
+                      </span>
+                    </div>
+
+                    {/* Official Admin WhatsApp Number */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <label style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textPrimary }}>
+                        Nomor WhatsApp Resmi Admin Rekber Syariah
+                      </label>
+                      <input
+                        type="text"
+                        value={googleSettings.rekber_wa_number || ''}
+                        onChange={(e) => setGoogleSettings(prev => ({
+                          ...prev,
+                          rekber_wa_number: e.target.value.replace(/[^0-9]/g, '')
+                        }))}
+                        placeholder="Contoh: 6282123456789 (kosongkan jika via website saja)"
+                        className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                        Format internasional tanpa tanda '+' atau spasi (misal: 6281234567890). Dicantumkan pada pesan permohonan.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. DYNAMIC MESSAGE TEMPLATES CARD */}
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: '1rem',
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: theme.cardShadow,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                      Format Template Pesan WhatsApp Transaksi
+                    </h4>
+                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.73rem', color: theme.textSecondary }}>
+                      Template teks pesan yang otomatis terisi saat pembeli menekan tombol transaksi via Rekber Syariah
+                    </p>
+                  </div>
+
+                  {/* Variables Reference Pillbox */}
+                  <div style={{
+                    padding: '0.75rem 0.95rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+                    border: `1px dashed ${theme.border}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.45rem'
+                  }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: theme.textPrimary }}>
+                      🏷️ Variabel Dinamis yang Didukung:
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      {[
+                        { code: '{item_name}', desc: 'Nama Item/Barang/Jasa' },
+                        { code: '{item_price}', desc: 'Harga / Tarif / Biaya' },
+                        { code: '{item_type_label}', desc: 'Tipe Katalog' },
+                        { code: '{store_title}', desc: 'Nama Toko / Usaha' },
+                        { code: '{rekber_website_url}', desc: 'URL Website Rekber' },
+                        { code: '{rekber_website_domain}', desc: 'Domain Rekber' },
+                        { code: '{rekber_wa_number}', desc: 'No. WA Admin Rekber' },
+                        { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin' },
+                      ].map((item, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            fontSize: '0.67rem',
+                            fontWeight: 600,
+                            padding: '0.18rem 0.5rem',
+                            borderRadius: '0.45rem',
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                            color: isDark ? '#38bdf8' : '#0284c7',
+                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.2)'}`
+                          }}
+                        >
+                          <code>{item.code}</code> : {item.desc}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Template Tabs: 6 Allowed Catalog Types */}
+                  <div style={{ display: 'flex', gap: '0.45rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.5rem', overflowX: 'auto' }}>
+                    {[
+                      { key: 'physical', label: '📦 Barang Fisik' },
+                      { key: 'food', label: '🍲 Menu Kuliner' },
+                      { key: 'digital', label: '💾 Item Digital' },
+                      { key: 'service', label: '💼 Jasa & Layanan' },
+                      { key: 'plant', label: '🌱 Tanaman' },
+                      { key: 'fauna', label: '🐾 Satwa / Hewan' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setRekberActiveTemplateTab(tab.key as any)}
+                        style={{
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          border: 'none',
+                          backgroundColor: rekberActiveTemplateTab === tab.key
+                            ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)')
+                            : 'transparent',
+                          color: rekberActiveTemplateTab === tab.key ? '#10b981' : theme.textSecondary,
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Active Textarea per Catalog Type */}
+                  <div>
+                    {rekberActiveTemplateTab === 'physical' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Template Pemesanan Barang Fisik:
+                          </label>
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Kosongkan jika ingin memakai standar pabrik
+                          </span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={googleSettings.rekber_template_physical || googleSettings.rekber_template_general || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({
+                            ...prev,
+                            rekber_template_physical: e.target.value,
+                            rekber_template_general: e.target.value,
+                          }))}
+                          placeholder={`Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`}
+                          className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.78rem',
+                            fontFamily: 'monospace',
+                            lineHeight: 1.45,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {rekberActiveTemplateTab === 'food' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Template Pemesanan Menu Kuliner / F&B:
+                          </label>
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Kosongkan jika ingin memakai standar pabrik
+                          </span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={googleSettings.rekber_template_food || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({
+                            ...prev,
+                            rekber_template_food: e.target.value
+                          }))}
+                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`}
+                          className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.78rem',
+                            fontFamily: 'monospace',
+                            lineHeight: 1.45,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {rekberActiveTemplateTab === 'digital' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Template Pemesanan Item Digital & Lisensi:
+                          </label>
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Kosongkan jika ingin memakai standar pabrik
+                          </span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={googleSettings.rekber_template_digital || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({
+                            ...prev,
+                            rekber_template_digital: e.target.value
+                          }))}
+                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`}
+                          className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.78rem',
+                            fontFamily: 'monospace',
+                            lineHeight: 1.45,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {rekberActiveTemplateTab === 'service' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Template Pemesanan Jasa & Layanan (Escrow Masa Pengerjaan):
+                          </label>
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Kosongkan jika ingin memakai standar pabrik
+                          </span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={googleSettings.rekber_template_service || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({
+                            ...prev,
+                            rekber_template_service: e.target.value
+                          }))}
+                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`}
+                          className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.78rem',
+                            fontFamily: 'monospace',
+                            lineHeight: 1.45,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {rekberActiveTemplateTab === 'plant' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Template Pemesanan Tanaman Hias & Bibit:
+                          </label>
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Kosongkan jika ingin memakai standar pabrik
+                          </span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={googleSettings.rekber_template_plant || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({
+                            ...prev,
+                            rekber_template_plant: e.target.value
+                          }))}
+                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`}
+                          className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.78rem',
+                            fontFamily: 'monospace',
+                            lineHeight: 1.45,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {rekberActiveTemplateTab === 'fauna' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textPrimary }}>
+                            Template Transaksi & Adopsi Satwa / Hewan (Garansi Hidup):
+                          </label>
+                          <span style={{ fontSize: '0.67rem', color: theme.textMuted }}>
+                            Kosongkan jika ingin memakai standar pabrik
+                          </span>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={googleSettings.rekber_template_fauna || ''}
+                          onChange={(e) => setGoogleSettings(prev => ({
+                            ...prev,
+                            rekber_template_fauna: e.target.value
+                          }))}
+                          placeholder={`Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih.`}
+                          className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            border: `1px solid ${theme.border}`,
+                            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                            color: theme.textPrimary,
+                            fontSize: '0.78rem',
+                            fontFamily: 'monospace',
+                            lineHeight: 1.45,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. LIVE SIMULATION PREVIEW BUBBLE */}
+                  <div style={{
+                    marginTop: '0.25rem',
+                    padding: '0.95rem 1.1rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? '#0b1322' : '#f8fafc',
+                    border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)'}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <MessageSquare size={13} /> Pratinjau Teks WhatsApp Pembeli ({(() => {
+                          switch (rekberActiveTemplateTab) {
+                            case 'physical': return 'Barang Fisik';
+                            case 'food': return 'Menu Kuliner';
+                            case 'digital': return 'Item Digital';
+                            case 'service': return 'Layanan Jasa';
+                            case 'plant': return 'Tanaman';
+                            case 'fauna': return 'Satwa / Hewan';
+                            default: return 'Barang Fisik';
+                          }
+                        })()}):
+                      </span>
+                      <span style={{ fontSize: '0.64rem', color: theme.textMuted }}>
+                        Simulasi Otomatis Sesuai Tipe Katalog yang Diklik
+                      </span>
+                    </div>
+
+                    <div style={{
+                      padding: '0.85rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? '#064e3b' : '#dcfce7',
+                      color: isDark ? '#ecfdf5' : '#14532d',
+                      fontSize: '0.74rem',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)'}`,
+                      fontFamily: 'system-ui, sans-serif'
+                    }}>
+                      {(() => {
+                        const websiteUrl = googleSettings.rekber_website_url || 'https://rekbersyariah.com';
+                        let websiteDomain = 'rekbersyariah.com';
+                        try {
+                          websiteDomain = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname || 'rekbersyariah.com';
+                        } catch {}
+                        const waNumber = (googleSettings.rekber_wa_number || '').trim();
+                        const waSection = waNumber
+                          ? ` atau menghubungi Admin Rekber Syariah (WA: +${waNumber}) agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)`
+                          : ` atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)`;
+
+                        let tmpl = '';
+                        let sampleName = 'Sepatu Sneakers Vintage Original';
+                        let samplePrice = 'Rp 450.000';
+                        let typeLabel = 'Barang Fisik';
+
+                        if (rekberActiveTemplateTab === 'food') {
+                          tmpl = googleSettings.rekber_template_food || `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`;
+                          sampleName = 'Paket Nasi Kebuli Kambing Spesial';
+                          samplePrice = 'Rp 85.000';
+                          typeLabel = 'Menu Kuliner';
+                        } else if (rekberActiveTemplateTab === 'digital') {
+                          tmpl = googleSettings.rekber_template_digital || `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+                          sampleName = 'Preset Lightroom Pro & Lisensi E-Book';
+                          samplePrice = 'Rp 120.000';
+                          typeLabel = 'Item Digital';
+                        } else if (rekberActiveTemplateTab === 'service') {
+                          tmpl = googleSettings.rekber_template_service || `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penyedia Jasa, & Klien). Terima kasih.`;
+                          sampleName = 'Jasa Desain Arsitektur & Denah 3D';
+                          samplePrice = 'Rp 1.500.000';
+                          typeLabel = 'Layanan Jasa';
+                        } else if (rekberActiveTemplateTab === 'plant') {
+                          tmpl = googleSettings.rekber_template_plant || `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+                          sampleName = 'Tanaman Hias Monstera Variegata Albo';
+                          samplePrice = 'Rp 650.000';
+                          typeLabel = 'Tanaman';
+                        } else if (rekberActiveTemplateTab === 'fauna') {
+                          tmpl = googleSettings.rekber_template_fauna || `Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih.`;
+                          sampleName = 'Kucing British Shorthair Pedigree';
+                          samplePrice = 'Rp 4.500.000';
+                          typeLabel = 'Satwa / Hewan';
+                        } else {
+                          tmpl = googleSettings.rekber_template_physical || googleSettings.rekber_template_general || `Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+                        }
+
+                        return tmpl
+                          .replace(/{store_title}/g, 'Catavor Demo Store')
+                          .replace(/{item_name}/g, sampleName)
+                          .replace(/{product_name}/g, sampleName)
+                          .replace(/{item_price}/g, samplePrice)
+                          .replace(/{product_price}/g, samplePrice)
+                          .replace(/{item_type_label}/g, typeLabel)
+                          .replace(/{rekber_website_url}/g, websiteUrl)
+                          .replace(/{rekber_website_domain}/g, websiteDomain)
+                          .replace(/{rekber_wa_number}/g, waNumber)
+                          .replace(/{rekber_wa_section}/g, waSection);
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Save Action Bar */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: '0.65rem',
+                  paddingTop: '0.5rem'
+                }}>
+                  <button
+                    type="button"
+                    onClick={handleResetRekberDefaults}
+                    disabled={savingSettings}
+                    style={{
+                      padding: '0.65rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
+                      backgroundColor: 'transparent',
+                      color: '#ef4444',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Reset Default Pabrik
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={savingSettings}
+                    style={{
+                      padding: '0.65rem 1.45rem',
+                      borderRadius: '0.75rem',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                    }}
+                  >
+                    {savingSettings ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                    <span>{savingSettings ? 'Menyimpan...' : 'Simpan Semua Perubahan'}</span>
+                  </button>
+                </div>
+              </form>
             </div>
           )}
         </div>
