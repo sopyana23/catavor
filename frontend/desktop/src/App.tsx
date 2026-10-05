@@ -14965,6 +14965,90 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
     );
   }
 
+  const isPublicPreviewMode = Boolean(
+    isStoreOwner &&
+    (view === 'catalog' || !window.location.pathname.toLowerCase().includes('/admin'))
+  );
+
+  const renderStoreOwnerPreviewBar = (_options?: { isDetail?: boolean }) => {
+    if (!isPublicPreviewMode) return null;
+    return (
+      <aside 
+        aria-label="Mode Pratinjau Publik"
+        className="desktop-preview-bar"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 1100,
+          width: '100%',
+        }}
+      >
+        <div className="desktop-preview-bar-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{
+              width: '26px',
+              height: '26px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--primary-glow)',
+              border: '1px solid var(--border-light)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Eye size={14} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Mode Pratinjau Katalog
+              </span>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                — Tampilan langsung yang dilihat pengunjung &amp; pelanggan Anda
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (isDetailActive) {
+                  handleCloseDetail();
+                }
+                setView('admin');
+                const slug = getStoreSlug();
+                if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
+              }}
+              style={{
+                backgroundColor: 'var(--primary)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.35rem 0.95rem',
+                borderRadius: '999px',
+                fontWeight: 800,
+                fontSize: '0.76rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                boxShadow: '0 2px 10px var(--primary-glow)',
+                transition: 'all 0.15s ease'
+              }}
+              title="Kembali ke Dashboard Admin"
+            >
+              <LayoutDashboard size={13} />
+              <span>Dashboard Admin</span>
+              <ArrowRight size={12} />
+            </button>
+          </div>
+        </div>
+      </aside>
+    );
+  };
+
   return (
     <>
       {isDetailActive ? (
@@ -14973,10 +15057,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
              FULL-PAGE DESKTOP DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
              ========================================================== */
           <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)' }}>
+            {/* Persistent Preview Banner for Public Storefront Detail View */}
+            {renderStoreOwnerPreviewBar({ isDetail: true })}
             {/* Header */}
             <div style={{
               position: 'sticky',
-              top: 0,
+              top: isPublicPreviewMode ? '41px' : 0,
               backgroundColor: 'var(--bg-card)',
               borderBottom: '1px solid var(--border-light)',
               padding: '1rem 2rem',
@@ -16311,122 +16397,39 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
             backgroundColor: 'var(--bg-card)',
-            gap: '1rem'
           }}>
+            {renderStoreOwnerPreviewBar({ isDetail: true })}
             <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '50%',
-              border: '3px solid var(--border-light)',
-              borderTopColor: 'var(--primary)',
-              animation: 'spin 0.8s linear infinite'
-            }} />
-            <span style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Memuat detail produk...
-            </span>
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                border: '3px solid var(--border-light)',
+                borderTopColor: 'var(--primary)',
+                animation: 'spin 0.8s linear infinite'
+              }} />
+              <span style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Memuat detail produk...
+              </span>
+            </div>
           </div>
         )
       ) : (
         <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Persistent Mode Pratinjau Banner at the Very Top for All Public Storefront Views */}
+        {renderStoreOwnerPreviewBar()}
+
         {/* Unified Desktop Top Stack - Sticky only in Admin, Static in Public Catalog (leaving floating solely to smart quick-search) */}
         {!(view === 'admin' && Boolean(token) && isStoreOwner && isPasswordChanged) && (
         <div className={view === 'admin' ? `desktop-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}` : 'desktop-public-top-stack'}>
-        {/* Store Owner Preview Banner for Public Storefront View */}
-        {isStoreOwner && view === 'catalog' && (
-          <aside 
-            aria-label="Mode Pratinjau Publik"
-            className="desktop-preview-bar"
-          >
-            <div className="desktop-preview-bar-inner">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <div style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--primary-glow)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <Eye size={14} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    Mode Pratinjau Katalog
-                  </span>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                    — Tampilan langsung yang dilihat pengunjung & pelanggan Anda
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={() => openCreateModal('physical')}
-                  style={{
-                    backgroundColor: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-light)',
-                    padding: '0.35rem 0.85rem',
-                    borderRadius: '999px',
-                    fontWeight: 700,
-                    fontSize: '0.76rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title="Tambah Item Baru"
-                >
-                  <Plus size={13} style={{ color: 'var(--primary)' }} />
-                  <span>+ Tambah Item</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setView('admin');
-                    const slug = getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                  }}
-                  style={{
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
-                    border: 'none',
-                    padding: '0.35rem 0.95rem',
-                    borderRadius: '999px',
-                    fontWeight: 800,
-                    fontSize: '0.76rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    boxShadow: '0 2px 10px var(--primary-glow)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title="Kembali ke Dashboard Admin"
-                >
-                  <LayoutDashboard size={13} />
-                  <span>Dashboard Admin</span>
-                  <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </aside>
-        )}
 
         {/* Header (Shows stylish Catavor brand header on 404 error pages, and store header on valid pages) */}
         {error ? (
@@ -16529,32 +16532,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <div className="nav-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   {view === 'catalog' ? (
                     <>
-                      {isStoreOwner && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setView('admin');
-                            const slug = getStoreSlug();
-                            if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                          }}
-                          className="btn-secondary"
-                          style={{
-                            padding: '0.45rem 0.95rem',
-                            fontSize: '0.82rem',
-                            borderRadius: '8px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            fontWeight: 700,
-                            borderColor: 'var(--primary)',
-                            color: 'var(--primary)'
-                          }}
-                          title="Buka Dasbor Pengelola Toko"
-                        >
-                          <LayoutDashboard size={14} />
-                          <span>Kelola Toko</span>
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={handleShareStore}
@@ -16640,99 +16617,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
       {!error && view === 'catalog' && activePublicTab === 'catalog' && !selectedFauna && (
         <aside 
           className={`desktop-sticky-quick-search-bar ${showStickyQuickSearch ? 'visible' : 'hidden'}`}
+          style={isPublicPreviewMode ? { top: '41px' } : undefined}
           aria-label="Pencarian Cepat Melayang"
         >
-          {/* For Admin Merchant Preview Mode: Mode Pratinjau banner floats above the search bar */}
-          {isStoreOwner && (
-            <div className="desktop-preview-bar" style={{ borderBottom: '1px solid var(--border-light)' }}>
-              <div className="desktop-preview-bar-inner" style={{ paddingTop: '0.38rem', paddingBottom: '0.38rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <div style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    backgroundColor: 'var(--primary-glow)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <Eye size={13} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      Mode Pratinjau Katalog
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                      — Tampilan langsung yang dilihat pengunjung & pelanggan Anda
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => openCreateModal('physical')}
-                    style={{
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--border-light)',
-                      padding: '0.28rem 0.75rem',
-                      borderRadius: '999px',
-                      fontWeight: 700,
-                      fontSize: '0.74rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.32rem',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Tambah Item Baru"
-                  >
-                    <Plus size={12} style={{ color: 'var(--primary)' }} />
-                    <span>+ Tambah Item</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setView('admin');
-                      const slug = getStoreSlug();
-                      if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
-                    }}
-                    style={{
-                      backgroundColor: 'var(--primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '0.28rem 0.85rem',
-                      borderRadius: '999px',
-                      fontWeight: 800,
-                      fontSize: '0.74rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      boxShadow: '0 2px 8px var(--primary-glow)',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="Kembali ke Dashboard Admin"
-                  >
-                    <LayoutDashboard size={12} />
-                    <span>Dashboard Admin</span>
-                    <ArrowRight size={11} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="desktop-sticky-quick-search-inner">
             <div 
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
