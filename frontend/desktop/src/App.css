@@ -2224,6 +2224,11 @@
 }
 
 /* Catavor Sleek Store Switcher & Custom Scrollbar */
+.store-switcher-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
 .store-switcher-scroll-area::-webkit-scrollbar,
 .catavor-custom-scrollbar::-webkit-scrollbar {
   width: 5px;
@@ -2258,7 +2263,8 @@
 
 .store-dropdown-item:not(.active):hover .store-item-switch-pill {
   color: var(--primary) !important;
-  background-color: var(--primary-glow);
+  border-color: var(--primary) !important;
+  background-color: var(--primary-glow) !important;
 }
 
 .store-dropdown-item:not(.active):hover .store-item-switch-pill svg {
