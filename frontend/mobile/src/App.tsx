@@ -14975,6 +14975,121 @@ Mohon info ketersediaan stok & pengiriman ya!`}
     )
   );
 
+  const isPublicPreviewMode = Boolean(
+    isStoreOwner &&
+    !error &&
+    activeTab !== 'admin' &&
+    (view === 'tabs' || isDetailActive) &&
+    !window.location.pathname.toLowerCase().includes('/admin')
+  );
+
+  const renderMobilePreviewBar = (options?: { isDetail?: boolean }) => {
+    if (!isPublicPreviewMode && !options?.isDetail) return null;
+    if (options?.isDetail && (!isStoreOwner || activeTab === 'admin' || window.location.pathname.toLowerCase().includes('/admin'))) return null;
+
+    const isMainRootPublicPage = (
+      (activeTab === 'catalog' && !isDetailActive && !selectedFauna) ||
+      (activeTab === 'about' && aboutSubView === 'main' && !isDetailActive && !selectedFauna)
+    );
+    const showAdminButton = Boolean(options?.isDetail || !isMainRootPublicPage);
+
+    return (
+      <aside 
+        aria-label="Mode Pratinjau Publik"
+        className="mobile-preview-bar"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 1100,
+          width: '100%',
+        }}
+      >
+        {/* Left: Refined Live Preview Indicator Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flexShrink: 0 }}>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            backgroundColor: 'var(--primary-glow)',
+            color: 'var(--primary)',
+            border: '1px solid var(--border-light)',
+            flexShrink: 0
+          }}>
+            <Eye size={12} />
+          </span>
+          <span style={{ 
+            fontSize: '0.74rem', 
+            fontWeight: 800, 
+            color: 'var(--text-primary)', 
+            letterSpacing: '0.01em',
+            whiteSpace: 'nowrap'
+          }}>
+            {showAdminButton ? 'Pratinjau' : 'Mode Pratinjau Katalog'}
+          </span>
+          {!showAdminButton && (
+            <span style={{
+              fontSize: '0.67rem',
+              color: 'var(--text-secondary)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              — Tampilan Pengunjung
+            </span>
+          )}
+        </div>
+
+        {/* Right: Elegant Pill Action Button (Shown on sub-pages where bottom nav is absent) */}
+        {showAdminButton && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (isDetailActive) {
+                  handleCloseDetailSheet();
+                }
+                if (activeTab === 'about' && aboutSubView !== 'main') {
+                  setAboutSubView('main');
+                }
+                if (activeTab === 'articles' && selectedArticle) {
+                  setSelectedArticle(null);
+                }
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                const slug = storeSlug || getStoreSlug();
+                if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.26rem 0.65rem',
+                borderRadius: '999px',
+                backgroundColor: 'var(--primary)',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                boxShadow: '0 2px 8px var(--primary-glow)',
+                transition: 'all 0.15s ease'
+              }}
+              title="Kembali ke Dashboard Admin"
+            >
+              <LayoutDashboard size={11} />
+              <span>Admin</span>
+            </button>
+          </div>
+        )}
+      </aside>
+    );
+  };
+
   return (
     <>
       {/* Hidden File Input for WYSIWYG Editor Image Upload */}
@@ -14992,10 +15107,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
              FULL-PAGE MOBILE DETAIL VIEW (CUSTOM ONLINE SHOP AESTHETICS)
              ========================================================== */
           <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)' }}>
+          {/* Persistent Mode Pratinjau Banner for Mobile Detail View */}
+          {renderMobilePreviewBar({ isDetail: true })}
           {/* Header */}
           <div style={{
             position: 'sticky',
-            top: 0,
+            top: (isStoreOwner && activeTab !== 'admin' && !window.location.pathname.toLowerCase().includes('/admin')) ? '34px' : 0,
             backgroundColor: 'var(--header-bg)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
@@ -16157,22 +16274,29 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
             backgroundColor: 'var(--bg-card)',
-            gap: '1rem'
           }}>
+            {renderMobilePreviewBar({ isDetail: true })}
             <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              border: '3px solid var(--border-light)',
-              borderTopColor: 'var(--primary)',
-              animation: 'spin 0.8s linear infinite'
-            }} />
-            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Memuat detail produk...
-            </span>
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                border: '3px solid var(--border-light)',
+                borderTopColor: 'var(--primary)',
+                animation: 'spin 0.8s linear infinite'
+              }} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Memuat detail produk...
+              </span>
+            </div>
           </div>
         )
       ) : view === 'fauna-editor' ? (() => {
@@ -18661,102 +18785,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         </div>
       ) : (
         <>
-      {/* Unified Mobile Sticky Top Stack with Smart Auto-Hide (Preview Bar + Store Header) */}
-      <div className={`mobile-sticky-top-stack ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
-        {/* Store Owner Public Preview Mode Top Banner */}
-        {isStoreOwner && !error && (activeTab === 'catalog' || activeTab === 'about' || activeTab === 'articles') && (
-          <aside 
-            aria-label="Mode Pratinjau Publik"
-            className="mobile-preview-bar"
-          >
-          {/* Left: Refined Live Preview Indicator Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flexShrink: 0 }}>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '20px',
-              height: '20px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--primary-glow)',
-              color: 'var(--primary)',
-              border: '1px solid var(--border-light)',
-              flexShrink: 0
-            }}>
-              <Eye size={12} />
-            </span>
-            <span style={{ 
-              fontSize: '0.74rem', 
-              fontWeight: 800, 
-              color: 'var(--text-primary)', 
-              letterSpacing: '0.01em',
-              whiteSpace: 'nowrap'
-            }}>
-              Pratinjau
-            </span>
-          </div>
+      {/* Persistent Mobile Preview Banner for Public Storefront Views */}
+      {renderMobilePreviewBar()}
 
-          {/* Right: Elegant Pill Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={openCreateSheet}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.22rem',
-                padding: '0.26rem 0.55rem',
-                borderRadius: '999px',
-                backgroundColor: 'var(--bg-card)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-light)',
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                transition: 'all 0.15s ease'
-              }}
-              title="Tambah Produk Baru"
-            >
-              <Plus size={12} style={{ color: 'var(--primary)' }} />
-              <span>Tambah</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('admin');
-                setAdminSubTab('menu');
-                const slug = storeSlug || getStoreSlug();
-                if (slug) window.history.pushState({}, '', `/${slug}/admin`);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.26rem 0.65rem',
-                borderRadius: '999px',
-                backgroundColor: 'var(--primary)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                boxShadow: '0 2px 8px var(--primary-glow)',
-                transition: 'all 0.15s ease'
-              }}
-              title="Kembali ke Dashboard Admin"
-            >
-              <LayoutDashboard size={11} />
-              <span>Admin</span>
-            </button>
-          </div>
-        </aside>
-      )}
+      {/* Unified Mobile Sticky Top Stack with Smart Auto-Hide */}
+      <div className={`mobile-sticky-top-stack ${isPublicPreviewMode ? 'has-preview-bar' : ''} ${isFilterHidden ? 'scroll-hidden' : 'scroll-visible'}`}>
 
       {/* Mobile Top Header (Shows Catavor brand header on 404 error pages, and store header on valid pages) */}
       {error ? (
