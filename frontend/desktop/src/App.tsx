@@ -15336,7 +15336,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             aria-label="Foto Sebelumnya"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setActiveImageIndex((currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages);
+                              const nextIdx = (currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages;
+                              setActiveImageIndex(nextIdx);
+                              const track = document.getElementById('desktop-gallery-thumbnails-track');
+                              if (track && track.children[nextIdx]) {
+                                const thumb = track.children[nextIdx] as HTMLElement;
+                                const scrollTarget = thumb.offsetLeft - (track.clientWidth - thumb.clientWidth) / 2;
+                                track.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                              }
                             }}
                             style={{
                               position: 'absolute',
@@ -15378,7 +15385,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             aria-label="Foto Selanjutnya"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setActiveImageIndex((currentImgIdx + 1) % totalGalleryImages);
+                              const nextIdx = (currentImgIdx + 1) % totalGalleryImages;
+                              setActiveImageIndex(nextIdx);
+                              const track = document.getElementById('desktop-gallery-thumbnails-track');
+                              if (track && track.children[nextIdx]) {
+                                const thumb = track.children[nextIdx] as HTMLElement;
+                                const scrollTarget = thumb.offsetLeft - (track.clientWidth - thumb.clientWidth) / 2;
+                                track.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                              }
                             }}
                             style={{
                               position: 'absolute',
@@ -15472,13 +15486,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       {totalGalleryImages > 1 && (
                         <div style={{ marginTop: '0.85rem' }}>
                           <div 
+                            id="desktop-gallery-thumbnails-track"
+                            className="gallery-thumbnails-track"
+                            onWheel={(e) => {
+                              if (e.deltaY !== 0) {
+                                e.currentTarget.scrollLeft += e.deltaY;
+                              }
+                            }}
                             style={{ 
                               display: 'flex', 
-                              gap: '0.6rem', 
+                              gap: '0.65rem', 
                               overflowX: 'auto', 
-                              padding: '4px 2px 8px 2px',
-                              scrollbarWidth: 'thin',
-                              WebkitOverflowScrolling: 'touch'
+                              padding: '4px 2px 10px 2px',
+                              alignItems: 'center'
                             }}
                           >
                             {galleryImages.map((imgUrl: string, idx: number) => {
@@ -15487,7 +15507,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 <button
                                   key={idx}
                                   type="button"
-                                  onClick={() => setActiveImageIndex(idx)}
+                                  onClick={() => {
+                                    setActiveImageIndex(idx);
+                                    const track = document.getElementById('desktop-gallery-thumbnails-track');
+                                    if (track && track.children[idx]) {
+                                      const thumb = track.children[idx] as HTMLElement;
+                                      const scrollTarget = thumb.offsetLeft - (track.clientWidth - thumb.clientWidth) / 2;
+                                      track.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                                    }
+                                  }}
                                   style={{
                                     position: 'relative',
                                     padding: 0,
