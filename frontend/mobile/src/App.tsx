@@ -11339,15 +11339,24 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
     // If changing type from within an active form session, adapt type & defaults while preserving user input
     if (isChangingTypeInEditor) {
-      setCrudForm(prev => ({
-        ...prev,
-        product_type: type,
-        class: prev.class === 'Umum' || prev.class === 'Reptil' ? typeConfig.defaultCategory : prev.class,
-        shipping_coverage: prev.shipping_coverage === 'Bisa Kirim se-Indonesia' ? (foodPreset ? foodPreset.defaultShipping : typeConfig.deliveryOptions[0]) : prev.shipping_coverage
-      }))
-      setIsChangingTypeInEditor(false)
-      setView('fauna-editor')
-      return
+      setCrudForm(prev => {
+        const validCategories = getCategoryOptionsForType(type);
+        const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
+          .some(otherType => otherType !== type && DEFAULT_MASTER_CATEGORIES[otherType].includes(prev.class));
+        const nextClass = (prev.class && validCategories.includes(prev.class) && !isFromOtherTypeDefault)
+          ? prev.class
+          : typeConfig.defaultCategory;
+
+        return {
+          ...prev,
+          product_type: type,
+          class: nextClass,
+          shipping_coverage: prev.shipping_coverage === 'Bisa Kirim se-Indonesia' ? (foodPreset ? foodPreset.defaultShipping : typeConfig.deliveryOptions[0]) : prev.shipping_coverage
+        };
+      });
+      setIsChangingTypeInEditor(false);
+      setView('fauna-editor');
+      return;
     }
 
     // New item creation: completely fresh reset for the selected type
@@ -11454,8 +11463,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       name: item.name,
       scientific_name: item.scientific_name || '',
       class: item.class || typeConfig.defaultCategory,
-      habitat: item.habitat || 'General',
-      diet: item.diet || '',
+      habitat: item.attributes?.habitat || item.habitat || 'General',
+      diet: item.attributes?.diet || item.diet || '',
       conservation_status: item.conservation_status || 'Tersedia',
       price: item.price,
       min_order: minOrderVal,
@@ -11643,13 +11652,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
     setUploadProgressText('Menyimpan data katalog...');
 
+    const isFauna = crudForm.product_type === 'fauna';
+    const isPlant = crudForm.product_type === 'plant';
+
     const payload = {
       name: crudForm.name,
-      scientific_name: (crudForm.product_type === 'fauna' || crudForm.product_type === 'plant') ? (crudForm.scientific_name || '') : '',
+      scientific_name: (isFauna || isPlant) ? (crudForm.scientific_name || '') : '',
       class: selectedClass || 'Umum',
-      habitat: selectedHabitat || 'General',
-      diet: crudForm.diet || 'N/A',
-      conservation_status: selectedConservationStatus || 'Tersedia',
+      habitat: isFauna ? (selectedHabitat || '') : '',
+      diet: isFauna ? (crudForm.diet || '') : '',
+      conservation_status: isFauna ? (selectedConservationStatus || 'Tersedia') : 'Tersedia',
       price: crudForm.price,
       min_order: minOrderNum,
       max_order: maxOrderNum,
@@ -11661,6 +11673,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       product_type: crudForm.product_type,
       attributes: {
         ...crudForm.attributes,
+        ...(isFauna ? { habitat: selectedHabitat || '', diet: crudForm.diet || '' } : {}),
         min_order: minOrderNum,
         max_order: maxOrderNum,
         file_format: crudForm.attributes.file_format || 'PDF',
@@ -11821,9 +11834,19 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   const getCategoryOptionsForType = (productType: ItemCategoryType = 'physical'): string[] => {
     const fromMaster = masterCategories[productType] || [];
     const fromDefaults = DEFAULT_MASTER_CATEGORIES[productType] || [];
+
+    // Collect defaults from other product types so cross-industry defaults don't accidentally leak into this type
+    const otherDefaults = new Set<string>();
+    (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(otherType => {
+      if (otherType !== productType) {
+        (DEFAULT_MASTER_CATEGORIES[otherType] || []).forEach(c => otherDefaults.add(c));
+      }
+    });
+
     const customUsed = faunas
       .filter(f => (f.product_type || 'physical') === productType && f.class)
-      .map(f => f.class);
+      .map(f => f.class)
+      .filter(c => !otherDefaults.has(c));
     
     const merged = Array.from(new Set([...fromDefaults, ...fromMaster, ...customUsed])).filter(Boolean);
     return merged.length > 0 ? merged : ['Lainnya'];
@@ -16235,6 +16258,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       type="button"
                       onClick={() => {
                         const cats = getCategoryOptionsForType(crudForm.product_type);
+                        const isCurrentValid = crudForm.class && cats.includes(crudForm.class);
+                        const activeVal = isCurrentValid ? crudForm.class : typeConfig.defaultCategory;
                         const opts = cats.map(cat => ({
                           value: cat,
                           label: cat,
@@ -16250,7 +16275,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           title: typeConfig.categoryLabel,
                           icon: Layers,
                           options: opts,
-                          selectedValue: showCustomClassInput ? '__NEW__' : crudForm.class,
+                          selectedValue: showCustomClassInput ? '__NEW__' : activeVal,
                           onSelect: (val) => {
                             if (val === '__NEW__') {
                               setShowCustomClassInput(true);
@@ -16279,7 +16304,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       }}
                     >
                       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                        {showCustomClassInput ? '+ Tambah Kategori Baru...' : (crudForm.class || 'Pilih Kategori...')}
+                        {showCustomClassInput 
+                          ? '+ Tambah Kategori Baru...' 
+                          : ((crudForm.class && getCategoryOptionsForType(crudForm.product_type).includes(crudForm.class)) 
+                              ? crudForm.class 
+                              : typeConfig.defaultCategory)}
                       </span>
                       <ChevronDown size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                     </button>
@@ -22829,6 +22858,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                           ? ['Konsultasi & Advice', 'Desain & Kreatif', 'Perbaikan & Servis', 'Kursus & Pelatihan', 'Pembuatan Web & Aplikasi']
                                           : preset.key === 'food'
                                           ? ['Makanan Utama / Berat', 'Camilan & Snack', 'Minuman Segar & Kopi', 'Frozen Food Siap Masak', 'Paket Katering']
+                                          : preset.key === 'plant'
+                                          ? ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni']
                                           : ['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial']
                                       });
                                     }}

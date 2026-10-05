@@ -62,11 +62,10 @@ type Product struct {
 	UpdatedAt           time.Time      `json:"updated_at"`
 
 	// Relations
-	Store     *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Category  *Category        `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
-	Images    []ProductImage   `gorm:"foreignKey:ProductID" json:"images,omitempty"`
-	Variants  []ProductVariant `gorm:"foreignKey:ProductID" json:"variants,omitempty"`
-	Sightings []Sighting       `gorm:"foreignKey:FaunaID" json:"sightings,omitempty"`
+	Store    *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
+	Category *Category        `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
+	Images   []ProductImage   `gorm:"foreignKey:ProductID" json:"images,omitempty"`
+	Variants []ProductVariant `gorm:"foreignKey:ProductID" json:"variants,omitempty"`
 }
 
 // TableName explicitly maps the Product model to the 'products' database table.

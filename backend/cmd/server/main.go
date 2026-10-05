@@ -70,7 +70,6 @@ func main() {
 	subscriptionHandler := handlers.NewSubscriptionHandler()
 	productHandler := handlers.NewProductHandler(cfg)
 	categoryHandler := handlers.NewCategoryHandler()
-	faunaHandler := handlers.NewFaunaHandler(cfg)
 	articleHandler := handlers.NewArticleHandler()
 	settingHandler := handlers.NewSettingHandler()
 	reportHandler := handlers.NewReportHandler()
@@ -186,8 +185,8 @@ func main() {
 	api.Get("/fauna", productHandler.Index)
 	api.Get("/fauna/:id", productHandler.Show)
 	api.Get("/fauna/:id/recommendations", productHandler.GetRecommendations)
-	api.Get("/taxonomy/culinary", faunaHandler.GetCulinaryTaxonomy)
-	api.Get("/culinary-taxonomy", faunaHandler.GetCulinaryTaxonomy)
+	api.Get("/taxonomy/culinary", productHandler.GetCulinaryTaxonomy)
+	api.Get("/culinary-taxonomy", productHandler.GetCulinaryTaxonomy)
 	api.Get("/settings", settingHandler.Index)
 	api.Get("/policies", settingHandler.GetPolicies)
 	api.Post("/policies/agree", middleware.PublicSubmissionRateLimiter(), settingHandler.RecordAgreement)
@@ -195,7 +194,6 @@ func main() {
 	api.Get("/articles/:id", articleHandler.Show)
 	api.Get("/articles/:id/comments", articleHandler.GetArticleComments)
 	api.Post("/articles/:id/comments", middleware.PublicSubmissionRateLimiter(), articleHandler.StoreComment)
-	api.Post("/sightings", middleware.PublicSubmissionRateLimiter(), settingHandler.StoreSighting)
 	api.Post("/reports", middleware.PublicSubmissionRateLimiter(), reportHandler.CreateReport)
 
 	// Multi-Tenant Public Store Endpoints

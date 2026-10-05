@@ -11185,8 +11185,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       name: item.name,
       scientific_name: item.scientific_name || '',
       class: item.class || typeConfig.defaultCategory,
-      habitat: item.habitat || 'General',
-      diet: item.diet || '',
+      habitat: item.attributes?.habitat || item.habitat || 'General',
+      diet: item.attributes?.diet || item.diet || '',
       conservation_status: item.conservation_status || 'Tersedia',
       price: item.price,
       min_order: minOrderVal,
@@ -11357,13 +11357,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       setUploadProgressText('Menyimpan data item...');
 
+      const isFauna = crudForm.product_type === 'fauna';
+      const isPlant = crudForm.product_type === 'plant';
+
       const payload = {
         name: crudForm.name,
-        scientific_name: (crudForm.product_type === 'fauna' || crudForm.product_type === 'plant') ? (crudForm.scientific_name || '') : '',
+        scientific_name: (isFauna || isPlant) ? (crudForm.scientific_name || '') : '',
         class: selectedClass,
-        habitat: crudForm.product_type === 'fauna' ? selectedHabitat : 'General',
-        diet: crudForm.product_type === 'fauna' ? (crudForm.diet || 'N/A') : 'N/A',
-        conservation_status: crudForm.product_type === 'fauna' ? selectedConservationStatus : 'Tersedia',
+        habitat: isFauna ? (selectedHabitat || '') : '',
+        diet: isFauna ? (crudForm.diet || '') : '',
+        conservation_status: isFauna ? (selectedConservationStatus || 'Tersedia') : 'Tersedia',
         price: crudForm.price,
         min_order: minOrderNum,
         max_order: maxOrderNum,
@@ -11375,6 +11378,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         product_type: crudForm.product_type,
         attributes: {
           ...crudForm.attributes,
+          ...(isFauna ? { habitat: selectedHabitat || '', diet: crudForm.diet || '' } : {}),
           min_order: minOrderNum,
           max_order: maxOrderNum,
           file_format: crudForm.attributes.file_format || 'PDF',
@@ -11534,9 +11538,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const getCategoryOptionsForType = (productType: ItemCategoryType = 'physical'): string[] => {
     const fromMaster = masterCategories[productType] || [];
     const fromDefaults = DEFAULT_MASTER_CATEGORIES[productType] || [];
+
+    // Collect defaults from other product types so cross-industry defaults don't accidentally leak into this type
+    const otherDefaults = new Set<string>();
+    (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[]).forEach(otherType => {
+      if (otherType !== productType) {
+        (DEFAULT_MASTER_CATEGORIES[otherType] || []).forEach(c => otherDefaults.add(c));
+      }
+    });
+
     const customUsed = faunas
       .filter(f => (f.product_type || 'physical') === productType && f.class)
-      .map(f => f.class);
+      .map(f => f.class)
+      .filter(c => !otherDefaults.has(c));
     
     const merged = Array.from(new Set([...fromDefaults, ...fromMaster, ...customUsed])).filter(Boolean);
     return merged.length > 0 ? merged : ['Lainnya'];
@@ -24920,10 +24934,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           type="button"
                           onClick={() => {
                             const newConfig = getItemTypeFormConfig(cat.id as ItemCategoryType);
+                            const validCategories = getCategoryOptionsForType(cat.id as ItemCategoryType);
+                            const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
+                              .some(otherType => otherType !== cat.id && DEFAULT_MASTER_CATEGORIES[otherType].includes(crudForm.class));
+                            const nextClass = (crudForm.class && validCategories.includes(crudForm.class) && !isFromOtherTypeDefault)
+                              ? crudForm.class
+                              : newConfig.defaultCategory;
+
                             setCrudForm(prev => ({
                               ...prev,
                               product_type: cat.id as ItemCategoryType,
-                              class: prev.class === typeConfig.defaultCategory ? newConfig.defaultCategory : prev.class,
+                              class: nextClass,
                               shipping_coverage: prev.shipping_coverage === typeConfig.deliveryOptions[0] ? newConfig.deliveryOptions[0] : prev.shipping_coverage
                             }));
                           }}
@@ -25185,7 +25206,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   ) : (
                     <select 
                       className="form-select"
-                      value={crudForm.class}
+                      value={(crudForm.class && getCategoryOptionsForType(crudForm.product_type).includes(crudForm.class)) ? crudForm.class : typeConfig.defaultCategory}
                       onChange={(e) => {
                         if (e.target.value === '__ADD_NEW_CATEGORY__') {
                           setShowCustomClassInput(true);
@@ -25212,14 +25233,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {/* Price and Min/Max Orders - Desktop 3 Columns */}
                 <div style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: (crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'plant' || crudForm.product_type === 'digital') ? '1.5fr 1fr 1fr' : '1fr', 
+                  gridTemplateColumns: Boolean(typeConfig.minOrderLabel) ? '1.5fr 1fr 1fr' : '1fr', 
                   gap: '1rem', 
-                  alignItems: 'start' 
+                  alignItems: 'stretch' 
                 }}>
                   {/* Harga Satuan Rupiah Input (Matching Mobile Concept) */}
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{typeConfig.priceLabel}</label>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column' }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', marginBottom: '0.4rem', lineHeight: '1.25' }}>
+                      {typeConfig.priceLabel}
+                    </label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginTop: 'auto' }}>
                       <span style={{ position: 'absolute', left: '0.85rem', fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-secondary)', pointerEvents: 'none' }}>Rp</span>
                       <input 
                         type="text" 
@@ -25228,42 +25251,46 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         required
                         value={formatRupiahInput(crudForm.price)}
                         onChange={(e) => setCrudForm({ ...crudForm, price: parseRupiahInput(e.target.value) })}
-                        style={{ height: '42px', paddingLeft: '2.5rem', fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary)' }}
+                        style={{ height: '42px', paddingLeft: '2.5rem', fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary)', width: '100%', boxSizing: 'border-box' }}
                       />
                     </div>
                   </div>
 
                   {/* Min & Max Order Inputs */}
-                  {(crudForm.product_type === 'physical' || crudForm.product_type === 'food' || crudForm.product_type === 'fauna' || crudForm.product_type === 'plant' || crudForm.product_type === 'digital') && (
+                  {Boolean(typeConfig.minOrderLabel) && (
                     <>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
+                      <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column' }}>
+                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', marginBottom: '0.4rem', lineHeight: '1.25' }}>
                           {typeConfig.minOrderLabel || 'Minimal Pesanan *'}
                         </label>
-                        <input 
-                          type="number" 
-                          className="form-input" 
-                          placeholder={typeConfig.minOrderPlaceholder || '1'}
-                          min={1}
-                          required
-                          value={crudForm.min_order ?? 1}
-                          onChange={(e) => setCrudForm({ ...crudForm, min_order: Math.max(1, parseInt(e.target.value) || 1) })}
-                          style={{ height: '42px', fontSize: '0.88rem' }}
-                        />
+                        <div style={{ marginTop: 'auto' }}>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder={typeConfig.minOrderPlaceholder || '1'}
+                            min={1}
+                            required
+                            value={crudForm.min_order ?? 1}
+                            onChange={(e) => setCrudForm({ ...crudForm, min_order: Math.max(1, parseInt(e.target.value) || 1) })}
+                            style={{ height: '42px', fontSize: '0.88rem', width: '100%', boxSizing: 'border-box' }}
+                          />
+                        </div>
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
+                      <div className="form-group" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column' }}>
+                        <label className="form-label" style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)', marginBottom: '0.4rem', lineHeight: '1.25' }}>
                           {typeConfig.maxOrderLabel || 'Maksimal Pesanan'}
                         </label>
-                        <input 
-                          type="number" 
-                          className="form-input" 
-                          placeholder={typeConfig.maxOrderPlaceholder || 'Tanpa batas'}
-                          min={crudForm.min_order || 1}
-                          value={crudForm.max_order || ''}
-                          onChange={(e) => setCrudForm({ ...crudForm, max_order: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
-                          style={{ height: '42px', fontSize: '0.88rem' }}
-                        />
+                        <div style={{ marginTop: 'auto' }}>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder={typeConfig.maxOrderPlaceholder || 'Tanpa batas'}
+                            min={crudForm.min_order || 1}
+                            value={crudForm.max_order || ''}
+                            onChange={(e) => setCrudForm({ ...crudForm, max_order: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
+                            style={{ height: '42px', fontSize: '0.88rem', width: '100%', boxSizing: 'border-box' }}
+                          />
+                        </div>
                       </div>
                     </>
                   )}

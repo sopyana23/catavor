@@ -1445,12 +1445,10 @@
   }
 }
 
+.zen-modal-overlay,
 .zen-fullscreen-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   width: 100vw;
   height: 100vh;
   z-index: 1250 !important;
@@ -1465,9 +1463,37 @@
   animation: zenFadeIn 0.15s ease-out;
 }
 
+.zen-modal-card,
+.zen-fullscreen-card {
+  max-width: 940px;
+  width: 100%;
+  height: min(800px, calc(100vh - 3.5rem));
+  max-height: calc(100vh - 3.5rem);
+  border-radius: 1.25rem;
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-card);
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  animation: zenScaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @keyframes zenFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes zenScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .zen-fullscreen-header {

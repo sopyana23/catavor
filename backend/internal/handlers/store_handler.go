@@ -1237,7 +1237,9 @@ var DefaultMasterCategories = map[string][]string{
 	"food":     {"Makanan Utama (Main Course)", "Dessert & Manisan", "Minuman & Olahan Kopi", "Camilan & Kudapan (Appetizer)", "Bakery, Roti & Pastry", "Makanan Beku (Frozen)", "Paket Hemat & Bundling", "Lainnya"},
 	"service":  {"Perawatan & Grooming", "Servis & Reparasi", "Desain Grafis & Kreatif", "Fotografi & Videografi", "Kursus & Pelatihan", "Konsultasi & Jasa Ahli", "Kebersihan & Maintenance", "Lainnya"},
 	"digital":  {"E-Book & PDF", "Template Dokumen & Notion", "Desain Grafis & UI Kit", "Source Code & Script", "Audio & Musik", "Preset & Filter", "Video & Aset 3D", "Lisensi Software", "Lainnya"},
-	"fauna":    {"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Tanaman Hias & Flora", "Invertebrata & Serangga", "Pakan & Perlengkapan", "Lainnya"},
+	"fauna":    {"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Invertebrata & Serangga", "Pakan & Perlengkapan", "Lainnya"},
+	"property": {"Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"},
+	"plant":    {"Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"},
 }
 
 // Helper MasterCategories JSON map functions
@@ -1504,10 +1506,11 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 	defaultMasterCategories := datatypes.JSON([]byte(`{
 		"physical": ["Pakaian & Fashion", "Aksesoris & Gadget", "Elektronik & Komputer", "Perlengkapan Rumah", "Kerajinan & Kriya", "Koleksi & Hobi", "Lainnya"],
 		"digital": ["E-Book & Publikasi", "Template & Dokumen", "Desain Grafis & UI Kit", "Source Code & Skrip", "Audio, Musik & SFX", "Preset, Filter & LUTs", "Video & Aset 3D", "Software & Tool", "Kursus & Modul", "Lainnya"],
-		"fauna": ["Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Tanaman Hias & Flora", "Invertebrata & Serangga", "Lainnya"],
+		"fauna": ["Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Invertebrata & Serangga", "Pakan & Perlengkapan", "Lainnya"],
 		"service": ["Perawatan & Grooming", "Servis & Reparasi", "Desain Grafis & Kreatif", "Fotografi & Videografi", "Kursus & Pelatihan", "Konsultasi & Jasa Ahli", "Kebersihan & Maintenance"],
 		"food": ["Makanan Utama (Main Course)", "Dessert & Manisan", "Minuman & Olahan Kopi", "Camilan & Kudapan (Appetizer)", "Bakery, Roti & Pastry", "Makanan Beku (Frozen)", "Paket Hemat & Bundling", "Lainnya"],
-		"property": ["Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"]
+		"property": ["Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"],
+		"plant": ["Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"]
 	}`))
 
 	newStore := models.Store{

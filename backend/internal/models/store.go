@@ -59,7 +59,6 @@ type Store struct {
 
 	// Relations
 	User       *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Faunas     []Fauna    `gorm:"foreignKey:StoreID" json:"faunas,omitempty"`
 	Products   []Product  `gorm:"foreignKey:StoreID" json:"products,omitempty"`
 	Categories []Category `gorm:"foreignKey:StoreID" json:"categories,omitempty"`
 }

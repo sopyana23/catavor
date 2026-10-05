@@ -68,7 +68,6 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.Product{},
 		&models.ProductImage{},
 		&models.ProductVariant{},
-		&models.Sighting{},
 		&models.Article{},
 		&models.Comment{},
 		&models.Setting{},
@@ -102,6 +101,8 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	// Seed or Import Data from SQLite
 	seedOrImportFromSQLite(db, cfg.SQLiteSourcePath)
 	seedDefaultSafeDomains(db)
+	seedDefaultPolicies(db)
+	ensureStoreCategoriesPopulated(db)
 
 	return db, nil
 }
@@ -437,38 +438,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_reference ON email_jobs (reference_id);").Error
 
 	// 9. Auto-populate categories from store master_classes if categories table is empty
-	var catCount int64
-	db.Model(&models.Category{}).Count(&catCount)
-	if catCount == 0 {
-		var stores []models.Store
-		if err := db.Find(&stores).Error; err == nil {
-			for _, st := range stores {
-				if len(st.MasterClasses) > 0 {
-					var classNames []string
-					if err := json.Unmarshal(st.MasterClasses, &classNames); err == nil {
-						for idx, cName := range classNames {
-							cName = strings.TrimSpace(cName)
-							if cName != "" {
-								slug := strings.ToLower(cName)
-								slug = strings.ReplaceAll(slug, " & ", "-")
-								slug = strings.ReplaceAll(slug, " ", "-")
-								cat := models.Category{
-									StoreID:     st.ID,
-									Name:        cName,
-									Slug:        slug,
-									ProductType: "physical",
-									SortOrder:   idx,
-									IsActive:    true,
-								}
-								db.Create(&cat)
-							}
-						}
-					}
-				}
-			}
-			log.Info().Msg("Auto-populated categories table from store master_classes")
-		}
-	}
+	ensureStoreCategoriesPopulated(db)
 
 	// 8. Seed Default Help Center Articles if table is empty
 	var helpCount int64
@@ -791,7 +761,28 @@ func seedDefaultData(db *gorm.DB) {
 	}
 	db.Create(&store)
 
-	log.Info().Msg("Default Catavor admin and adidas store created")
+	var classList []string
+	if err := json.Unmarshal(defaultClasses, &classList); err == nil {
+		for idx, cName := range classList {
+			cName = strings.TrimSpace(cName)
+			if cName != "" {
+				slug := strings.ToLower(cName)
+				slug = strings.ReplaceAll(slug, " & ", "-")
+				slug = strings.ReplaceAll(slug, " ", "-")
+				cat := models.Category{
+					StoreID:     store.ID,
+					Name:        cName,
+					Slug:        slug,
+					ProductType: "physical",
+					SortOrder:   idx,
+					IsActive:    true,
+				}
+				db.Create(&cat)
+			}
+		}
+	}
+
+	log.Info().Msg("Default Catavor admin, adidas store, and initial categories created")
 }
 
 func seedDefaultSafeDomains(db *gorm.DB) {
@@ -811,6 +802,99 @@ func seedDefaultSafeDomains(db *gorm.DB) {
 		db.Create(&d)
 	}
 	log.Info().Int("count", len(defaults)).Msg("Master Safe Domains seeded successfully")
+}
+
+func seedDefaultPolicies(db *gorm.DB) {
+	var count int64
+	db.Model(&models.PolicyVersion{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	now := time.Now().UTC()
+	defaultPolicies := []models.PolicyVersion{
+		{
+			Type:               "terms",
+			Title:              "Syarat dan Ketentuan Layanan Catavor",
+			Version:            "v2.1.0",
+			Content:            "### 1. Ketentuan Umum Layanan\nPengguna platform Catavor wajib mematuhi seluruh hukum yang berlaku di Republik Indonesia. Setiap pengelola profil katalog bertanggung jawab penuh atas keabsahan, keaslian, dan legalitas produk/jasa yang ditampilkan.\n\n### 2. Transaksi & Keamanan\nPlatform memfasilitasi komunikasi katalog langsung ke saluran WhatsApp merchant dan penyedia rekening bersama. Pengguna dihimbau selalu memverifikasi toko resmi berstatus Pro Plan.",
+			SummaryOfChanges:   "Pembaruan klausul Zero-Trust Tenant Isolation dan verifikasi pembayaran instan.",
+			ChangeType:         "major",
+			EffectiveDate:      now.AddDate(0, -1, 0),
+			IsActive:           true,
+			RequiresAcceptance: true,
+			CreatedBy:          1,
+		},
+		{
+			Type:               "privacy",
+			Title:              "Kebijakan Privasi & Perlindungan Data",
+			Version:            "v2.0.0",
+			Content:            "### 1. Pengumpulan Data\nKami mengumpulkan data yang diperlukan untuk pembuatan akun, toko digital, dan personalisasi tema visual. Seluruh password dienkripsi dengan standar Bcrypt Cost 12.\n\n### 2. Penggunaan Data\nData tidak akan pernah diperjualbelikan kepada pihak ketiga. Gambar produk dioptimasi dan dibersihkan dari metadata EXIF sensitif.",
+			SummaryOfChanges:   "Penyesuaian standar UU Perlindungan Data Pribadi (UU PDP).",
+			ChangeType:         "minor",
+			EffectiveDate:      now.AddDate(0, -2, 0),
+			IsActive:           true,
+			RequiresAcceptance: false,
+			CreatedBy:          1,
+		},
+		{
+			Type:               "acceptable_use",
+			Title:              "Panduan Konten & Penggunaan yang Diperbolehkan",
+			Version:            "v1.5.0",
+			Content:            "### 1. Larangan Produk\nDilarang mengunggah satwa liar dilindungi tanpa izin BKSDA resmi, barang bajakan/ilegal, senjata, atau materi yang melanggar norma hukum.\n\n### 2. Sanksi Pelanggaran\nPelanggaran akan dikenakan sanksi mulai dari penutupan katalog, pemblokiran akun, hingga pelaporan ke pihak berwajib.",
+			SummaryOfChanges:   "Penambahan panduan untuk kategori Properti, Jasa, dan Produk Kuliner.",
+			ChangeType:         "minor",
+			EffectiveDate:      now.AddDate(0, -3, 0),
+			IsActive:           true,
+			RequiresAcceptance: false,
+			CreatedBy:          1,
+		},
+	}
+
+	for _, p := range defaultPolicies {
+		p.CreatedAt = now
+		p.UpdatedAt = now
+		db.Create(&p)
+	}
+	log.Info().Msg("Default legal policies (Terms, Privacy, Acceptable Use) seeded successfully")
+}
+
+func ensureStoreCategoriesPopulated(db *gorm.DB) {
+	var catCount int64
+	db.Model(&models.Category{}).Count(&catCount)
+	if catCount > 0 {
+		return
+	}
+
+	var stores []models.Store
+	if err := db.Find(&stores).Error; err == nil {
+		for _, st := range stores {
+			if len(st.MasterClasses) > 0 {
+				var classNames []string
+				if err := json.Unmarshal(st.MasterClasses, &classNames); err == nil {
+					for idx, cName := range classNames {
+						cName = strings.TrimSpace(cName)
+						if cName != "" {
+							slug := strings.ToLower(cName)
+							slug = strings.ReplaceAll(slug, " & ", "-")
+							slug = strings.ReplaceAll(slug, " ", "-")
+							slug = strings.ReplaceAll(slug, "/", "-")
+							cat := models.Category{
+								StoreID:     st.ID,
+								Name:        cName,
+								Slug:        slug,
+								ProductType: "physical",
+								SortOrder:   idx,
+								IsActive:    true,
+							}
+							db.Create(&cat)
+						}
+					}
+				}
+			}
+		}
+		log.Info().Msg("Auto-populated categories table from store master_classes")
+	}
 }
 
 

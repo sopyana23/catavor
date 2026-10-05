@@ -37,10 +37,10 @@ type Fauna struct {
 	UpdatedAt           time.Time      `json:"updated_at"`
 
 	// Relations
-	Store     *Store     `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Sightings []Sighting `gorm:"foreignKey:FaunaID" json:"sightings,omitempty"`
+	Store *Store `gorm:"foreignKey:StoreID" json:"store,omitempty"`
 }
 
+// Deprecated: Sighting is a legacy model from early DFauna iterations, kept for legacy seed script compatibility.
 type Sighting struct {
 	ID        uint       `gorm:"primaryKey;autoIncrement" json:"id"`
 	FaunaID   uint       `gorm:"index;not null" json:"fauna_id"`
@@ -52,3 +52,5 @@ type Sighting struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 }
+
+
