@@ -15884,7 +15884,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       }}
                     >
                       {/* Image Thumbnail Container */}
-                      <div style={{ position: 'relative', height: '170px', overflow: 'hidden', backgroundColor: 'var(--bg-deep)' }}>
+                      <div style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1', overflow: 'hidden', backgroundColor: 'var(--bg-deep)' }}>
                         <img 
                           src={rec.image_url} 
                           alt={rec.name} 
@@ -17831,9 +17831,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <div 
                             key={i} 
                             className="glass-panel"
-                            style={{ display: 'flex', flexDirection: 'column', height: '360px', opacity: 0.7 }}
+                            style={{ display: 'flex', flexDirection: 'column', opacity: 0.7 }}
                           >
-                            <div style={{ height: '215px', backgroundColor: 'rgba(255,255,255,0.03)', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: 'rgba(255,255,255,0.03)', position: 'relative', overflow: 'hidden' }}>
                               <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)', animation: 'shimmer 1.5s infinite' }}></div>
                             </div>
                             <div style={{ padding: '1.25rem 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexGrow: 1, justifyContent: 'space-between' }}>
@@ -17882,7 +17882,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 onClick={() => fetchDetails(fauna.id)}
                                 style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
                               >
-                                <div className="card-image-container" style={{ height: '215px', position: 'relative', overflow: 'hidden' }}>
+                                <div className="card-image-container" style={{ position: 'relative', overflow: 'hidden' }}>
                                   <img 
                                     src={fauna.image_url} 
                                     alt={fauna.name} 
