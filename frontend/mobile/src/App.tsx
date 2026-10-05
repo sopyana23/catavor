@@ -18140,7 +18140,60 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
               </div>
 
-              {/* 2. Item Digital */}
+              {/* 2. Menu Kuliner (F&B) */}
+              <div 
+                onClick={() => handleSelectProductType('food')}
+                style={{ 
+                  padding: '1.05rem 1.15rem', 
+                  borderRadius: '1rem', 
+                  backgroundColor: 'var(--bg-card)', 
+                  border: '1px solid var(--border-light)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  cursor: 'pointer', 
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+                className="mobile-card-hover"
+              >
+                <div style={{ 
+                  width: '48px', 
+                  height: '48px', 
+                  borderRadius: '0.85rem', 
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  boxShadow: '0 4px 15px rgba(239, 68, 68, 0.2)',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: '#ef4444', 
+                  flexShrink: 0 
+                }}>
+                  <Utensils size={24} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      Menu Kuliner (F&amp;B)
+                    </h4>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                      Kuliner &amp; F&amp;B
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                    Kuliner, Camilan, Frozen Food, Minuman Olahan, &amp; Katering.
+                  </p>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                    ⚡ Form: Porsi, Expired Date, Suhu Simpan, Sertifikasi
+                  </div>
+                </div>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ChevronRight size={18} style={{ color: '#ef4444' }} />
+                </div>
+              </div>
+
+              {/* 3. Item Digital */}
               <div 
                 onClick={() => handleSelectProductType('digital')}
                 style={{ 
@@ -18190,59 +18243,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
                 <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <ChevronRight size={18} style={{ color: '#8b5cf6' }} />
-                </div>
-              </div>
-
-              {/* 3. Satwa */}
-              <div 
-                onClick={() => handleSelectProductType('fauna')}
-                style={{ 
-                  padding: '1.05rem 1.15rem', 
-                  borderRadius: '1rem', 
-                  backgroundColor: 'var(--bg-card)', 
-                  border: '1px solid var(--border-light)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '1rem', 
-                  cursor: 'pointer', 
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-                className="mobile-card-hover"
-              >
-                <div style={{ 
-                  width: '48px', 
-                  height: '48px', 
-                  borderRadius: '0.85rem', 
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)', 
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.2)',
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  color: '#10b981', 
-                  flexShrink: 0 
-                }}>
-                  <PawPrint size={24} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                      Satwa
-                    </h4>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                      Satwa Peliharaan
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                    Pet Shop, Reptil, Burung, Ikan Hias, Mamalia, &amp; Hewan Peliharaan.
-                  </p>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                    ⚡ Form: Nama Latin, Asal, Bobot, Masa Hidup
-                  </div>
-                </div>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <ChevronRight size={18} style={{ color: '#10b981' }} />
                 </div>
               </div>
 
@@ -18299,113 +18299,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
               </div>
 
-              {/* 5. Makanan & Minuman (F&B) */}
-              <div 
-                onClick={() => handleSelectProductType('food')}
-                style={{ 
-                  padding: '1.05rem 1.15rem', 
-                  borderRadius: '1rem', 
-                  backgroundColor: 'var(--bg-card)', 
-                  border: '1px solid var(--border-light)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '1rem', 
-                  cursor: 'pointer', 
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-                className="mobile-card-hover"
-              >
-                <div style={{ 
-                  width: '48px', 
-                  height: '48px', 
-                  borderRadius: '0.85rem', 
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  boxShadow: '0 4px 15px rgba(239, 68, 68, 0.2)',
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  color: '#ef4444', 
-                  flexShrink: 0 
-                }}>
-                  <Utensils size={24} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                      Menu Kuliner (F&amp;B)
-                    </h4>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                      Kuliner &amp; F&amp;B
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                    Kuliner, Camilan, Frozen Food, Minuman Olahan, &amp; Katering.
-                  </p>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                    ⚡ Form: Porsi, Expired Date, Suhu Simpan, Sertifikasi
-                  </div>
-                </div>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <ChevronRight size={18} style={{ color: '#ef4444' }} />
-                </div>
-              </div>
-
-              {/* 6. Properti & Real Estate */}
-              <div 
-                onClick={() => handleSelectProductType('property')}
-                style={{ 
-                  padding: '1.05rem 1.15rem', 
-                  borderRadius: '1rem', 
-                  backgroundColor: 'var(--bg-card)', 
-                  border: '1px solid var(--border-light)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '1rem', 
-                  cursor: 'pointer', 
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-                className="mobile-card-hover"
-              >
-                <div style={{ 
-                  width: '48px', 
-                  height: '48px', 
-                  borderRadius: '0.85rem', 
-                  backgroundColor: 'rgba(2, 132, 199, 0.15)', 
-                  border: '1px solid rgba(2, 132, 199, 0.3)',
-                  boxShadow: '0 4px 15px rgba(2, 132, 199, 0.2)',
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  color: '#0284c7', 
-                  flexShrink: 0 
-                }}>
-                  <Building2 size={24} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                      Properti &amp; Real Estate
-                    </h4>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
-                      Listing Properti
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
-                    Rumah, Apartemen, Tanah, Ruko, Villa, Kost, &amp; Ruang Usaha.
-                  </p>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                    ⚡ Form: SHM, LT/LB, KT/KM, Listrik, Virtual Tour
-                  </div>
-                </div>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(2, 132, 199, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <ChevronRight size={18} style={{ color: '#0284c7' }} />
-                </div>
-              </div>
-
-              {/* 7. Tanaman */}
+              {/* 5. Tanaman */}
               <div 
                 onClick={() => handleSelectProductType('plant')}
                 style={{ 
@@ -18455,6 +18349,112 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
                 <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <ChevronRight size={18} style={{ color: '#10b981' }} />
+                </div>
+              </div>
+
+              {/* 6. Satwa */}
+              <div 
+                onClick={() => handleSelectProductType('fauna')}
+                style={{ 
+                  padding: '1.05rem 1.15rem', 
+                  borderRadius: '1rem', 
+                  backgroundColor: 'var(--bg-card)', 
+                  border: '1px solid var(--border-light)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  cursor: 'pointer', 
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+                className="mobile-card-hover"
+              >
+                <div style={{ 
+                  width: '48px', 
+                  height: '48px', 
+                  borderRadius: '0.85rem', 
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)', 
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.2)',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: '#10b981', 
+                  flexShrink: 0 
+                }}>
+                  <PawPrint size={24} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      Satwa
+                    </h4>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                      Satwa Peliharaan
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                    Pet Shop, Reptil, Burung, Ikan Hias, Mamalia, &amp; Hewan Peliharaan.
+                  </p>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                    ⚡ Form: Nama Latin, Asal, Bobot, Masa Hidup
+                  </div>
+                </div>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ChevronRight size={18} style={{ color: '#10b981' }} />
+                </div>
+              </div>
+
+              {/* 7. Properti & Real Estate */}
+              <div 
+                onClick={() => handleSelectProductType('property')}
+                style={{ 
+                  padding: '1.05rem 1.15rem', 
+                  borderRadius: '1rem', 
+                  backgroundColor: 'var(--bg-card)', 
+                  border: '1px solid var(--border-light)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  cursor: 'pointer', 
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}
+                className="mobile-card-hover"
+              >
+                <div style={{ 
+                  width: '48px', 
+                  height: '48px', 
+                  borderRadius: '0.85rem', 
+                  backgroundColor: 'rgba(2, 132, 199, 0.15)', 
+                  border: '1px solid rgba(2, 132, 199, 0.3)',
+                  boxShadow: '0 4px 15px rgba(2, 132, 199, 0.2)',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: '#0284c7', 
+                  flexShrink: 0 
+                }}>
+                  <Building2 size={24} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      Properti &amp; Real Estate
+                    </h4>
+                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '0.35rem', backgroundColor: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+                      Listing Properti
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.45rem 0', lineHeight: 1.35, fontWeight: 500 }}>
+                    Rumah, Apartemen, Tanah, Ruko, Villa, Kost, &amp; Ruang Usaha.
+                  </p>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                    ⚡ Form: SHM, LT/LB, KT/KM, Listrik, Virtual Tour
+                  </div>
+                </div>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(2, 132, 199, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ChevronRight size={18} style={{ color: '#0284c7' }} />
                 </div>
               </div>
 

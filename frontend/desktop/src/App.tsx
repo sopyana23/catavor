@@ -24919,12 +24919,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem' }}>
                     {[
                       { id: 'physical', name: 'Barang Fisik', icon: Package, color: '#2563eb' },
-                      { id: 'property', name: 'Properti', icon: Building2, color: '#0284c7' },
                       { id: 'food', name: 'Kuliner', icon: Utensils, color: '#dc2626' },
-                      { id: 'service', name: 'Jasa & Layanan', icon: Wrench, color: '#d97706' },
                       { id: 'digital', name: 'Item Digital', icon: FileCode, color: '#8b5cf6' },
+                      { id: 'service', name: 'Jasa & Layanan', icon: Wrench, color: '#d97706' },
+                      { id: 'plant', name: 'Tanaman', icon: Sprout, color: 'var(--primary)' },
                       { id: 'fauna', name: 'Hewan', icon: PawPrint, color: 'var(--primary)' },
-                      { id: 'plant', name: 'Tanaman', icon: Sprout, color: 'var(--primary)' }
+                      { id: 'property', name: 'Properti', icon: Building2, color: '#0284c7' }
                     ].map((cat) => {
                       const CatIcon = cat.icon;
                       const isSelected = crudForm.product_type === cat.id;
