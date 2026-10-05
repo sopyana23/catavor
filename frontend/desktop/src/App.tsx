@@ -15280,11 +15280,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           </div>
 
           {/* Scrollable Content */}
-          <div style={{ flex: 1, padding: '2rem', paddingBottom: '110px', overflowY: 'auto', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
+          <div style={{ flex: 1, padding: '2rem', paddingBottom: '120px', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '3rem', alignItems: 'start' }}>
               
-              {/* Left Column: Media & Gallery */}
-              <div>
+              {/* Left Column: Media & Gallery (Floating Sticky - Amazon Style) */}
+              <div style={{ position: 'sticky', top: '84px', alignSelf: 'start', zIndex: 20 }}>
                 {(() => {
                   const galleryImages: string[] = (selectedFauna.detailed_info?.images && Array.isArray(selectedFauna.detailed_info.images) && selectedFauna.detailed_info.images.length > 0)
                     ? selectedFauna.detailed_info.images
@@ -15303,7 +15303,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           overflow: 'hidden', 
                           border: '1px solid var(--border-light)',
                           background: 'var(--bg-deep, #0f172a)',
-                          boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.12)'
+                          boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08)'
                         }}
                       >
                         <img 
@@ -15311,7 +15311,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           alt={selectedFauna.name} 
                           style={{ 
                             width: '100%', 
-                            height: '460px', 
+                            height: 'min(460px, calc(100vh - 250px))', 
+                            minHeight: '320px',
                             objectFit: 'cover', 
                             display: 'block',
                             cursor: 'zoom-in',
