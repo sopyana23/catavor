@@ -93,13 +93,13 @@ import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
-  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
-  rekber_template_general: "Halo *{store_title}*, saya berminat membeli produk berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
-  rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.",
-  rekber_template_digital: "Halo *{store_title}*, saya ingin membeli item digital berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) agar file dan lisensi terlindungi secara aman.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
-  rekber_template_service: "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n*{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan escrow Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.",
-  rekber_template_plant: "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.",
-  rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.",
+  rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_general: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_food: "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_digital: "Halo *{store_title}*, saya ingin membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_service: "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n\n*Layanan:* {item_name}\n*Tarif:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan escrow *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_plant: "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n\n*Tanaman:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
+  rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n\n*Satwa/Hewan:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
 };
 import { smartBack } from '../utils/navigation';
 import { apiClient } from '../utils/apiClient';
@@ -1240,7 +1240,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     rekber_enabled: '1',
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
-    rekber_wa_number: '',
+    rekber_wa_number: '62811220227',
     ...REKBER_FACTORY_DEFAULTS
   });
   const [rekberActiveTemplateTab, setRekberActiveTemplateTab] = useState<'physical' | 'food' | 'digital' | 'service' | 'plant' | 'fauna'>('physical');
@@ -2208,16 +2208,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           const setData = await setRes.json();
           if (setData.data) {
             const d = setData.data;
+            const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
             setGoogleSettings(prev => ({
               ...prev,
               ...d,
-              rekber_template_physical: d.rekber_template_physical || d.rekber_template_general || REKBER_FACTORY_DEFAULTS.rekber_template_physical,
-              rekber_template_general: d.rekber_template_general || d.rekber_template_physical || REKBER_FACTORY_DEFAULTS.rekber_template_general,
-              rekber_template_food: d.rekber_template_food || REKBER_FACTORY_DEFAULTS.rekber_template_food,
-              rekber_template_digital: d.rekber_template_digital || REKBER_FACTORY_DEFAULTS.rekber_template_digital,
-              rekber_template_service: d.rekber_template_service || REKBER_FACTORY_DEFAULTS.rekber_template_service,
-              rekber_template_plant: d.rekber_template_plant || REKBER_FACTORY_DEFAULTS.rekber_template_plant,
-              rekber_template_fauna: d.rekber_template_fauna || REKBER_FACTORY_DEFAULTS.rekber_template_fauna,
+              rekber_template_physical: stripIcons(d.rekber_template_physical || d.rekber_template_general) || REKBER_FACTORY_DEFAULTS.rekber_template_physical,
+              rekber_template_general: stripIcons(d.rekber_template_general || d.rekber_template_physical) || REKBER_FACTORY_DEFAULTS.rekber_template_general,
+              rekber_template_food: stripIcons(d.rekber_template_food) || REKBER_FACTORY_DEFAULTS.rekber_template_food,
+              rekber_template_digital: stripIcons(d.rekber_template_digital) || REKBER_FACTORY_DEFAULTS.rekber_template_digital,
+              rekber_template_service: stripIcons(d.rekber_template_service) || REKBER_FACTORY_DEFAULTS.rekber_template_service,
+              rekber_template_plant: stripIcons(d.rekber_template_plant) || REKBER_FACTORY_DEFAULTS.rekber_template_plant,
+              rekber_template_fauna: stripIcons(d.rekber_template_fauna) || REKBER_FACTORY_DEFAULTS.rekber_template_fauna,
             }));
           }
         }
@@ -3021,6 +3022,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (e) e.preventDefault();
     setSavingSettings(true);
     try {
+      const stripIcons = (s?: string) => (s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/^[ \t]+/gm, '');
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: {
@@ -3032,13 +3034,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           rekber_partner_name: googleSettings.rekber_partner_name || 'Rekber Syariah',
           rekber_website_url: googleSettings.rekber_website_url || 'https://rekbersyariah.com',
           rekber_wa_number: (googleSettings.rekber_wa_number || '').trim(),
-          rekber_template_physical: googleSettings.rekber_template_physical || '',
-          rekber_template_general: googleSettings.rekber_template_physical || googleSettings.rekber_template_general || '',
-          rekber_template_food: googleSettings.rekber_template_food || '',
-          rekber_template_digital: googleSettings.rekber_template_digital || '',
-          rekber_template_service: googleSettings.rekber_template_service || '',
-          rekber_template_plant: googleSettings.rekber_template_plant || '',
-          rekber_template_fauna: googleSettings.rekber_template_fauna || '',
+          rekber_template_physical: stripIcons(googleSettings.rekber_template_physical),
+          rekber_template_general: stripIcons(googleSettings.rekber_template_physical || googleSettings.rekber_template_general),
+          rekber_template_food: stripIcons(googleSettings.rekber_template_food),
+          rekber_template_digital: stripIcons(googleSettings.rekber_template_digital),
+          rekber_template_service: stripIcons(googleSettings.rekber_template_service),
+          rekber_template_plant: stripIcons(googleSettings.rekber_template_plant),
+          rekber_template_fauna: stripIcons(googleSettings.rekber_template_fauna),
         }),
       });
       if (res.ok) {
@@ -3072,7 +3074,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           rekber_enabled: '1',
           rekber_partner_name: 'Rekber Syariah',
           rekber_website_url: 'https://rekbersyariah.com',
-          rekber_wa_number: '',
+          rekber_wa_number: '62811220227',
           ...REKBER_FACTORY_DEFAULTS
         }));
         loadData();
@@ -12792,7 +12794,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           ...prev,
                           rekber_wa_number: e.target.value.replace(/[^0-9]/g, '')
                         }))}
-                        placeholder="Contoh: 6282123456789 (kosongkan jika via website saja)"
+                        placeholder="Contoh: 62811220227 (Default resmi rekbersyariah.com)"
                         className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
                         style={{
                           width: '100%',
@@ -12856,7 +12858,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         { code: '{rekber_website_url}', desc: 'URL Website Rekber', icon: <Globe size={11} /> },
                         { code: '{rekber_website_domain}', desc: 'Domain Rekber', icon: <LinkIcon size={11} /> },
                         { code: '{rekber_wa_number}', desc: 'No. WA Admin Rekber', icon: <PhoneCall size={11} /> },
-                        { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin', icon: <ShieldCheck size={11} /> },
+                                                { code: '{rekber_wa_section}', desc: 'Klausul Kontak Admin', icon: <ShieldCheck size={11} /> },
                       ].map((item, idx) => (
                         <span
                           key={idx}
@@ -13192,10 +13194,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         try {
                           websiteDomain = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname || 'rekbersyariah.com';
                         } catch {}
-                        const waNumber = (googleSettings.rekber_wa_number || '').trim();
-                        const waSection = waNumber
-                          ? ` atau menghubungi Admin Rekber Syariah (WA: +${waNumber}) agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)`
-                          : ` atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)`;
+                        const waNumber = (googleSettings.rekber_wa_number || '62811220227').trim();
+                        const cleanWANum = waNumber.replace(/\D/g, '') || '62811220227';
+                        const waLink = `https://wa.me/${cleanWANum}`;
+                        const waSection = ` atau hubungi WhatsApp Admin Rekber Syariah di *+${cleanWANum}* agar dapat dibuatkan grup transaksi bersama`;
 
                         let tmpl = '';
                         let sampleName = 'Sepatu Sneakers Vintage Original';
@@ -13232,6 +13234,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         }
 
                         return tmpl
+                          .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
                           .replace(/{store_title}/g, 'Catavor Demo Store')
                           .replace(/{item_name}/g, sampleName)
                           .replace(/{product_name}/g, sampleName)
@@ -13240,7 +13243,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           .replace(/{item_type_label}/g, typeLabel)
                           .replace(/{rekber_website_url}/g, websiteUrl)
                           .replace(/{rekber_website_domain}/g, websiteDomain)
-                          .replace(/{rekber_wa_number}/g, waNumber)
+                          .replace(/{rekber_wa_number}/g, cleanWANum)
+                          .replace(/{rekber_wa_link}/g, waLink)
                           .replace(/{rekber_wa_section}/g, waSection);
                       })()}
                     </div>

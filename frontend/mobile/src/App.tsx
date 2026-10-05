@@ -5447,7 +5447,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     rekber_enabled: '1',
     rekber_partner_name: 'Rekber Syariah',
     rekber_website_url: 'https://rekbersyariah.com',
-    rekber_wa_number: '',
+    rekber_wa_number: '62811220227',
     rekber_template_physical: '',
     rekber_template_general: '',
     rekber_template_food: '',
@@ -5478,10 +5478,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const prodPrice = formatRupiah(product?.price || 0);
     const rekberUrl = pSettings?.rekber_website_url || 'https://rekbersyariah.com';
     const rekberDomain = getCleanDomain(rekberUrl);
-    const rekberWA = (pSettings?.rekber_wa_number || '').trim();
-    const waSection = rekberWA 
-      ? ` atau menghubungi Admin Rekber Syariah (WA: +${rekberWA.replace(/\D/g, '')}) agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)`
-      : ' atau menghubungi Admin Rekber Syariah agar dapat dibuatkan grup WhatsApp transaksi bersama (Admin Rekber Syariah, Penjual, & Pembeli)';
+    const rekberWA = (pSettings?.rekber_wa_number || '62811220227').trim();
+    const cleanWA = rekberWA.replace(/\D/g, '') || '62811220227';
+    const waLink = `https://wa.me/${cleanWA}`;
+    const waSection = ` atau hubungi WhatsApp Admin Rekber Syariah di *+${cleanWA}* agar dapat dibuatkan grup transaksi bersama`;
 
     const typeLabels: Record<string, string> = {
       physical: 'Barang Fisik',
@@ -5511,21 +5511,80 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
     if (!template) {
       if (pType === 'food') {
-        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan menu kuliner berikut:\n🍲 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih.`;
+        template = `Halo *{store_title}*, saya ingin memesan menu kuliner berikut:
+
+*Menu:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
       } else if (pType === 'digital') {
-        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli item digital berlisensi berikut:\n💾 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan pembayaran terlindungi secara aman.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+        template = `Halo *{store_title}*, saya ingin membeli item digital berikut:
+
+*Item:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
       } else if (pType === 'service') {
-        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin memesan layanan jasa dengan perlindungan escrow aman:\n💼 *{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih.`;
+        template = `Halo *{store_title}*, saya ingin memesan layanan jasa berikut:
+
+*Layanan:* {item_name}
+*Tarif:* {item_price}
+
+Saya ingin bertransaksi menggunakan perlindungan escrow *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
       } else if (pType === 'plant') {
-        template = `Halo Admin Rekber Syariah *{store_title}*, saya ingin membeli tanaman berikut:\n🌱 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+        template = `Halo *{store_title}*, saya ingin membeli tanaman berikut:
+
+*Tanaman:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
       } else if (pType === 'fauna') {
-        template = `Halo Admin Rekber Syariah *{store_title}*, saya berminat mengadopsi / membeli hewan berikut:\n🐾 *{item_name}* (Biaya Adopsi/Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp bersama. Terima kasih.`;
+        template = `Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:
+
+*Satwa/Hewan:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
       } else {
-        template = `Halo *{store_title}*, saya berminat membeli barang berikut:\n📦 *{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\nMohon bantuannya untuk mendaftarkan transaksi ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih.`;
+        template = `Halo *{store_title}*, saya berminat membeli produk berikut:
+
+*Produk:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
       }
     }
 
-    return template
+    // Clean any legacy emoji icons from template
+    const cleanTemplate = template
+      .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      .replace(/^[ \t]+/gm, '');
+
+    return cleanTemplate
       .replace(/{store_title}/g, storeTitle)
       .replace(/{item_name}/g, prodName)
       .replace(/{product_name}/g, prodName)
@@ -5534,7 +5593,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       .replace(/{item_type_label}/g, itemTypeLabel)
       .replace(/{rekber_website_url}/g, rekberUrl)
       .replace(/{rekber_website_domain}/g, rekberDomain)
-      .replace(/{rekber_wa_number}/g, rekberWA)
+      .replace(/{rekber_wa_number}/g, cleanWA)
+      .replace(/{rekber_wa_link}/g, waLink)
       .replace(/{rekber_wa_section}/g, waSection);
   };
 
@@ -15669,7 +15729,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           if (isStoreOwner) {
                             showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
                           }
-                          const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai kelengkapan dokumen/legalitas serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
+                          const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n*${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai kelengkapan dokumen/legalitas serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                           window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
                         } else {
                           alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
@@ -16015,15 +16075,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   <a 
                                     href={buildWALink(itemWA.cleanNumber,
                                       selectedFauna.product_type === 'property'
-                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n🏡 *${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`
+                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n*${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`
                                         : selectedFauna.product_type === 'service'
-                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n💼 *${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`
+                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n*${selectedFauna.name}* (Tarif: ${formatRupiah(selectedFauna.price)})\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`
                                         : selectedFauna.product_type === 'food'
-                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin memesan menu kuliner berikut:\n🍲 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)} / ${getCatalogItemUnit(selectedFauna)})\n\nJumlah Pesanan: [1] ${getCatalogItemUnit(selectedFauna)}\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`
+                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin memesan menu kuliner berikut:\n*${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)} / ${getCatalogItemUnit(selectedFauna)})\n\nJumlah Pesanan: [1] ${getCatalogItemUnit(selectedFauna)}\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`
                                         : selectedFauna.product_type === 'digital'
-                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin membeli produk digital berlisensi resmi berikut:\n💾 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon instruksi pembayaran dan link pengiriman file digital resminya. Terima kasih.`
+                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya ingin membeli produk digital berlisensi resmi berikut:\n*${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon instruksi pembayaran dan link pengiriman file digital resminya. Terima kasih.`
                                         : selectedFauna.product_type === 'fauna'
-                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik membeli / mengadopsi satwa atau tanaman hias berikut:\n🐾 *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info ketersediaan, kondisi kesehatan, dan opsi pengiriman bergaransi hidup. Terima kasih.`
+                                        ? `Halo *${settings.store_title || 'Catavor'}*, saya tertarik membeli / mengadopsi satwa atau tanaman hias berikut:\n*${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info ketersediaan, kondisi kesehatan, dan opsi pengiriman bergaransi hidup. Terima kasih.`
                                         : `Halo ${settings.store_title || 'Catavor'}, saya tertarik untuk membeli *${selectedFauna.name}* (Harga: ${formatRupiah(selectedFauna.price)}) secara langsung.`
                                     )}
                                     target="_blank"

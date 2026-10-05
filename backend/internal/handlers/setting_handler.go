@@ -84,29 +84,44 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if _, ok := res["rekber_website_url"]; !ok {
 		res["rekber_website_url"] = "https://rekbersyariah.com"
 	}
-	if _, ok := res["rekber_wa_number"]; !ok {
-		res["rekber_wa_number"] = ""
+	if _, ok := res["rekber_wa_number"]; !ok || res["rekber_wa_number"] == "" {
+		res["rekber_wa_number"] = "62811220227"
 	}
-	if _, ok := res["rekber_template_physical"]; !ok || res["rekber_template_physical"] == "" {
-		res["rekber_template_physical"] = "Halo *{store_title}*, saya berminat membeli produk berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi secara aman menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
+	defaultPhysicalTemplate := "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
+	defaultFoodTemplate := "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
+	defaultDigitalTemplate := "Halo *{store_title}*, saya ingin membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
+	defaultServiceTemplate := "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n\n*Layanan:* {item_name}\n*Tarif:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan escrow *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
+	defaultPlantTemplate := "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n\n*Tanaman:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
+	defaultFaunaTemplate := "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n\n*Satwa/Hewan:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
+
+	legacyIcons := []string{"📦", "🍲", "💾", "💼", "🌱", "🐾", "🏡"}
+	hasLegacyIcon := func(s string) bool {
+		for _, ic := range legacyIcons {
+			if strings.Contains(s, ic) {
+				return true
+			}
+		}
+		return false
 	}
-	if _, ok := res["rekber_template_general"]; !ok || res["rekber_template_general"] == "" {
-		res["rekber_template_general"] = res["rekber_template_physical"]
+
+	tmplMap := map[string]string{
+		"rekber_template_physical": defaultPhysicalTemplate,
+		"rekber_template_general":  defaultPhysicalTemplate,
+		"rekber_template_food":     defaultFoodTemplate,
+		"rekber_template_digital":  defaultDigitalTemplate,
+		"rekber_template_service":  defaultServiceTemplate,
+		"rekber_template_plant":    defaultPlantTemplate,
+		"rekber_template_fauna":    defaultFaunaTemplate,
 	}
-	if _, ok := res["rekber_template_food"]; !ok || res["rekber_template_food"] == "" {
-		res["rekber_template_food"] = "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}).\nMohon bantuannya untuk memproses pesanan ini{rekber_wa_section} dan membuatkan grup WhatsApp transaksi bersama. Terima kasih."
-	}
-	if _, ok := res["rekber_template_digital"]; !ok || res["rekber_template_digital"] == "" {
-		res["rekber_template_digital"] = "Halo *{store_title}*, saya ingin membeli item digital berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) agar file dan lisensi terlindungi secara aman.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
-	}
-	if _, ok := res["rekber_template_service"]; !ok || res["rekber_template_service"] == "" {
-		res["rekber_template_service"] = "Halo *{store_title}*, saya ingin memesan layanan jasa berikut:\n*{item_name}* (Tarif: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan escrow Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman selama masa pengerjaan.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih."
-	}
-	if _, ok := res["rekber_template_plant"]; !ok || res["rekber_template_plant"] == "" {
-		res["rekber_template_plant"] = "Halo *{store_title}*, saya ingin membeli tanaman berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan perlindungan Rekening Bersama Syariah ({rekber_website_domain}) agar dana aman hingga tanaman tiba dalam kondisi segar.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section}. Terima kasih."
-	}
-	if _, ok := res["rekber_template_fauna"]; !ok || res["rekber_template_fauna"] == "" {
-		res["rekber_template_fauna"] = "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n*{item_name}* (Harga: {item_price})\n\nSaya ingin bertransaksi menggunakan layanan Rekening Bersama Syariah ({rekber_website_domain}) dengan proteksi garansi hidup & kesehatan saat tiba.\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url}{rekber_wa_section} atau membuatkan grup WhatsApp transaksi bersama. Terima kasih."
+
+	for k, defaultTmpl := range tmplMap {
+		val, ok := res[k]
+		if !ok || val == "" || strings.Contains(val, "wa.me") || !strings.Contains(val, "rekber_wa_number") || hasLegacyIcon(val) {
+			res[k] = defaultTmpl
+			if ok && hasLegacyIcon(val) {
+				_ = database.DB.Model(&models.Setting{}).Where("key = ?", k).Update("value", defaultTmpl).Error
+			}
+		}
 	}
 
 	return c.JSON(fiber.Map{
