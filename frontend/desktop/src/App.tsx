@@ -24910,19 +24910,19 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
               <label className="form-label">Pilih Opsi Pengganti *</label>
-              <select 
-                className="form-select"
+              <DesktopCustomSelect
                 value={deleteMasterModalData.selectedReplacement}
-                onChange={(e) => setDeleteMasterModalData({
+                onChange={(val) => setDeleteMasterModalData({
                   ...deleteMasterModalData,
-                  selectedReplacement: e.target.value
+                  selectedReplacement: val
                 })}
-                style={{ width: '100%', padding: '0.65rem', borderRadius: '0.50rem', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-light)', color: 'var(--text-primary)' }}
-              >
-                {deleteMasterModalData.replacementOptions.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
+                options={deleteMasterModalData.replacementOptions.map(opt => ({
+                  value: opt,
+                  label: opt
+                }))}
+                placeholder="Pilih Opsi Pengganti..."
+                style={{ width: '100%', height: '42px' }}
+              />
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -25072,12 +25072,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem' }}>
                     {[
                       { id: 'physical', name: 'Barang Fisik', icon: Package, color: '#2563eb' },
-                      { id: 'food', name: 'Kuliner', icon: Utensils, color: '#dc2626' },
+                      { id: 'food', name: 'Kuliner', icon: Utensils, color: '#ea580c' },
                       { id: 'digital', name: 'Item Digital', icon: FileCode, color: '#8b5cf6' },
                       { id: 'service', name: 'Jasa & Layanan', icon: Wrench, color: '#d97706' },
-                      { id: 'plant', name: 'Tanaman', icon: Sprout, color: 'var(--primary)' },
-                      { id: 'fauna', name: 'Hewan', icon: PawPrint, color: 'var(--primary)' },
-                      { id: 'property', name: 'Properti', icon: Building2, color: '#0284c7' }
+                      { id: 'plant', name: 'Tanaman', icon: Sprout, color: '#059669' },
+                      { id: 'fauna', name: 'Hewan', icon: PawPrint, color: '#e11d48' },
+                      { id: 'property', name: 'Properti', icon: Building2, color: '#0891b2' }
                     ].map((cat) => {
                       const CatIcon = cat.icon;
                       const isSelected = crudForm.product_type === cat.id;
@@ -25357,29 +25357,29 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                     </div>
                   ) : (
-                    <select 
-                      className="form-select"
+                    <DesktopCustomSelect
                       value={(crudForm.class && getCategoryOptionsForType(crudForm.product_type).includes(crudForm.class)) ? crudForm.class : typeConfig.defaultCategory}
-                      onChange={(e) => {
-                        if (e.target.value === '__ADD_NEW_CATEGORY__') {
+                      onChange={(val) => {
+                        if (val === '__ADD_NEW_CATEGORY__') {
                           setShowCustomClassInput(true);
                           setCustomClass('');
                         } else {
-                          setCrudForm({ ...crudForm, class: e.target.value });
+                          setCrudForm({ ...crudForm, class: val });
                         }
                       }}
-                      style={{ height: '42px', fontSize: '0.88rem' }}
-                    >
-                      {getCategoryOptionsForType(crudForm.product_type).map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                      <option 
-                        value="__ADD_NEW_CATEGORY__" 
-                        style={{ fontWeight: 700, color: 'var(--primary)', backgroundColor: 'var(--bg-card-hover)' }}
-                      >
-                        ➕ Buat Kategori Baru (Ketik Sendiri)...
-                      </option>
-                    </select>
+                      options={[
+                        ...getCategoryOptionsForType(crudForm.product_type).map(cat => ({
+                          value: cat,
+                          label: cat
+                        })),
+                        {
+                          value: '__ADD_NEW_CATEGORY__',
+                          label: '➕ Buat Kategori Baru (Ketik Sendiri)...'
+                        }
+                      ]}
+                      placeholder="Pilih Kategori..."
+                      style={{ height: '42px' }}
+                    />
                   )}
                 </div>
 
@@ -25462,16 +25462,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Kondisi Barang *</label>
-                        <select 
-                          className="form-select"
-                          value={crudForm.attributes.condition}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: e.target.value as any } })}
+                        <DesktopCustomSelect
+                          value={crudForm.attributes.condition || 'Baru'}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, condition: val as any } })}
+                          options={[
+                            { value: 'Baru', label: 'Baru (Brand New)' },
+                            { value: 'Bekas', label: 'Bekas (Second Mulus)' },
+                            { value: 'Refurbished', label: 'Refurbished / Rekondisi' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Baru">Baru (Brand New)</option>
-                          <option value="Bekas">Bekas (Second Mulus)</option>
-                          <option value="Refurbished">Refurbished / Rekondisi</option>
-                        </select>
+                        />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Berat Barang (Gram) *</label>
@@ -25546,17 +25546,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Tipe Lisensi *</label>
-                        <select 
-                          className="form-select" 
+                        <DesktopCustomSelect 
                           value={crudForm.attributes.license_type || 'Lisensi Personal'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, license_type: val } })}
+                          options={[
+                            { value: 'Lisensi Personal', label: 'Lisensi Personal (Penggunaan Pribadi)' },
+                            { value: 'Lisensi Komersial', label: 'Lisensi Komersial (Bisnis/Proyek)' },
+                            { value: 'Extended License', label: 'Extended License / Resell Rights' },
+                            { value: 'Open Source', label: 'Open Source / Bebas' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Lisensi Personal">Lisensi Personal (Penggunaan Pribadi)</option>
-                          <option value="Lisensi Komersial">Lisensi Komersial (Bisnis/Proyek)</option>
-                          <option value="Extended License">Extended License / Resell Rights</option>
-                          <option value="Open Source">Open Source / Bebas</option>
-                        </select>
+                        />
                       </div>
                     </div>
                   </div>
@@ -25564,12 +25564,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                 {/* 3. HEWAN & SATWA PELIHARAAN */}
                 {crudForm.product_type === 'fauna' && (
-                  <div style={{ background: 'var(--primary-glow)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '0.85rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
+                  <div style={{ background: 'rgba(225, 29, 72, 0.05)', border: '1px solid rgba(225, 29, 72, 0.2)', padding: '1.25rem', borderRadius: '0.85rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fb7185', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
                       Atribut Spesifik Hewan Peliharaan
                     </span>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Nama Ilmiah / Taksonomi (Latin)</label>
                         <input 
                           type="text" 
@@ -25580,7 +25580,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           style={{ height: '42px' }}
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Habitat Asli *</label>
                         <input 
                           type="text" 
@@ -25593,8 +25593,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '0.85rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Makanan / Diet *</label>
                         <input 
                           type="text" 
@@ -25606,21 +25606,21 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           style={{ height: '42px' }}
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Status Ketersediaan *</label>
-                        <select 
-                          className="form-select"
-                          value={crudForm.conservation_status}
-                          onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
+                        <DesktopCustomSelect
+                          value={crudForm.conservation_status || 'Tersedia'}
+                          onChange={(val) => setCrudForm({ ...crudForm, conservation_status: val })}
+                          options={[
+                            { value: 'Tersedia', label: 'Tersedia (Ready Stock)' },
+                            { value: 'Pre-Order', label: 'Pre-Order (PO)' },
+                            { value: 'Koleksi / Display', label: 'Koleksi / Display Only' },
+                            { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Tersedia">Tersedia (Ready Stock)</option>
-                          <option value="Pre-Order">Pre-Order (PO)</option>
-                          <option value="Koleksi / Display">Koleksi / Display Only</option>
-                          <option value="Habis Terjual">Habis Terjual (Sold Out)</option>
-                        </select>
+                        />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Asal Wilayah</label>
                         <input 
                           type="text" 
@@ -25632,8 +25632,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Estimasi Usia / Masa Hidup</label>
                         <input 
                           type="text" 
@@ -25644,7 +25644,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           style={{ height: '42px' }}
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Ukuran / Berat Hewan</label>
                         <input 
                           type="text" 
@@ -25661,12 +25661,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                 {/* TANAMAN */}
                 {crudForm.product_type === 'plant' && (
-                  <div style={{ background: 'var(--primary-glow)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '0.85rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
+                  <div style={{ background: 'rgba(5, 150, 105, 0.05)', border: '1px solid rgba(5, 150, 105, 0.2)', padding: '1.25rem', borderRadius: '0.85rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.85rem' }}>
                       Atribut Spesifik Tanaman
                     </span>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                    
+                    {/* Row 1: Identifikasi & Legalitas */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Nama Ilmiah / Botani (Latin)</label>
                         <input 
                           type="text" 
@@ -25677,66 +25679,88 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           style={{ height: '42px' }}
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Status Perlindungan &amp; Legalitas *</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes?.protection_status || 'Non-Dilindungi (Aman Diperjualbelikan)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, protection_status: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, protection_status: val } })}
+                          options={[
+                            { value: 'Non-Dilindungi (Aman Diperjualbelikan)', label: 'Non-Dilindungi (Aman & Bebas Diperjualbelikan)' },
+                            { value: 'Dilindungi / Budidaya Legal', label: 'Dilindungi / Budidaya Legal (Penangkar Bersertifikat)' },
+                            { value: 'Tanaman Endemik / Karantina', label: 'Tanaman Endemik / Bersertifikat Karantina' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Non-Dilindungi (Aman Diperjualbelikan)">Non-Dilindungi (Aman & Bebas Diperjualbelikan)</option>
-                          <option value="Dilindungi / Budidaya Legal">Dilindungi / Budidaya Legal (Penangkar Bersertifikat)</option>
-                          <option value="Tanaman Endemik / Karantina">Tanaman Endemik / Bersertifikat Karantina</option>
-                        </select>
+                        />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '0.85rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+
+                    {/* Row 2: Perawatan & Kebutuhan Tumbuh */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Kebutuhan Sinar Matahari *</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes?.sunlight || 'Partial Sun (Teduh Terang)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sunlight: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, sunlight: val } })}
+                          options={[
+                            { value: 'Full Sun (Matahari Penuh > 6 jam)', label: 'Full Sun (Matahari Penuh > 6 Jam)' },
+                            { value: 'Partial Sun (Teduh Terang)', label: 'Partial Sun (Teduh Terang / Cahaya Tersaring)' },
+                            { value: 'Indoor / Low Light (Dalam Ruangan)', label: 'Indoor / Low Light (Dalam Ruangan)' },
+                            { value: 'Fleksibel (Indoor / Outdoor)', label: 'Fleksibel (Bisa Indoor / Outdoor)' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Full Sun (Matahari Penuh > 6 jam)">Full Sun (Matahari Penuh &gt; 6 Jam)</option>
-                          <option value="Partial Sun (Teduh Terang)">Partial Sun (Teduh Terang / Cahaya Tersaring)</option>
-                          <option value="Indoor / Low Light (Dalam Ruangan)">Indoor / Low Light (Dalam Ruangan)</option>
-                          <option value="Fleksibel (Indoor / Outdoor)">Fleksibel (Bisa Indoor / Outdoor)</option>
-                        </select>
+                        />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Kebutuhan Penyiraman *</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes?.watering || 'Sedang (2-3 Hari Sekali)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, watering: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, watering: val } })}
+                          options={[
+                            { value: 'Rutin Harian (1-2x Sehari)', label: 'Rutin Harian (1-2x Sehari)' },
+                            { value: 'Sedang (2-3 Hari Sekali)', label: 'Sedang (2-3 Hari Sekali / Saat Media Kering)' },
+                            { value: 'Minim Air (1-2 Minggu Sekali)', label: 'Minim Air (1-2 Minggu Sekali - Sukulen/Kaktus)' },
+                            { value: 'Khusus / Hidroponik / Air', label: 'Khusus / Hidroponik / Terendam Air' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Rutin Harian (1-2x Sehari)">Rutin Harian (1-2x Sehari)</option>
-                          <option value="Sedang (2-3 Hari Sekali)">Sedang (2-3 Hari Sekali / Saat Media Kering)</option>
-                          <option value="Minim Air (1-2 Minggu Sekali)">Minim Air (1-2 Minggu Sekali - Sukulen/Kaktus)</option>
-                          <option value="Khusus / Hidroponik / Air">Khusus / Hidroponik / Terendam Air</option>
-                        </select>
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Status Ketersediaan *</label>
-                        <select 
-                          className="form-select"
-                          value={crudForm.conservation_status}
-                          onChange={(e) => setCrudForm({ ...crudForm, conservation_status: e.target.value })}
-                          style={{ height: '42px' }}
-                        >
-                          <option value="Tersedia">Tersedia (Ready Stock)</option>
-                          <option value="Pre-Order">Pre-Order (PO)</option>
-                          <option value="Koleksi / Display">Koleksi / Display Only</option>
-                          <option value="Habis Terjual">Habis Terjual (Sold Out)</option>
-                        </select>
+                        />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+
+                    {/* Row 3: Ketersediaan & Pengiriman */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label">Status Ketersediaan *</label>
+                        <DesktopCustomSelect
+                          value={crudForm.conservation_status || 'Tersedia'}
+                          onChange={(val) => setCrudForm({ ...crudForm, conservation_status: val })}
+                          options={[
+                            { value: 'Tersedia', label: 'Tersedia (Ready Stock)' },
+                            { value: 'Pre-Order', label: 'Pre-Order (PO)' },
+                            { value: 'Koleksi / Display', label: 'Koleksi / Display Only' },
+                            { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)' }
+                          ]}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
+                        <label className="form-label">Kondisi Pengiriman Tanaman</label>
+                        <DesktopCustomSelect
+                          value={crudForm.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_condition: val } })}
+                          options={[
+                            { value: 'Kirim Bersama Pot & Media Tanam', label: 'Kirim Bersama Pot & Media Tanam' },
+                            { value: 'Kirim Bare Root (Kurangi Media)', label: 'Kirim Bare Root (Kurangi Media - Hemat Ongkir)' },
+                            { value: 'Khusus Kurir Instan / Sameday', label: 'Khusus Kurir Instan / Sameday (Siap Pajang)' },
+                            { value: 'Bisa Kirim se-Indonesia', label: 'Bisa Kirim se-Indonesia (Packing Paralon/Kardus)' }
+                          ]}
+                          style={{ height: '42px' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 4: Fisik & Spesifikasi Tanaman */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Rekomendasi Media Tanam</label>
                         <input 
                           type="text" 
@@ -25747,7 +25771,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           style={{ height: '42px' }}
                         />
                       </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0, minWidth: 0 }}>
                         <label className="form-label">Ukuran / Estimasi Tinggi</label>
                         <input 
                           type="text" 
@@ -25757,20 +25781,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, plant_size: e.target.value } })}
                           style={{ height: '42px' }}
                         />
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Kondisi Pengiriman Tanaman</label>
-                        <select 
-                          className="form-select"
-                          value={crudForm.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, delivery_condition: e.target.value } })}
-                          style={{ height: '42px' }}
-                        >
-                          <option value="Kirim Bersama Pot & Media Tanam">Kirim Bersama Pot & Media Tanam</option>
-                          <option value="Kirim Bare Root (Kurangi Media)">Kirim Bare Root (Kurangi Media - Hemat Ongkir)</option>
-                          <option value="Khusus Kurir Instan / Sameday">Khusus Kurir Instan / Sameday (Siap Pajang)</option>
-                          <option value="Bisa Kirim se-Indonesia">Bisa Kirim se-Indonesia (Packing Paralon/Kardus)</option>
-                        </select>
                       </div>
                     </div>
                   </div>
@@ -25797,17 +25807,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Metode &amp; Lokasi Layanan *</label>
-                        <select 
-                          className="form-select"
-                          value={crudForm.attributes.service_location}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: e.target.value } })}
+                        <DesktopCustomSelect
+                          value={crudForm.attributes.service_location || 'Datang ke Toko'}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, service_location: val } })}
+                          options={[
+                            { value: 'Datang ke Toko', label: 'Datang ke Lokasi Toko / Studio' },
+                            { value: 'Home Visit (Ke Rumah)', label: 'Panggilan ke Rumah (Home Service)' },
+                            { value: 'Online', label: 'Online / Jarak Jauh (Remote)' },
+                            { value: 'Fleksibel', label: 'Fleksibel (Toko / Home Visit)' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Datang ke Toko">Datang ke Lokasi Toko / Studio</option>
-                          <option value="Home Visit (Ke Rumah)">Panggilan ke Rumah (Home Service)</option>
-                          <option value="Online">Online / Jarak Jauh (Remote)</option>
-                          <option value="Fleksibel">Fleksibel (Toko / Home Visit)</option>
-                        </select>
+                        />
                       </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
@@ -25834,32 +25844,32 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '0.85rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Tipe Transaksi *</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes.transaction_type || 'Dijual'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, transaction_type: e.target.value as any } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, transaction_type: val as any } })}
+                          options={[
+                            { value: 'Dijual', label: 'Dijual (Jual Beli)' },
+                            { value: 'Disewakan (Tahunan)', label: 'Disewakan (Sewa per Tahun)' },
+                            { value: 'Disewakan (Bulanan)', label: 'Disewakan (Sewa per Bulan)' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Dijual">Dijual (Jual Beli)</option>
-                          <option value="Disewakan (Tahunan)">Disewakan (Sewa per Tahun)</option>
-                          <option value="Disewakan (Bulanan)">Disewakan (Sewa per Bulan)</option>
-                        </select>
+                        />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Legalitas / Sertifikat *</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes.certificate || 'SHM (Sertifikat Hak Milik)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certificate: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, certificate: val } })}
+                          options={[
+                            { value: 'SHM (Sertifikat Hak Milik)', label: 'SHM (Sertifikat Hak Milik)' },
+                            { value: 'HGB (Hak Guna Bangunan)', label: 'HGB (Hak Guna Bangunan)' },
+                            { value: 'Strata Title / SHMRS', label: 'Strata Title / SHMRS (Apartemen)' },
+                            { value: 'AJB (Akta Jual Beli)', label: 'AJB (Akta Jual Beli)' },
+                            { value: 'Girik / Letter C', label: 'Girik / Letter C' },
+                            { value: 'Lainnya', label: 'Lainnya / PPJB' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="SHM (Sertifikat Hak Milik)">SHM (Sertifikat Hak Milik)</option>
-                          <option value="HGB (Hak Guna Bangunan)">HGB (Hak Guna Bangunan)</option>
-                          <option value="Strata Title / SHMRS">Strata Title / SHMRS (Apartemen)</option>
-                          <option value="AJB (Akta Jual Beli)">AJB (Akta Jual Beli)</option>
-                          <option value="Girik / Letter C">Girik / Letter C</option>
-                          <option value="Lainnya">Lainnya / PPJB</option>
-                        </select>
+                        />
                       </div>
                     </div>
 
@@ -25960,16 +25970,16 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Kondisi Perabotan</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes.furnishing || 'Unfurnished (Kosong)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, furnishing: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, furnishing: val } })}
+                          options={[
+                            { value: 'Unfurnished (Kosong)', label: 'Unfurnished (Kosong)' },
+                            { value: 'Semi-Furnished', label: 'Semi-Furnished' },
+                            { value: 'Fully Furnished (Lengkap)', label: 'Fully Furnished (Lengkap)' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Unfurnished (Kosong)">Unfurnished (Kosong)</option>
-                          <option value="Semi-Furnished">Semi-Furnished</option>
-                          <option value="Fully Furnished (Lengkap)">Fully Furnished (Lengkap)</option>
-                        </select>
+                        />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Arah Hadap</label>
@@ -26006,17 +26016,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Sertifikasi / Status Halal *</label>
-                        <select 
-                          className="form-select"
+                        <DesktopCustomSelect
                           value={crudForm.attributes.halal_status || 'Bersertifikat Halal Resmi (BPJPH / MUI)'}
-                          onChange={(e) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, halal_status: e.target.value } })}
+                          onChange={(val) => setCrudForm({ ...crudForm, attributes: { ...crudForm.attributes, halal_status: val } })}
+                          options={[
+                            { value: 'Bersertifikat Halal Resmi (BPJPH / MUI)', label: 'Bersertifikat Halal Resmi (BPJPH / MUI)' },
+                            { value: 'Halal (Bahan Baku Halal & Thayyib)', label: 'Halal (Bahan Baku Halal & Thayyib)' },
+                            { value: 'Dalam Proses Sertifikasi Halal', label: 'Dalam Proses Sertifikasi Halal' },
+                            { value: 'Non-Halal', label: 'Non-Halal' }
+                          ]}
                           style={{ height: '42px' }}
-                        >
-                          <option value="Bersertifikat Halal Resmi (BPJPH / MUI)">Bersertifikat Halal Resmi (BPJPH / MUI)</option>
-                          <option value="Halal (Bahan Baku Halal & Thayyib)">Halal (Bahan Baku Halal &amp; Thayyib)</option>
-                          <option value="Dalam Proses Sertifikasi Halal">Dalam Proses Sertifikasi Halal</option>
-                          <option value="Non-Halal">Non-Halal</option>
-                        </select>
+                        />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Pilihan Varian / Level Rasa (Opsional)</label>
