@@ -161,21 +161,21 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		})
 	}
 
-	// 4. Resolve & Verify Fauna/Item if TargetType == 'item'
-	var fauna *models.Fauna
+	// 4. Resolve & Verify Product/Item if TargetType == 'item'
+	var product *models.Product
 	var itemName string
 	if req.TargetType == "item" {
 		if req.FaunaID != nil && *req.FaunaID > 0 {
-			var f models.Fauna
-			if err := database.DB.Where("id = ? AND store_id = ?", *req.FaunaID, store.ID).First(&f).Error; err == nil {
-				fauna = &f
-				itemName = f.Name
+			var p models.Product
+			if err := database.DB.Where("id = ? AND store_id = ?", *req.FaunaID, store.ID).First(&p).Error; err == nil {
+				product = &p
+				itemName = p.Name
 			}
 		}
 		if itemName == "" && req.ItemName != "" {
 			itemName = security.SanitizePlainText(req.ItemName, 255)
 		}
-		if itemName == "" && fauna == nil {
+		if itemName == "" && product == nil {
 			itemName = "Item Produk"
 		}
 	}
@@ -249,17 +249,17 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		ActionTaken:       "none",
 	}
 
-	if fauna != nil {
-		report.FaunaID = &fauna.ID
+	if product != nil {
+		report.FaunaID = &product.ID
 		report.ItemName = itemName
-		report.ItemType = fauna.ProductType
+		report.ItemType = product.ProductType
 	} else if req.TargetType == "item" && itemName != "" {
 		report.ItemName = itemName
 		if req.FaunaID != nil && *req.FaunaID > 0 {
 			report.FaunaID = req.FaunaID
-			var f models.Fauna
-			if err := database.DB.Select("id, product_type").Where("id = ?", *req.FaunaID).First(&f).Error; err == nil {
-				report.ItemType = f.ProductType
+			var p models.Product
+			if err := database.DB.Select("id, product_type").Where("id = ?", *req.FaunaID).First(&p).Error; err == nil {
+				report.ItemType = p.ProductType
 			}
 		}
 	}
@@ -373,8 +373,8 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 
 	results := make([]ReportAggResult, len(reports))
 	for i, r := range reports {
-		if r.ItemType == "" && r.Fauna != nil && r.Fauna.ProductType != "" {
-			r.ItemType = r.Fauna.ProductType
+		if r.ItemType == "" && r.Product != nil && r.Product.ProductType != "" {
+			r.ItemType = r.Product.ProductType
 		}
 		var activeCount int64
 		subQ := database.DB.Model(&models.Report{}).
@@ -760,9 +760,9 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					targetEntityName = report.ItemName
 				}
 				if rawItemType == "" && report.FaunaID != nil && *report.FaunaID > 0 {
-					var f models.Fauna
-					if err := tx.Select("id, product_type").Where("id = ?", *report.FaunaID).First(&f).Error; err == nil {
-						rawItemType = f.ProductType
+					var p models.Product
+					if err := tx.Select("id, product_type").Where("id = ?", *report.FaunaID).First(&p).Error; err == nil {
+						rawItemType = p.ProductType
 					}
 				}
 				itemTypeLabel = mapProductTypeLabel(rawItemType)

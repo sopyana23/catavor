@@ -30,6 +30,6 @@ type Report struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 
 	// Relations
-	Store *Store `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Fauna *Fauna `gorm:"foreignKey:FaunaID" json:"fauna,omitempty"`
+	Store   *Store   `gorm:"foreignKey:StoreID" json:"store,omitempty"`
+	Product *Product `gorm:"foreignKey:FaunaID" json:"product,omitempty"`
 }

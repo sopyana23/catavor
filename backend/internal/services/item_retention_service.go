@@ -265,7 +265,9 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			// Clean remaining relations
 			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductImage{}).Error
 			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductVariant{}).Error
-			_ = db.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error
+			if db.Migrator().HasTable("sightings") {
+				_ = db.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error
+			}
 
 			// Nullify FK in reports to preserve historical violation records without constraint error
 			_ = db.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error

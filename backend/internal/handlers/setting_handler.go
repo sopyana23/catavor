@@ -216,44 +216,7 @@ func (h *SettingHandler) GetPolicyAuditLogs(c *fiber.Ctx) error {
 	})
 }
 
-func (h *SettingHandler) StoreSighting(c *fiber.Ctx) error {
-	var sighting models.Sighting
-	if err := c.BodyParser(&sighting); err != nil || sighting.FaunaID == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Data penampakan tidak valid.",
-		})
-	}
 
-	sighting.Location = security.SanitizePlainText(sighting.Location, 255)
-	sighting.Notes = security.SanitizePlainText(sighting.Notes, 2000)
-	if sighting.Location == "" {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"success": false,
-			"message": "Lokasi penampakan wajib diisi.",
-		})
-	}
-
-	// Clamp coordinates
-	if sighting.Latitude < -90 || sighting.Latitude > 90 {
-		sighting.Latitude = 0
-	}
-	if sighting.Longitude < -180 || sighting.Longitude > 180 {
-		sighting.Longitude = 0
-	}
-
-	now := time.Now()
-	if sighting.SightedAt == nil {
-		sighting.SightedAt = &now
-	}
-	database.DB.Create(&sighting)
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"success": true,
-		"message": "Penampakan berhasil dicatat.",
-		"data":    sighting,
-	})
-}
 
 // Agreement registration
 func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {

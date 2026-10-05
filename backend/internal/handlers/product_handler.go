@@ -237,17 +237,79 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		isShipping = *req.IsShippingAvailable
 	}
 
+	// Sanitize and normalize scientific name, habitat, and diet
+	scientificName := ""
+	if pType == "fauna" || pType == "plant" {
+		scientificName = security.SanitizePlainText(req.ScientificName, 255)
+	}
+
+	habitat := ""
+	diet := ""
+	if pType == "fauna" {
+		if req.Attributes != nil {
+			if h, ok := req.Attributes["habitat"].(string); ok && h != "" {
+				habitat = security.SanitizePlainText(h, 100)
+			}
+			if d, ok := req.Attributes["diet"].(string); ok && d != "" {
+				diet = security.SanitizePlainText(d, 100)
+			}
+		}
+		if habitat == "" && req.Habitat != "" && req.Habitat != "General" {
+			habitat = security.SanitizePlainText(req.Habitat, 100)
+		}
+		if diet == "" && req.Diet != "" && req.Diet != "N/A" {
+			diet = security.SanitizePlainText(req.Diet, 100)
+		}
+		if req.Attributes != nil {
+			if habitat != "" {
+				req.Attributes["habitat"] = habitat
+			}
+			if diet != "" {
+				req.Attributes["diet"] = diet
+			}
+		}
+	} else if req.Attributes != nil {
+		delete(req.Attributes, "habitat")
+		delete(req.Attributes, "diet")
+	}
+
+	// Auto-associate Category relation if category_id not explicitly sent
+	var categoryID *uint = req.CategoryID
+	className := security.SanitizePlainText(req.Class, 100)
+	if categoryID == nil && className != "" {
+		var cat models.Category
+		if err := database.DB.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
+			categoryID = &cat.ID
+		} else {
+			slug := strings.ToLower(className)
+			slug = strings.ReplaceAll(slug, " & ", "-")
+			slug = strings.ReplaceAll(slug, " ", "-")
+			slug = strings.ReplaceAll(slug, "/", "-")
+			newCat := models.Category{
+				StoreID:     store.ID,
+				Name:        className,
+				Slug:        slug,
+				ProductType: pType,
+				SortOrder:   0,
+				IsActive:    true,
+			}
+			if err := database.DB.Create(&newCat).Error; err == nil {
+				categoryID = &newCat.ID
+			}
+		}
+	}
+
 	detailedInfoBytes, _ := json.Marshal(req.DetailedInfo)
 	attributesBytes, _ := json.Marshal(req.Attributes)
 
 	product := models.Product{
 		StoreID:             store.ID,
-		CategoryID:          req.CategoryID,
+		CategoryID:          categoryID,
 		Name:                name,
-		ScientificName:      security.SanitizePlainText(req.ScientificName, 255),
+		ScientificName:      scientificName,
 		Class:               security.SanitizePlainText(req.Class, 100),
-		Habitat:             security.SanitizePlainText(req.Habitat, 100),
-		Diet:                security.SanitizePlainText(req.Diet, 100),
+		Habitat:             habitat,
+		Diet:                diet,
 		ConservationStatus:  security.SanitizePlainText(req.ConservationStatus, 100),
 		Price:               math.Max(0, req.Price),
 		MinOrder:            minOrder,
@@ -459,21 +521,83 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	if req.Name != "" {
 		product.Name = security.SanitizePlainText(req.Name, 255)
 	}
-	if req.ScientificName != "" {
-		product.ScientificName = security.SanitizePlainText(req.ScientificName, 255)
+	effectiveType := product.ProductType
+	if req.ProductType != "" {
+		effectiveType = strings.ToLower(strings.TrimSpace(req.ProductType))
+		product.ProductType = effectiveType
 	}
+
+	if effectiveType == "fauna" || effectiveType == "plant" {
+		if req.ScientificName != "" {
+			product.ScientificName = security.SanitizePlainText(req.ScientificName, 255)
+		}
+	} else {
+		product.ScientificName = ""
+	}
+
 	if req.Class != "" {
-		product.Class = security.SanitizePlainText(req.Class, 100)
-	}
-	if req.CategoryID != nil {
+		className := security.SanitizePlainText(req.Class, 100)
+		product.Class = className
+		if req.CategoryID != nil {
+			product.CategoryID = req.CategoryID
+		} else {
+			var cat models.Category
+			if err := database.DB.Where("store_id = ? AND LOWER(name) = ?", store.ID, strings.ToLower(className)).First(&cat).Error; err == nil {
+				product.CategoryID = &cat.ID
+			} else {
+				slug := strings.ToLower(className)
+				slug = strings.ReplaceAll(slug, " & ", "-")
+				slug = strings.ReplaceAll(slug, " ", "-")
+				slug = strings.ReplaceAll(slug, "/", "-")
+				newCat := models.Category{
+					StoreID:     store.ID,
+					Name:        className,
+					Slug:        slug,
+					ProductType: effectiveType,
+					SortOrder:   0,
+					IsActive:    true,
+				}
+				if err := database.DB.Create(&newCat).Error; err == nil {
+					product.CategoryID = &newCat.ID
+				}
+			}
+		}
+	} else if req.CategoryID != nil {
 		product.CategoryID = req.CategoryID
 	}
-	if req.Habitat != "" {
-		product.Habitat = security.SanitizePlainText(req.Habitat, 100)
+
+	if effectiveType == "fauna" {
+		if req.Attributes != nil {
+			if h, ok := req.Attributes["habitat"].(string); ok && h != "" {
+				product.Habitat = security.SanitizePlainText(h, 100)
+			}
+			if d, ok := req.Attributes["diet"].(string); ok && d != "" {
+				product.Diet = security.SanitizePlainText(d, 100)
+			}
+		}
+		if req.Habitat != "" && req.Habitat != "General" {
+			product.Habitat = security.SanitizePlainText(req.Habitat, 100)
+		}
+		if req.Diet != "" && req.Diet != "N/A" {
+			product.Diet = security.SanitizePlainText(req.Diet, 100)
+		}
+		if req.Attributes != nil {
+			if product.Habitat != "" {
+				req.Attributes["habitat"] = product.Habitat
+			}
+			if product.Diet != "" {
+				req.Attributes["diet"] = product.Diet
+			}
+		}
+	} else {
+		product.Habitat = ""
+		product.Diet = ""
+		if req.Attributes != nil {
+			delete(req.Attributes, "habitat")
+			delete(req.Attributes, "diet")
+		}
 	}
-	if req.Diet != "" {
-		product.Diet = security.SanitizePlainText(req.Diet, 100)
-	}
+
 	if req.ConservationStatus != "" {
 		product.ConservationStatus = security.SanitizePlainText(req.ConservationStatus, 100)
 	}
@@ -495,9 +619,6 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 	if req.ImageURL != "" {
 		product.ImageURL = security.SanitizeURL(req.ImageURL)
-	}
-	if req.ProductType != "" {
-		product.ProductType = strings.ToLower(strings.TrimSpace(req.ProductType))
 	}
 	if req.DetailedInfo != nil {
 		b, _ := json.Marshal(req.DetailedInfo)
@@ -1000,4 +1121,99 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 		"data":    product,
 	})
 }
+
+// CulinaryTaxonomyItem represents presets for F&B product taxonomy.
+type CulinaryTaxonomyItem struct {
+	CategoryName       string   `json:"category_name"`
+	Description        string   `json:"description"`
+	DefaultStorageTemp string   `json:"default_storage_temp"`
+	DefaultExpiredInfo string   `json:"default_expired_info"`
+	DefaultShipping    string   `json:"default_shipping"`
+	PortionPlaceholder string   `json:"portion_placeholder"`
+	SpecificFields     []string `json:"specific_fields"`
+}
+
+// GetCulinaryTaxonomy returns default taxonomy presets for culinary / food items.
+func (h *ProductHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
+	taxonomy := []CulinaryTaxonomyItem{
+		{
+			CategoryName:       "Makanan Siap Santap",
+			Description:        "Makanan matang siap makan (dine-in, takeaway, atau kurir instan).",
+			DefaultStorageTemp: "Hangat / Langsung Santap",
+			DefaultExpiredInfo: "Fresh Daily (Hari Ini)",
+			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
+			PortionPlaceholder: "Contoh: 1 Porsi / Paket Nasi Komplit",
+			SpecificFields:     []string{"portion_size", "spicy_level", "prep_time", "serving_method", "certification"},
+		},
+		{
+			CategoryName:       "Makanan Beku & Olahan (Frozen)",
+			Description:        "Makanan beku atau olahan siap masak (dimsum, bakso, daging marinasi).",
+			DefaultStorageTemp: "Beku (Freezer -18°C)",
+			DefaultExpiredInfo: "3 Bulan di Freezer",
+			DefaultShipping:    "Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)",
+			PortionPlaceholder: "Contoh: Pack 500 gr / Box isi 10 pcs",
+			SpecificFields:     []string{"portion_size", "cooking_guide", "expired_info", "storage_temp", "certification"},
+		},
+		{
+			CategoryName:       "Minuman & Olahan Kopi",
+			Description:        "Minuman segar, kopi botolan, artisan tea, atau jus.",
+			DefaultStorageTemp: "Dingin (Chiller)",
+			DefaultExpiredInfo: "3-7 Hari di Kulkas",
+			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
+			PortionPlaceholder: "Contoh: Botol 250 ml / Literan 1000 ml / Cup 16oz",
+			SpecificFields:     []string{"portion_size", "sugar_ice_options", "storage_temp", "expired_info", "certification"},
+		},
+		{
+			CategoryName:       "Camilan, Snack & Kue Kering",
+			Description:        "Makanan ringan renyah, keripik, cookies, atau camilan kering tahan lama.",
+			DefaultStorageTemp: "Suhu Ruang",
+			DefaultExpiredInfo: "3-6 Bulan (Kemasan Rapat)",
+			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
+			PortionPlaceholder: "Contoh: Pouch 200 gr / Toples 250 gr / Pack 100 gr",
+			SpecificFields:     []string{"portion_size", "spicy_level", "expired_info", "storage_temp", "certification"},
+		},
+		{
+			CategoryName:       "Bakery, Roti & Pastry",
+			Description:        "Roti panggang segar, kue bolu, pastry, donat, atau cake harian.",
+			DefaultStorageTemp: "Suhu Ruang",
+			DefaultExpiredInfo: "3-4 Hari (Suhu Ruang)",
+			DefaultShipping:    "Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)",
+			PortionPlaceholder: "Contoh: 1 Loyang (Diameter 20cm) / Box isi 6 pcs / Loaf 400 gr",
+			SpecificFields:     []string{"portion_size", "taste_options", "expired_info", "bake_status", "certification"},
+		},
+		{
+			CategoryName:       "Bumbu & Bahan Masak",
+			Description:        "Bumbu masakan siap pakai, saus botolan, rempah, atau minyak olahan.",
+			DefaultStorageTemp: "Suhu Ruang",
+			DefaultExpiredInfo: "6-12 Bulan",
+			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
+			PortionPlaceholder: "Contoh: Botol 250 gr / Pouch 500 gr / Pack 1 kg",
+			SpecificFields:     []string{"portion_size", "serving_capacity", "expired_info", "storage_temp", "certification"},
+		},
+		{
+			CategoryName:       "Katering & Paket Pesanan",
+			Description:        "Paket pesanan porsi banyak, tumpeng, nasi boks prasmanan, meal prep.",
+			DefaultStorageTemp: "Hangat / Langsung Santap",
+			DefaultExpiredInfo: "Fresh Daily (Hari Acara)",
+			DefaultShipping:    "Pre-Order Khusus (Katering / Acara)",
+			PortionPlaceholder: "Contoh: Minimal 20 Box / Tampah 15 Porsi",
+			SpecificFields:     []string{"min_order", "inclusions", "prep_time", "delivery_service", "certification"},
+		},
+		{
+			CategoryName:       "Lainnya",
+			Description:        "Produk kuliner khusus atau kombinasi lainnya.",
+			DefaultStorageTemp: "Fleksibel",
+			DefaultExpiredInfo: "Sesuai Kemasan",
+			DefaultShipping:    "Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)",
+			PortionPlaceholder: "Contoh: 1 Unit / Pack / Box",
+			SpecificFields:     []string{"portion_size", "expired_info", "storage_temp", "certification"},
+		},
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    taxonomy,
+	})
+}
+
 

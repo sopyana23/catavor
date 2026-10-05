@@ -498,15 +498,6 @@ func parsePrice(val interface{}) float64 {
 	}
 }
 
-type CulinaryTaxonomyItem struct {
-	CategoryName       string   `json:"category_name"`
-	Description        string   `json:"description"`
-	DefaultStorageTemp string   `json:"default_storage_temp"`
-	DefaultExpiredInfo string   `json:"default_expired_info"`
-	DefaultShipping    string   `json:"default_shipping"`
-	PortionPlaceholder string   `json:"portion_placeholder"`
-	SpecificFields     []string `json:"specific_fields"`
-}
 
 func (h *FaunaHandler) GetCulinaryTaxonomy(c *fiber.Ctx) error {
 	taxonomy := []CulinaryTaxonomyItem{
