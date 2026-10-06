@@ -23,11 +23,12 @@ import {
   Menu,
   HardDrive,
   Search,
+  FolderTree,
   X
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
-  adminTab: 'items' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal';
+  adminTab: 'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal';
   setAdminTab: (tab: any) => void;
   settings: any;
   storeSlug: string | null;
@@ -128,6 +129,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badge: totalItemsCount > 0 ? totalItemsCount : null,
           badgeColor: 'var(--primary-glow)',
           badgeTextColor: 'var(--primary)'
+        },
+        {
+          id: 'categories',
+          label: 'Kategori Etalase',
+          icon: <FolderTree size={18} />
         }
       ]
     },
@@ -226,6 +232,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   const getActiveTabTitle = () => {
     switch (adminTab) {
       case 'items': return 'Daftar Item & Inventaris';
+      case 'categories': return 'Manajemen Kategori & Etalase Katalog';
       case 'analytics': return 'Statistik & Analisis Trafik';
       case 'subscription': return 'Paket Langganan & Kuota Toko';
       case 'notifications': return 'Pusat Notifikasi Sistem';
@@ -1077,27 +1084,57 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               )}
             </button>
 
-            {/* Primary Action Button (e.g. + Tambah Item when on items tab) */}
-            {adminTab === 'items' && onOpenCreateItem && !(settings?.dormancy_status === 'suspended' || settings?.is_suspended) && (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onOpenCreateItem}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.45rem 1.05rem',
-                  borderRadius: '0.55rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 800,
-                  boxShadow: '0 4px 14px var(--primary-glow)',
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={15} />
-                <span>Tambah Item</span>
-              </button>
+            {/* Header Action Buttons for items & categories */}
+            {!(settings?.dormancy_status === 'suspended' || settings?.is_suspended) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {adminTab === 'items' && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setAdminTab('categories');
+                      if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/categories`);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.95rem',
+                      borderRadius: '0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-light)'
+                    }}
+                    title="Kelola Taksonomi Kategori Etalase"
+                  >
+                    <FolderTree size={15} style={{ color: 'var(--primary)' }} />
+                    <span>Kelola Kategori</span>
+                  </button>
+                )}
+
+                {onOpenCreateItem && (adminTab === 'items' || adminTab === 'categories') && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={onOpenCreateItem}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 1.05rem',
+                      borderRadius: '0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      boxShadow: '0 4px 14px var(--primary-glow)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Plus size={15} />
+                    <span>Tambah Item</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </header>

@@ -27,7 +27,8 @@ import {
   Zap,
   Calendar,
   RotateCcw,
-  Infinity
+  Infinity,
+  Archive
 } from 'lucide-react';
 
 export interface SubscriptionPlanData {
@@ -1721,6 +1722,14 @@ export const QuotaDashboardWidget: React.FC<{
               }} />
             )}
           </div>
+          {quota.archived_items_count > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: '#f59e0b', marginTop: '0.15rem' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                <Archive size={11} strokeWidth={2.2} /> Produk Diarsipkan
+              </span>
+              <strong style={{ fontWeight: 800 }}>{quota.archived_items_count.toLocaleString('id-ID')} Item</strong>
+            </div>
+          )}
         </div>
 
         {/* Storage Quota */}

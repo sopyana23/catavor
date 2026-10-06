@@ -517,6 +517,12 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 	product.IsActive = targetActive
+	if !targetActive {
+		now := time.Now().UTC()
+		product.ArchivedAt = &now
+	} else {
+		product.ArchivedAt = nil
+	}
 
 	if req.Name != "" {
 		product.Name = security.SanitizePlainText(req.Name, 255)
@@ -852,6 +858,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 
 	InvalidateStoreProductsCache(store.ID)
+	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
 	return c.JSON(fiber.Map{
 		"success": true,

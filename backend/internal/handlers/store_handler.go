@@ -1037,6 +1037,12 @@ func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 	}
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
+		if IsSystemDefaultCategory(req.ProductType, val) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Kategori '%s' sudah merupakan standar bawaan sistem.", val),
+			})
+		}
 		if req.ProductType != "" {
 			store.MasterCategories = appendMasterCategory(store.MasterCategories, security.SanitizePlainText(req.ProductType, 50), val)
 		}
@@ -1085,6 +1091,18 @@ func (h *StoreHandler) RenameMasterOption(c *fiber.Ctx) error {
 
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
+		if IsSystemDefaultCategory(prodType, oldVal) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat diubah namanya.", oldVal),
+			})
+		}
+		if IsSystemDefaultCategory(prodType, newVal) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Kategori '%s' sudah merupakan nama standar bawaan sistem.", newVal),
+			})
+		}
 		if prodType != "" {
 			store.MasterCategories = replaceMasterCategory(store.MasterCategories, prodType, oldVal, newVal)
 		}
@@ -1130,6 +1148,12 @@ func (h *StoreHandler) DeleteMasterOption(c *fiber.Ctx) error {
 
 	switch req.Field {
 	case "class", "master_classes", "category", "master_categories":
+		if IsSystemDefaultCategory(req.ProductType, val) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Kategori '%s' adalah standar bawaan sistem dan tidak dapat dihapus.", val),
+			})
+		}
 		if req.ProductType != "" {
 			store.MasterCategories = removeMasterCategory(store.MasterCategories, req.ProductType, val)
 		}
@@ -1187,7 +1211,7 @@ func (h *StoreHandler) ApplyMasterPreset(c *fiber.Ctx) error {
 		statuses = []string{"Tersedia (Aktif)", "Maintenance / Update", "Arsip (Tidak Dijual)"}
 		shipping = []string{"Kirim via Email & Link Download", "Akses Portal Anggota"}
 	case "fauna":
-		classes = []string{"Ikan Hias", "Reptil & Amphibi", "Burung & Unggas", "Mamalia Kecil", "Kucing & Anjing", "Serangga & Arthropoda", "Pakan & Perlengkapan", "Lainnya"}
+		classes = []string{"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil", "Kucing & Anjing", "Invertebrata & Serangga", "Lainnya"}
 		habitats = []string{"Air Tawar", "Air Laut", "Darat (Terestrial)", "Arboreal (Pohon)"}
 		statuses = []string{"Tersedia (For Sale)", "Terpesan (Booked)", "Habis Terjual (Sold Out)"}
 		shipping = []string{"Bisa Kirim se-Indonesia (Garansi DoA)", "Pulau Jawa Saja", "Ambil Sendiri di Toko (No Shipping)"}
@@ -1237,9 +1261,36 @@ var DefaultMasterCategories = map[string][]string{
 	"food":     {"Makanan Utama (Main Course)", "Dessert & Manisan", "Minuman & Olahan Kopi", "Camilan & Kudapan (Appetizer)", "Bakery, Roti & Pastry", "Makanan Beku (Frozen)", "Paket Hemat & Bundling", "Lainnya"},
 	"service":  {"Perawatan & Grooming", "Servis & Reparasi", "Desain Grafis & Kreatif", "Fotografi & Videografi", "Kursus & Pelatihan", "Konsultasi & Jasa Ahli", "Kebersihan & Maintenance", "Lainnya"},
 	"digital":  {"E-Book & PDF", "Template Dokumen & Notion", "Desain Grafis & UI Kit", "Source Code & Script", "Audio & Musik", "Preset & Filter", "Video & Aset 3D", "Lisensi Software", "Lainnya"},
-	"fauna":    {"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Invertebrata & Serangga", "Pakan & Perlengkapan", "Lainnya"},
+	"fauna":    {"Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil", "Kucing & Anjing", "Invertebrata & Serangga", "Lainnya"},
 	"property": {"Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"},
 	"plant":    {"Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"},
+}
+
+// IsSystemDefaultCategory checks if a category belongs to immutable system default master categories
+func IsSystemDefaultCategory(pType, val string) bool {
+	pType = strings.ToLower(strings.TrimSpace(pType))
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return false
+	}
+	if pType != "" {
+		if defs, ok := DefaultMasterCategories[pType]; ok {
+			for _, d := range defs {
+				if strings.EqualFold(d, val) {
+					return true
+				}
+			}
+		}
+	} else {
+		for _, defs := range DefaultMasterCategories {
+			for _, d := range defs {
+				if strings.EqualFold(d, val) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // Helper MasterCategories JSON map functions
@@ -1502,16 +1553,9 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// Master data defaults
-	defaultMasterCategories := datatypes.JSON([]byte(`{
-		"physical": ["Pakaian & Fashion", "Aksesoris & Gadget", "Elektronik & Komputer", "Perlengkapan Rumah", "Kerajinan & Kriya", "Koleksi & Hobi", "Lainnya"],
-		"digital": ["E-Book & Publikasi", "Template & Dokumen", "Desain Grafis & UI Kit", "Source Code & Skrip", "Audio, Musik & SFX", "Preset, Filter & LUTs", "Video & Aset 3D", "Software & Tool", "Kursus & Modul", "Lainnya"],
-		"fauna": ["Ikan Hias", "Reptil & Amfibi", "Burung & Unggas", "Mamalia Kecil & Pets", "Invertebrata & Serangga", "Pakan & Perlengkapan", "Lainnya"],
-		"service": ["Perawatan & Grooming", "Servis & Reparasi", "Desain Grafis & Kreatif", "Fotografi & Videografi", "Kursus & Pelatihan", "Konsultasi & Jasa Ahli", "Kebersihan & Maintenance"],
-		"food": ["Makanan Utama (Main Course)", "Dessert & Manisan", "Minuman & Olahan Kopi", "Camilan & Kudapan (Appetizer)", "Bakery, Roti & Pastry", "Makanan Beku (Frozen)", "Paket Hemat & Bundling", "Lainnya"],
-		"property": ["Rumah Tinggal (Landed House)", "Apartemen & Kondominium", "Tanah & Kavling", "Ruko & Komersial", "Villa & Resort", "Gudang & Pabrik", "Kost & Kontrakan", "Lainnya"],
-		"plant": ["Tanaman Hias Daun", "Tanaman Bunga & Anggrek", "Bibit Buah & Pohon", "Kaktus & Sukulen", "Bonsai & Tanaman Seni", "Tanaman Herbal & Rempah", "Aquascape & Tanaman Air", "Lainnya"]
-	}`))
+	// Master data defaults from canonical system taxonomy
+	bDefCats, _ := json.Marshal(DefaultMasterCategories)
+	defaultMasterCategories := datatypes.JSON(bDefCats)
 
 	newStore := models.Store{
 		UserID:               user.ID,
