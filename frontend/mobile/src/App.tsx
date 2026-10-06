@@ -1230,7 +1230,7 @@ export const DEFAULT_MASTER_CATEGORIES: Record<ItemCategoryType, string[]> = {
   food: ['Makanan Utama (Main Course)', 'Dessert & Manisan', 'Minuman & Olahan Kopi', 'Camilan & Kudapan (Appetizer)', 'Bakery, Roti & Pastry', 'Makanan Beku (Frozen)', 'Paket Hemat & Bundling', 'Lainnya'],
   service: ['Perawatan & Grooming', 'Servis & Reparasi', 'Desain Grafis & Kreatif', 'Fotografi & Videografi', 'Kursus & Pelatihan', 'Konsultasi & Jasa Ahli', 'Kebersihan & Maintenance', 'Lainnya'],
   digital: ['E-Book & PDF', 'Template Dokumen & Notion', 'Desain Grafis & UI Kit', 'Source Code & Script', 'Audio & Musik', 'Preset & Filter', 'Video & Aset 3D', 'Lisensi Software', 'Lainnya'],
-  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
+  fauna: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil', 'Kucing & Anjing', 'Invertebrata & Serangga', 'Lainnya'],
   property: ['Rumah Tinggal (Landed House)', 'Apartemen & Kondominium', 'Tanah & Kavling', 'Ruko & Komersial', 'Villa & Resort', 'Gudang & Pabrik', 'Kost & Kontrakan', 'Lainnya'],
   plant: ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni', 'Tanaman Herbal & Rempah', 'Aquascape & Tanaman Air', 'Lainnya']
 };
@@ -1319,7 +1319,7 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         namePlaceholder: 'Contoh: Arwana Super Red / Gecko Sunglow / Sugar Glider...',
         categoryLabel: 'Kategori Satwa *',
         defaultCategory: 'Ikan Hias',
-        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil & Pets', 'Invertebrata & Serangga', 'Pakan & Perlengkapan', 'Lainnya'],
+        categoryOptions: ['Ikan Hias', 'Reptil & Amfibi', 'Burung & Unggas', 'Mamalia Kecil', 'Kucing & Anjing', 'Invertebrata & Serangga', 'Lainnya'],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 350.000',
         photoLabel: 'Foto Satwa & Kondisi Nyata (1-10 Foto) *',
@@ -12283,6 +12283,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   }
 
   const handleDeleteMasterOption = (field: 'class' | 'habitat' | 'conservation_status' | 'shipping_coverage', value: string) => {
+    if (field === 'class' && (DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || []).includes(value)) {
+      showToast(`Kategori "${value}" adalah standar bawaan sistem dan tidak dapat dihapus.`, 'error')
+      return
+    }
+
     // Determine the list of available options for replacement
     let options: string[] = []
     if (field === 'class') options = getUniqueClasses()
@@ -12317,6 +12322,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       return
     }
 
+    if (field === 'class') {
+      const isAlreadyDefault = (DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || []).some(
+        c => c.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (isAlreadyDefault) {
+        showToast(`Kategori "${trimmed}" sudah tersedia sebagai standar bawaan sistem.`, 'error')
+        return
+      }
+    }
+
     try {
       setCrudLoading(true)
       const res = await fetch(`${API_BASE}/stores/add-master-option`, {
@@ -12344,6 +12359,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     oldValue: string,
     newValue: string
   ) => {
+    if (field === 'class' && (DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || []).includes(oldValue)) {
+      showToast(`Kategori "${oldValue}" adalah standar bawaan sistem dan tidak dapat diubah namanya.`, 'error')
+      setRenameMasterModalData(null)
+      return
+    }
+
     const trimmed = newValue.trim()
     if (!trimmed) {
       showToast('Nama opsi tidak boleh kosong.', 'error')
@@ -12352,6 +12373,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     if (trimmed === oldValue) {
       setRenameMasterModalData(null)
       return
+    }
+
+    if (field === 'class') {
+      const isAlreadyDefault = (DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || []).some(
+        c => c.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (isAlreadyDefault) {
+        showToast(`Kategori "${trimmed}" sudah merupakan standar bawaan sistem.`, 'error')
+        return
+      }
     }
 
     try {
@@ -15517,13 +15548,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <>
                         {renderRow('Kategori Tanaman', selectedFauna.class)}
                         {renderRow('Nama Ilmiah / Botani', selectedFauna.scientific_name)}
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Kebutuhan Cahaya', selectedFauna.attributes?.sunlight || selectedFauna.attributes?.light_requirement, false, true)}
                         {renderRow('Penyiraman', selectedFauna.attributes?.watering || selectedFauna.attributes?.watering_frequency)}
                         {renderRow('Media Tanam', selectedFauna.attributes?.planting_medium || selectedFauna.attributes?.growing_media)}
                         {renderRow('Ukuran / Tinggi', selectedFauna.attributes?.plant_size)}
                         {renderRow('Status Legalitas', selectedFauna.attributes?.protection_status || selectedFauna.attributes?.plant_legality)}
                         {renderRow('Kondisi Pengiriman', selectedFauna.attributes?.delivery_condition || selectedFauna.attributes?.ship_condition)}
-                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Ready Stock')}
                         {renderRow('Minimal Pemesanan', `${minOrderVal} ${unit}`)}
                         {renderRow('Maksimal Pemesanan', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null, true)}
                       </>
@@ -15535,6 +15566,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <>
                         {renderRow('Tipe Transaksi', selectedFauna.attributes?.transaction_type || 'Dijual', false, true)}
                         {renderRow('Tipe / Jenis Properti', selectedFauna.class || selectedFauna.attributes?.property_type)}
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Legalitas / Sertifikat', selectedFauna.attributes?.certificate)}
                         {renderRow('Luas Tanah (LT)', isNonEmptyValue(selectedFauna.attributes?.land_area) ? `${selectedFauna.attributes?.land_area} m²` : null)}
                         {renderRow('Luas Bangunan (LB)', isNonEmptyValue(selectedFauna.attributes?.building_area) ? `${selectedFauna.attributes?.building_area} m²` : null)}
@@ -15554,6 +15586,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
                     return (
                       <>
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Kondisi', selectedFauna.attributes?.condition)}
                         {renderRow('Berat Produk', isNonEmptyValue(selectedFauna.attributes?.weight) ? `${selectedFauna.attributes?.weight} Gram` : null)}
                         {renderRow('Merek / Brand', selectedFauna.attributes?.brand)}
@@ -15567,6 +15600,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     const maxOrderVal = selectedFauna.max_order || selectedFauna.attributes?.max_order;
                     return (
                       <>
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Status / Sertifikasi Halal', selectedFauna.attributes?.halal_status, true)}
                         {renderRow('Kategori Menu', selectedFauna.class)}
                         {renderRow('Pilihan Varian / Rasa', selectedFauna.attributes?.variant)}
@@ -15581,12 +15615,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <>
                         {renderRow('Kelas / Kategori', selectedFauna.class)}
                         {renderRow('Nama Ilmiah / Taksonomi', selectedFauna.scientific_name)}
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Habitat Asli', selectedFauna.habitat || selectedFauna.detailed_info?.habitat)}
                         {renderRow('Makanan / Diet', selectedFauna.diet || selectedFauna.detailed_info?.diet)}
                         {renderRow('Asal Wilayah', selectedFauna.detailed_info?.native_region)}
                         {renderRow('Masa Hidup', selectedFauna.detailed_info?.lifespan)}
                         {renderRow('Bobot', selectedFauna.detailed_info?.weight)}
-                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status)}
                         {renderRow('Minimal Beli', `${minOrderVal} ${unit}`)}
                         {renderRow('Maksimal per Kiriman', (maxOrderVal && Number(maxOrderVal) > 0) ? `${maxOrderVal} ${unit}` : null, true)}
                       </>
@@ -15596,6 +15630,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     return (
                       <>
                         {renderRow('Kategori Bidang Jasa', selectedFauna.class)}
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Durasi Layanan', selectedFauna.attributes?.duration)}
                         {renderRow('Metode Layanan', selectedFauna.attributes?.service_location)}
                         {renderRow('Area Jangkauan', selectedFauna.attributes?.service_area)}
@@ -15608,6 +15643,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     return (
                       <>
                         {renderRow('Kategori Item', selectedFauna.class)}
+                        {renderRow('Status Ketersediaan', selectedFauna.conservation_status || 'Tersedia')}
                         {renderRow('Format File', selectedFauna.attributes?.file_format)}
                         {renderRow('Ukuran File', selectedFauna.attributes?.file_size)}
                         {renderRow('Tipe Lisensi', selectedFauna.attributes?.license_type)}
@@ -16832,11 +16868,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             title: 'Pilih Status Ketersediaan',
                             icon: CheckCircle,
                             options: [
-                              { value: 'Ready Stock', label: 'Ready Stock', desc: 'Satwa / fauna siap dikirim / diadopsi segera' },
-                              { value: 'Pre-Order', label: 'Pre-Order', desc: 'Pemesanan terlebih dahulu / inden khusus' },
-                              { value: 'Tersedia', label: 'Tersedia', desc: 'Stok tersedia di fasilitas penangkaran' }
+                              { value: 'Tersedia', label: 'Tersedia (Ready Stock)', desc: 'Satwa / fauna siap dikirim / diadopsi segera' },
+                              { value: 'Pre-Order', label: 'Pre-Order (PO)', desc: 'Pemesanan terlebih dahulu / inden khusus' },
+                              { value: 'Koleksi / Display', label: 'Koleksi / Display Only', desc: 'Hanya pajangan showcase, hubungi penjual via WA' },
+                              { value: 'Habis Terjual', label: 'Habis Terjual (Sold Out)', desc: 'Stok satwa saat ini sedang kosong / telah diadopsi' }
                             ],
-                            selectedValue: crudForm.conservation_status || 'Ready Stock',
+                            selectedValue: crudForm.conservation_status || 'Tersedia',
                             onSelect: (val) => setCrudForm(prev => ({ ...prev, conservation_status: val }))
                           });
                         }}
@@ -20096,7 +20133,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 ? `Durasi: ${item.attributes?.duration || '1 Sesi'}${item.attributes?.service_location ? ' • ' + item.attributes.service_location : ''}`
                                 : item.product_type === 'food'
                                 ? `Exp: ${item.attributes?.expired_info || '7 Hari'}${item.attributes?.storage_temp ? ' • ' + item.attributes.storage_temp : ''}`
-                                : (item.scientific_name !== 'N/A' && item.scientific_name ? item.scientific_name : item.class)}
+                                : item.product_type === 'plant'
+                                ? `${item.attributes?.sunlight ? item.attributes.sunlight + ' • ' : ''}${item.attributes?.watering ? item.attributes.watering + ' • ' : ''}${item.scientific_name && item.scientific_name !== 'N/A' ? item.scientific_name : item.class}`
+                                : `${item.diet || item.attributes?.diet ? (item.diet || item.attributes?.diet) + ' • ' : ''}${item.detailed_info?.native_region ? item.detailed_info.native_region + ' • ' : ''}${item.scientific_name && item.scientific_name !== 'N/A' ? item.scientific_name : item.class}`}
                             </div>
                           </div>
 
@@ -23021,427 +23060,210 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                               Kelola Kategori &amp; Opsi Katalog
                             </h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', margin: '0.25rem 0 0.75rem 0', lineHeight: 1.4 }}>
-                              Atur kategori dan opsi dropdown katalog Anda secara independen.
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', margin: '0.25rem 0 0 0', lineHeight: 1.4 }}>
+                              Atur kategori etalase katalog per model bisnis. Kategori sistem terkunci permanen, kategori kustom dapat ditambah/dihapus mandiri.
                             </p>
-
-                            {/* 1-Click Industry Presets Horizontal Slider */}
-                            <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.75rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
-                                <Sparkles size={14} style={{ color: 'var(--primary)' }} />
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                  Preset Industri Instan (1-Click):
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
-                                {[
-                                  { key: 'physical', label: 'Retail & Fisik', color: '#3b82f6', desc: 'Pakaian, Gadget, Aksesoris' },
-                                  { key: 'digital', label: 'File & Digital', color: '#8b5cf6', desc: 'E-Book, Script, Video' },
-                                  { key: 'fauna', label: 'Satwa', color: '#10b981', desc: 'Reptil, Ikan, Burung, Pakan' },
-                                  { key: 'plant', label: 'Tanaman', color: '#10b981', desc: 'Tanaman Hias, Bunga, Bibit' },
-                                  { key: 'service', label: 'Jasa & Layanan', color: '#f59e0b', desc: 'Konsultasi, Servis, Desain' },
-                                  { key: 'food', label: 'Menu Kuliner', color: '#ef4444', desc: 'Makanan, Minuman, Snack' },
-                                  { key: 'general', label: 'Universal', color: '#06b6d4', desc: 'Template netral umum' },
-                                ].map((preset) => (
-                                  <button
-                                    key={preset.key}
-                                    type="button"
-                                    onClick={() => {
-                                      setPresetModalData({
-                                        key: preset.key as any,
-                                        title: preset.label,
-                                        desc: preset.desc,
-                                        sampleCategories: preset.key === 'physical'
-                                          ? ['Pakaian & Busana', 'Aksesoris & Fashion', 'Gadget & Elektronik', 'Kebutuhan Rumah Tangga', 'Kerajinan Tangan']
-                                          : preset.key === 'digital'
-                                          ? ['E-Book & Panduan', 'Source Code & Script', 'Template Desain', 'Video & Audio Materi', 'Tools & Aset Digital']
-                                          : preset.key === 'fauna'
-                                          ? ['Reptil & Amfibi', 'Ikan Hias & Aquascape', 'Burung Kicau & Unggas', 'Mamalia Hias', 'Pakan & Perlengkapan']
-                                          : preset.key === 'service'
-                                          ? ['Konsultasi & Advice', 'Desain & Kreatif', 'Perbaikan & Servis', 'Kursus & Pelatihan', 'Pembuatan Web & Aplikasi']
-                                          : preset.key === 'food'
-                                          ? ['Makanan Utama / Berat', 'Camilan & Snack', 'Minuman Segar & Kopi', 'Frozen Food Siap Masak', 'Paket Katering']
-                                          : preset.key === 'plant'
-                                          ? ['Tanaman Hias Daun', 'Tanaman Bunga & Anggrek', 'Bibit Buah & Pohon', 'Kaktus & Sukulen', 'Bonsai & Tanaman Seni']
-                                          : ['Kategori Utama', 'Koleksi Populer', 'Item Unggulan', 'Varian Baru', 'Promo Spesial']
-                                      });
-                                    }}
-                                    style={{
-                                      padding: '0.45rem 0.75rem',
-                                      borderRadius: '0.55rem',
-                                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                                      border: '1px solid var(--border-light)',
-                                      color: 'var(--text-primary)',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 800,
-                                      whiteSpace: 'nowrap',
-                                      flexShrink: 0,
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'flex-start',
-                                      gap: '0.15rem'
-                                    }}
-                                  >
-                                    <span>{preset.label}</span>
-                                    <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{preset.desc}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
                           </div>
 
-                          {/* 1. Kategori Item (master_classes) */}
-                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <Package size={14} /> Master Kategori Item
-                              </h4>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
-                                {getCategoryOptionsForType(masterCategoryContextTab).length} Opsi
-                              </span>
-                            </div>
+                          {/* Dedicated Category Manager (master_classes) */}
+                          <div className="glass-panel" style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
+                            {(() => {
+                              const activeCategories = getCategoryOptionsForType(masterCategoryContextTab);
+                              const defaultList = DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || [];
+                              const defaultCount = activeCategories.filter(c => defaultList.includes(c)).length;
+                              const customCount = activeCategories.filter(c => !defaultList.includes(c)).length;
 
-                            {/* Context Switcher Tabs */}
-                            <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
-                              {[
-                                { id: 'physical', label: 'Barang Fisik' },
-                                { id: 'property', label: 'Properti' },
-                                { id: 'food', label: 'Kuliner' },
-                                { id: 'service', label: 'Jasa' },
-                                { id: 'digital', label: 'Digital' },
-                                { id: 'fauna', label: 'Fauna' },
-                                { id: 'plant', label: 'Tanaman' }
-                              ].map(tab => (
-                                <button
-                                  key={tab.id}
-                                  type="button"
-                                  onClick={() => setMasterCategoryContextTab(tab.id as ItemCategoryType)}
-                                  style={{
-                                    padding: '0.3rem 0.6rem',
-                                    borderRadius: '0.45rem',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    whiteSpace: 'nowrap',
-                                    border: masterCategoryContextTab === tab.id ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                                    backgroundColor: masterCategoryContextTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                                    color: masterCategoryContextTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  {tab.label}
-                                </button>
-                              ))}
-                            </div>
+                              const typeDefinitions: { id: ItemCategoryType; label: string; desc: string }[] = [
+                                { id: 'physical', label: 'Barang Fisik', desc: 'Produk ritel, pakaian, fashion & elektronik' },
+                                { id: 'food', label: 'Kuliner', desc: 'Makanan, minuman, snack & katering' },
+                                { id: 'service', label: 'Jasa', desc: 'Jasa konsultasi, servis & freelance' },
+                                { id: 'digital', label: 'Digital', desc: 'E-book, template, software & aset' },
+                                { id: 'fauna', label: 'Fauna', desc: 'Satwa peliharaan & fauna hidup' },
+                                { id: 'plant', label: 'Tanaman', desc: 'Tanaman hias, bibit & perkebunan' },
+                                { id: 'property', label: 'Properti', desc: 'Rumah, kavling, ruko & apartemen' }
+                              ];
+                              const activeTypeDef = typeDefinitions.find(t => t.id === masterCategoryContextTab) || typeDefinitions[0];
 
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                              {getCategoryOptionsForType(masterCategoryContextTab).map((c) => {
-                                const count = faunas.filter(f => (f.product_type || 'physical') === masterCategoryContextTab && f.class === c).length;
-                                return (
-                                  <span key={c} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
-                                    <span>{c}</span>
-                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
-                                      {count}
+                              return (
+                                <>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                      <Package size={15} /> Master Kategori Etalase
+                                    </h4>
+                                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                                        <Lock size={9} strokeWidth={2.2} /> {defaultCount}
+                                      </span>
+                                      {customCount > 0 && (
+                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                                          +{customCount}
+                                        </span>
+                                      )}
+                                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                                        {activeCategories.length} Opsi
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Context Switcher Tabs */}
+                                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.6rem', WebkitOverflowScrolling: 'touch' }}>
+                                    {typeDefinitions.map(tab => (
+                                      <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setMasterCategoryContextTab(tab.id)}
+                                        style={{
+                                          padding: '0.32rem 0.65rem',
+                                          borderRadius: '0.45rem',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          whiteSpace: 'nowrap',
+                                          border: masterCategoryContextTab === tab.id ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                          backgroundColor: masterCategoryContextTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
+                                          color: masterCategoryContextTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        {tab.label}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.65rem', padding: '0.35rem 0.5rem', borderRadius: '0.35rem', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                    {activeTypeDef.desc}
+                                  </div>
+
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.85rem' }}>
+                                    {activeCategories.map((c) => {
+                                      const isDefault = defaultList.includes(c);
+                                      const count = faunas.filter(f => (f.product_type || 'physical') === masterCategoryContextTab && f.class === c).length;
+                                      return (
+                                        <span 
+                                          key={c} 
+                                          className="badge" 
+                                          style={{ 
+                                            display: 'inline-flex', 
+                                            alignItems: 'center', 
+                                            gap: '0.35rem', 
+                                            backgroundColor: 'var(--bg-card)', 
+                                            border: isDefault ? '1px solid var(--border-light)' : '1px solid var(--primary-glow)', 
+                                            padding: '0.32rem 0.55rem', 
+                                            borderRadius: '0.45rem', 
+                                            fontSize: '0.74rem' 
+                                          }}
+                                        >
+                                          <span>{c}</span>
+                                          {isDefault ? (
+                                            <span 
+                                              title="Kategori standar bawaan sistem (Terkunci &amp; Permanen)"
+                                              style={{ 
+                                                display: 'inline-flex', 
+                                                alignItems: 'center', 
+                                                color: 'var(--text-muted)', 
+                                                opacity: 0.65 
+                                              }}
+                                            >
+                                              <Lock size={10} strokeWidth={2.2} />
+                                            </span>
+                                          ) : (
+                                            <span 
+                                              style={{ 
+                                                fontSize: '0.58rem', 
+                                                padding: '0.05rem 0.3rem', 
+                                                borderRadius: '3px', 
+                                                backgroundColor: 'var(--primary-glow)', 
+                                                color: 'var(--primary)', 
+                                                fontWeight: 700, 
+                                                textTransform: 'uppercase' 
+                                              }}
+                                            >
+                                              Kustom
+                                            </span>
+                                          )}
+                                          <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                                            {count}
+                                          </span>
+                                          {!isDefault && (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
+                                                  setRenameMasterModalData({
+                                                    field: 'class',
+                                                    fieldLabel: `Kategori (${activeTypeDef.label})`,
+                                                    oldValue: c,
+                                                    newValue: c
+                                                  });
+                                                }}
+                                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                                                title={`Ubah nama ${c}`}
+                                              >
+                                                <Edit3 size={11} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
+                                                  handleDeleteMasterOption('class', c);
+                                                }}
+                                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
+                                                title={`Hapus opsi ${c}`}
+                                              >
+                                                <Trash2 size={11} />
+                                              </button>
+                                            </>
+                                          )}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+
+                                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                    <input 
+                                      type="text" 
+                                      placeholder={`Ketik kategori ${activeTypeDef.label} baru...`} 
+                                      className="form-input" 
+                                      style={{ padding: '0.35rem 0.6rem', fontSize: '0.78rem', height: '36px', flex: 1 }}
+                                      value={newClassInput}
+                                      onChange={(e) => setNewClassInput(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handleAddMasterOption('class', newClassInput, setNewClassInput);
+                                        }
+                                      }}
+                                    />
+                                    <button 
+                                      type="button" 
+                                      className="btn-primary" 
+                                      style={{ padding: '0 0.85rem', fontSize: '0.75rem', height: '36px', display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}
+                                      onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
+                                    >
+                                      <Plus size={13} /> Tambah
+                                    </button>
+                                  </div>
+
+                                  <div style={{
+                                    marginTop: '0.85rem',
+                                    padding: '0.65rem 0.75rem',
+                                    borderRadius: '0.5rem',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                    border: '1px solid var(--border-light)',
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: '0.45rem'
+                                  }}>
+                                    <Info size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                      Status ketersediaan &amp; cakupan pengiriman adalah kontrol terstandarisasi langsung pada formulir produk.
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setRenameMasterModalData({
-                                          field: 'class',
-                                          fieldLabel: `Kategori (${masterCategoryContextTab})`,
-                                          oldValue: c,
-                                          newValue: c
-                                        });
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Ubah nama ${c}`}
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleDeleteMasterOption('class', c);
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Hapus opsi ${c}`}
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
-                              <input 
-                                type="text" 
-                                placeholder={`Ketik kategori ${masterCategoryContextTab} baru...`} 
-                                className="form-input" 
-                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
-                                value={newClassInput}
-                                onChange={(e) => setNewClassInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddMasterOption('class', newClassInput, setNewClassInput);
-                                  }
-                                }}
-                              />
-                              <button 
-                                type="button" 
-                                className="btn-primary" 
-                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
-                              >
-                                <Plus size={13} /> Tambah
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* 2. Sub-Klasifikasi / Karakteristik Item (master_habitats) */}
-                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <Layers size={14} /> Sub-Klasifikasi / Karakter
-                              </h4>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa' }}>
-                                {getUniqueHabitats().length} Opsi
-                              </span>
-                            </div>
-
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                              {getUniqueHabitats().map((h) => {
-                                const count = faunas.filter(f => f.habitat === h).length;
-                                return (
-                                  <span key={h} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
-                                    <span>{h}</span>
-                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
-                                      {count}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setRenameMasterModalData({
-                                          field: 'habitat',
-                                          fieldLabel: 'Sub-Klasifikasi / Karakter',
-                                          oldValue: h,
-                                          newValue: h
-                                        });
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Ubah nama ${h}`}
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleDeleteMasterOption('habitat', h);
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Hapus opsi ${h}`}
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
-                              <input 
-                                type="text" 
-                                placeholder="Ketik sub-klasifikasi baru..." 
-                                className="form-input" 
-                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
-                                value={newHabitatInput}
-                                onChange={(e) => setNewHabitatInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput);
-                                  }
-                                }}
-                              />
-                              <button 
-                                type="button" 
-                                className="btn-primary" 
-                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                onClick={() => handleAddMasterOption('habitat', newHabitatInput, setNewHabitatInput)}
-                              >
-                                <Plus size={13} /> Tambah
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* 3. Status Ketersediaan Item (master_statuses) */}
-                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <ShieldCheck size={14} /> Status Ketersediaan
-                              </h4>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-                                {getUniqueConservationStatuses().length} Opsi
-                              </span>
-                            </div>
-
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                              {getUniqueConservationStatuses().map((s) => {
-                                const count = faunas.filter(f => f.conservation_status === s).length;
-                                return (
-                                  <span key={s} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
-                                    <span>{s}</span>
-                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
-                                      {count}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setRenameMasterModalData({
-                                          field: 'conservation_status',
-                                          fieldLabel: 'Status Ketersediaan',
-                                          oldValue: s,
-                                          newValue: s
-                                        });
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Ubah nama ${s}`}
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleDeleteMasterOption('conservation_status', s);
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Hapus opsi ${s}`}
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
-                              <input 
-                                type="text" 
-                                placeholder="Ketik status baru..." 
-                                className="form-input" 
-                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
-                                value={newStatusInput}
-                                onChange={(e) => setNewStatusInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput);
-                                  }
-                                }}
-                              />
-                              <button 
-                                type="button" 
-                                className="btn-primary" 
-                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                onClick={() => handleAddMasterOption('conservation_status', newStatusInput, setNewStatusInput)}
-                              >
-                                <Plus size={13} /> Tambah
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* 4. Jangkauan Pengiriman / Wilayah Layanan (master_shipping_coverages) */}
-                          <div className="glass-panel" style={{ padding: '0.9rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '0.75rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                              <h4 style={{ fontSize: '0.82rem', fontWeight: 800, margin: 0, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <Truck size={14} /> Jangkauan Pengiriman &amp; Layanan
-                              </h4>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
-                                {getUniqueShippingCoverages().length} Opsi
-                              </span>
-                            </div>
-
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                              {getUniqueShippingCoverages().map((sc) => {
-                                const count = faunas.filter(f => f.detailed_info?.shipping_coverage === sc).length;
-                                return (
-                                  <span key={sc} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '0.3rem 0.55rem', borderRadius: '0.45rem', fontSize: '0.74rem' }}>
-                                    <span>{sc}</span>
-                                    <span style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
-                                      {count}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setRenameMasterModalData({
-                                          field: 'shipping_coverage',
-                                          fieldLabel: 'Jangkauan Pengiriman & Layanan',
-                                          oldValue: sc,
-                                          newValue: sc
-                                        });
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Ubah nama ${sc}`}
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleDeleteMasterOption('shipping_coverage', sc);
-                                      }}
-                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center' }}
-                                      title={`Hapus opsi ${sc}`}
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
-                              <input 
-                                type="text" 
-                                placeholder="Ketik jangkauan baru..." 
-                                className="form-input" 
-                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', height: '34px', flex: 1 }}
-                                value={newShippingInput}
-                                onChange={(e) => setNewShippingInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput);
-                                  }
-                                }}
-                              />
-                              <button 
-                                type="button" 
-                                className="btn-primary" 
-                                style={{ padding: '0 0.75rem', fontSize: '0.75rem', height: '34px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                onClick={() => handleAddMasterOption('shipping_coverage', newShippingInput, setNewShippingInput)}
-                              >
-                                <Plus size={13} /> Tambah
-                              </button>
-                            </div>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}

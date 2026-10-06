@@ -30,6 +30,7 @@ type StoreQuotaInfo struct {
 	IsInGracePeriod     bool                     `json:"is_in_grace_period"`
 	ActiveItemsCount    int64                    `json:"active_items_count"`
 	ArchivedItemsCount  int64                    `json:"archived_items_count"`
+	TotalItemsCount     int64                    `json:"total_items_count"`
 	MaxItems            int                      `json:"max_items"`
 	StorageUsedBytes    int64                    `json:"storage_used_bytes"`
 	StorageLimitBytes   int64                    `json:"storage_limit_bytes"`
@@ -216,16 +217,17 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		}
 	}
 
+	totalCount := activeCount + archivedCount
 	itemsPercent := float64(0)
 	if plan.MaxItems > 0 {
-		itemsPercent = float64(activeCount) / float64(plan.MaxItems) * 100.0
+		itemsPercent = float64(totalCount) / float64(plan.MaxItems) * 100.0
 		if itemsPercent > 100.0 {
 			itemsPercent = 100.0
 		}
 	}
 
 	isStorageOver := plan.StorageLimitBytes > 0 && store.StorageUsedBytes > plan.StorageLimitBytes
-	isItemsOver := plan.MaxItems > 0 && activeCount >= int64(plan.MaxItems)
+	isItemsOver := plan.MaxItems > 0 && totalCount >= int64(plan.MaxItems)
 
 	quota := &StoreQuotaInfo{
 		StoreID:             store.ID,
@@ -240,6 +242,7 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		IsInGracePeriod:     isInGrace,
 		ActiveItemsCount:    activeCount,
 		ArchivedItemsCount:  archivedCount,
+		TotalItemsCount:     totalCount,
 		MaxItems:            plan.MaxItems,
 		StorageUsedBytes:    store.StorageUsedBytes,
 		StorageLimitBytes:   plan.StorageLimitBytes,
@@ -265,15 +268,16 @@ func GetStoreQuotaInfoFresh(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) 
 	return GetStoreQuotaInfo(db, storeID)
 }
 
-// CanAddProduct checks if the store is eligible to add a new active product.
+// CanAddProduct checks if the store is eligible to add a new product (active or archived).
 func CanAddProduct(db *gorm.DB, storeID uint) (bool, string) {
 	quota, err := GetStoreQuotaInfo(db, storeID)
 	if err != nil {
 		return false, "Gagal memverifikasi kuota toko."
 	}
 
-	if quota.MaxItems != -1 && quota.ActiveItemsCount >= int64(quota.MaxItems) {
-		return false, fmt.Sprintf("Batas jumlah produk aktif untuk paket %s telah tercapai (%d/%d produk). Silakan upgrade paket Anda untuk menambah produk.", quota.Plan.Name, quota.ActiveItemsCount, quota.MaxItems)
+	totalItems := quota.ActiveItemsCount + quota.ArchivedItemsCount
+	if quota.MaxItems != -1 && totalItems >= int64(quota.MaxItems) {
+		return false, fmt.Sprintf("Batas jumlah total produk (termasuk item arsip) untuk paket %s telah tercapai (%d/%d produk). Silakan upgrade paket Anda untuk menambah produk.", quota.Plan.Name, totalItems, quota.MaxItems)
 	}
 
 	return true, ""

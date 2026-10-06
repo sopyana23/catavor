@@ -22,7 +22,8 @@ import {
   Receipt,
   Clock,
   RotateCcw,
-  Infinity
+  Infinity,
+  Archive
 } from 'lucide-react';
 
 export interface SubscriptionPlanData {
@@ -1631,6 +1632,12 @@ export const MobileQuotaWidget: React.FC<{
               }} />
             )}
           </div>
+          {quota.archived_items_count > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.66rem', color: '#f59e0b', fontWeight: 700, marginTop: '0.1rem' }}>
+              <Archive size={9} strokeWidth={2.4} />
+              <span>{quota.archived_items_count} Diarsipkan</span>
+            </div>
+          )}
         </div>
 
         {/* Metric 2: Storage */}
