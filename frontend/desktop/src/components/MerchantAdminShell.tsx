@@ -24,6 +24,7 @@ import {
   HardDrive,
   Search,
   FolderTree,
+  Package,
   X
 } from 'lucide-react';
 
@@ -1113,7 +1114,33 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                   </button>
                 )}
 
-                {onOpenCreateItem && (adminTab === 'items' || adminTab === 'categories') && (
+                {adminTab === 'categories' && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setAdminTab('items');
+                      if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/items`);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.95rem',
+                      borderRadius: '0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-light)'
+                    }}
+                    title="Buka Pengelolaan Daftar Item & Produk"
+                  >
+                    <Package size={15} style={{ color: 'var(--primary)' }} />
+                    <span>Kelola Daftar Item</span>
+                  </button>
+                )}
+
+                {onOpenCreateItem && adminTab === 'items' && (
                   <button
                     type="button"
                     className="btn-primary"
