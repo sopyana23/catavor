@@ -40,6 +40,10 @@ func (c *dedupCache) isDuplicate(key string, ttlSeconds int64) bool {
 				delete(c.entries, k)
 			}
 		}
+		// Hard cap protection: if still over 50,000 entries (massive scan/traffic spike), safely prune
+		if len(c.entries) > 50000 {
+			c.entries = make(map[string]int64)
+		}
 	}
 
 	lastSeen, exists := c.entries[key]
@@ -553,7 +557,14 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		}
 	}
 
-	// Query all active products for this store sorted by view_count & total actions
+	// 1. Calculate true total product views across 100% of active store products directly via DB aggregation
+	var totalProductViews int64 = 0
+	_ = db.Model(&models.Product{}).
+		Where("store_id = ? AND is_active = ?", store.ID, true).
+		Select("COALESCE(SUM(view_count), 0)").
+		Scan(&totalProductViews).Error
+
+	// 2. Query top performing active products for this store leaderboard (limited to top 50 for lightweight payload)
 	var products []models.Product
 	_ = db.Select("id, name, image_url, price, class, view_count, wa_clicks_count, marketplace_clicks_count, rekber_clicks_count, video_views_count, product_type").
 		Where("store_id = ? AND is_active = ?", store.ID, true).
@@ -561,7 +572,6 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		Limit(50).
 		Find(&products).Error
 
-	var totalProductViews int64 = 0
 	topSummary := make([]TopProductSummary, len(products))
 	categoryMap := make(map[string]*CategoryMetricSummary)
 
@@ -584,7 +594,6 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	for i, p := range products {
-		totalProductViews += p.ViewCount
 		pType := p.ProductType
 		if pType == "" {
 			pType = "physical"
