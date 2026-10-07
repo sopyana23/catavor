@@ -22134,8 +22134,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 src={item.image_url} 
                                 alt={item.name} 
                                 style={{ 
-                                  width: '46px', 
-                                  height: '46px', 
+                                  width: '48px', 
+                                  height: '48px', 
                                   objectFit: 'cover', 
                                   borderRadius: '0.55rem', 
                                   border: '1px solid var(--border-light)',
@@ -22146,7 +22146,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
                                 }}
                               />
-                              <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                              <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.22rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
                                   <h4 style={{ 
                                     fontSize: '0.88rem', 
@@ -22187,7 +22187,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                       borderRadius: '3px', 
                                       backgroundColor: 'rgba(239, 68, 68, 0.15)', 
                                       color: '#f87171', 
-                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      border: '1px solid rgba(239, 68, 68, 0.35)',
                                       flexShrink: 0
                                     }}>
                                       <Lock size={9} /> ARSIP
@@ -22195,33 +22195,51 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   )}
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                  <span style={{ fontSize: '0.84rem', color: '#ef4444', fontWeight: 800 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                                  <span style={{ 
+                                    fontSize: '0.86rem', 
+                                    color: '#ef4444', 
+                                    fontWeight: 800,
+                                    letterSpacing: '-0.01em',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                  }}>
                                     {formatRupiah(item.price)}
                                   </span>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Right: Action */}
-                            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: '0.35rem' }}>
+                            {/* Right: Action Buttons Stack */}
+                            <div style={{ 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'stretch', 
+                              justifyContent: 'center',
+                              flexShrink: 0, 
+                              gap: '0.28rem',
+                              minWidth: '66px'
+                            }}>
                               <button 
                                 type="button"
                                 className="btn-secondary"
                                 onClick={() => openDetailsSheet(item.id)}
                                 style={{
-                                  padding: '0.35rem 0.65rem',
+                                  padding: '0.24rem 0.5rem',
                                   borderRadius: '0.45rem',
-                                  fontSize: '0.74rem',
+                                  fontSize: '0.71rem',
                                   fontWeight: 700,
-                                  display: 'flex',
+                                  display: 'inline-flex',
                                   alignItems: 'center',
+                                  justifyContent: 'center',
                                   gap: '0.25rem',
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  width: '100%'
                                 }}
                                 title="Detail Item"
                               >
-                                <Eye size={13} />
+                                <Eye size={12} />
                                 <span>Detail</span>
                               </button>
 
@@ -22233,17 +22251,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     openArchiveConfirmModal(item, false);
                                   }}
                                   style={{
-                                    padding: '0.35rem 0.55rem',
+                                    padding: '0.24rem 0.5rem',
                                     borderRadius: '0.45rem',
-                                    fontSize: '0.72rem',
+                                    fontSize: '0.71rem',
                                     fontWeight: 700,
-                                    display: 'flex',
+                                    display: 'inline-flex',
                                     alignItems: 'center',
+                                    justifyContent: 'center',
                                     gap: '0.25rem',
                                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
                                     color: '#f59e0b',
                                     border: '1px solid rgba(245, 158, 11, 0.3)',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    width: '100%'
                                   }}
                                   title="Arsipkan Item"
                                 >
@@ -22258,17 +22278,19 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                     openArchiveConfirmModal(item, true);
                                   }}
                                   style={{
-                                    padding: '0.35rem 0.55rem',
+                                    padding: '0.24rem 0.5rem',
                                     borderRadius: '0.45rem',
-                                    fontSize: '0.72rem',
+                                    fontSize: '0.71rem',
                                     fontWeight: 700,
-                                    display: 'flex',
+                                    display: 'inline-flex',
                                     alignItems: 'center',
+                                    justifyContent: 'center',
                                     gap: '0.25rem',
                                     backgroundColor: 'rgba(16, 185, 129, 0.12)',
                                     color: '#10b981',
                                     border: '1px solid rgba(16, 185, 129, 0.3)',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    width: '100%'
                                   }}
                                   title="Aktifkan Kembali ke Katalog"
                                 >
