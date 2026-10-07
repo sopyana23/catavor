@@ -15233,7 +15233,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
     const activeTypeDef = typeDefinitions.find(t => t.id === masterCategoryContextTab) || typeDefinitions[0];
 
     return (
-      <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '0.85rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)' }}>
+      <div style={{
+        padding: '1.5rem',
+        borderRadius: '0.85rem',
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border-light)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
             <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -15244,7 +15250,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '4px', backgroundColor: 'var(--bg-deep)', color: 'var(--text-secondary)', border: '1px solid var(--border-light)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <Lock size={11} strokeWidth={2.2} /> {defaultCount} Standar Terkunci
             </span>
             {customCount > 0 && (
@@ -15266,16 +15272,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               type="button"
               onClick={() => setMasterCategoryContextTab(tab.id)}
               style={{
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.55rem',
+                padding: '0.42rem 0.8rem',
+                borderRadius: '0.5rem',
                 fontSize: '0.78rem',
                 fontWeight: 700,
                 whiteSpace: 'nowrap',
                 border: masterCategoryContextTab === tab.id ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                backgroundColor: masterCategoryContextTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
+                backgroundColor: masterCategoryContextTab === tab.id ? 'var(--primary)' : 'var(--bg-card)',
                 color: masterCategoryContextTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease'
+                boxShadow: 'none',
+                transition: 'background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease'
               }}
             >
               {tab.label}
@@ -15307,7 +15314,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           <div style={{
             padding: '1rem 1.15rem',
             borderRadius: '0.75rem',
-            backgroundColor: 'rgba(255, 255, 255, 0.02)',
+            backgroundColor: 'var(--bg-deep)',
             border: '1px solid var(--border-light)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -15315,7 +15322,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} /> Kategori Standar Sistem
                 </span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }}>
                   {defaultCount}
                 </span>
               </div>
@@ -15334,14 +15341,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.45rem',
-                      padding: '0.38rem 0.75rem',
-                      borderRadius: '0.55rem',
-                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-light)',
-                      fontSize: '0.82rem',
+                      fontSize: '0.8rem',
                       color: 'var(--text-primary)',
-                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-                      transition: 'all 0.15s ease'
+                      boxShadow: 'none',
+                      transition: 'border-color 0.15s ease'
                     }}
                     title="Kategori bawaan standar sistem yang terkunci demi konsistensi data"
                   >
@@ -15353,8 +15360,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         fontWeight: 700,
                         padding: '0.1rem 0.45rem',
                         borderRadius: '999px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        color: 'var(--text-secondary)'
+                        backgroundColor: 'var(--bg-deep)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-light)'
                       }}>
                         {count} item
                       </span>
@@ -15369,7 +15377,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           <div style={{
             padding: '1rem 1.15rem',
             borderRadius: '0.75rem',
-            backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.02)' : 'rgba(255, 255, 255, 0.01)',
+            backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.02)' : 'var(--bg-deep)',
             border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-light)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -15390,7 +15398,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               <div style={{
                 padding: '0.85rem 1rem',
                 borderRadius: '0.55rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                backgroundColor: 'var(--bg-card)',
                 border: '1px dashed var(--border-light)',
                 fontSize: '0.78rem',
                 color: 'var(--text-muted)',
@@ -15412,14 +15420,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.45rem',
-                        padding: '0.35rem 0.45rem 0.35rem 0.75rem',
-                        borderRadius: '0.55rem',
-                        backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                        padding: '0.32rem 0.45rem 0.32rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'var(--bg-card)',
                         border: '1px solid rgba(16, 185, 129, 0.28)',
-                        fontSize: '0.82rem',
+                        fontSize: '0.8rem',
                         color: 'var(--text-primary)',
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                        transition: 'all 0.15s ease'
+                        boxShadow: 'none',
+                        transition: 'border-color 0.15s ease'
                       }}
                     >
                       <Tag size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
@@ -15448,10 +15456,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             height: '22px',
                             borderRadius: '4px',
                             border: '1px solid var(--border-light)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                            backgroundColor: 'transparent',
                             color: 'var(--text-secondary)',
                             cursor: 'pointer',
-                            transition: 'all 0.15s ease'
+                            boxShadow: 'none',
+                            transition: 'color 0.15s ease, border-color 0.15s ease'
                           }}
                           title={`Ubah nama kategori "${c}"`}
                         >
@@ -15467,10 +15476,11 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             width: '22px',
                             height: '22px',
                             borderRadius: '4px',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.06)',
                             color: '#ef4444',
                             cursor: 'pointer',
+                            boxShadow: 'none',
                             transition: 'all 0.15s ease'
                           }}
                           title={`Hapus kategori "${c}"`}
@@ -15496,7 +15506,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               placeholder={`Tambah kategori ${activeTypeDef.label} kustom baru... (tekan Enter untuk menyimpan)`}
               value={newClassInput}
               onChange={(e) => setNewClassInput(e.target.value)}
-              style={{ width: '100%', height: '38px', fontSize: '0.84rem', paddingLeft: '2.25rem' }}
+              style={{ width: '100%', height: '38px', fontSize: '0.84rem', paddingLeft: '2.25rem', boxShadow: 'none' }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -15509,7 +15519,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           <button 
             type="button" 
             className="btn-primary" 
-            style={{ padding: '0 1.25rem', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap', borderRadius: '0.5rem' }}
+            style={{ padding: '0 1.25rem', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap', borderRadius: '0.5rem', boxShadow: 'none' }}
             onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
           >
             <Plus size={14} /> Tambah Kategori
@@ -15518,14 +15528,15 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
         {/* Subtle Best Practice Callout */}
         <div style={{
-          marginTop: '1.5rem',
-          padding: '0.85rem 1.1rem',
+          marginTop: '1.25rem',
+          padding: '0.8rem 1.1rem',
           borderRadius: '0.65rem',
-          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+          backgroundColor: 'var(--bg-deep)',
           border: '1px solid var(--border-light)',
           display: 'flex',
           alignItems: 'flex-start',
-          gap: '0.75rem'
+          gap: '0.75rem',
+          boxShadow: 'none'
         }}>
           <Info size={16} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} />
           <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>

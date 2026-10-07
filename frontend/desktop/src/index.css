@@ -136,6 +136,7 @@
   --btn-secondary-bg: rgba(225, 29, 72, 0.15);
   --btn-secondary-text: #0f172a;
   --btn-secondary-border: rgba(225, 29, 72, 0.45);
+  --shadow-premium: 0 10px 25px -5px rgba(225, 29, 72, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
 }
 
 /* Warm Luxury Cream Base & Deep Forest Emerald Theme */
@@ -162,6 +163,7 @@
   --btn-secondary-bg: rgba(15, 81, 50, 0.15);
   --btn-secondary-text: #1C2A24;
   --btn-secondary-border: rgba(15, 81, 50, 0.42);
+  --shadow-premium: 0 10px 25px -5px rgba(15, 81, 50, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
 }
 
 /* 🏛️ Theme 6: Midnight Slate (Dusty Blue & Ice Slate) */
@@ -212,6 +214,7 @@
   --btn-secondary-bg: rgba(82, 120, 99, 0.12);
   --btn-secondary-text: #1e2922;
   --btn-secondary-border: rgba(82, 120, 99, 0.32);
+  --shadow-premium: 0 10px 25px -5px rgba(82, 120, 99, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
 }
 
 /* ⚓ Theme 7: Royal Navy (Navy Blue & Crisp White Light Mode) */
@@ -237,6 +240,7 @@
   --btn-secondary-bg: rgba(30, 58, 138, 0.10);
   --btn-secondary-text: #0f172a;
   --btn-secondary-border: rgba(30, 58, 138, 0.35);
+  --shadow-premium: 0 10px 25px -5px rgba(30, 58, 138, 0.07), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
 }
 
 * {
@@ -482,10 +486,13 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
   border: 1px solid var(--border-light);
   border-radius: 1.25rem;
   box-shadow: var(--shadow-premium);
-  transition: var(--transition-smooth);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .glass-panel:hover {
   border-color: var(--border-hover);
+}
+.glass-panel.interactive:hover,
+.glass-panel.clickable:hover {
   transform: translateY(-2px);
 }
 
