@@ -64,6 +64,10 @@ type TrackEventRequest struct {
 	Event       string                 `json:"event"`        // store_view | product_view | direct_wa_click | marketplace_click | rekber_click | video_view
 	ProductID   uint                   `json:"product_id"`   // optional product ID
 	ProductType string                 `json:"product_type"` // optional product type
+	SessionID   string                 `json:"session_id"`   // Anonymous session token (CGNAT resilience)
+	Source      string                 `json:"source"`       // instagram, tiktok, whatsapp, facebook, google, marketplace, direct, other
+	Medium      string                 `json:"medium"`       // referral, bio, story, cpc, organic
+	Campaign    string                 `json:"campaign"`     // utm_campaign
 	HpCheck     string                 `json:"_hp_check"`    // honeypot field (must be empty)
 	Metadata    map[string]interface{} `json:"metadata"`     // optional metadata (platform name, etc.)
 }
@@ -153,7 +157,13 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 	}
 
 	uaHash := fmt.Sprintf("%x", sha256.Sum256([]byte(ua)))[:12]
-	dedupKey := fmt.Sprintf("%s:%s:%d:%s:%d", clientIP, uaHash, store.ID, event, req.ProductID)
+	sessionToken := strings.TrimSpace(req.SessionID)
+	var dedupKey string
+	if sessionToken != "" {
+		dedupKey = fmt.Sprintf("%s:%s:%s:%d:%s:%d", clientIP, sessionToken, uaHash, store.ID, event, req.ProductID)
+	} else {
+		dedupKey = fmt.Sprintf("%s:%s:%d:%s:%d", clientIP, uaHash, store.ID, event, req.ProductID)
+	}
 
 	// TTL: 1 Hour (3600s) for view events; 30 seconds for action clicks to prevent rapid spam clicking
 	ttl := int64(3600)
@@ -168,7 +178,55 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 
 	today := time.Now().Format("2006-01-02")
 
-	// 4. Process store-level analytics upsert
+	// Extract and categorize traffic source
+	cleanSource := strings.TrimSpace(strings.ToLower(req.Source))
+	if cleanSource == "" && req.Metadata != nil {
+		if src, ok := req.Metadata["source"].(string); ok {
+			cleanSource = strings.TrimSpace(strings.ToLower(src))
+		} else if ref, ok := req.Metadata["referrer"].(string); ok {
+			cleanSource = strings.TrimSpace(strings.ToLower(ref))
+		}
+	}
+
+	normSource := "direct"
+	if strings.Contains(cleanSource, "instagram") || strings.Contains(cleanSource, "ig") {
+		normSource = "instagram"
+	} else if strings.Contains(cleanSource, "tiktok") {
+		normSource = "tiktok"
+	} else if strings.Contains(cleanSource, "whatsapp") || strings.Contains(cleanSource, "wa.me") {
+		normSource = "whatsapp"
+	} else if strings.Contains(cleanSource, "facebook") || strings.Contains(cleanSource, "fb") {
+		normSource = "facebook"
+	} else if strings.Contains(cleanSource, "google") {
+		normSource = "google"
+	} else if strings.Contains(cleanSource, "shopee") || strings.Contains(cleanSource, "tokopedia") || strings.Contains(cleanSource, "lazada") {
+		normSource = "marketplace"
+	} else if cleanSource != "" && !strings.Contains(cleanSource, "direct") && !strings.Contains(cleanSource, "catavor") && !strings.Contains(cleanSource, "localhost") {
+		normSource = "other"
+	}
+
+	// 4a. Process traffic source daily analytics upsert
+	trafficAssignments := map[string]interface{}{
+		"updated_at": time.Now(),
+	}
+	initialTraffic := models.StoreDailyTrafficSource{
+		StoreID: store.ID,
+		Date:    today,
+		Source:  normSource,
+	}
+	if event == "store_view" || event == "product_view" {
+		trafficAssignments["views"] = gorm.Expr("store_daily_traffic_sources.views + 1")
+		initialTraffic.Views = 1
+	} else {
+		trafficAssignments["total_actions"] = gorm.Expr("store_daily_traffic_sources.total_actions + 1")
+		initialTraffic.TotalActions = 1
+	}
+	_ = db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "store_id"}, {Name: "date"}, {Name: "source"}},
+		DoUpdates: clause.Assignments(trafficAssignments),
+	}).Create(&initialTraffic).Error
+
+	// 4b. Process store-level analytics upsert
 	storeAssignments := map[string]interface{}{
 		"updated_at": time.Now(),
 	}
@@ -346,6 +404,31 @@ type SmartInsight struct {
 	Type        string `json:"type"`        // success | tip | warning
 	Title       string `json:"title"`
 	Description string `json:"description"`
+}
+
+type TrafficSourceSummary struct {
+	Source                string  `json:"source"`
+	Name                  string  `json:"name"`
+	Views                 int     `json:"views"`
+	TotalActions          int     `json:"total_actions"`
+	Percentage            float64 `json:"percentage"`
+	ConversionRatePercent float64 `json:"conversion_rate_percent"`
+}
+
+type PeriodGrowthSummary struct {
+	StoreViewsGrowthPercent     float64 `json:"store_views_growth_percent"`
+	TotalActionsGrowthPercent   float64 `json:"total_actions_growth_percent"`
+	PrevStoreViews              int     `json:"prev_store_views"`
+	PrevTotalActions            int     `json:"prev_total_actions"`
+}
+
+type ConversionFunnelSummary struct {
+	StoreViews            int     `json:"store_views"`
+	ProductViews          int     `json:"product_views"`
+	TotalActions          int     `json:"total_actions"`
+	ViewToProductRate     float64 `json:"view_to_product_rate"`
+	ProductToActionRate   float64 `json:"product_to_action_rate"`
+	OverallConversionRate float64 `json:"overall_conversion_rate"`
 }
 
 // GetStoreAnalytics returns aggregated stats, multi-channel metrics, product type breakdown, and actionable insights.
@@ -630,6 +713,129 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		})
 	}
 
+	// Period-over-period growth calculation
+	prevStartDate := time.Now().AddDate(0, 0, -(days*2 - 1)).Format("2006-01-02")
+	prevEndDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	var prevDailyRecords []models.StoreDailyAnalytics
+	_ = db.Where("store_id = ? AND date >= ? AND date <= ?", store.ID, prevStartDate, prevEndDate).Find(&prevDailyRecords).Error
+	prevStoreViews := 0
+	prevTotalActions := 0
+	for _, r := range prevDailyRecords {
+		prevStoreViews += r.StoreViews
+		directWa := r.DirectWaClicks
+		if directWa == 0 && r.WaClicks > 0 {
+			directWa = r.WaClicks
+		}
+		act := r.TotalActions
+		if act == 0 {
+			act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
+		}
+		prevTotalActions += act
+	}
+
+	calcGrowth := func(curr, prev int) float64 {
+		if prev == 0 {
+			if curr > 0 {
+				return 100.0
+			}
+			return 0.0
+		}
+		return ((float64(curr) - float64(prev)) / float64(prev)) * 100.0
+	}
+
+	growthData := PeriodGrowthSummary{
+		StoreViewsGrowthPercent:   calcGrowth(totalStoreViews, prevStoreViews),
+		TotalActionsGrowthPercent: calcGrowth(totalActions, prevTotalActions),
+		PrevStoreViews:            prevStoreViews,
+		PrevTotalActions:          prevTotalActions,
+	}
+
+	// Traffic source breakdown
+	var trafficRecords []models.StoreDailyTrafficSource
+	_ = db.Where("store_id = ? AND date >= ?", store.ID, startDate).Find(&trafficRecords).Error
+
+	sourceMap := make(map[string]*TrafficSourceSummary)
+	sourceLabels := map[string]string{
+		"instagram":   "Instagram",
+		"tiktok":      "TikTok",
+		"whatsapp":    "WhatsApp",
+		"facebook":    "Facebook",
+		"google":      "Google / Search",
+		"marketplace": "Marketplace",
+		"direct":      "Direct / Link Langsung",
+		"other":       "Sumber Lainnya",
+	}
+
+	totalTrafficViews := 0
+	for _, tr := range trafficRecords {
+		s := tr.Source
+		if s == "" {
+			s = "direct"
+		}
+		lbl := sourceLabels[s]
+		if lbl == "" {
+			lbl = strings.Title(s)
+		}
+		if _, exists := sourceMap[s]; !exists {
+			sourceMap[s] = &TrafficSourceSummary{
+				Source: s,
+				Name:   lbl,
+			}
+		}
+		sourceMap[s].Views += tr.Views
+		sourceMap[s].TotalActions += tr.TotalActions
+		totalTrafficViews += tr.Views
+	}
+
+	// If no traffic source rows exist yet (e.g. freshly upgraded), fallback to direct so charts look populated
+	if len(sourceMap) == 0 && totalStoreViews > 0 {
+		sourceMap["direct"] = &TrafficSourceSummary{
+			Source:       "direct",
+			Name:         "Direct / Link Langsung",
+			Views:        totalStoreViews,
+			TotalActions: totalActions,
+		}
+		totalTrafficViews = totalStoreViews
+	}
+
+	trafficSources := make([]TrafficSourceSummary, 0, len(sourceMap))
+	for _, sm := range sourceMap {
+		if totalTrafficViews > 0 {
+			sm.Percentage = (float64(sm.Views) / float64(totalTrafficViews)) * 100.0
+		}
+		if sm.Views > 0 {
+			sm.ConversionRatePercent = (float64(sm.TotalActions) / float64(sm.Views)) * 100.0
+			if sm.ConversionRatePercent > 100.0 {
+				sm.ConversionRatePercent = 100.0
+			}
+		}
+		trafficSources = append(trafficSources, *sm)
+	}
+
+	// Conversion Funnel metrics
+	viewToProdRate := 0.0
+	if totalStoreViews > 0 {
+		viewToProdRate = (float64(totalProductViews) / float64(totalStoreViews)) * 100.0
+		if viewToProdRate > 100.0 {
+			viewToProdRate = 100.0
+		}
+	}
+	prodToActionRate := 0.0
+	if totalProductViews > 0 {
+		prodToActionRate = (float64(totalActions) / float64(totalProductViews)) * 100.0
+		if prodToActionRate > 100.0 {
+			prodToActionRate = 100.0
+		}
+	}
+	funnelData := ConversionFunnelSummary{
+		StoreViews:            totalStoreViews,
+		ProductViews:          int(totalProductViews),
+		TotalActions:          totalActions,
+		ViewToProductRate:     viewToProdRate,
+		ProductToActionRate:   prodToActionRate,
+		OverallConversionRate: overallConversionRate,
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data": fiber.Map{
@@ -652,6 +858,9 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			"top_products":             topSummary,
 			"categories":               categories,
 			"insights":                 insights,
+			"growth":                   growthData,
+			"traffic_sources":          trafficSources,
+			"funnel":                   funnelData,
 			"bot_defense_active":       true,
 		},
 	})
@@ -896,4 +1105,254 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=catavor-market-intelligence-%s.csv", time.Now().Format("20060102")))
 	return c.Send(csvData)
 }
+
+// ExportStoreAnalytics streams a clean, Excel-compatible CSV export of the store's performance metrics.
+// Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'full').
+func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
+	var store *models.Store
+	if s, ok := c.Locals("store").(*models.Store); ok {
+		store = s
+	} else if sVal, ok := c.Locals("store").(models.Store); ok {
+		store = &sVal
+	}
+
+	if store == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses toko tidak valid.",
+		})
+	}
+
+	period := strings.ToLower(strings.TrimSpace(c.Query("period", "30d")))
+	reportType := strings.ToLower(strings.TrimSpace(c.Query("type", "full")))
+	if reportType == "" {
+		reportType = "full"
+	}
+
+	days := 30
+	periodLabel := "30 Hari Terakhir"
+	isAllTime := false
+
+	if period == "7d" {
+		days = 7
+		periodLabel = "7 Hari Terakhir"
+	} else if period == "90d" {
+		days = 90
+		periodLabel = "90 Hari Terakhir"
+	} else if period == "all" || period == "all-time" || period == "alltime" {
+		isAllTime = true
+		period = "all"
+		periodLabel = "Sepanjang Waktu (Semua Riwayat)"
+	} else {
+		period = "30d"
+	}
+
+	db := database.DB
+
+	// CSV formatting & security helpers
+	escapeCSV := func(s string) string {
+		clean := strings.TrimSpace(s)
+		// Security: Prevent CSV formula injection in Microsoft Excel / LibreOffice
+		if len(clean) > 0 && (clean[0] == '=' || clean[0] == '+' || clean[0] == '-' || clean[0] == '@') {
+			clean = "'" + clean
+		}
+		if strings.ContainsAny(clean, ",\"\n\r") {
+			clean = `"` + strings.ReplaceAll(clean, `"`, `""`) + `"`
+		}
+		return clean
+	}
+
+	formatProductType := func(pType string) string {
+		switch strings.ToLower(pType) {
+		case "service":
+			return "Layanan / Jasa"
+		case "digital":
+			return "Produk Digital"
+		case "food":
+			return "Kuliner & FnB"
+		case "property":
+			return "Properti & Listing"
+		case "fauna":
+			return "Satwa & Fauna"
+		case "plant":
+			return "Tanaman & Flora"
+		default:
+			return "Produk Fisik"
+		}
+	}
+
+	var sb strings.Builder
+	// 1. Mandatory UTF-8 Byte Order Mark (BOM) for 100% Microsoft Excel Windows/Mac compatibility
+	sb.WriteString("\xEF\xBB\xBF")
+
+	// 2. Fetch daily records if needed
+	var dailyRecords []models.StoreDailyAnalytics
+	if reportType == "daily" || reportType == "full" {
+		query := db.Where("store_id = ?", store.ID)
+		if !isAllTime {
+			startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+			query = query.Where("date >= ?", startDate)
+		}
+		_ = query.Order("date DESC").Find(&dailyRecords).Error
+	}
+
+	// 3. Fetch product records if needed
+	var products []models.Product
+	if reportType == "products" || reportType == "full" {
+		_ = db.Select("id, name, price, class, view_count, wa_clicks_count, marketplace_clicks_count, rekber_clicks_count, video_views_count, product_type").
+			Where("store_id = ? AND is_active = ?", store.ID, true).
+			Order("view_count DESC, wa_clicks_count DESC, id DESC").
+			Find(&products).Error
+	}
+
+	switch reportType {
+	case "products":
+		// Header row
+		sb.WriteString("ID Item,Nama Produk,Tipe Katalog,Kategori/Kelas,Harga (Rp),Tayangan (Views),Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi Peminat,Rasio Konversi CTR (%)\n")
+		for _, p := range products {
+			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
+			ctr := 0.0
+			if p.ViewCount > 0 {
+				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100
+				if ctr > 100 {
+					ctr = 100
+				}
+			}
+			catName := p.Class
+			if catName == "" {
+				catName = "Umum"
+			}
+			sb.WriteString(fmt.Sprintf("%d,%s,%s,%s,%.0f,%d,%d,%d,%d,%d,%d,%.2f%%\n",
+				p.ID,
+				escapeCSV(p.Name),
+				escapeCSV(formatProductType(p.ProductType)),
+				escapeCSV(catName),
+				p.Price,
+				p.ViewCount,
+				p.WaClicksCount,
+				p.MarketplaceClicksCount,
+				p.RekberClicksCount,
+				p.VideoViewsCount,
+				totalAct,
+				ctr,
+			))
+		}
+
+	case "daily":
+		// Header row
+		sb.WriteString("Tanggal,Tayangan Toko,Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi,Tingkat Konversi (%)\n")
+		for _, r := range dailyRecords {
+			directWa := r.DirectWaClicks
+			if directWa == 0 && r.WaClicks > 0 {
+				directWa = r.WaClicks
+			}
+			act := r.TotalActions
+			if act == 0 {
+				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
+			}
+			cr := 0.0
+			if r.StoreViews > 0 {
+				cr = (float64(act) / float64(r.StoreViews)) * 100
+				if cr > 100 {
+					cr = 100
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s,%d,%d,%d,%d,%d,%d,%.2f%%\n",
+				r.Date, r.StoreViews, directWa, r.MarketplaceClicks, r.RekberClicks, r.VideoViews, act, cr))
+		}
+
+	default: // "full"
+		// Executive Summary Metadata
+		totalStoreViews := 0
+		totalActions := 0
+		for _, r := range dailyRecords {
+			totalStoreViews += r.StoreViews
+			act := r.TotalActions
+			if act == 0 {
+				directWa := r.DirectWaClicks
+				if directWa == 0 && r.WaClicks > 0 {
+					directWa = r.WaClicks
+				}
+				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
+			}
+			totalActions += act
+		}
+		overallCR := 0.0
+		if totalStoreViews > 0 {
+			overallCR = (float64(totalActions) / float64(totalStoreViews)) * 100
+			if overallCR > 100 {
+				overallCR = 100
+			}
+		}
+
+		storeName := store.StoreTitle
+		if storeName == "" {
+			storeName = store.Slug
+		}
+		sb.WriteString(fmt.Sprintf("# LAPORAN ANALITIK RESMI KATALOG CATAVOR - %s\n", escapeCSV(storeName)))
+		sb.WriteString(fmt.Sprintf("# Periode Laporan: %s | Tanggal Cetak: %s\n", periodLabel, time.Now().Format("2006-01-02 15:04:05")))
+		sb.WriteString(fmt.Sprintf("# Total Kunjungan Toko: %d | Total Aksi Peminat: %d | Rata-rata Konversi: %.2f%%\n\n", totalStoreViews, totalActions, overallCR))
+
+		// Section 1: Daily Timeline
+		sb.WriteString("=== BAGIAN 1: REKAPITULASI TREN HARIAN TOKO ===\n")
+		sb.WriteString("Tanggal,Tayangan Toko,Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi,Tingkat Konversi (%)\n")
+		for _, r := range dailyRecords {
+			directWa := r.DirectWaClicks
+			if directWa == 0 && r.WaClicks > 0 {
+				directWa = r.WaClicks
+			}
+			act := r.TotalActions
+			if act == 0 {
+				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
+			}
+			cr := 0.0
+			if r.StoreViews > 0 {
+				cr = (float64(act) / float64(r.StoreViews)) * 100
+				if cr > 100 {
+					cr = 100
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s,%d,%d,%d,%d,%d,%d,%.2f%%\n",
+				r.Date, r.StoreViews, directWa, r.MarketplaceClicks, r.RekberClicks, r.VideoViews, act, cr))
+		}
+
+		// Section 2: Product Breakdown
+		sb.WriteString("\n=== BAGIAN 2: RINCIAN PERFORMA KATALOG ITEM ===\n")
+		sb.WriteString("ID Item,Nama Produk,Tipe Katalog,Kategori/Kelas,Harga (Rp),Tayangan (Views),Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi Peminat,Rasio Konversi CTR (%)\n")
+		for _, p := range products {
+			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
+			ctr := 0.0
+			if p.ViewCount > 0 {
+				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100
+				if ctr > 100 {
+					ctr = 100
+				}
+			}
+			catName := p.Class
+			if catName == "" {
+				catName = "Umum"
+			}
+			sb.WriteString(fmt.Sprintf("%d,%s,%s,%s,%.0f,%d,%d,%d,%d,%d,%d,%.2f%%\n",
+				p.ID,
+				escapeCSV(p.Name),
+				escapeCSV(formatProductType(p.ProductType)),
+				escapeCSV(catName),
+				p.Price,
+				p.ViewCount,
+				p.WaClicksCount,
+				p.MarketplaceClicksCount,
+				p.RekberClicksCount,
+				p.VideoViewsCount,
+				totalAct,
+				ctr,
+			))
+		}
+	}
+
+	filename := fmt.Sprintf("catavor-analytics-%s-%s-%s-%s.csv", store.Slug, reportType, period, time.Now().Format("20060102"))
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	return c.Send([]byte(sb.String()))
+}
+
 

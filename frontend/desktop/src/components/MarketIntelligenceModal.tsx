@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   AlertCircle
 } from 'lucide-react';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface MarketIntelligenceData {
   total_active_stores: number;
@@ -71,6 +72,12 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   onClose,
   apiBase = ''
 }) => {
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'market-intel-modal'
+  });
+
   const [data, setData] = useState<MarketIntelligenceData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

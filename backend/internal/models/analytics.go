@@ -40,3 +40,16 @@ type ProductDailyAnalytics struct {
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
+
+// StoreDailyTrafficSource stores daily aggregated visitor and action metrics per traffic source (Instagram, TikTok, WA, etc.).
+type StoreDailyTrafficSource struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	StoreID      uint      `gorm:"index:idx_traffic_store_date_source,unique;not null" json:"store_id"`
+	Store        Store     `gorm:"foreignKey:StoreID;constraint:OnDelete:CASCADE" json:"-"`
+	Date         string    `gorm:"type:varchar(10);index:idx_traffic_store_date_source,unique;not null" json:"date"` // YYYY-MM-DD
+	Source       string    `gorm:"type:varchar(50);index:idx_traffic_store_date_source,unique;not null" json:"source"` // instagram, tiktok, whatsapp, facebook, google, marketplace, direct, other
+	Views        int       `gorm:"default:0;not null" json:"views"`
+	TotalActions int       `gorm:"default:0;not null" json:"total_actions"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}

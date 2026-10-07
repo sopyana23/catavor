@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   BarChart3,
   TrendingUp,
@@ -45,6 +46,7 @@ import {
   Globe
 } from 'lucide-react';
 import { MarketIntelligenceModal } from './MarketIntelligenceModal';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface AnalyticsTrendPoint {
   date: string;
@@ -100,6 +102,31 @@ export interface SmartInsight {
   description: string;
 }
 
+export interface TrafficSourceItem {
+  source: string;
+  name: string;
+  views: number;
+  total_actions: number;
+  percentage: number;
+  conversion_rate_percent: number;
+}
+
+export interface PeriodGrowthData {
+  store_views_growth_percent: number;
+  total_actions_growth_percent: number;
+  prev_store_views: number;
+  prev_total_actions: number;
+}
+
+export interface ConversionFunnelData {
+  store_views: number;
+  product_views: number;
+  total_actions: number;
+  view_to_product_rate: number;
+  product_to_action_rate: number;
+  overall_conversion_rate: number;
+}
+
 export interface DetailedAnalyticsData {
   period: '7d' | '30d' | '90d';
   days: number;
@@ -125,6 +152,9 @@ export interface DetailedAnalyticsData {
     video: number;
   };
   insights?: SmartInsight[];
+  growth?: PeriodGrowthData;
+  traffic_sources?: TrafficSourceItem[];
+  funnel?: ConversionFunnelData;
   bot_defense_active?: boolean;
 }
 
@@ -171,6 +201,41 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const [metricFocus, setMetricFocus] = useState<'all' | 'views' | 'actions'>('all');
   const [scaleMode, setScaleMode] = useState<'linear' | 'adaptive'>('linear');
   const [showMarketIntel, setShowMarketIntel] = useState<boolean>(false);
+  const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportPeriod, setExportPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('all');
+  const [exportType, setExportType] = useState<'full' | 'products' | 'daily'>('full');
+
+  useModalBackHandler({
+    isOpen: showExportModal,
+    onClose: () => setShowExportModal(false),
+    modalId: 'export-analytics-modal'
+  });
+
+  const handleExportStoreCsv = async (p = exportPeriod, t = exportType) => {
+    try {
+      setIsExportingCsv(true);
+      const token = localStorage.getItem('catavor_token');
+      const res = await fetch(`/api/admin/analytics/export?period=${p}&type=${t}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error('Gagal mengekspor data');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setShowExportModal(false);
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -214,7 +279,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           product_type: selectedProductType,
           sort: productSort
         });
-        const res = await fetch(`http://localhost:8000/api/admin/analytics/products?${params.toString()}`, {
+        const res = await fetch(`/api/admin/analytics/products?${params.toString()}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (!res.ok) throw new Error('Failed to fetch analytics products');
@@ -785,6 +850,30 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
               type="button"
+              onClick={() => setShowExportModal(true)}
+              disabled={isExportingCsv}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.95rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                borderRadius: '0.5rem',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                color: '#3b82f6',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)'
+              }}
+              title="Unduh rekap performa metrik toko dalam format CSV Spreadsheet"
+            >
+              <Download size={14} className={isExportingCsv ? 'animate-spin' : ''} />
+              <span>{isExportingCsv ? 'Menyiapkan...' : 'Ekspor CSV'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowMarketIntel(true)}
               style={{
                 display: 'inline-flex',
@@ -851,9 +940,25 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
             {storeViews.toLocaleString()}
           </div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-            Rata-rata {avgViewsPerDay} pengunjung/hari
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              Rata-rata {avgViewsPerDay} /hari
+            </span>
+            {analyticsData?.growth && (
+              <span
+                style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 800,
+                  padding: '0.08rem 0.35rem',
+                  borderRadius: '10px',
+                  backgroundColor: analyticsData.growth.store_views_growth_percent > 0 ? 'rgba(16, 185, 129, 0.12)' : analyticsData.growth.store_views_growth_percent < 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                  color: analyticsData.growth.store_views_growth_percent > 0 ? '#10b981' : analyticsData.growth.store_views_growth_percent < 0 ? '#ef4444' : 'var(--text-secondary)'
+                }}
+              >
+                {analyticsData.growth.store_views_growth_percent > 0 ? `↗ +${analyticsData.growth.store_views_growth_percent.toFixed(1)}%` : analyticsData.growth.store_views_growth_percent < 0 ? `↘ ${analyticsData.growth.store_views_growth_percent.toFixed(1)}%` : '— 0%'}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Total Eksplorasi Produk */}
@@ -899,9 +1004,25 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
             {totalActions.toLocaleString()}
           </div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-            Rata-rata {avgActionsPerDay} aksi/hari
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              Rata-rata {avgActionsPerDay} /hari
+            </span>
+            {analyticsData?.growth && (
+              <span
+                style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 800,
+                  padding: '0.08rem 0.35rem',
+                  borderRadius: '10px',
+                  backgroundColor: analyticsData.growth.total_actions_growth_percent > 0 ? 'rgba(16, 185, 129, 0.12)' : analyticsData.growth.total_actions_growth_percent < 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
+                  color: analyticsData.growth.total_actions_growth_percent > 0 ? '#10b981' : analyticsData.growth.total_actions_growth_percent < 0 ? '#ef4444' : 'var(--text-secondary)'
+                }}
+              >
+                {analyticsData.growth.total_actions_growth_percent > 0 ? `↗ +${analyticsData.growth.total_actions_growth_percent.toFixed(1)}%` : analyticsData.growth.total_actions_growth_percent < 0 ? `↘ ${analyticsData.growth.total_actions_growth_percent.toFixed(1)}%` : '— 0%'}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Rasio Konversi Keseluruhan */}
@@ -1609,6 +1730,161 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               </span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 4b. Traffic Source Attribution & Conversion Funnel Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
+        {/* Traffic Sources Breakdown Card */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.25rem 1.5rem',
+            borderRadius: '0.85rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.9rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <Globe size={16} style={{ color: 'var(--primary)' }} />
+                <span>Sumber Trafik & Kampanye</span>
+              </h3>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                Kanal kedatangan calon pembeli ke katalog toko Anda
+              </span>
+            </div>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '12px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+              {analyticsData?.traffic_sources?.length || 1} Kanal
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {(analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0
+              ? analyticsData.traffic_sources
+              : [{ source: 'direct', name: 'Direct / Link Langsung', views: storeViews, total_actions: totalActions, percentage: 100, conversion_rate_percent: conversionRate }]
+            ).map(ts => {
+              const getSourceColor = (s: string) => {
+                if (s === 'instagram') return '#e1306c';
+                if (s === 'tiktok') return '#06b6d4';
+                if (s === 'whatsapp') return '#25d366';
+                if (s === 'facebook') return '#1877f2';
+                if (s === 'google') return '#ea4335';
+                if (s === 'marketplace') return '#f97316';
+                return '#64748b';
+              };
+              const col = getSourceColor(ts.source);
+
+              return (
+                <div key={ts.source} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col }} />
+                      <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{ts.name}</strong>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{ts.views.toLocaleString()} tayangan</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>({ts.percentage.toFixed(1)}%)</span>
+                      <span style={{ fontSize: '0.7rem', color: ts.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700, backgroundColor: 'var(--bg-deep)', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                        {ts.conversion_rate_percent.toFixed(1)}% CR
+                      </span>
+                    </div>
+                  </div>
+                  {/* Progress Bar */}
+                  <div style={{ width: '100%', height: '6px', borderRadius: '3px', backgroundColor: 'var(--bg-deep)', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.max(3, Math.min(100, ts.percentage))}%`, height: '100%', backgroundColor: col, borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Conversion Funnel Card */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.25rem 1.5rem',
+            borderRadius: '0.85rem',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.9rem'
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Target size={16} style={{ color: '#10b981' }} />
+              <span>Corong Konversi (Funnel)</span>
+            </h3>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+              Pemetaan alur dari kunjungan hingga terjadinya aksi transaksi
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+            {/* Step 1: Kunjungan Toko */}
+            <div style={{ padding: '0.6rem 0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>1</span>
+                <div>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Kunjungan Katalog</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Baseline Pengunjung Unik</span>
+                </div>
+              </div>
+              <strong style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>{storeViews.toLocaleString()}</strong>
+            </div>
+
+            {/* Dropdown rate 1 -> 2 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '1.25rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              <span style={{ width: '1.5px', height: '14px', backgroundColor: 'var(--border-light)' }} />
+              <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                {analyticsData?.funnel?.view_to_product_rate ? `${analyticsData.funnel.view_to_product_rate.toFixed(1)}%` : storeViews > 0 ? `${((productViews / storeViews) * 100).toFixed(1)}%` : '0%'}
+              </span>
+              <span>pengunjung lanjut mengeksplorasi produk</span>
+            </div>
+
+            {/* Step 2: Eksplorasi Produk */}
+            <div style={{ padding: '0.6rem 0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>2</span>
+                <div>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Detail Produk Dilihat</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Minat Terhadap Item Tertentu</span>
+                </div>
+              </div>
+              <strong style={{ fontSize: '0.95rem', fontWeight: 800, color: '#8b5cf6' }}>{productViews.toLocaleString()}</strong>
+            </div>
+
+            {/* Dropdown rate 2 -> 3 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '1.25rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              <span style={{ width: '1.5px', height: '14px', backgroundColor: 'var(--border-light)' }} />
+              <span style={{ color: '#10b981', fontWeight: 700 }}>
+                {analyticsData?.funnel?.product_to_action_rate ? `${analyticsData.funnel.product_to_action_rate.toFixed(1)}%` : productViews > 0 ? `${((totalActions / productViews) * 100).toFixed(1)}%` : '0%'}
+              </span>
+              <span>lanjut klik tombol aksi / hubungi toko</span>
+            </div>
+
+            {/* Step 3: Aksi Transaksi (CTA) */}
+            <div style={{ padding: '0.6rem 0.85rem', borderRadius: '0.65rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#10b981', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800 }}>3</span>
+                <div>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>Aksi Beli / Chat WA / Rekber</span>
+                  <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>Konversi Final Katalog</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <strong style={{ fontSize: '0.95rem', fontWeight: 800, color: '#10b981' }}>{totalActions.toLocaleString()}</strong>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>CR: {conversionRate.toFixed(1)}%</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2399,6 +2675,296 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Interactive Export Analytics Modal */}
+      {showExportModal && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 12000,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExportModal(false);
+          }}
+        >
+          <div
+            className="glass-panel animate-scale-up"
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'var(--card-bg-gradient)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    color: '#3b82f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Download size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    Ekspor Laporan Analitika (CSV)
+                  </h3>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    Katalog {storeTitle || 'Catavor'} • Standar Format Spreadsheet
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '6px',
+                  display: 'flex'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+              {/* Option 1: Pilihan Rentang Waktu */}
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
+                  1. Pilih Rentang Waktu
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                  {[
+                    { key: 'all', label: 'Sepanjang Waktu (All-Time)', desc: 'Seluruh riwayat toko sejak awal' },
+                    { key: '90d', label: '90 Hari Terakhir', desc: 'Rekapitulasi 3 bulan terakhir' },
+                    { key: '30d', label: '30 Hari Terakhir', desc: 'Evaluasi 1 bulan terakhir' },
+                    { key: '7d', label: '7 Hari Terakhir', desc: 'Aktivitas 1 minggu terakhir' }
+                  ].map((pOpt) => {
+                    const isSelected = exportPeriod === pOpt.key;
+                    return (
+                      <div
+                        key={pOpt.key}
+                        onClick={() => setExportPeriod(pOpt.key as any)}
+                        style={{
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.6rem',
+                          border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          cursor: 'pointer',
+                          transition: 'var(--transition-fast)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                            {pOpt.label}
+                          </span>
+                          {isSelected && <Check size={14} style={{ color: 'var(--primary)' }} />}
+                        </div>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                          {pOpt.desc}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Option 2: Pilihan Jenis Laporan */}
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
+                  2. Pilih Jenis Laporan
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {[
+                    {
+                      key: 'full',
+                      badge: 'Rekomendasi Utama',
+                      title: 'Laporan Lengkap Terpadu (All-in-One)',
+                      desc: 'Ringkasan eksekutif, tabel tren harian, dan rincian performa seluruh produk katalog.'
+                    },
+                    {
+                      key: 'products',
+                      badge: 'Performa Item',
+                      title: 'Rincian Performa Katalog Item Saja',
+                      desc: 'ID, Nama item, tipe katalog, harga, total tayangan, klik WA, marketplace, rekber, dan CTR %.'
+                    },
+                    {
+                      key: 'daily',
+                      badge: 'Tren Trafik',
+                      title: 'Rekapitulasi Kunjungan & Konversi Harian',
+                      desc: 'Riwayat tanggal, jumlah pengunjung toko, peminat WhatsApp, dan rasio konversi harian.'
+                    }
+                  ].map((tOpt) => {
+                    const isSelected = exportType === tOpt.key;
+                    return (
+                      <div
+                        key={tOpt.key}
+                        onClick={() => setExportType(tOpt.key as any)}
+                        style={{
+                          padding: '0.75rem 0.95rem',
+                          borderRadius: '0.6rem',
+                          border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: '0.65rem',
+                          transition: 'var(--transition-fast)'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: isSelected ? 800 : 700, color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                              {tOpt.title}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '10px',
+                                backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                                color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                              }}
+                            >
+                              {tOpt.badge}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.35, display: 'block' }}>
+                            {tOpt.desc}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            border: isSelected ? '2px solid var(--primary)' : '2px solid var(--border-light)',
+                            backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '2px'
+                          }}
+                        >
+                          {isSelected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffffff' }} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Excel Compatibility Callout */}
+              <div
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.6rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem'
+                }}
+              >
+                <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                  <strong>Kompatibilitas Penuh Microsoft Excel:</strong> Dilengkapi header <strong>UTF-8 BOM</strong> otomatis agar kolom dan teks langsung rapi saat dibuka di Excel Windows/Mac.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-deep)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '0.65rem'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportStoreCsv(exportPeriod, exportType)}
+                disabled={isExportingCsv}
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 12px var(--primary-glow)'
+                }}
+              >
+                <Download size={15} className={isExportingCsv ? 'animate-spin' : ''} />
+                <span>{isExportingCsv ? 'Menyiapkan Berkas...' : 'Unduh Berkas CSV'}</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Market Intelligence Anonymized Macro Trends Modal */}

@@ -7116,6 +7116,57 @@ Terima kasih.`;
     }
   };
 
+  const getAnonymousSessionId = (): string => {
+    if (typeof window === 'undefined') return '';
+    try {
+      let sid = sessionStorage.getItem('catavor_sid');
+      if (!sid) {
+        sid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+        sessionStorage.setItem('catavor_sid', sid);
+      }
+      return sid;
+    } catch {
+      return '';
+    }
+  };
+
+  const getTrafficAttribution = (): { source: string; medium: string; campaign: string } => {
+    if (typeof window === 'undefined') return { source: 'direct', medium: 'direct', campaign: '' };
+    try {
+      const cached = sessionStorage.getItem('catavor_attribution');
+      if (cached) {
+        return JSON.parse(cached);
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const utmSource = urlParams.get('utm_source');
+      const utmMedium = urlParams.get('utm_medium') || 'referral';
+      const utmCampaign = urlParams.get('utm_campaign') || '';
+
+      let source = utmSource || '';
+      if (!source && document.referrer) {
+        try {
+          const refHost = new URL(document.referrer).hostname.toLowerCase();
+          if (refHost.includes('instagram.com')) source = 'instagram';
+          else if (refHost.includes('tiktok.com')) source = 'tiktok';
+          else if (refHost.includes('whatsapp.com') || refHost.includes('wa.me')) source = 'whatsapp';
+          else if (refHost.includes('facebook.com') || refHost.includes('fb.com')) source = 'facebook';
+          else if (refHost.includes('google.com')) source = 'google';
+          else if (refHost.includes('shopee') || refHost.includes('tokopedia') || refHost.includes('lazada')) source = 'marketplace';
+          else if (!refHost.includes(window.location.hostname)) source = refHost;
+        } catch {}
+      }
+
+      if (!source) source = 'direct';
+
+      const attribution = { source, medium: utmMedium, campaign: utmCampaign };
+      sessionStorage.setItem('catavor_attribution', JSON.stringify(attribution));
+      return attribution;
+    } catch {
+      return { source: 'direct', medium: 'direct', campaign: '' };
+    }
+  };
+
   const trackAnalytics = async (
     eventType: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view' | 'wa_click' | 'product_wa_click',
     productId?: number,
@@ -7124,6 +7175,8 @@ Terima kasih.`;
   ) => {
     const currentSlug = storeSlug || getStoreSlug();
     if (!currentSlug) return;
+    const sid = getAnonymousSessionId();
+    const attr = getTrafficAttribution();
     try {
       await fetch(`${API_BASE}/analytics/track`, {
         method: 'POST',
@@ -7135,7 +7188,17 @@ Terima kasih.`;
           event: eventType,
           product_id: productId || 0,
           product_type: productType,
-          metadata
+          session_id: sid,
+          source: attr.source,
+          medium: attr.medium,
+          campaign: attr.campaign,
+          metadata: {
+            ...metadata,
+            referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+            utm_source: attr.source,
+            utm_medium: attr.medium,
+            utm_campaign: attr.campaign
+          }
         })
       });
     } catch (err) {
