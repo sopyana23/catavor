@@ -1168,6 +1168,7 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
   const statusOptions = getAvailabilityStatusOptions(type);
 
   return {
+    is_active: true,
     name: '',
     scientific_name: '',
     class: typeConfig.defaultCategory,
@@ -8470,6 +8471,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
     newValue: string
   } | null>(null)
 
+  // Enterprise Archive / Unarchive Confirmation Modal State
+  const [archiveConfirmModal, setArchiveConfirmModal] = useState<{
+    item: Fauna;
+    targetActive: boolean;
+  } | null>(null)
+
+  useModalBackHandler({
+    isOpen: Boolean(archiveConfirmModal),
+    onClose: () => setArchiveConfirmModal(null),
+    modalId: 'desktop-archive-confirmation-modal'
+  })
+
 
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
@@ -11440,6 +11453,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
     };
   }, [openCardActionMenuId]);
 
+  // Safe Open Archive Confirmation Modal
+  const openArchiveConfirmModal = (item: Fauna, targetActive: boolean) => {
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      showToast('Operasional toko sedang dibekukan sementara.', 'error');
+      return;
+    }
+    setArchiveConfirmModal({ item, targetActive });
+  };
+
   // Quick toggle active / archived for an item directly from detail header
   const handleToggleActiveStatus = async (item: Fauna, newActive: boolean) => {
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
@@ -11571,6 +11593,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       enable_wa_direct: isDirectEnabled,
       whatsapp_contact_id: item.detailed_info?.whatsapp_contact_id || 'default',
       product_type: itemType,
+      is_active: (item as any).is_active !== false,
       attributes: {
         condition: (item.attributes?.condition as any) ?? 'Baru',
         weight: item.attributes?.weight ?? 100,
@@ -11735,6 +11758,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         image_url: uploadedImages[0],
         gallery_images: uploadedImages,
         product_type: crudForm.product_type,
+        is_active: crudForm.is_active !== false,
         attributes: {
           ...crudForm.attributes,
           ...(isFauna ? { habitat: selectedHabitat || '', diet: crudForm.diet || '' } : {}),
@@ -15192,8 +15216,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
   const renderCategoryTaxonomyManager = () => {
     const activeCategories = getCategoryOptionsForType(masterCategoryContextTab);
     const defaultList = DEFAULT_MASTER_CATEGORIES[masterCategoryContextTab] || [];
-    const defaultCount = activeCategories.filter(c => defaultList.includes(c)).length;
-    const customCount = activeCategories.filter(c => !defaultList.includes(c)).length;
+    const systemCategories = activeCategories.filter(c => defaultList.includes(c));
+    const customCategories = activeCategories.filter(c => !defaultList.includes(c));
+    const defaultCount = systemCategories.length;
+    const customCount = customCategories.length;
 
     const typeDefinitions: { id: ItemCategoryType; label: string; desc: string }[] = [
       { id: 'physical', label: 'Barang Fisik', desc: 'Produk ritel fisik, pakaian, fashion, elektronik, kerajinan tangan, dan perlengkapan umum' },
@@ -15274,150 +15300,216 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
           <span><strong style={{ color: 'var(--text-primary)' }}>{activeTypeDef.label}:</strong> {activeTypeDef.desc}</span>
         </div>
 
-        {/* Category List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '1.25rem' }}>
-          {activeCategories.map((c) => {
-            const isSystemDefault = defaultList.includes(c);
-            const count = faunas.filter(f => (f.product_type || 'physical') === masterCategoryContextTab && f.class === c).length;
-
-            return (
-              <div 
-                key={c}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.55rem 0.85rem',
-                  borderRadius: '0.55rem',
-                  backgroundColor: 'rgba(255,255,255,0.02)',
-                  border: isSystemDefault ? '1px solid rgba(255,255,255,0.05)' : '1px solid var(--border-light)',
-                  transition: 'background-color 0.15s ease'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                  <Tag size={13} style={{ color: isSystemDefault ? 'var(--text-muted)' : 'var(--primary)' }} />
-                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {c}
-                  </span>
-                  {isSystemDefault ? (
-                    <span 
-                      style={{ 
-                        fontSize: '0.66rem', 
-                        fontWeight: 700, 
-                        padding: '0.12rem 0.4rem', 
-                        borderRadius: '3px', 
-                        backgroundColor: 'rgba(255,255,255,0.06)', 
-                        color: 'var(--text-muted)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                      title="Kategori bawaan standar sistem yang terkunci dan tidak dapat dihapus demi konsistensi data"
-                    >
-                      <Lock size={10} strokeWidth={2.2} /> Default Sistem
-                    </span>
-                  ) : (
-                    <span 
-                      style={{ 
-                        fontSize: '0.66rem', 
-                        fontWeight: 700, 
-                        padding: '0.12rem 0.4rem', 
-                        borderRadius: '3px', 
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)', 
-                        color: 'var(--primary)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                    >
-                      Kustom
-                    </span>
-                  )}
-                  {count > 0 && (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                      ({count} item)
-                    </span>
-                  )}
-                </div>
-
-                {/* Actions: Edit & Delete only for custom merchant categories */}
-                {!isSystemDefault ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setRenameMasterModalData({ field: 'class', fieldLabel: 'Kategori Etalase', oldValue: c, newValue: c })}
-                      style={{
-                        padding: '0.25rem 0.55rem',
-                        fontSize: '0.74rem',
-                        fontWeight: 600,
-                        borderRadius: '4px',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'rgba(255,255,255,0.04)',
-                        color: 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                      title="Ubah Nama Kategori"
-                    >
-                      <Edit3 size={11} />
-                      <span>Ubah</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteMasterOption('class', c)}
-                      style={{
-                        padding: '0.25rem 0.55rem',
-                        fontSize: '0.74rem',
-                        fontWeight: 600,
-                        borderRadius: '4px',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                        color: '#ef4444',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                      title="Hapus Kategori Kustom"
-                    >
-                      <Trash2 size={11} />
-                      <span>Hapus</span>
-                    </button>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingRight: '0.25rem' }}>
-                    Terkunci
-                  </span>
-                )}
+        {/* Categories Tag-Based Layout (Horizontal Wrapping to Save Space) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem', marginBottom: '1.25rem' }}>
+          
+          {/* 1. Kategori Standar Sistem (Tags) */}
+          <div style={{
+            padding: '1rem 1.15rem',
+            borderRadius: '0.75rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid var(--border-light)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)' }} /> Kategori Standar Sistem
+                </span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)' }}>
+                  {defaultCount}
+                </span>
               </div>
-            );
-          })}
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                Bawaan sistem terstandarisasi (terkunci)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {systemCategories.map((c) => {
+                const count = faunas.filter(f => (f.product_type || 'physical') === masterCategoryContextTab && f.class === c).length;
+                return (
+                  <div
+                    key={c}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.38rem 0.75rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid var(--border-light)',
+                      fontSize: '0.82rem',
+                      color: 'var(--text-primary)',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Kategori bawaan standar sistem yang terkunci demi konsistensi data"
+                  >
+                    <Lock size={11} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span style={{ fontWeight: 500 }}>{c}</span>
+                    {count > 0 && (
+                      <span style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        padding: '0.1rem 0.45rem',
+                        borderRadius: '999px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        {count} item
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. Kategori Kustom Merchant (Tags) */}
+          <div style={{
+            padding: '1rem 1.15rem',
+            borderRadius: '0.75rem',
+            backgroundColor: customCategories.length > 0 ? 'rgba(16, 185, 129, 0.02)' : 'rgba(255, 255, 255, 0.01)',
+            border: customCategories.length > 0 ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-light)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Tag size={13} style={{ color: 'var(--primary)' }} /> Kategori Kustom Anda
+                </span>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '0.12rem 0.55rem', borderRadius: '4px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)' }}>
+                  {customCount}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Dapat diubah nama atau dihapus kapan saja
+              </span>
+            </div>
+
+            {customCategories.length === 0 ? (
+              <div style={{
+                padding: '0.85rem 1rem',
+                borderRadius: '0.55rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                border: '1px dashed var(--border-light)',
+                fontSize: '0.78rem',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <Tag size={13} style={{ opacity: 0.5 }} />
+                <span>Belum ada kategori kustom untuk <strong>{activeTypeDef.label}</strong>. Tambahkan melalui kolom formulir di bawah.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {customCategories.map((c) => {
+                  const count = faunas.filter(f => (f.product_type || 'physical') === masterCategoryContextTab && f.class === c).length;
+                  return (
+                    <div
+                      key={c}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.35rem 0.45rem 0.35rem 0.75rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                        border: '1px solid rgba(16, 185, 129, 0.28)',
+                        fontSize: '0.82rem',
+                        color: 'var(--text-primary)',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Tag size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600 }}>{c}</span>
+                      {count > 0 && (
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '0.1rem 0.45rem',
+                          borderRadius: '999px',
+                          backgroundColor: 'var(--primary-glow)',
+                          color: 'var(--primary)'
+                        }}>
+                          {count} item
+                        </span>
+                      )}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginLeft: '0.25rem', paddingLeft: '0.35rem', borderLeft: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                        <button
+                          type="button"
+                          onClick={() => setRenameMasterModalData({ field: 'class', fieldLabel: `Kategori Etalase (${activeTypeDef.label})`, oldValue: c, newValue: c })}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={`Ubah nama kategori "${c}"`}
+                        >
+                          <Edit3 size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMasterOption('class', c)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '4px',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={`Hapus kategori "${c}"`}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Add Custom Category Form */}
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
-          <input 
-            type="text" 
-            className="form-input" 
-            placeholder={`Tambah kategori ${activeTypeDef.label} kustom baru...`}
-            value={newClassInput}
-            onChange={(e) => setNewClassInput(e.target.value)}
-            style={{ flex: 1, height: '38px', fontSize: '0.84rem' }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleAddMasterOption('class', newClassInput, setNewClassInput);
-              }
-            }}
-          />
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder={`Tambah kategori ${activeTypeDef.label} kustom baru... (tekan Enter untuk menyimpan)`}
+              value={newClassInput}
+              onChange={(e) => setNewClassInput(e.target.value)}
+              style={{ width: '100%', height: '38px', fontSize: '0.84rem', paddingLeft: '2.25rem' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddMasterOption('class', newClassInput, setNewClassInput);
+                }
+              }}
+            />
+            <Plus size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          </div>
           <button 
             type="button" 
             className="btn-primary" 
-            style={{ padding: '0 1.1rem', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+            style={{ padding: '0 1.25rem', fontSize: '0.82rem', height: '38px', display: 'flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap', borderRadius: '0.5rem' }}
             onClick={() => handleAddMasterOption('class', newClassInput, setNewClassInput)}
           >
             <Plus size={14} /> Tambah Kategori
@@ -15688,7 +15780,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         onClick={() => {
                           setShowDetailActionDropdown(false);
                           const curActive = (selectedFauna as any).is_active !== false;
-                          handleToggleActiveStatus(selectedFauna, !curActive);
+                          openArchiveConfirmModal(selectedFauna, !curActive);
                         }}
                         style={{
                           display: 'flex',
@@ -15921,7 +16013,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 {(view === 'admin' || isStoreOwner) && (
                   <button
                     type="button"
-                    onClick={() => handleToggleActiveStatus(selectedFauna, true)}
+                    onClick={() => openArchiveConfirmModal(selectedFauna, true)}
                     style={{
                       padding: '0.45rem 1rem',
                       borderRadius: '0.5rem',
@@ -20208,34 +20300,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     </div>
                                   </td>
                                   <td>
-                                    {(item as any).is_active !== false ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleActiveStatus(item, false)}
-                                        title="Status: Aktif (Klik untuk mengarsipkan)"
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '0.3rem',
-                                          padding: '0.22rem 0.65rem',
-                                          borderRadius: '6px',
-                                          fontSize: '0.74rem',
-                                          fontWeight: 700,
-                                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                                          color: '#10b981',
-                                          border: '1px solid rgba(16, 185, 129, 0.3)',
-                                          cursor: 'pointer',
-                                          transition: 'all 0.15s ease'
-                                        }}
-                                      >
-                                        <CheckCircle2 size={12} strokeWidth={2.5} />
-                                        <span>Aktif</span>
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleActiveStatus(item, true)}
-                                        title="Status: Diarsipkan (Klik untuk mengaktifkan)"
+                                    {(item as any).moderation_status === 'hidden' ? (
+                                      <span
                                         style={{
                                           display: 'inline-flex',
                                           alignItems: 'center',
@@ -20246,27 +20312,104 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                           fontWeight: 700,
                                           backgroundColor: 'rgba(239, 68, 68, 0.12)',
                                           color: '#ef4444',
-                                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                                          cursor: 'pointer',
-                                          transition: 'all 0.15s ease'
+                                          border: '1px solid rgba(239, 68, 68, 0.3)'
                                         }}
+                                        title="Dinonaktifkan oleh tim moderasi platform"
                                       >
-                                        <Lock size={12} strokeWidth={2.5} />
+                                        <ShieldAlert size={12} strokeWidth={2.5} />
+                                        <span>Dinonaktifkan</span>
+                                      </span>
+                                    ) : (item as any).is_active !== false ? (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.3rem',
+                                          padding: '0.22rem 0.65rem',
+                                          borderRadius: '6px',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 700,
+                                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                          color: '#10b981',
+                                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                                        }}
+                                        title="Status: Aktif (Tayang di etalase publik)"
+                                      >
+                                        <CheckCircle2 size={12} strokeWidth={2.5} />
+                                        <span>Aktif</span>
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.3rem',
+                                          padding: '0.22rem 0.65rem',
+                                          borderRadius: '6px',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 700,
+                                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                                          color: '#f59e0b',
+                                          border: '1px solid rgba(245, 158, 11, 0.3)'
+                                        }}
+                                        title="Status: Diarsipkan (Disembunyikan dari pembeli)"
+                                      >
+                                        <Archive size={12} strokeWidth={2.5} />
                                         <span>Diarsipkan</span>
-                                      </button>
+                                      </span>
                                     )}
                                   </td>
                                   <td>
-                                    <div className="action-buttons">
+                                    <div className="action-buttons" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                       <button 
                                         className="btn-secondary btn-small"
                                         onClick={() => fetchDetails(item.id)}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.65rem', fontSize: '0.74rem' }}
-                                        title="Lihat Detail"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.74rem' }}
+                                        title="Lihat Detail Produk"
                                       >
                                         <Eye size={12} />
                                         Detail
                                       </button>
+
+                                      {(item as any).is_active !== false ? (
+                                        <button
+                                          type="button"
+                                          className="btn-secondary btn-small"
+                                          onClick={() => openArchiveConfirmModal(item, false)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.25rem',
+                                            padding: '0.3rem 0.6rem',
+                                            fontSize: '0.74rem',
+                                            color: '#f59e0b',
+                                            borderColor: 'rgba(245, 158, 11, 0.3)'
+                                          }}
+                                          title="Arsipkan Produk (Sembunyikan dari pembeli)"
+                                        >
+                                          <Archive size={12} />
+                                          Arsipkan
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="btn-secondary btn-small"
+                                          onClick={() => openArchiveConfirmModal(item, true)}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.25rem',
+                                            padding: '0.3rem 0.6rem',
+                                            fontSize: '0.74rem',
+                                            color: '#10b981',
+                                            borderColor: 'rgba(16, 185, 129, 0.3)'
+                                          }}
+                                          title="Aktifkan Kembali ke Katalog"
+                                        >
+                                          <CheckCircle2 size={12} />
+                                          Aktifkan
+                                        </button>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
@@ -25016,6 +25159,155 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
       </main>
     </div>
     )}
+      {/* ENTERPRISE ARCHIVE / REACTIVATE CONFIRMATION MODAL */}
+      {archiveConfirmModal && (() => {
+        const item = archiveConfirmModal.item;
+        const targetActive = archiveConfirmModal.targetActive;
+        const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
+        const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
+        const isQuotaExceeded = targetActive && maxActive !== -1 && currentActive >= maxActive;
+
+        return (
+          <div className="modal-overlay" onClick={() => setArchiveConfirmModal(null)} style={{ zIndex: 9999 }}>
+            <div 
+              className="glass-panel animate-scale-up" 
+              onClick={(e) => e.stopPropagation()} 
+              style={{ 
+                maxWidth: '460px', 
+                width: '90%', 
+                padding: '1.75rem', 
+                borderRadius: '1rem', 
+                border: targetActive ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)', 
+                backgroundColor: 'var(--bg-card)', 
+                position: 'relative', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)' 
+              }}
+            >
+              <button 
+                type="button" 
+                className="modal-close-btn" 
+                onClick={() => setArchiveConfirmModal(null)}
+                style={{ position: 'absolute', top: '1rem', right: '1rem' }}
+              >
+                <X size={18} />
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.1rem' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  backgroundColor: isQuotaExceeded ? 'rgba(239, 68, 68, 0.12)' : (targetActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)'),
+                  color: isQuotaExceeded ? '#ef4444' : (targetActive ? '#10b981' : '#f59e0b')
+                }}>
+                  {isQuotaExceeded ? <AlertTriangle size={24} /> : (targetActive ? <CheckCircle2 size={24} /> : <Archive size={24} />)}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    {isQuotaExceeded 
+                      ? 'Kuota Item Aktif Penuh'
+                      : (targetActive ? 'Aktifkan Produk ke Katalog?' : 'Arsipkan Produk Ini?')}
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    {item.name}
+                  </span>
+                </div>
+              </div>
+
+              {isQuotaExceeded ? (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                  marginBottom: '1.35rem'
+                }}>
+                  Batas item katalog aktif untuk paket <strong>{storeQuota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item aktif). Silakan upgrade ke paket Pro atau arsipkan produk lain untuk mengaktifkan item ini.
+                </div>
+              ) : (
+                <div style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: targetActive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                  border: targetActive ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.55,
+                  marginBottom: '1.35rem'
+                }}>
+                  {targetActive ? (
+                    <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
+                      <li>Produk akan segera <strong>ditampilkan kembali</strong> di etalase katalog publik toko Anda.</li>
+                      <li>Calon pembeli dapat melihat spesifikasi produk dan melakukan pemesanan via WhatsApp.</li>
+                      <li>Item ini akan menggunakan 1 kuota produk aktif toko Anda.</li>
+                    </ul>
+                  ) : (
+                    <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
+                      <li>Produk akan <strong>disembunyikan dari etalase publik</strong> dan tidak dapat dilihat oleh calon pembeli.</li>
+                      <li>Seluruh data, foto, varian, dan riwayat pesanan <strong>tetap tersimpan aman</strong> di database.</li>
+                      <li>Anda dapat mengaktifkannya kembali kapan saja melalui tab <strong>"Diarsipkan"</strong>.</li>
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => setArchiveConfirmModal(null)}
+                  style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }}
+                >
+                  Batal
+                </button>
+                {isQuotaExceeded ? (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      setArchiveConfirmModal(null);
+                      setAdminTab('subscription');
+                      const slug = getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                    }}
+                    style={{ padding: '0.45rem 1.15rem', fontSize: '0.82rem' }}
+                  >
+                    Lihat Paket Langganan
+                  </button>
+                ) : (
+                  <button 
+                    type="button" 
+                    className="btn-primary"
+                    style={{ 
+                      padding: '0.45rem 1.15rem', 
+                      fontSize: '0.82rem',
+                      backgroundColor: targetActive ? 'var(--primary)' : '#d97706',
+                      borderColor: targetActive ? 'var(--primary)' : '#d97706',
+                      boxShadow: targetActive ? '0 2px 10px var(--primary-glow)' : '0 2px 10px rgba(217, 119, 6, 0.3)'
+                    }}
+                    onClick={() => {
+                      const itemToToggle = archiveConfirmModal.item;
+                      const nextStatus = archiveConfirmModal.targetActive;
+                      setArchiveConfirmModal(null);
+                      handleToggleActiveStatus(itemToToggle, nextStatus);
+                    }}
+                  >
+                    {targetActive ? 'Ya, Aktifkan Produk' : 'Ya, Arsipkan Produk'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* CUSTOM CONFIRMATION DIALOG FOR MASTER OPTION DELETION */}
       {deleteMasterModalData && (
         <div className="modal-overlay" onClick={() => setDeleteMasterModalData(null)}>
@@ -26710,6 +27002,65 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       value={crudForm.description}
                       onChange={(val) => setCrudForm({ ...crudForm, description: val })}
                     />
+                  </div>
+
+                  {/* Status Publikasi / Arsip Produk */}
+                  <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                    <label className="form-label" style={{ marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem' }}>
+                      <Archive size={14} style={{ color: 'var(--primary)' }} /> Status Publikasi Katalog
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                      <label 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '0.65rem', 
+                          padding: '0.75rem 0.85rem', 
+                          borderRadius: '0.5rem', 
+                          border: crudForm.is_active !== false ? '1px solid var(--primary)' : '1px solid var(--border-light)', 
+                          backgroundColor: crudForm.is_active !== false ? 'var(--primary-glow)' : 'transparent', 
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <input 
+                          type="radio" 
+                          name="desktop_is_active_status" 
+                          checked={crudForm.is_active !== false}
+                          onChange={() => setCrudForm({ ...crudForm, is_active: true })}
+                          style={{ marginTop: '2px' }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--text-primary)' }}>Publikasi Aktif</div>
+                          <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Tampil di katalog & dapat dilihat pembeli</div>
+                        </div>
+                      </label>
+                      <label 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '0.65rem', 
+                          padding: '0.75rem 0.85rem', 
+                          borderRadius: '0.5rem', 
+                          border: crudForm.is_active === false ? '1px solid #f59e0b' : '1px solid var(--border-light)', 
+                          backgroundColor: crudForm.is_active === false ? 'rgba(245, 158, 11, 0.08)' : 'transparent', 
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <input 
+                          type="radio" 
+                          name="desktop_is_active_status" 
+                          checked={crudForm.is_active === false}
+                          onChange={() => setCrudForm({ ...crudForm, is_active: false })}
+                          style={{ marginTop: '2px' }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>Arsipkan Sementara</div>
+                          <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Sembunyikan dari pembeli (data tersimpan)</div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </form>

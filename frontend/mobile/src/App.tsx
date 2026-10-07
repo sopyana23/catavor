@@ -119,6 +119,7 @@ import {
   MoreVertical,
   MoreHorizontal,
   Flag,
+  Archive,
   Award,
   LayoutDashboard,
   BarChart2,
@@ -1539,6 +1540,7 @@ export const getInitialCrudForm = (type: ItemCategoryType = 'physical') => {
   const typeConfig = getItemTypeFormConfig(type);
 
   return {
+    is_active: true,
     name: '',
     scientific_name: '',
     class: typeConfig.defaultCategory,
@@ -8581,6 +8583,71 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     modalId: 'mobile-discard-confirmation'
   });
 
+  // Mobile Archive / Unarchive Confirmation Modal State
+  const [archiveConfirmModal, setArchiveConfirmModal] = useState<{
+    item: Fauna;
+    targetActive: boolean;
+  } | null>(null);
+
+  useModalBackHandler({
+    isOpen: Boolean(archiveConfirmModal),
+    onClose: () => setArchiveConfirmModal(null),
+    modalId: 'mobile-archive-confirmation'
+  });
+
+  const openArchiveConfirmModal = (item: Fauna, targetActive: boolean) => {
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      showToast?.('Operasional toko sedang dibekukan sementara.', 'error');
+      return;
+    }
+    setArchiveConfirmModal({ item, targetActive });
+  };
+
+  const handleToggleActiveStatus = async (item: Fauna, newActive: boolean) => {
+    if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
+      showToast?.('Operasional toko sedang dibekukan sementara.', 'error');
+      return;
+    }
+    if (newActive) {
+      const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
+      const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
+      if (maxActive !== -1 && currentActive >= maxActive) {
+        showToast?.(`Batas katalog aktif untuk paket ${storeQuota?.plan?.name || 'Anda'} (${maxActive} item) telah tercapai. Silakan upgrade paket langganan!`, 'error');
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/products/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: item.name,
+          scientific_name: item.scientific_name,
+          class: item.class,
+          price: item.price,
+          description: item.description,
+          is_active: newActive
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast?.(newActive ? 'Item berhasil diaktifkan kembali ke katalog!' : 'Item berhasil diarsipkan.');
+        setSelectedFauna((prev: any) => prev ? { ...prev, is_active: newActive } : null);
+        loadData();
+        fetchMyQuota();
+      } else {
+        showToast?.(data.message || 'Gagal memperbarui status produk.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast?.('Koneksi terputus. Gagal memperbarui status produk.', 'error');
+    }
+  };
+
   const handleMobileConfirmSaveAndExit = () => {
     setShowDiscardConfirmSheet(false);
     handleFaunaSubmit({ preventDefault: () => {} } as React.FormEvent);
@@ -11649,6 +11716,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       enable_wa_direct: isDirectEnabled,
       whatsapp_contact_id: item.detailed_info?.whatsapp_contact_id || item.attributes?.whatsapp_contact_id || 'default',
       product_type: itemType,
+      is_active: (item as any).is_active !== false,
       attributes: {
         condition: (item.attributes?.condition as any) || 'Baru',
         weight: item.attributes?.weight ?? 100,
@@ -11830,6 +11898,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       image_url: finalImageUrls[0],
       gallery_images: finalImageUrls,
       product_type: crudForm.product_type,
+      is_active: crudForm.is_active !== false,
       attributes: {
         ...crudForm.attributes,
         ...(isFauna ? { habitat: selectedHabitat || '', diet: crudForm.diet || '' } : {}),
@@ -15216,6 +15285,48 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </div>
             )}
 
+            {/* Archived Status Banner (if archived) */}
+            {(selectedFauna as any).is_active === false && (
+              <div style={{
+                margin: '0.75rem 1rem 0.25rem 1rem',
+                padding: '0.85rem 1rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                  <Archive size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f59e0b', marginBottom: '0.15rem' }}>
+                      Item Ini Berstatus Diarsipkan
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      Item disembunyikan dari katalog publik toko.
+                    </div>
+                  </div>
+                </div>
+                {isStoreOwner && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => openArchiveConfirmModal(selectedFauna, true)}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Aktifkan
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Product Media & Hero Gallery */}
             {(() => {
               const galleryImages: string[] = (selectedFauna.detailed_info?.images && Array.isArray(selectedFauna.detailed_info.images) && selectedFauna.detailed_info.images.length > 0)
@@ -18301,6 +18412,61 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       value={crudForm.description}
                       onChange={(val) => setCrudForm({ ...crudForm, description: val })}
                     />
+                  </div>
+
+                  {/* Status Publikasi / Arsip */}
+                  <div style={{ marginTop: '0.75rem', marginBottom: '1.25rem', padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                    <label className="form-label" style={{ marginBottom: '0.55rem', display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
+                      <Archive size={14} style={{ color: 'var(--primary)' }} /> Status Publikasi Katalog
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <label 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.65rem', 
+                          padding: '0.65rem 0.75rem', 
+                          borderRadius: '0.5rem', 
+                          border: crudForm.is_active !== false ? '1px solid var(--primary)' : '1px solid var(--border-light)', 
+                          backgroundColor: crudForm.is_active !== false ? 'var(--primary-glow)' : 'transparent', 
+                          cursor: 'pointer' 
+                        }}
+                      >
+                        <input 
+                          type="radio" 
+                          name="mobile_is_active_status" 
+                          checked={crudForm.is_active !== false}
+                          onChange={() => setCrudForm({ ...crudForm, is_active: true })}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)' }}>Publikasi Aktif</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Tampil di katalog toko & dapat dilihat pembeli</div>
+                        </div>
+                      </label>
+                      <label 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.65rem', 
+                          padding: '0.65rem 0.75rem', 
+                          borderRadius: '0.5rem', 
+                          border: crudForm.is_active === false ? '1px solid #f59e0b' : '1px solid var(--border-light)', 
+                          backgroundColor: crudForm.is_active === false ? 'rgba(245, 158, 11, 0.08)' : 'transparent', 
+                          cursor: 'pointer' 
+                        }}
+                      >
+                        <input 
+                          type="radio" 
+                          name="mobile_is_active_status" 
+                          checked={crudForm.is_active === false}
+                          onChange={() => setCrudForm({ ...crudForm, is_active: false })}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#f59e0b' }}>Arsipkan Sementara</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Sembunyikan dari pembeli (data tersimpan aman)</div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -22038,7 +22204,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
 
                             {/* Right: Action */}
-                            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: '0.35rem' }}>
                               <button 
                                 type="button"
                                 className="btn-secondary"
@@ -22058,6 +22224,58 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 <Eye size={13} />
                                 <span>Detail</span>
                               </button>
+
+                              {(item as any).is_active !== false ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openArchiveConfirmModal(item, false);
+                                  }}
+                                  style={{
+                                    padding: '0.35rem 0.55rem',
+                                    borderRadius: '0.45rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                    color: '#f59e0b',
+                                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Arsipkan Item"
+                                >
+                                  <Archive size={12} />
+                                  <span>Arsip</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openArchiveConfirmModal(item, true);
+                                  }}
+                                  style={{
+                                    padding: '0.35rem 0.55rem',
+                                    borderRadius: '0.45rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                    color: '#10b981',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Aktifkan Kembali ke Katalog"
+                                >
+                                  <CheckCircle2 size={12} />
+                                  <span>Aktifkan</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -28826,7 +29044,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                 </button>
 
-                {/* Option 2: Kelola Inventaris for Store (Owner), or Laporkan for Public */}
+                {/* Option 2: Kelola Inventaris for Store (Owner), or Archive / Unarchive for Item (Owner), or Laporkan for Public */}
                 {isStoreOwner ? (
                   actionMenuData.type === 'store' ? (
                     <button
@@ -28849,7 +29067,47 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                       <ChevronRight size={16} style={{ color: 'var(--primary)' }} />
                     </button>
-                  ) : null
+                  ) : (
+                    (actionMenuData.item as any)?.is_active !== false ? (
+                      <button
+                        type="button"
+                        className="action-menu-btn"
+                        onClick={() => {
+                          const itemToArchive = actionMenuData.item;
+                          setActionMenuData(null);
+                          openArchiveConfirmModal(itemToArchive, false);
+                        }}
+                      >
+                        <div className="action-menu-icon-box" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
+                          <Archive size={18} />
+                        </div>
+                        <div className="action-menu-text-box">
+                          <span className="action-menu-title" style={{ color: '#f59e0b' }}>Arsipkan Item Ini</span>
+                          <span className="action-menu-desc">Sembunyikan dari etalase toko (data tetap tersimpan aman)</span>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="action-menu-btn"
+                        onClick={() => {
+                          const itemToActivate = actionMenuData.item;
+                          setActionMenuData(null);
+                          openArchiveConfirmModal(itemToActivate, true);
+                        }}
+                      >
+                        <div className="action-menu-icon-box" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                          <CheckCircle2 size={18} />
+                        </div>
+                        <div className="action-menu-text-box">
+                          <span className="action-menu-title" style={{ color: '#10b981' }}>Aktifkan Kembali Item</span>
+                          <span className="action-menu-desc">Tampilkan kembali item ini di etalase katalog toko</span>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </button>
+                    )
+                  )
                 ) : (
                   <button
                     type="button"
@@ -29813,6 +30071,184 @@ Mohon info ketersediaan stok & pengiriman ya!`}
           onClose={() => setExternalUrlWarning(null)}
         />
       )}
+
+      {/* ==========================================================
+         MOBILE ARCHIVE / UNARCHIVE CONFIRMATION BOTTOM SHEET
+         ========================================================== */}
+      {archiveConfirmModal && (() => {
+        const item = archiveConfirmModal.item;
+        const targetActive = archiveConfirmModal.targetActive;
+        const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
+        const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
+        const isQuotaExceeded = targetActive && maxActive !== -1 && currentActive >= maxActive;
+
+        return (
+          <div
+            className="bottom-sheet-backdrop"
+            style={{ zIndex: 100020 }}
+            onClick={() => setArchiveConfirmModal(null)}
+          >
+            <div
+              className="bottom-sheet-content"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxHeight: '88vh',
+                padding: '0.65rem 0 calc(1.75rem + env(safe-area-inset-bottom, 16px)) 0',
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <div className="bottom-sheet-handle-bar">
+                <div className="bottom-sheet-handle" />
+              </div>
+
+              {/* Header */}
+              <div
+                className="bottom-sheet-header"
+                style={{
+                  padding: '0 1.25rem 0.75rem',
+                  borderBottom: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    backgroundColor: isQuotaExceeded ? 'rgba(239, 68, 68, 0.14)' : (targetActive ? 'rgba(16, 185, 129, 0.14)' : 'rgba(245, 158, 11, 0.14)'),
+                    border: `1px solid ${isQuotaExceeded ? 'rgba(239, 68, 68, 0.3)' : (targetActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)')}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: isQuotaExceeded ? '#ef4444' : (targetActive ? '#10b981' : '#f59e0b')
+                  }}>
+                    {isQuotaExceeded ? <AlertTriangle size={18} /> : (targetActive ? <CheckCircle2 size={18} /> : <Archive size={18} />)}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                      {isQuotaExceeded
+                        ? 'Batas Kuota Katalog Penuh'
+                        : (targetActive ? 'Aktifkan Produk ke Katalog?' : 'Arsipkan Produk Ini?')}
+                    </h3>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.name}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setArchiveConfirmModal(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '1rem 1.25rem' }}>
+                {isQuotaExceeded ? (
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.5
+                  }}>
+                    Batas item aktif paket <strong>{storeQuota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item). Silakan upgrade ke paket Pro atau arsipkan produk lain terlebih dahulu.
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: targetActive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                    border: targetActive ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.55
+                  }}>
+                    {targetActive ? (
+                      <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
+                        <li>Produk akan segera <strong>ditampilkan kembali</strong> di etalase katalog toko.</li>
+                        <li>Calon pembeli dapat melihat dan memesan produk ini.</li>
+                        <li>Item ini akan menggunakan 1 kuota produk aktif toko Anda.</li>
+                      </ul>
+                    ) : (
+                      <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
+                        <li>Produk akan <strong>disembunyikan dari etalase toko</strong> publik.</li>
+                        <li>Data, foto, dan varian <strong>tetap tersimpan aman</strong> di database.</li>
+                        <li>Anda dapat mengaktifkannya kembali kapan saja melalui tab <strong>"Arsip"</strong>.</li>
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div style={{ padding: '0 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {isQuotaExceeded ? (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      setArchiveConfirmModal(null);
+                      setActiveTab('admin');
+                      setAdminSubTab('subscription');
+                      const slug = storeSlug || getStoreSlug() || '';
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                    }}
+                    style={{ padding: '0.7rem 1rem', fontSize: '0.84rem', fontWeight: 700 }}
+                  >
+                    Lihat Paket Langganan
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    style={{
+                      padding: '0.7rem 1rem',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      backgroundColor: targetActive ? 'var(--primary)' : '#d97706',
+                      borderColor: targetActive ? 'var(--primary)' : '#d97706',
+                      boxShadow: targetActive ? '0 2px 10px var(--primary-glow)' : '0 2px 10px rgba(217, 119, 6, 0.3)'
+                    }}
+                    onClick={() => {
+                      const itemToToggle = archiveConfirmModal.item;
+                      const nextStatus = archiveConfirmModal.targetActive;
+                      setArchiveConfirmModal(null);
+                      handleToggleActiveStatus(itemToToggle, nextStatus);
+                    }}
+                  >
+                    {targetActive ? 'Ya, Aktifkan Produk' : 'Ya, Arsipkan Produk'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setArchiveConfirmModal(null)}
+                  style={{ padding: '0.65rem 1rem', fontSize: '0.82rem', fontWeight: 600 }}
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ==========================================================
          MOBILE DISCARD CONFIRMATION BOTTOM SHEET (FLUSH AT BOTTOM WITH DRAG DISMISS)
