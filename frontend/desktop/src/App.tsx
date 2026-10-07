@@ -21443,37 +21443,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     border: "1px solid var(--border-light)",
                     marginBottom: "1.25rem"
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                        <span style={{ padding: "0.3rem 0.6rem", borderRadius: "0.45rem", backgroundColor: "var(--primary-glow)", color: "var(--primary)", fontWeight: 800, fontSize: "0.72rem" }}>
-                          SISTEM TAKSONOMI KATALOG
-                        </span>
-                        <h3 style={{ fontSize: "1.15rem", margin: 0, fontWeight: 800, color: "var(--text-primary)" }}>
-                          Kelola Master Kategori Etalase
-                        </h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdminTab("items");
-                          const slug = storeSlug || getStoreSlug() || "";
-                          if (slug) window.history.pushState({}, "", `/${slug}/admin/items`);
-                        }}
-                        className="btn-secondary"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.4rem",
-                          padding: "0.4rem 0.85rem",
-                          fontSize: "0.78rem",
-                          fontWeight: 700,
-                          borderRadius: "6px",
-                          cursor: "pointer"
-                        }}
-                      >
-                        <ArrowLeft size={13} />
-                        <span>Kembali ke Daftar Item</span>
-                      </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                      <span style={{ padding: "0.3rem 0.6rem", borderRadius: "0.45rem", backgroundColor: "var(--primary-glow)", color: "var(--primary)", fontWeight: 800, fontSize: "0.72rem" }}>
+                        SISTEM TAKSONOMI KATALOG
+                      </span>
+                      <h3 style={{ fontSize: "1.15rem", margin: 0, fontWeight: 800, color: "var(--text-primary)" }}>
+                        Kelola Master Kategori Etalase
+                      </h3>
                     </div>
                     <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", margin: "0.35rem 0 0 0" }}>
                       Kelola taksonomi kategori etalase katalog per model bisnis. Kategori standar sistem terkunci permanen untuk konsistensi platform, sedangkan kategori kustom dapat Anda tambah, ubah nama, atau hapus secara mandiri.
