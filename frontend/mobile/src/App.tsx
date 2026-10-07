@@ -6596,7 +6596,98 @@ Terima kasih.`;
     return Array.from(new Set(types));
   }, [faunas, productTypeFilter]);
 
+  // Server-Side Public Catalog State (Redis Cached & Server-Side Paginated)
+  const [serverCatalogItems, setServerCatalogItems] = useState<Fauna[]>([]);
+  const [serverPagination, setServerPagination] = useState<{
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    hasNext: boolean;
+  }>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    hasNext: false
+  });
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(false);
+  const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>(search);
+
+  // Debounce search input (300ms) to ensure smooth performance without spamming Redis
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Fetch Server-Side Catalog with Redis Caching
+  const fetchServerCatalog = useCallback(async (page: number, append: boolean = false) => {
+    const slug = storeSlug || getStoreSlug();
+    if (!slug || isReservedStoreSlug(slug)) return;
+
+    if (append) {
+      setIsFetchingMore(true);
+    } else {
+      setIsCatalogLoading(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '12'); // Mobile 2-column friendly
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (productTypeFilter !== 'all') params.set('type', productTypeFilter);
+      if (classFilter !== 'all') params.set('class', classFilter);
+      if (habitatFilter !== 'all') params.set('habitat', habitatFilter);
+      if (sortBy) params.set('sort', sortBy);
+
+      const res = await fetch(`${API_BASE}/u/${slug}/products?${params.toString()}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success && Array.isArray(json.data)) {
+          if (append) {
+            setServerCatalogItems(prev => {
+              const existingIds = new Set(prev.map(item => item.id));
+              const newItems = json.data.filter((item: Fauna) => !existingIds.has(item.id));
+              return [...prev, ...newItems];
+            });
+          } else {
+            setServerCatalogItems(json.data);
+          }
+
+          if (json.pagination) {
+            setServerPagination({
+              currentPage: json.pagination.current_page || page,
+              totalPages: json.pagination.total_pages || 1,
+              totalItems: json.pagination.total_items ?? json.data.length,
+              hasNext: Boolean(json.pagination.has_next)
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch mobile server catalog:', err);
+    } finally {
+      setIsCatalogLoading(false);
+      setIsFetchingMore(false);
+    }
+  }, [storeSlug, debouncedSearch, productTypeFilter, classFilter, habitatFilter, sortBy]);
+
+  // Trigger server-side fetch on filter, search, or tab change
+  useEffect(() => {
+    if (view === 'tabs' && activeTab === 'catalog') {
+      fetchServerCatalog(1, false);
+    }
+  }, [fetchServerCatalog, view, activeTab]);
+
   const filteredFaunas = useMemo(() => {
+    if (view === 'tabs' && activeTab === 'catalog') {
+      return serverCatalogItems;
+    }
+
     let result = faunas.filter(item => {
       const itemType = item.product_type || 'physical';
       const matchesSearch = !search.trim() || 
@@ -6625,7 +6716,7 @@ Terima kasih.`;
     }
 
     return result;
-  }, [faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
+  }, [view, activeTab, serverCatalogItems, faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
 
   // Bottom Sheets & Navigation
   const [showCrudSheet, setShowCrudSheet] = useState<boolean>(false)
@@ -10305,25 +10396,39 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     setDisplayLimit(10)
   }, [search, classFilter, habitatFilter, productTypeFilter, sortBy])
 
-  // Responsive Infinite scroll event listener
+  // Responsive Infinite scroll event listener (Server-Side for public catalog, Client-Side for fallback)
   useEffect(() => {
     const handleScroll = () => {
-      if (isDetailActive || loadingMore) return
-      if (displayLimit >= filteredFaunas.length) return
-      const threshold = 150
-      const position = window.innerHeight + window.scrollY
-      const limit = document.documentElement.scrollHeight - threshold
-      if (position >= limit) {
-        setLoadingMore(true)
-        setTimeout(() => {
-          setDisplayLimit(prev => Math.min(prev + 10, filteredFaunas.length))
-          setLoadingMore(false)
-        }, 350)
+      if (isDetailActive) return;
+
+      if (view === 'tabs' && activeTab === 'catalog') {
+        if (isFetchingMore || isCatalogLoading) return;
+        if (!serverPagination.hasNext) return;
+        const threshold = 250;
+        const position = window.innerHeight + window.scrollY;
+        const limit = document.documentElement.scrollHeight - threshold;
+        if (position >= limit) {
+          fetchServerCatalog(serverPagination.currentPage + 1, true);
+        }
+        return;
       }
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [filteredFaunas.length, isDetailActive, loadingMore, displayLimit])
+
+      if (loadingMore) return;
+      if (displayLimit >= filteredFaunas.length) return;
+      const threshold = 150;
+      const position = window.innerHeight + window.scrollY;
+      const limit = document.documentElement.scrollHeight - threshold;
+      if (position >= limit) {
+        setLoadingMore(true);
+        setTimeout(() => {
+          setDisplayLimit(prev => Math.min(prev + 10, filteredFaunas.length));
+          setLoadingMore(false);
+        }, 350);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [view, activeTab, isDetailActive, isFetchingMore, isCatalogLoading, serverPagination, fetchServerCatalog, loadingMore, displayLimit, filteredFaunas.length]);
 
   // Smart Sticky Filter & Header Auto-Hide on Scroll Down & Reveal on Scroll Up (Zero Layout Shift)
   useEffect(() => {
@@ -20124,7 +20229,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.2rem 0.15rem 0', marginTop: '0.2rem', flexWrap: 'wrap', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                            <strong style={{ color: 'var(--text-primary)' }}>{filteredFaunas.length}</strong> produk
+                            <strong style={{ color: 'var(--text-primary)' }}>{serverPagination.totalItems > 0 ? serverPagination.totalItems : filteredFaunas.length}</strong> produk
                           </span>
                           {classFilter !== 'all' && (
                             <button
@@ -20184,7 +20289,29 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                     </section>
 
-                    {filteredFaunas.length === 0 ? (
+                    {isCatalogLoading ? (
+                      <div className="mobile-list-grid" style={{ marginTop: '0.75rem' }}>
+                        {[1, 2, 3, 4].map((i) => (
+                          <div 
+                            key={i} 
+                            className="glass-panel mobile-grid-card"
+                            style={{ display: 'flex', flexDirection: 'column', height: '220px', opacity: 0.7 }}
+                          >
+                            <div style={{ height: '130px', backgroundColor: 'rgba(255,255,255,0.03)', position: 'relative', overflow: 'hidden' }}>
+                              <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)', animation: 'shimmer 1.5s infinite' }}></div>
+                            </div>
+                            <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ height: '8px', width: '30%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px' }}></div>
+                                <div style={{ height: '12px', width: '80%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px', marginTop: '0.5rem' }}></div>
+                                <div style={{ height: '8px', width: '50%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px', marginTop: '0.35rem' }}></div>
+                              </div>
+                              <div style={{ height: '12px', width: '60%', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '2px' }}></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : filteredFaunas.length === 0 ? (
                       /* SEARCH NO RESULTS EMPTY STATE */
                       <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem' }}>
                         <Search size={36} style={{ marginBottom: '0.65rem', color: 'var(--text-muted)' }} />
@@ -20214,7 +20341,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         />
 
                         <div className="mobile-list-grid">
-                          {filteredFaunas.slice(0, displayLimit).map((item, itemIdx) => (
+                          {filteredFaunas.map((item, itemIdx) => (
                             <React.Fragment key={item.id}>
                               <div 
                                 className="glass-panel mobile-grid-card"
@@ -20361,7 +20488,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 />
 
                   {/* Infinite Scroll loading indicator */}
-                  {loadingMore && (
+                  {(loadingMore || isFetchingMore) && (
                     <div className="mobile-list-grid" style={{ marginTop: '0.75rem' }}>
                       {[1, 2].map((i) => (
                         <div 
