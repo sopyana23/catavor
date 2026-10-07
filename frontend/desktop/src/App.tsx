@@ -7089,11 +7089,23 @@ Terima kasih.`;
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d' | '90d'>('7d');
   const [analyticsData, setAnalyticsData] = useState<DetailedAnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+  const analyticsCacheRef = useRef<Map<string, { data: DetailedAnalyticsData; timestamp: number }>>(new Map());
 
-  const fetchAnalytics = async (period: '7d' | '30d' | '90d' = analyticsPeriod) => {
+  const fetchAnalytics = async (period: '7d' | '30d' | '90d' = analyticsPeriod, forceRefresh: boolean = false) => {
     const currentToken = token || localStorage.getItem('catavor_token');
     const currentSlug = storeSlug || getStoreSlug() || (adminUser as any)?.store_slug;
     if (!currentToken || !currentSlug) return;
+
+    const cacheKey = `${currentSlug}:${period}`;
+    const cached = analyticsCacheRef.current.get(cacheKey);
+    const now = Date.now();
+
+    // SWR Pattern: Serve valid cache immediately (< 60 seconds) without network spinner
+    if (!forceRefresh && cached && (now - cached.timestamp < 60_000)) {
+      setAnalyticsData(cached.data);
+      return;
+    }
+
     setAnalyticsLoading(true);
     try {
       const res = await fetch(`${API_BASE}/admin/analytics?period=${period}`, {
@@ -7106,6 +7118,7 @@ Terima kasih.`;
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
+          analyticsCacheRef.current.set(cacheKey, { data: data.data, timestamp: Date.now() });
           setAnalyticsData(data.data);
         }
       }
@@ -20572,7 +20585,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     setAnalyticsPeriod(p);
                     fetchAnalytics(p);
                   }}
-                  onRefresh={() => fetchAnalytics(analyticsPeriod)}
+                  onRefresh={() => fetchAnalytics(analyticsPeriod, true)}
                   storeSlug={storeSlug || undefined}
                   storeTitle={settings.store_title}
                   isMobile={false}

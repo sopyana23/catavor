@@ -6881,11 +6881,23 @@ Terima kasih.`;
   const [analyticsData, setAnalyticsData] = useState<DetailedAnalyticsData | null>(null);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'7d' | '30d' | '90d'>('7d');
   const [analyticsLoading, setAnalyticsLoading] = useState<boolean>(false);
+  const mobileAnalyticsCacheRef = useRef<Map<string, { data: DetailedAnalyticsData; timestamp: number }>>(new Map());
 
-  const fetchAnalytics = async (period: '7d' | '30d' | '90d' = analyticsPeriod) => {
+  const fetchAnalytics = async (period: '7d' | '30d' | '90d' = analyticsPeriod, forceRefresh: boolean = false) => {
     const currentToken = token || localStorage.getItem('catavor_token');
     const slug = storeSlug || getStoreSlug();
     if (!currentToken || !slug) return;
+
+    const cacheKey = `${slug}:${period}`;
+    const cached = mobileAnalyticsCacheRef.current.get(cacheKey);
+    const now = Date.now();
+
+    // SWR Pattern: Serve valid cache immediately (< 60 seconds) without network spinner
+    if (!forceRefresh && cached && (now - cached.timestamp < 60_000)) {
+      setAnalyticsData(cached.data);
+      return;
+    }
+
     try {
       setAnalyticsLoading(true);
       const res = await fetch(`${API_BASE}/admin/analytics?period=${period}`, {
@@ -6897,6 +6909,7 @@ Terima kasih.`;
       });
       const data = await res.json();
       if (res.ok && data.success && data.data) {
+        mobileAnalyticsCacheRef.current.set(cacheKey, { data: data.data, timestamp: Date.now() });
         setAnalyticsData(data.data);
       }
     } catch (err) {
@@ -27187,7 +27200,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       setAnalyticsPeriod(p);
                       fetchAnalytics(p);
                     }}
-                    onRefresh={() => fetchAnalytics(analyticsPeriod)}
+                    onRefresh={() => fetchAnalytics(analyticsPeriod, true)}
                     storeSlug={storeSlug || ''}
                     storeTitle={settings.store_title}
                     isMobile={true}

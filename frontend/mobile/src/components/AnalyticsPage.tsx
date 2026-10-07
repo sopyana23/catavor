@@ -278,9 +278,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     setCurrentPage(1);
   }, [selectedProductType, debouncedSearch, productSort, pageSize]);
 
-  // Server-side paginated products fetch
+  // Server-side paginated products fetch with AbortController
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
+
     const fetchServerProducts = async () => {
       try {
         setProductsLoading(true);
@@ -293,7 +295,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           sort: productSort
         });
         const res = await fetch(`/api/admin/analytics/products?${params.toString()}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal
         });
         if (!res.ok) throw new Error('Failed to fetch analytics products');
         const json = await res.json();
@@ -305,7 +308,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             setServerTypeCounts(json.data.type_counts);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         console.warn('Server-side analytics pagination fallback to local:', err);
       } finally {
         if (isMounted) setProductsLoading(false);
@@ -315,6 +319,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     fetchServerProducts();
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [debouncedSearch, selectedProductType, productSort, currentPage, pageSize, analyticsData]);
 
