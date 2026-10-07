@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Globe,
   TrendingUp,
@@ -15,6 +16,7 @@ import {
   FileSpreadsheet,
   AlertCircle
 } from 'lucide-react';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface MarketIntelligenceData {
   total_active_stores: number;
@@ -71,6 +73,12 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   onClose,
   apiBase = ''
 }) => {
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'market-intel-modal-mobile'
+  });
+
   const [data, setData] = useState<MarketIntelligenceData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +127,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
     return 'Rp ' + Math.round(num).toLocaleString('id-ID');
   };
 
-  return (
+  return typeof document !== 'undefined' ? createPortal(
     <div
       style={{
         position: 'fixed',
@@ -127,7 +135,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
         backgroundColor: 'rgba(0, 0, 0, 0.75)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        zIndex: 1100,
+        zIndex: 12000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -421,6 +429,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };

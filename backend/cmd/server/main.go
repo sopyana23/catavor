@@ -334,6 +334,8 @@ func main() {
 		guarded.Get("/analytics/products", analyticsHandler.GetStoreAnalyticsProducts)
 		guarded.Get("/admin/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
+		guarded.Get("/admin/analytics/export", analyticsHandler.ExportStoreAnalytics)
+		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
 
 		// Settings & Policies
 		guardedMutations.Post("/settings", settingHandler.Store)

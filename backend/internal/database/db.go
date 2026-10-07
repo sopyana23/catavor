@@ -82,6 +82,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.HelpArticle{},
 		&models.StoreDailyAnalytics{},
 		&models.ProductDailyAnalytics{},
+		&models.StoreDailyTrafficSource{},
 		&models.Notification{},
 		&models.NotificationRead{},
 		&models.ActivityLog{},
