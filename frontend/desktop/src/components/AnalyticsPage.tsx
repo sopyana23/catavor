@@ -200,6 +200,26 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
   const [metricFocus, setMetricFocus] = useState<'all' | 'views' | 'actions'>('all');
   const [scaleMode, setScaleMode] = useState<'linear' | 'adaptive'>('linear');
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState<number>(1000);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+    const updateWidth = () => {
+      if (chartContainerRef.current) {
+        const w = chartContainerRef.current.clientWidth;
+        if (w > 200) setChartWidth(w);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(chartContainerRef.current);
+    window.addEventListener('resize', updateWidth);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, []);
   const [showMarketIntel, setShowMarketIntel] = useState<boolean>(false);
   const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
@@ -462,26 +482,30 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }
 
     if (maxVal <= 0) return 4;
-    if (maxVal <= 2) return 4;
-    if (maxVal <= 4) return 6;
-    if (maxVal <= 8) return 10;
-    if (maxVal <= 15) return 20;
-    if (maxVal <= 30) return 40;
-    if (maxVal <= 60) return 80;
-    if (maxVal <= 100) return 120;
+    if (maxVal <= 2) return 3;
+    if (maxVal <= 4) return 5;
+    if (maxVal <= 6) return 8;
+    if (maxVal <= 10) return 12; // When maxVal is 10, ceiling is 12 (occupies 83% of height, not squashed 50%)
+    if (maxVal <= 15) return 18;
+    if (maxVal <= 20) return 24;
+    if (maxVal <= 30) return 36;
+    if (maxVal <= 50) return 60;
+    if (maxVal <= 80) return 100;
+    if (maxVal <= 120) return 150;
 
     // Nice numbers step for large spikes (Wilkinson / Heckbert)
     const exponent = Math.floor(Math.log10(maxVal));
-    const fraction = maxVal / Math.pow(10, exponent);
+    const power = Math.pow(10, exponent);
+    const fraction = maxVal / power;
     let niceFraction: number;
-    if (fraction <= 1.2) niceFraction = 1.5;
-    else if (fraction <= 2) niceFraction = 2.5;
-    else if (fraction <= 3) niceFraction = 4;
-    else if (fraction <= 5) niceFraction = 6;
-    else if (fraction <= 8) niceFraction = 10;
-    else niceFraction = 12;
+    if (fraction <= 1.2) niceFraction = 1.4;
+    else if (fraction <= 1.8) niceFraction = 2.0;
+    else if (fraction <= 2.5) niceFraction = 3.0;
+    else if (fraction <= 4) niceFraction = 5.0;
+    else if (fraction <= 7) niceFraction = 8.0;
+    else niceFraction = 10.0;
 
-    return Math.ceil(niceFraction * Math.pow(10, exponent));
+    return Math.ceil(niceFraction * power);
   }, [trends, metricFocus, maxValViews, maxValActions]);
 
   // Normalized value to height ratio [0, 1] with soft-log adaptive scaling support for extreme disparities
@@ -499,30 +523,33 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
   // Y-Axis reference grid ticks with clean integer levels
   const yGridTicks = useMemo(() => {
-    if (chartMaxVal === 4) return [0, 2, 4];
-    if (chartMaxVal === 6) return [0, 3, 6];
-    if (chartMaxVal <= 10) return [0, 5, 10];
+    if (chartMaxVal <= 3) return [0, 1, 2, 3];
+    if (chartMaxVal <= 5) return [0, 2, 4];
+    if (chartMaxVal <= 8) return [0, 4, 8];
+    if (chartMaxVal === 12) return [0, 4, 8, 12];
+    if (chartMaxVal === 18) return [0, 6, 12, 18];
+    if (chartMaxVal === 24) return [0, 8, 16, 24];
+    if (chartMaxVal === 36) return [0, 12, 24, 36];
+    if (chartMaxVal === 60) return [0, 20, 40, 60];
+    if (chartMaxVal === 100) return [0, 25, 50, 75, 100];
     const half = Math.round(chartMaxVal / 2);
-    return [
-      0,
-      half,
-      chartMaxVal
-    ];
+    return [0, half, chartMaxVal];
   }, [chartMaxVal]);
 
-  // Point coordinates for SVG Area / Line chart (720x150) with strict boundary clamping & min elevation for small values
+  // Point coordinates for SVG Area / Line chart (740x165) with strict boundary clamping & min elevation for small values
   const { viewsPoints, actionsPoints } = useMemo(() => {
     const vPts: { x: number; y: number; val: number }[] = [];
     const aPts: { x: number; y: number; val: number }[] = [];
     const N = trends.length;
     if (N === 0) return { viewsPoints: vPts, actionsPoints: aPts };
 
-    const padLeft = 32;
-    const innerW = 668;
-    const padTop = 12;
-    const innerH = 100;
-    const bottomY = padTop + innerH;
-    const minElevation = 4; // Guaranteed visible clearance above baseline for any non-zero point
+    const padLeft = 44; // Ideal left gutter for Y-axis numbers
+    const padRight = 16; // Ideal right margin matching card boundary
+    const innerW = Math.max(100, chartWidth - padLeft - padRight);
+    const padTop = 16;
+    const innerH = 114;
+    const bottomY = padTop + innerH; // 130
+    const minElevation = 3; // Subtle clearance for non-zero points
 
     trends.forEach((t, i) => {
       const x = N === 1 ? padLeft + innerW / 2 : padLeft + (i / (N - 1)) * innerW;
@@ -544,7 +571,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     });
 
     return { viewsPoints: vPts, actionsPoints: aPts };
-  }, [trends, chartMaxVal, scaleMode]);
+  }, [trends, chartMaxVal, scaleMode, chartWidth]);
 
   // Monotone Cubic Spline Path Generator (Fritsch-Carlson) - strictly avoids overshoot/undershoot on extreme data disparities
   const getBezierPath = (points: { x: number; y: number }[]): string => {
@@ -1137,9 +1164,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            {/* Metric Focus Filter Tabs (Crucial for high disparity between Views and Actions) */}
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '0.15rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            {/* Metric Focus Filter Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
               <button
                 type="button"
                 onClick={() => setMetricFocus('all')}
@@ -1147,14 +1174,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.3rem',
-                  padding: '0.22rem 0.55rem',
-                  fontSize: '0.72rem',
+                  padding: '0.24rem 0.6rem',
+                  fontSize: '0.73rem',
                   fontWeight: metricFocus === 'all' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
                   backgroundColor: metricFocus === 'all' ? 'var(--bg-card)' : 'transparent',
                   color: metricFocus === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  boxShadow: metricFocus === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  boxShadow: metricFocus === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
@@ -1167,20 +1194,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.22rem 0.55rem',
-                  fontSize: '0.72rem',
+                  gap: '0.35rem',
+                  padding: '0.24rem 0.6rem',
+                  fontSize: '0.73rem',
                   fontWeight: metricFocus === 'views' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
                   backgroundColor: metricFocus === 'views' ? 'var(--bg-card)' : 'transparent',
-                  color: metricFocus === 'views' ? '#3b82f6' : 'var(--text-secondary)',
-                  boxShadow: metricFocus === 'views' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  color: metricFocus === 'views' ? '#2563eb' : 'var(--text-secondary)',
+                  boxShadow: metricFocus === 'views' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                 <span>Kunjungan</span>
               </button>
               <button
@@ -1189,39 +1216,39 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.22rem 0.55rem',
-                  fontSize: '0.72rem',
+                  gap: '0.35rem',
+                  padding: '0.24rem 0.6rem',
+                  fontSize: '0.73rem',
                   fontWeight: metricFocus === 'actions' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
                   backgroundColor: metricFocus === 'actions' ? 'var(--bg-card)' : 'transparent',
-                  color: metricFocus === 'actions' ? '#10b981' : 'var(--text-secondary)',
-                  boxShadow: metricFocus === 'actions' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  color: metricFocus === 'actions' ? '#059669' : 'var(--text-secondary)',
+                  boxShadow: metricFocus === 'actions' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
                 <span>Aksi / Leads</span>
               </button>
             </div>
 
-            {/* Smart Adaptive Scale Mode Toggle (Soft-log prevents needle spikes from flattening low-volume days) */}
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '0.15rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)' }}>
+            {/* Smart Adaptive Scale Mode Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
               <button
                 type="button"
                 onClick={() => setScaleMode('linear')}
                 title="Skala Linier: Proporsional riil matematis"
                 style={{
-                  padding: '0.22rem 0.5rem',
-                  fontSize: '0.7rem',
+                  padding: '0.24rem 0.55rem',
+                  fontSize: '0.72rem',
                   fontWeight: scaleMode === 'linear' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
                   backgroundColor: scaleMode === 'linear' ? 'var(--bg-card)' : 'transparent',
                   color: scaleMode === 'linear' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  boxShadow: scaleMode === 'linear' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  boxShadow: scaleMode === 'linear' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
@@ -1236,44 +1263,45 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.25rem',
-                  padding: '0.22rem 0.5rem',
-                  fontSize: '0.7rem',
+                  padding: '0.24rem 0.55rem',
+                  fontSize: '0.72rem',
                   fontWeight: scaleMode === 'adaptive' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
-                  backgroundColor: scaleMode === 'adaptive' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                  color: scaleMode === 'adaptive' ? 'var(--primary)' : 'var(--text-secondary)',
-                  boxShadow: scaleMode === 'adaptive' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  backgroundColor: scaleMode === 'adaptive' ? 'var(--bg-card)' : 'transparent',
+                  color: scaleMode === 'adaptive' ? '#2563eb' : 'var(--text-secondary)',
+                  boxShadow: scaleMode === 'adaptive' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
               >
-                <Sparkles size={11} />
+                <Sparkles size={11} style={{ color: scaleMode === 'adaptive' ? '#2563eb' : 'inherit' }} />
                 <span>Adaptif</span>
               </button>
             </div>
 
             {/* Chart View Toggle: Line/Area vs Bar */}
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '0.15rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-deep)', padding: '2px', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
               <button
                 type="button"
                 onClick={() => setChartType('area')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.22rem 0.5rem',
-                  fontSize: '0.72rem',
+                  gap: '0.3rem',
+                  padding: '0.24rem 0.6rem',
+                  fontSize: '0.73rem',
                   fontWeight: chartType === 'area' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
-                  backgroundColor: chartType === 'area' ? 'var(--primary)' : 'transparent',
-                  color: chartType === 'area' ? '#ffffff' : 'var(--text-secondary)',
+                  backgroundColor: chartType === 'area' ? 'var(--bg-card)' : 'transparent',
+                  color: chartType === 'area' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  boxShadow: chartType === 'area' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
               >
-                <TrendingUp size={12} />
+                <TrendingUp size={13} style={{ color: chartType === 'area' ? '#2563eb' : 'inherit' }} />
                 <span>Garis</span>
               </button>
               <button
@@ -1282,19 +1310,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.22rem 0.5rem',
-                  fontSize: '0.72rem',
+                  gap: '0.3rem',
+                  padding: '0.24rem 0.6rem',
+                  fontSize: '0.73rem',
                   fontWeight: chartType === 'bar' ? 700 : 500,
-                  borderRadius: '0.35rem',
+                  borderRadius: '0.4rem',
                   border: 'none',
-                  backgroundColor: chartType === 'bar' ? 'var(--primary)' : 'transparent',
-                  color: chartType === 'bar' ? '#ffffff' : 'var(--text-secondary)',
+                  backgroundColor: chartType === 'bar' ? 'var(--bg-card)' : 'transparent',
+                  color: chartType === 'bar' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  boxShadow: chartType === 'bar' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   cursor: 'pointer',
                   transition: 'var(--transition-fast)'
                 }}
               >
-                <BarChart3 size={12} />
+                <BarChart3 size={13} style={{ color: chartType === 'bar' ? '#2563eb' : 'inherit' }} />
                 <span>Batang</span>
               </button>
             </div>
@@ -1346,47 +1375,47 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
         )}
 
-        {/* Desktop Chart Container */}
-        <div style={{ position: 'relative', width: '100%', height: '170px', minHeight: '170px' }}>
+        {/* Desktop Chart Container with generous vertical height and clean padding */}
+        <div ref={chartContainerRef} style={{ position: 'relative', width: '100%', height: '200px', minHeight: '200px' }}>
           {chartType === 'area' ? (
             /* SVG Area & Smooth Curve Line Chart */
             <svg
-              viewBox={`0 0 720 150`}
+              viewBox={`0 0 ${chartWidth} 165`}
               style={{ width: '100%', height: '100%', overflow: 'visible' }}
             >
               <defs>
                 <linearGradient id="viewsGradientDesktop" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.28" />
                   <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                 </linearGradient>
                 <linearGradient id="actionsGradientDesktop" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
                   <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                 </linearGradient>
                 <filter id="glowLine" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor="#3b82f6" floodOpacity="0.3" />
+                  <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#3b82f6" floodOpacity="0.25" />
                 </filter>
               </defs>
 
               {/* Grid Lines & Y-Axis Labels */}
               {yGridTicks.map(tick => {
                 const ratio = getNormalizedRatio(tick);
-                const yPos = 12 + 100 - (ratio * 100);
+                const yPos = 16 + 114 - (ratio * 114);
                 const isBase = tick === 0;
                 return (
                   <g key={tick}>
                     <line
-                      x1={32}
+                      x1={44}
                       y1={yPos}
-                      x2={700}
+                      x2={Math.max(100, chartWidth - 16)}
                       y2={yPos}
-                      stroke={isBase ? 'var(--border-light)' : 'var(--border-light)'}
-                      strokeDasharray={isBase ? 'none' : '3 3'}
+                      stroke="var(--border-light)"
+                      strokeDasharray={isBase ? 'none' : '4 4'}
                       strokeWidth={isBase ? 1.2 : 0.8}
-                      strokeOpacity={isBase ? 0.85 : 0.5}
+                      strokeOpacity={isBase ? 0.9 : 0.45}
                     />
                     <text
-                      x={26}
+                      x={36}
                       y={yPos + 3.5}
                       textAnchor="end"
                       fontSize="9.5"
@@ -1405,13 +1434,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 <>
                   {metricFocus !== 'actions' && (
                     <path
-                      d={getAreaPath(viewsPoints, 112)}
+                      d={getAreaPath(viewsPoints, 130)}
                       fill="url(#viewsGradientDesktop)"
                     />
                   )}
                   {metricFocus !== 'views' && (
                     <path
-                      d={getAreaPath(actionsPoints, 112)}
+                      d={getAreaPath(actionsPoints, 130)}
                       fill="url(#actionsGradientDesktop)"
                     />
                   )}
@@ -1422,7 +1451,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       d={getBezierPath(viewsPoints)}
                       fill="none"
                       stroke="#2563eb"
-                      strokeWidth="2.8"
+                      strokeWidth="2.6"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       filter="url(#glowLine)"
@@ -1433,7 +1462,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       d={getBezierPath(actionsPoints)}
                       fill="none"
                       stroke="#059669"
-                      strokeWidth="2.8"
+                      strokeWidth="2.6"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -1451,21 +1480,21 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 if (!ptV || !ptA) return null;
 
                 const showDateLabel = period === '7d' || (period === '30d' && idx % 4 === 0) || (period === '90d' && idx % 10 === 0) || isLatest;
-                const labelAnchor = idx === 0 ? 'start' : isLatest ? 'end' : 'middle';
+                const slotW = Math.max(10, (chartWidth - 44 - 16) / Math.max(1, trends.length));
 
                 return (
                   <g key={t.date}>
-                    {/* Hover vertical reference line */}
+                    {/* Hover vertical reference hairline */}
                     {isHovered && (
                       <line
                         x1={ptV.x}
-                        y1={12}
+                        y1={16}
                         x2={ptV.x}
-                        y2={112}
+                        y2={130}
                         stroke="var(--primary)"
-                        strokeDasharray="2 2"
-                        strokeWidth="1.4"
-                        strokeOpacity={0.8}
+                        strokeDasharray="3 3"
+                        strokeWidth="1.2"
+                        strokeOpacity={0.75}
                       />
                     )}
 
@@ -1482,34 +1511,36 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       />
                     )}
 
-                    {/* Point circles */}
+                    {/* Point circles with subtle sizing for zeros */}
                     {metricFocus !== 'actions' && (
                       <circle
                         cx={ptV.x}
                         cy={ptV.y}
-                        r={isHovered ? 6 : isPeak ? 5 : 4}
+                        r={isHovered ? 6 : isPeak ? 5.5 : t.store_views > 0 ? 4 : 2.5}
                         fill={isPeak ? '#f59e0b' : '#3b82f6'}
                         stroke="#ffffff"
-                        strokeWidth="2"
+                        strokeWidth={t.store_views > 0 || isHovered ? 2 : 1}
+                        opacity={t.store_views > 0 || isHovered ? 1 : 0.4}
                       />
                     )}
                     {metricFocus !== 'views' && (
                       <circle
                         cx={ptA.x}
                         cy={ptA.y}
-                        r={isHovered ? 6 : 4}
+                        r={isHovered ? 6 : (t.total_actions ?? t.wa_clicks ?? 0) > 0 ? 4 : 2.5}
                         fill="#10b981"
                         stroke="#ffffff"
-                        strokeWidth="2"
+                        strokeWidth={(t.total_actions ?? t.wa_clicks ?? 0) > 0 || isHovered ? 2 : 1}
+                        opacity={(t.total_actions ?? t.wa_clicks ?? 0) > 0 || isHovered ? 1 : 0.4}
                       />
                     )}
 
-                    {/* X-Axis Date Label */}
+                    {/* X-Axis Date Label with edge alignment */}
                     {showDateLabel && (
                       <text
                         x={ptV.x}
-                        y={134}
-                        textAnchor={labelAnchor}
+                        y={150}
+                        textAnchor={idx === 0 ? 'start' : isLatest ? 'end' : 'middle'}
                         fontSize="9.5"
                         fill={isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)'}
                         fontWeight={isLatest || isHovered ? '700' : '500'}
@@ -1521,10 +1552,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
                     {/* Transparent touch/click trigger area */}
                     <rect
-                      x={ptV.x - (668 / Math.max(1, trends.length)) / 2}
+                      x={ptV.x - slotW / 2}
                       y={0}
-                      width={668 / Math.max(1, trends.length)}
-                      height={150}
+                      width={slotW}
+                      height={165}
                       fill="transparent"
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setHoveredPointIndex(idx)}
@@ -1535,10 +1566,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               })}
             </svg>
           ) : (
-            /* Bar Chart Visualization */
+            /* Bar Chart Visualization with full-height slot hover & solid baseline */
             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
               {/* Background Grid Lines */}
-              <div style={{ position: 'absolute', top: '12px', left: '32px', right: '15px', bottom: '30px', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: '16px', left: '44px', right: '16px', bottom: '34px', pointerEvents: 'none' }}>
                 {yGridTicks.map(tick => {
                   const bottomPct = getNormalizedRatio(tick) * 100;
                   return (
@@ -1549,12 +1580,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         bottom: `${bottomPct}%`,
                         left: 0,
                         right: 0,
-                        borderBottom: '1px dashed var(--border-light)',
+                        borderBottom: tick === 0 ? '1px solid var(--border-light)' : '1px dashed var(--border-light)',
+                        opacity: tick === 0 ? 0.9 : 0.5,
                         display: 'flex',
                         alignItems: 'center'
                       }}
                     >
-                      <span style={{ position: 'absolute', right: '100%', marginRight: '6px', fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
+                      <span style={{ position: 'absolute', right: '100%', marginRight: '8px', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)', transform: 'translateY(50%)' }}>
                         {formatCompactNumber(tick)}
                       </span>
                     </div>
@@ -1563,18 +1595,27 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               </div>
 
               {/* Bars Row */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.4rem', height: 'calc(100% - 30px)', paddingLeft: '32px', paddingRight: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem', height: 'calc(100% - 34px)', paddingLeft: '44px', paddingRight: '16px', paddingTop: '16px' }}>
                 {trends.map((t, idx) => {
                   const vRatio = getNormalizedRatio(t.store_views || 0);
+                  const maxBarH = 135;
                   const vHeight = t.store_views > 0
-                    ? Math.max(4, Math.min(105, Math.round(vRatio * 105)))
-                    : 0;
+                    ? Math.max(5, Math.min(maxBarH, Math.round(vRatio * maxBarH)))
+                    : 3;
                   const actCount = t.total_actions ?? t.wa_clicks ?? 0;
                   const aRatio = getNormalizedRatio(actCount);
                   const aHeight = actCount > 0
-                    ? Math.max(4, Math.min(105, Math.round(aRatio * 105)))
-                    : 0;
+                    ? Math.max(5, Math.min(maxBarH, Math.round(aRatio * maxBarH)))
+                    : 3;
                   const isHovered = hoveredPointIndex === idx;
+
+                  // Bar widths based on period
+                  const isSingleMetric = metricFocus !== 'all' || actCount === 0 || t.store_views === 0;
+                  const barWidth = period === '7d' 
+                    ? (isSingleMetric ? '28px' : '18px') 
+                    : period === '30d' 
+                      ? (isSingleMetric ? '11px' : '7px') 
+                      : '4px';
 
                   return (
                     <div
@@ -1589,20 +1630,28 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         justifyContent: 'flex-end',
                         height: '100%',
                         cursor: 'pointer',
-                        position: 'relative'
+                        position: 'relative',
+                        borderRadius: '0.5rem',
+                        backgroundColor: isHovered ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+                        transition: 'background-color 0.15s ease'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', justifyContent: 'center', paddingBottom: '1px' }}>
                         {/* Views Bar */}
                         {metricFocus !== 'actions' && (
                           <div
                             style={{
-                              width: metricFocus === 'views' ? '80%' : '44%',
-                              maxWidth: '18px',
+                              width: barWidth,
                               height: `${vHeight}px`,
-                              background: isHovered ? 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)' : 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
-                              borderRadius: '4px 4px 0 0',
-                              transition: 'height 0.25s ease'
+                              background: t.store_views > 0
+                                ? (isHovered 
+                                    ? 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)' 
+                                    : 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)')
+                                : 'var(--border-light)',
+                              borderRadius: t.store_views > 0 ? '5px 5px 0 0' : '2px',
+                              opacity: t.store_views > 0 ? 1 : 0.5,
+                              boxShadow: isHovered && t.store_views > 0 ? '0 0 12px rgba(59, 130, 246, 0.45)' : 'none',
+                              transition: 'all 0.2s ease'
                             }}
                           />
                         )}
@@ -1610,12 +1659,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         {metricFocus !== 'views' && (
                           <div
                             style={{
-                              width: metricFocus === 'actions' ? '80%' : '44%',
-                              maxWidth: '18px',
+                              width: barWidth,
                               height: `${aHeight}px`,
-                              background: isHovered ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)' : 'linear-gradient(180deg, #10b981 0%, #047857 100%)',
-                              borderRadius: '4px 4px 0 0',
-                              transition: 'height 0.25s ease'
+                              background: actCount > 0
+                                ? (isHovered 
+                                    ? 'linear-gradient(180deg, #34d399 0%, #059669 100%)' 
+                                    : 'linear-gradient(180deg, #10b981 0%, #047857 100%)')
+                                : 'var(--border-light)',
+                              borderRadius: actCount > 0 ? '5px 5px 0 0' : '2px',
+                              opacity: actCount > 0 ? 1 : 0.5,
+                              boxShadow: isHovered && actCount > 0 ? '0 0 12px rgba(16, 185, 129, 0.45)' : 'none',
+                              transition: 'all 0.2s ease'
                             }}
                           />
                         )}
@@ -1625,17 +1679,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 })}
               </div>
 
-              {/* X-Axis Date Labels Row */}
-              <div style={{ display: 'flex', paddingLeft: '32px', paddingRight: '15px', height: '26px', alignItems: 'center' }}>
+              {/* X-Axis Date Labels Row with ample gutter */}
+              <div style={{ display: 'flex', paddingLeft: '44px', paddingRight: '16px', height: '34px', alignItems: 'center' }}>
                 {trends.map((t, idx) => {
                   const isLatest = idx === trends.length - 1;
                   const showDateLabel = period === '7d' || (period === '30d' && idx % 4 === 0) || (period === '90d' && idx % 10 === 0) || isLatest;
                   const isHovered = hoveredPointIndex === idx;
 
                   return (
-                    <div key={t.date} style={{ flex: 1, textAlign: idx === 0 ? 'left' : isLatest ? 'right' : 'center' }}>
+                    <div key={t.date} style={{ flex: 1, textAlign: 'center' }}>
                       {showDateLabel && (
-                        <span style={{ fontSize: '0.68rem', color: isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isLatest || isHovered ? 700 : 500, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: '0.72rem', color: isHovered ? 'var(--primary)' : isLatest ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isLatest || isHovered ? 700 : 500, whiteSpace: 'nowrap' }}>
                           {formatShortDate(t.date)}
                         </span>
                       )}
@@ -1652,7 +1706,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               style={{
                 position: 'absolute',
                 top: '8px',
-                left: `${Math.min(78, Math.max(16, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
+                left: viewsPoints[hoveredPointIndex]
+                  ? `${Math.min(chartWidth - 110, Math.max(110, viewsPoints[hoveredPointIndex].x))}px`
+                  : `${Math.min(78, Math.max(16, ((hoveredPointIndex + 0.5) / Math.max(1, trends.length)) * 100))}%`,
                 transform: 'translateX(-50%)',
                 backgroundColor: 'rgba(15, 23, 42, 0.96)',
                 color: '#ffffff',
