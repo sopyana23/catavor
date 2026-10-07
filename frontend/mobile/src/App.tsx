@@ -6531,10 +6531,11 @@ Terima kasih.`;
     }
   };
 
-  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm') => {
+  const handleSheetDragEnd = (type: 'category' | 'sort' | 'filter' | 'action_menu' | 'report' | 'rekber_explainer' | 'purchase_options' | 'crud_dropdown' | 'stores' | 'create_store' | 'discard_confirm' | 'archive_confirm') => {
     if (!isSheetDragging) return;
     setIsSheetDragging(false);
     if (sheetDragY > 75) {
+      if (type === 'archive_confirm') setArchiveConfirmModal(null);
       if (type === 'discard_confirm') setShowDiscardConfirmSheet(false);
       if (type === 'category') setShowCategorySheet(false);
       if (type === 'sort') setShowSortSheet(false);
@@ -30114,6 +30115,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               className="bottom-sheet-content"
               onClick={(e) => e.stopPropagation()}
               style={{
+                transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+                transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
                 maxHeight: '88vh',
                 padding: '0.65rem 0 calc(1.75rem + env(safe-area-inset-bottom, 16px)) 0',
                 borderBottomLeftRadius: 0,
@@ -30123,22 +30126,38 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 flexDirection: 'column'
               }}
             >
-              <div className="bottom-sheet-handle-bar">
+              <div 
+                className="bottom-sheet-handle-bar"
+                onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+                onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+                onTouchEnd={() => handleSheetDragEnd('archive_confirm')}
+                onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+                onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+                onMouseUp={() => handleSheetDragEnd('archive_confirm')}
+                style={{ cursor: 'grab', touchAction: 'none' }}
+              >
                 <div className="bottom-sheet-handle" />
               </div>
 
               {/* Header */}
               <div
                 className="bottom-sheet-header"
+                onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+                onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+                onTouchEnd={() => handleSheetDragEnd('archive_confirm')}
+                onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+                onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+                onMouseUp={() => handleSheetDragEnd('archive_confirm')}
                 style={{
                   padding: '0 1.25rem 0.75rem',
                   borderBottom: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between'
+                  touchAction: 'none',
+                  cursor: 'grab'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: 0 }}>
                   <div style={{
                     width: '36px',
                     height: '36px',
@@ -30148,34 +30167,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isQuotaExceeded ? '#ef4444' : (targetActive ? '#10b981' : '#f59e0b')
+                    color: isQuotaExceeded ? '#ef4444' : (targetActive ? '#10b981' : '#f59e0b'),
+                    flexShrink: 0
                   }}>
                     {isQuotaExceeded ? <AlertTriangle size={18} /> : (targetActive ? <CheckCircle2 size={18} /> : <Archive size={18} />)}
                   </div>
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                       {isQuotaExceeded
                         ? 'Batas Kuota Katalog Penuh'
                         : (targetActive ? 'Aktifkan Produk ke Katalog?' : 'Arsipkan Produk Ini?')}
                     </h3>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.name}
                     </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setArchiveConfirmModal(null)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    padding: '0.25rem'
-                  }}
-                >
-                  <X size={18} />
-                </button>
               </div>
 
               {/* Body */}
