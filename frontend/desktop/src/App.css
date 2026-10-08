@@ -2224,7 +2224,8 @@
 }
 
 /* Catavor Sleek Store Switcher & Custom Scrollbar */
-.store-switcher-scroll-area {
+.store-switcher-scroll-area,
+.catavor-custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
 }

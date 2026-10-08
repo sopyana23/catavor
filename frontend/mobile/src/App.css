@@ -2127,8 +2127,27 @@ select option {
   transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* Catavor Custom Slim Scrollbar for lists and panels */
+.catavor-custom-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent !important;
+}
 
+.catavor-custom-scrollbar::-webkit-scrollbar {
+  width: 4px !important;
+  display: block !important;
+}
 
+.catavor-custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+  margin: 3px 0 !important;
+}
 
+.catavor-custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28) !important;
+  border-radius: 999px !important;
+}
 
-
+.catavor-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--primary, #10b981) !important;
+}
