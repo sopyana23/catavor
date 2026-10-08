@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { NotificationHeaderPopover } from './NotificationHeaderPopover';
 import {
   PackageCheck,
   BarChart3,
@@ -50,6 +51,10 @@ export interface MerchantAdminShellProps {
   onOpenCreateItem?: () => void;
   isPlatformAdminUser?: boolean;
   isSuperAdminUser?: boolean;
+  notifications?: any[];
+  onMarkAsRead?: (id: string | number) => void;
+  onMarkAllAsRead?: () => void;
+  onSelectNotification?: (notif: any) => void;
   children: React.ReactNode;
 }
 
@@ -75,11 +80,17 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   onOpenCreateItem,
   isPlatformAdminUser = false,
   isSuperAdminUser = false,
+  notifications = [],
+  onMarkAsRead,
+  onMarkAllAsRead,
+  onSelectNotification,
   children
 }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
+  const [showNotifPopover, setShowNotifPopover] = useState(false);
   const storeDropdownRef = React.useRef<HTMLDivElement>(null);
+  const notifTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   // Close dropdown on click outside
   React.useEffect(() => {
@@ -1043,42 +1054,70 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               </button>
             )}
 
-            {/* Notification Bell */}
-            <button
-              type="button"
-              onClick={onOpenNotifications}
-              style={{
-                position: 'relative',
-                padding: '0.45rem 0.75rem',
-                borderRadius: '0.55rem',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-primary)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              title="Notifikasi Sistem"
-            >
-              <Bell size={15} color={unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)'} />
-              {unreadCount > 0 && (
-                <span style={{
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  fontSize: '0.62rem',
-                  fontWeight: 900,
-                  padding: '0.08rem 0.4rem',
-                  borderRadius: '999px',
-                  lineHeight: 1
-                }}>
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+            {/* Notification Bell & Popover (Desktop) */}
+            <div style={{ position: 'relative' }}>
+              <button
+                ref={notifTriggerRef}
+                type="button"
+                onClick={() => {
+                  if (onOpenNotifications) {
+                    onOpenNotifications();
+                  }
+                  setShowNotifPopover(prev => !prev);
+                }}
+                style={{
+                  position: 'relative',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: showNotifPopover ? 'var(--primary-glow)' : 'var(--bg-card-hover)',
+                  border: showNotifPopover ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Pusat Notifikasi Sistem"
+              >
+                <Bell size={15} color={unreadCount > 0 ? '#f59e0b' : 'var(--text-secondary)'} />
+                {unreadCount > 0 && (
+                  <span style={{
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.62rem',
+                    fontWeight: 900,
+                    padding: '0.08rem 0.4rem',
+                    borderRadius: '999px',
+                    lineHeight: 1
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              <NotificationHeaderPopover
+                isOpen={showNotifPopover}
+                onClose={() => setShowNotifPopover(false)}
+                notifications={notifications}
+                unreadCount={unreadCount}
+                onMarkAsRead={(id) => onMarkAsRead?.(id)}
+                onMarkAllAsRead={() => onMarkAllAsRead?.()}
+                onSelectNotification={(notif) => {
+                  setShowNotifPopover(false);
+                  onSelectNotification?.(notif);
+                }}
+                onViewAllNotifications={() => {
+                  setShowNotifPopover(false);
+                  setAdminTab('notifications');
+                  const slug = storeSlug;
+                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
+                }}
+                triggerRef={notifTriggerRef}
+              />
+            </div>
 
             {/* Header Action Buttons for items & categories */}
             {!(settings?.dormancy_status === 'suspended' || settings?.is_suspended) && (

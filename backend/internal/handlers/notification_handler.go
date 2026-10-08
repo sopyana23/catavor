@@ -87,11 +87,11 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	if page < 1 {
 		page = 1
 	}
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	limit, _ := strconv.Atoi(c.Query("limit", "150"))
 	if limit < 1 {
-		limit = 10
-	} else if limit > 50 {
-		limit = 50
+		limit = 150
+	} else if limit > 300 {
+		limit = 300
 	}
 	offset := (page - 1) * limit
 	filter := c.Query("filter", "all")
@@ -129,6 +129,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 			Joins("LEFT JOIN notification_reads ON notification_reads.notification_id = notifications.id AND notification_reads.store_id = ?", storeID).
 			Where(`
 				(notifications.expires_at IS NULL OR notifications.expires_at > ?)
+				AND notifications.created_at >= ?
 				AND (
 					(notifications.target_type = 'single_store' AND notifications.target_id = ?)
 					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0))
@@ -138,7 +139,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 					OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? AND ? > 0 AND notifications.created_at >= ?))
 				)
 				AND (notification_reads.dismissed_at IS NULL)
-			`, now,
+			`, now, thirtyDaysAgo,
 				storeID,
 				fmt.Sprintf(`%%"id":%d%%`, storeID), storeID,
 				storeCutoff,
@@ -259,6 +260,19 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	totalAll := len(allVisible)
 	totalFiltered := len(filtered)
 
+	securityCount := 0
+	systemCount := 0
+	for _, notif := range allVisible {
+		cat := strings.ToUpper(notif.Category)
+		title := strings.ToLower(notif.Title)
+		isSecurity := cat == "KEAMANAN" || cat == "MODERASI" || cat == "KEPATUHAN" || cat == "SUSPEND" || cat == "TIKET" || notif.Type == "ticket" || notif.LinkSubTab == "help" || strings.Contains(title, "keamanan") || strings.Contains(title, "moderasi") || strings.Contains(title, "suspend") || strings.Contains(title, "banding") || strings.Contains(title, "cs catavor") || strings.Contains(title, "balasan baru")
+		if isSecurity {
+			securityCount++
+		} else {
+			systemCount++
+		}
+	}
+
 	// Apply pagination slice
 	var pagedData []models.Notification
 	if offset < totalFiltered {
@@ -276,6 +290,9 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"data":           pagedData,
 		"unread_count":   unreadCount,
+		"read_count":     totalAll - unreadCount,
+		"security_count": securityCount,
+		"system_count":   systemCount,
 		"total":          totalAll,
 		"total_all":      totalAll,
 		"total_filtered": totalFiltered,
