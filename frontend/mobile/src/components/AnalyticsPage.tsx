@@ -2242,132 +2242,209 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
+                  flexDirection: 'column',
                   gap: '0.65rem',
-                  paddingTop: '0.65rem',
+                  paddingTop: '0.85rem',
                   borderTop: '1px solid var(--border-light)',
-                  marginTop: '0.25rem'
+                  marginTop: '0.5rem',
+                  width: '100%'
                 }}
               >
-                {/* Page Info & Page Size */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                  <span>
-                    {startIndex + 1}–{endIndex} dari {totalItems}
+                {/* Baris 1: Informasi Ringkasan & Kontrol Jumlah Baris */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    width: '100%'
+                  }}
+                >
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                    Menampilkan <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{startIndex + 1}–{endIndex}</strong> dari <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{totalItems}</strong> item
                   </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                    {[10, 25, 50].map(sz => (
-                      <button
-                        key={sz}
-                        type="button"
-                        onClick={() => {
-                          setPageSize(sz);
-                          setCurrentPage(1);
-                        }}
-                        style={{
-                          padding: '0.15rem 0.4rem',
-                          fontSize: '0.68rem',
-                          fontWeight: pageSize === sz ? 700 : 500,
-                          borderRadius: '4px',
-                          border: pageSize === sz ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                          backgroundColor: pageSize === sz ? 'var(--primary-glow)' : 'var(--bg-deep)',
-                          color: pageSize === sz ? 'var(--primary)' : 'var(--text-secondary)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {sz}
-                      </button>
-                    ))}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tampil:</span>
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '2px',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)'
+                      }}
+                    >
+                      {[10, 25, 50].map(sz => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => {
+                            setPageSize(sz);
+                            setCurrentPage(1);
+                          }}
+                          style={{
+                            padding: '0.18rem 0.45rem',
+                            fontSize: '0.68rem',
+                            fontWeight: pageSize === sz ? 800 : 500,
+                            borderRadius: '4px',
+                            border: 'none',
+                            backgroundColor: pageSize === sz ? 'var(--primary)' : 'transparent',
+                            color: pageSize === sz ? '#ffffff' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Page Navigation Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={validCurrentPage <= 1}
+                {/* Baris 2: Tombol Navigasi Halaman (Hanya muncul jika lebih dari 1 halaman) */}
+                {totalPages > 1 && (
+                  <div
                     style={{
-                      padding: '0.3rem',
-                      borderRadius: '0.35rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-deep)',
-                      color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
-                      opacity: validCurrentPage <= 1 ? 0.4 : 1,
                       display: 'flex',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.4rem',
+                      width: '100%'
                     }}
-                    title="Halaman Pertama"
                   >
-                    <ChevronsLeft size={13} />
-                  </button>
+                    {/* Tombol Sebelumnya */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      {totalPages > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(1)}
+                          disabled={validCurrentPage <= 1}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            color: validCurrentPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                            cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                            opacity: validCurrentPage <= 1 ? 0.35 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="Halaman Pertama"
+                        >
+                          <ChevronsLeft size={14} />
+                        </button>
+                      )}
 
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={validCurrentPage <= 1}
-                    style={{
-                      padding: '0.3rem',
-                      borderRadius: '0.35rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-deep)',
-                      color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
-                      opacity: validCurrentPage <= 1 ? 0.4 : 1,
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                    title="Sebelumnya"
-                  >
-                    <ChevronLeft size={13} />
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={validCurrentPage <= 1}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          height: '32px',
+                          padding: '0 0.65rem',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: validCurrentPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                          opacity: validCurrentPage <= 1 ? 0.35 : 1,
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Halaman Sebelumnya"
+                      >
+                        <ChevronLeft size={14} />
+                        <span>Prev</span>
+                      </button>
+                    </div>
 
-                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', padding: '0 0.35rem' }}>
-                    Hal {validCurrentPage} / {totalPages}
-                  </span>
+                    {/* Indikator Halaman Terpilih */}
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'var(--primary-glow)',
+                        border: '1px solid var(--border-light)',
+                        color: 'var(--primary)',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.02em',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <span>Hal {validCurrentPage}</span>
+                      <span style={{ opacity: 0.5, margin: '0 0.25rem' }}>/</span>
+                      <span>{totalPages}</span>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={validCurrentPage >= totalPages}
-                    style={{
-                      padding: '0.3rem',
-                      borderRadius: '0.35rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-deep)',
-                      color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
-                      opacity: validCurrentPage >= totalPages ? 0.4 : 1,
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                    title="Berikutnya"
-                  >
-                    <ChevronRight size={13} />
-                  </button>
+                    {/* Tombol Berikutnya */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={validCurrentPage >= totalPages}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          height: '32px',
+                          padding: '0 0.65rem',
+                          borderRadius: '0.5rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-deep)',
+                          color: validCurrentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                          opacity: validCurrentPage >= totalPages ? 0.35 : 1,
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Halaman Berikutnya"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={14} />
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={validCurrentPage >= totalPages}
-                    style={{
-                      padding: '0.3rem',
-                      borderRadius: '0.35rem',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-deep)',
-                      color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
-                      opacity: validCurrentPage >= totalPages ? 0.4 : 1,
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                    title="Halaman Terakhir"
-                  >
-                    <ChevronsRight size={13} />
-                  </button>
-                </div>
+                      {totalPages > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={validCurrentPage >= totalPages}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-deep)',
+                            color: validCurrentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                            cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                            opacity: validCurrentPage >= totalPages ? 0.35 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="Halaman Terakhir"
+                        >
+                          <ChevronsRight size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
