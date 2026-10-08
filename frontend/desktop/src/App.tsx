@@ -20317,7 +20317,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               return (
                                 <tr key={item.id}>
                                   <td>
-                                    <div style={{ position: 'relative', width: '54px', height: '42px', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                    <div style={{ width: '54px', height: '42px', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
                                       <img 
                                         src={item.image_url} 
                                         alt={item.name} 
@@ -20326,9 +20326,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                           e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=150&q=80';
                                         }}
                                       />
-                                      <span style={{ position: 'absolute', bottom: '2px', right: '2px', fontSize: '0.58rem', fontWeight: 700, padding: '1px 4px', background: 'rgba(0,0,0,0.85)', color: typeCfg.color, borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                                        {typeCfg.label}
-                                      </span>
                                     </div>
                                   </td>
                                   <td>
