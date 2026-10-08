@@ -150,6 +150,7 @@ import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
+import { normalizeNotification } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
   saveUserActiveSlug, 
@@ -5100,10 +5101,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [notifInitialLoading, setNotifInitialLoading] = useState<boolean>(false);
   const [notifTotal, setNotifTotal] = useState<number>(0);
   const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
+  const [notifSearchQuery, setNotifSearchQuery] = useState<string>('');
+  const [notifCategoryFilter, setNotifCategoryFilter] = useState<'all' | 'unread' | 'security' | 'system'>('all');
   const notifSentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Realtime Notifications Synchronizer & API Handlers (Mobile)
-  const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false, activeFilter: 'all' | 'unread' = notifFilter) => {
+  const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false) => {
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       if (!token) {
@@ -5117,7 +5120,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         setNotifLoadingMore(true);
       }
       const slug = storeSlug || getStoreSlug() || '';
-      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=10&filter=${activeFilter}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
+      // Always fetch complete master dataset with filter=all&limit=150 so categories and badges remain 100% consistent
+      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=150&filter=all${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -5141,7 +5145,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (typeof json.unread_count === 'number') {
           setNotifUnreadCount(json.unread_count);
         }
-        if (typeof json.total === 'number') {
+        if (typeof json.total_all === 'number') {
+          setNotifTotal(json.total_all);
+        } else if (typeof json.total === 'number') {
           setNotifTotal(json.total);
         }
       } else {
@@ -5155,18 +5161,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       setNotifInitialLoading(false);
       setNotifLoadingMore(false);
     }
-  }, [storeSlug, notifFilter]);
+  }, [storeSlug]);
 
   const loadMoreNotifications = useCallback(() => {
     if (notifLoadingMore || notifInitialLoading || !notifHasMore) return;
-    fetchNotificationsFromBackend(notifPage + 1, true, notifFilter);
-  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, notifFilter, fetchNotificationsFromBackend]);
+    fetchNotificationsFromBackend(notifPage + 1, true);
+  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, fetchNotificationsFromBackend]);
 
-  const handleNotifFilterChange = useCallback((newFilter: 'all' | 'unread') => {
-    setNotifFilter(newFilter);
+  const handleNotifFilterChange = useCallback((newFilter: 'all' | 'unread' | 'security' | 'system') => {
+    if (newFilter === 'all' || newFilter === 'unread') {
+      setNotifFilter(newFilter);
+      setNotifCategoryFilter(newFilter);
+    } else {
+      setNotifFilter('all');
+      setNotifCategoryFilter(newFilter);
+    }
     setNotifPage(1);
-    fetchNotificationsFromBackend(1, false, newFilter);
-  }, [fetchNotificationsFromBackend]);
+  }, []);
 
   const handleMarkAsRead = useCallback(async (notifId: string | number) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
@@ -5221,11 +5232,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
-      fetchNotificationsFromBackend(1, false, notifFilter);
+      fetchNotificationsFromBackend(1, false);
     } catch (err) {
       console.warn('Failed to clear read notifications on server:', err);
     }
-  }, [storeSlug, notifFilter, fetchNotificationsFromBackend]);
+  }, [storeSlug, fetchNotificationsFromBackend]);
 
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activityTotal, setActivityTotal] = useState<number>(0);
@@ -5295,7 +5306,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
     if (!token) return;
 
-    fetchNotificationsFromBackend(1, false, 'all');
+    fetchNotificationsFromBackend(1, false);
 
     const slug = storeSlug || getStoreSlug() || '';
     if (!token) return;
@@ -6481,22 +6492,62 @@ Terima kasih.`;
     return list;
   }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, settings.dormancy_suspended_at, storeSlug]);
 
+  const isSecurityNotificationItem = useCallback((n: any) => {
+    const norm = normalizeNotification(n);
+    if (norm.isModerationNotif || norm.isTicketNotif) return true;
+    const cat = (n.category || norm.category || '').toUpperCase();
+    const title = (n.title || '').toLowerCase();
+    return cat === 'KEAMANAN' || cat === 'MODERASI' || cat === 'KEPATUHAN' || cat === 'PEMULIHAN AKUN' || cat === 'BANTUAN CS' || title.includes('keamanan') || title.includes('moderasi') || title.includes('suspend') || title.includes('banding');
+  }, []);
+
+  const notifSecurityCount = useMemo(() => {
+    return suspendedFilteredList.filter(n => isSecurityNotificationItem(n)).length;
+  }, [suspendedFilteredList, isSecurityNotificationItem]);
+
+  const notifSystemCount = useMemo(() => {
+    return suspendedFilteredList.filter(n => !isSecurityNotificationItem(n)).length;
+  }, [suspendedFilteredList, isSecurityNotificationItem]);
+
   const filteredNotifications = useMemo(() => {
-    if (notifFilter === 'unread') return suspendedFilteredList.filter(n => !n.read);
-    return suspendedFilteredList;
-  }, [suspendedFilteredList, notifFilter]);
+    let list = suspendedFilteredList;
+    if (notifFilter === 'unread' || notifCategoryFilter === 'unread') {
+      list = list.filter(n => !n.read);
+    } else if (notifCategoryFilter === 'security') {
+      list = list.filter(n => isSecurityNotificationItem(n));
+    } else if (notifCategoryFilter === 'system') {
+      list = list.filter(n => !isSecurityNotificationItem(n));
+    }
+
+    if (notifSearchQuery.trim()) {
+      const q = notifSearchQuery.toLowerCase().trim();
+      list = list.filter(n =>
+        (n.title && n.title.toLowerCase().includes(q)) ||
+        (n.message && n.message.toLowerCase().includes(q)) ||
+        (n.category && n.category.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [suspendedFilteredList, notifFilter, notifCategoryFilter, notifSearchQuery, isSecurityNotificationItem]);
 
   const totalNotificationsCount = useMemo(() => {
     if (isStoreSuspended) return suspendedFilteredList.length;
-    return notifTotal > 0 ? notifTotal : notifications.length;
-  }, [isStoreSuspended, suspendedFilteredList.length, notifTotal, notifications.length]);
+    return suspendedFilteredList.length > 0 ? suspendedFilteredList.length : notifTotal;
+  }, [isStoreSuspended, suspendedFilteredList.length, notifTotal]);
 
   const unreadCount = useMemo(() => {
     if (isStoreSuspended) {
       return suspendedFilteredList.filter(n => !n.read).length;
     }
-    return notifUnreadCount;
+    return suspendedFilteredList.length > 0 ? suspendedFilteredList.filter(n => !n.read).length : notifUnreadCount;
   }, [notifUnreadCount, isStoreSuspended, suspendedFilteredList]);
+
+  const readCount = useMemo(() => {
+    if (isStoreSuspended) {
+      return suspendedFilteredList.filter(n => n.read).length;
+    }
+    return Math.max(0, totalNotificationsCount - unreadCount);
+  }, [isStoreSuspended, suspendedFilteredList, totalNotificationsCount, unreadCount]);
 
   // Articles state
   const [articles, setArticles] = useState<Article[]>([])
@@ -9300,7 +9351,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
             setAdminSubTab('analytics');
             setView('tabs');
           } else if (pageSub === 'profile') {
-            setAdminSubTab('profile');
+            const profileSub = urlParams.get('sub') || subSub;
+            if (profileSub === 'logs' || profileSub === 'audit_logs' || profileSub === 'audit-logs') {
+              setAdminSubTab('audit_logs');
+              fetchActivityLogs(1, false);
+            } else {
+              setAdminSubTab('profile');
+            }
             setView('tabs');
           } else if (pageSub === 'policies') {
             setAdminSubTab('policies');
@@ -9339,8 +9396,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               }
             }
           } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
-            setAdminSubTab('profile');
-            setProfileSubTab('logs');
+            setAdminSubTab('audit_logs');
             setView('tabs');
             fetchActivityLogs(1, false);
           } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
@@ -9603,7 +9659,13 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               setView('tabs');
               fetchAnalytics(analyticsPeriod);
             } else if (pageSub === 'profile') {
-              setAdminSubTab('profile');
+              const profileSub = urlParams.get('sub');
+              if (profileSub === 'logs' || profileSub === 'audit_logs' || profileSub === 'audit-logs') {
+                setAdminSubTab('audit_logs');
+                fetchActivityLogs(1, false);
+              } else {
+                setAdminSubTab('profile');
+              }
               setView('tabs');
             } else if (pageSub === 'policies') {
               setAdminSubTab('policies');
@@ -9648,8 +9710,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               setAdminSubTab('share');
               setView('tabs');
             } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
-              setAdminSubTab('profile');
-              setProfileSubTab('logs');
+              setAdminSubTab('audit_logs');
               setView('tabs');
               fetchActivityLogs(1, false);
             } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
@@ -19993,9 +20054,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       }
                       return { title: 'Notifikasi & Aktivitas', subtitle: unreadCount > 0 ? `${unreadCount} Pesan Belum Dibaca` : 'Semua Aktivitas Toko' };
                     case 'profile':
-                      if (profileSubTab === 'logs') {
-                        return { title: 'Riwayat Aktivitas & Log', subtitle: `${activityTotal} Rekaman Tercatat` };
-                      }
                       return { title: 'Profil Akun Pengelola', subtitle: adminUser?.email || 'Akun Merchant' };
                     case 'audit_logs':
                       return { title: 'Riwayat Aktivitas & Log', subtitle: `${activityTotal} Rekaman Tercatat` };
@@ -22535,7 +22593,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           setAdminSubTab('profile'); 
                           setProfileSubTab('info');
                           const slug = getStoreSlug();
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/profile?sub=info`);
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/profile`);
                         }}
                         style={{
                           display: 'flex',
@@ -22671,11 +22729,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <button
                         type="button"
                         onClick={() => { 
-                          setAdminSubTab('profile'); 
-                          setProfileSubTab('logs');
+                          setAdminSubTab('audit_logs'); 
                           fetchActivityLogs(1, false);
                           const slug = getStoreSlug();
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/profile?sub=logs`);
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/audit-logs`);
                         }}
                         style={{
                           display: 'flex',
@@ -24592,74 +24649,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
               )}
 
-              {(adminSubTab === 'profile' || adminSubTab === 'audit_logs') && (
-                /* TAB: ADMIN PROFILE & AUDIT LOGS (MOBILE) */
+              {adminSubTab === 'profile' && (
+                /* TAB: ADMIN PROFILE (MOBILE) */
                 <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  {/* Segmented SubTab Switcher */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '0.35rem',
-                    background: 'var(--bg-deep)',
-                    padding: '0.3rem',
-                    borderRadius: '0.65rem',
-                    border: '1px solid var(--border-light)'
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => setProfileSubTab('info')}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
-                        backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
-                        color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
-                        boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <UserCheck size={14} />
-                      <span>Profil Pengguna</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileSubTab('logs');
-                        fetchActivityLogs(1, false);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        border: profileSubTab === 'logs' ? '1px solid var(--primary)' : '1px solid transparent',
-                        backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
-                        color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
-                        boxShadow: profileSubTab === 'logs' ? '0 2px 8px var(--primary-glow)' : 'none',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <History size={14} />
-                      <span>Riwayat &amp; Log</span>
-                    </button>
-                  </div>
-
-                  {/* SUBTAB 1: INFO PROFIL */}
-                  {profileSubTab === 'info' && (
                     <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
                       {profileSuccess && (
                         <div className="alert-box alert-success" style={{ marginBottom: '1rem' }}>
@@ -24839,11 +24831,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         )}
                       </div>
                     </div>
-                  )}
+                </div>
+              )}
 
-                  {/* SUBTAB 2: RIWAYAT & LOG AUDIT */}
-                  {profileSubTab === 'logs' && (
-                    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {adminSubTab === 'audit_logs' && (
+                /* TAB: RIWAYAT & LOG AUDIT (MOBILE) */
+                <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                       {/* Top Stats Banner */}
                       <div className="glass-panel" style={{ padding: '0.95rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -25064,7 +25058,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                       )}
                     </div>
-                  )}
                 </div>
               )}
 
@@ -26042,85 +26035,280 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                        VIEW 2: NOTIFICATIONS LIST FEED (CLEAN LUXURY LAYOUT)
                        ========================================================== */
                     <>
-                      {/* Action Bar / High-Contrast Filter Tabs */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                      {/* Top Summary & Accumulation Widget (30-Day Window) */}
+                      <div className="glass-panel" style={{
+                        padding: '1rem 1.15rem',
+                        borderRadius: '1rem',
+                        border: '1px solid var(--border-light)',
+                        background: 'var(--card-bg-gradient)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.85rem',
+                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+                      }}>
+                        {/* Header Row with Icon, Title, and Refresh Button */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--primary-glow)',
+                              border: '1px solid var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--primary)',
+                              flexShrink: 0
+                            }}>
+                              <Bell size={18} />
+                            </div>
+                            <div>
+                              <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                                Pusat Notifikasi &amp; Aktivitas
+                              </h3>
+                              <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0 0' }}>
+                                Akumulasi riwayat pesan 30 hari terakhir
+                              </p>
+                            </div>
+                          </div>
+
                           <button
                             type="button"
-                            onClick={() => handleNotifFilterChange('all')}
+                            onClick={() => fetchNotificationsFromBackend(1, false)}
+                            disabled={notifInitialLoading}
+                            className="btn-secondary"
                             style={{
-                              padding: '0.38rem 0.8rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.74rem',
-                              fontWeight: 800,
-                              border: notifFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: notifFilter === 'all' ? 'var(--primary)' : 'var(--bg-deep)',
-                              color: notifFilter === 'all' ? '#ffffff' : 'var(--text-primary)',
-                              boxShadow: notifFilter === 'all' ? '0 2px 8px var(--primary-glow)' : 'none',
+                              padding: '0.35rem 0.65rem',
+                              fontSize: '0.72rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
                               cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              transition: 'all 0.15s ease'
+                              borderRadius: '0.5rem'
                             }}
                           >
-                            Semua ({totalNotificationsCount})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleNotifFilterChange('unread')}
-                            style={{
-                              padding: '0.38rem 0.8rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.74rem',
-                              fontWeight: 800,
-                              border: notifFilter === 'unread' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: notifFilter === 'unread' ? 'var(--primary)' : 'var(--bg-deep)',
-                              color: notifFilter === 'unread' ? '#ffffff' : 'var(--text-primary)',
-                              boxShadow: notifFilter === 'unread' ? '0 2px 8px var(--primary-glow)' : 'none',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            Belum Dibaca ({unreadCount})
+                            <RefreshCw size={12} className={notifInitialLoading ? 'animate-spin' : ''} />
+                            <span>Segarkan</span>
                           </button>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0, marginLeft: 'auto' }}>
-                          {unreadCount > 0 && (
+                        {/* 3 Metrics Clean Grid: Total Masuk, Belum Dibaca, Terbaca */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleNotifFilterChange('all');
+                              setNotifCategoryFilter('all');
+                            }}
+                            style={{
+                              backgroundColor: (notifFilter === 'all' && notifCategoryFilter === 'all') ? 'var(--primary-glow)' : 'var(--bg-deep)',
+                              padding: '0.6rem 0.45rem',
+                              borderRadius: '0.65rem',
+                              border: (notifFilter === 'all' && notifCategoryFilter === 'all') ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                              textAlign: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span style={{ fontSize: '0.64rem', color: (notifFilter === 'all' && notifCategoryFilter === 'all') ? 'var(--primary)' : 'var(--text-secondary)', display: 'block', fontWeight: 700 }}>
+                              Total Masuk
+                            </span>
+                            <strong style={{ fontSize: '1.05rem', color: (notifFilter === 'all' && notifCategoryFilter === 'all') ? 'var(--primary)' : 'var(--text-primary)', fontWeight: 800 }}>
+                              {totalNotificationsCount}
+                            </strong>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleNotifFilterChange('unread');
+                              setNotifCategoryFilter('unread');
+                            }}
+                            style={{
+                              backgroundColor: (notifFilter === 'unread' || notifCategoryFilter === 'unread') ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-deep)',
+                              padding: '0.6rem 0.45rem',
+                              borderRadius: '0.65rem',
+                              border: (notifFilter === 'unread' || notifCategoryFilter === 'unread') ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                              textAlign: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span style={{ fontSize: '0.64rem', color: unreadCount > 0 ? '#ef4444' : 'var(--text-secondary)', display: 'block', fontWeight: 700 }}>
+                              Belum Dibaca
+                            </span>
+                            <strong style={{ fontSize: '1.05rem', color: unreadCount > 0 ? '#ef4444' : 'var(--text-primary)', fontWeight: 800 }}>
+                              {unreadCount}
+                            </strong>
+                          </button>
+
+                          <div style={{
+                            backgroundColor: 'var(--bg-deep)',
+                            padding: '0.6rem 0.45rem',
+                            borderRadius: '0.65rem',
+                            border: '1px solid var(--border-light)',
+                            textAlign: 'center'
+                          }}>
+                            <span style={{ fontSize: '0.64rem', color: '#10b981', display: 'block', fontWeight: 700 }}>
+                              Terbaca
+                            </span>
+                            <strong style={{ fontSize: '1.05rem', color: '#10b981', fontWeight: 800 }}>
+                              {readCount}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {/* Live Synchronizer Banner: Explains current count vs accumulated count */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: 'var(--primary-glow)',
+                          padding: '0.45rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.72rem',
+                          flexWrap: 'wrap',
+                          gap: '0.35rem'
+                        }}>
+                          <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Clock size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                            <span>Status Tampilan:</span>
+                          </span>
+                          <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                            Menampilkan {filteredNotifications.length} dari {
+                              (notifFilter === 'unread' || notifCategoryFilter === 'unread') 
+                                ? unreadCount 
+                                : notifCategoryFilter === 'security' 
+                                  ? notifSecurityCount 
+                                  : notifCategoryFilter === 'system' 
+                                    ? notifSystemCount 
+                                    : totalNotificationsCount
+                            } notifikasi
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Search Bar & Quick Filter Chips */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        {/* Search Bar */}
+                        <div style={{ position: 'relative', width: '100%' }}>
+                          <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                          <input
+                            type="text"
+                            placeholder="Cari judul, pesan, atau topik notifikasi..."
+                            value={notifSearchQuery}
+                            onChange={(e) => setNotifSearchQuery(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.48rem 2rem 0.48rem 2.2rem',
+                              borderRadius: '0.65rem',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--bg-deep)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.78rem',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                          {notifSearchQuery && (
                             <button
                               type="button"
-                              onClick={handleMarkAllAsRead}
-                              style={{
-                                fontSize: '0.72rem',
-                                fontWeight: 800,
-                                color: 'var(--primary)',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                              }}
+                              onClick={() => setNotifSearchQuery('')}
+                              style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.72rem' }}
                             >
-                              Tandai Semua Dibaca
+                              ✕
                             </button>
                           )}
-                          {notifFilter === 'all' && notifications.some(n => n.read) && (
-                            <button
-                              type="button"
-                              onClick={handleClearReadNotifications}
-                              style={{
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                color: 'var(--text-muted)',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                              }}
-                              title="Bersihkan riwayat notifikasi yang sudah dibaca"
-                            >
-                              Bersihkan Terbaca
-                            </button>
-                          )}
+                        </div>
+
+                        {/* Action Bar / High-Contrast Filter Tabs */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+                            {[
+                              { id: 'all', label: 'Semua', count: totalNotificationsCount },
+                              { id: 'unread', label: 'Belum Dibaca', count: unreadCount, badgeColor: '#ef4444' },
+                              { id: 'security', label: 'Keamanan & Kepatuhan', count: notifSecurityCount, badgeColor: '#f43f5e' },
+                              { id: 'system', label: 'Sistem Toko', count: notifSystemCount }
+                            ].map((tab) => {
+                              const isActive = (tab.id === 'all' && notifFilter === 'all' && notifCategoryFilter === 'all') ||
+                                               (tab.id === 'unread' && (notifFilter === 'unread' || notifCategoryFilter === 'unread')) ||
+                                               (tab.id === notifCategoryFilter && tab.id !== 'all' && tab.id !== 'unread');
+                              return (
+                                <button
+                                  key={tab.id}
+                                  type="button"
+                                  onClick={() => handleNotifFilterChange(tab.id as any)}
+                                  style={{
+                                    padding: '0.35rem 0.7rem',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                    backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
+                                    color: isActive ? '#ffffff' : 'var(--text-primary)',
+                                    boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                    transition: 'all 0.15s ease',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem'
+                                  }}
+                                >
+                                  <span>{tab.label}</span>
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    padding: '0.08rem 0.35rem',
+                                    borderRadius: '999px',
+                                    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : (tab.badgeColor ? `${tab.badgeColor}22` : 'rgba(255, 255, 255, 0.08)'),
+                                    color: isActive ? '#ffffff' : (tab.badgeColor || 'var(--text-muted)')
+                                  }}>
+                                    {tab.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0, marginLeft: 'auto' }}>
+                            {unreadCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={handleMarkAllAsRead}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  color: 'var(--primary)',
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                Tandai Semua Dibaca
+                              </button>
+                            )}
+                            {notifications.some(n => n.read) && (
+                              <button
+                                type="button"
+                                onClick={handleClearReadNotifications}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  color: 'var(--text-muted)',
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Bersihkan riwayat notifikasi yang sudah dibaca"
+                              >
+                                Bersihkan Terbaca
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 

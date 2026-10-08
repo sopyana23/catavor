@@ -18,6 +18,7 @@ import {
   Loader,
   Lock,
   Key,
+  Inbox,
   LogOut,
   Upload,
   Paperclip,
@@ -164,6 +165,7 @@ import { FormattedText, ExternalLinkWarningModal } from './components/RichTextar
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
+import { normalizeNotification } from './utils/notificationHelpers'
 import { 
   getSavedUserSlug, 
   saveUserActiveSlug, 
@@ -5229,6 +5231,8 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   // Notifications Pagination & Infinite Scroll State (Desktop)
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
+  const [notifCategoryFilter, setNotifCategoryFilter] = useState<'all' | 'unread' | 'security' | 'system'>('all');
+  const [notifSearchQuery, setNotifSearchQuery] = useState<string>('');
   const [notifPage, setNotifPage] = useState<number>(1);
   const [notifHasMore, setNotifHasMore] = useState<boolean>(true);
   const [notifLoadingMore, setNotifLoadingMore] = useState<boolean>(false);
@@ -5238,7 +5242,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const notifSentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Realtime Notifications Synchronizer & API Handlers (Desktop)
-  const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false, activeFilter: 'all' | 'unread' = notifFilter) => {
+  const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false) => {
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       if (!token) {
@@ -5252,7 +5256,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         setNotifLoadingMore(true);
       }
       const slug = storeSlug || getStoreSlug() || '';
-      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=10&filter=${activeFilter}`, {
+      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=150&filter=all${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -5276,7 +5280,9 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (typeof json.unread_count === 'number') {
           setNotifUnreadCount(json.unread_count);
         }
-        if (typeof json.total === 'number') {
+        if (typeof json.total_all === 'number') {
+          setNotifTotal(json.total_all);
+        } else if (typeof json.total === 'number') {
           setNotifTotal(json.total);
         }
       } else {
@@ -5290,18 +5296,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       setNotifInitialLoading(false);
       setNotifLoadingMore(false);
     }
-  }, [storeSlug, notifFilter]);
+  }, [storeSlug]);
 
   const loadMoreNotifications = useCallback(() => {
     if (notifLoadingMore || notifInitialLoading || !notifHasMore) return;
-    fetchNotificationsFromBackend(notifPage + 1, true, notifFilter);
-  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, notifFilter, fetchNotificationsFromBackend]);
+    fetchNotificationsFromBackend(notifPage + 1, true);
+  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, fetchNotificationsFromBackend]);
 
-  const handleNotifFilterChange = useCallback((newFilter: 'all' | 'unread') => {
-    setNotifFilter(newFilter);
-    setNotifPage(1);
-    fetchNotificationsFromBackend(1, false, newFilter);
-  }, [fetchNotificationsFromBackend]);
+  const handleNotifFilterChange = useCallback((newCategory: 'all' | 'unread' | 'security' | 'system') => {
+    setNotifCategoryFilter(newCategory);
+    setNotifFilter(newCategory === 'unread' ? 'unread' : 'all');
+  }, []);
 
   const handleMarkAsRead = useCallback(async (notifId: string | number) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
@@ -5359,11 +5364,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
-      fetchNotificationsFromBackend(1, false, notifFilter);
+      fetchNotificationsFromBackend(1, false);
     } catch (err) {
       console.warn('Failed to clear read notifications on server:', err);
     }
-  }, [storeSlug, notifFilter, fetchNotificationsFromBackend]);
+  }, [storeSlug, fetchNotificationsFromBackend]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activityTotal, setActivityTotal] = useState<number>(0);
   const [activityPage, setActivityPage] = useState<number>(1);
@@ -5488,7 +5493,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
     if (!token) return;
 
-    fetchNotificationsFromBackend(1, false, 'all');
+    fetchNotificationsFromBackend(1, false);
 
     const slug = storeSlug || getStoreSlug() || '';
     if (!token) return;
@@ -6446,22 +6451,62 @@ Terima kasih.`;
     return list;
   }, [notifications, isStoreSuspended, settings.suspension_reason, settings.store_title, settings.dormancy_suspended_at, storeSlug]);
 
+  const isSecurityNotificationItem = useCallback((n: any) => {
+    const norm = normalizeNotification(n);
+    if (norm.isModerationNotif || norm.isTicketNotif) return true;
+    const cat = (n.category || norm.category || '').toUpperCase();
+    const title = (n.title || '').toLowerCase();
+    return cat === 'KEAMANAN' || cat === 'MODERASI' || cat === 'KEPATUHAN' || cat === 'PEMULIHAN AKUN' || cat === 'BANTUAN CS' || title.includes('keamanan') || title.includes('moderasi') || title.includes('suspend') || title.includes('banding');
+  }, []);
+
+  const notifSecurityCount = useMemo(() => {
+    return suspendedFilteredList.filter(n => isSecurityNotificationItem(n)).length;
+  }, [suspendedFilteredList, isSecurityNotificationItem]);
+
+  const notifSystemCount = useMemo(() => {
+    return suspendedFilteredList.filter(n => !isSecurityNotificationItem(n)).length;
+  }, [suspendedFilteredList, isSecurityNotificationItem]);
+
   const filteredNotifications = useMemo(() => {
-    if (notifFilter === 'unread') return suspendedFilteredList.filter(n => !n.read);
-    return suspendedFilteredList;
-  }, [suspendedFilteredList, notifFilter]);
+    let list = suspendedFilteredList;
+    if (notifFilter === 'unread' || notifCategoryFilter === 'unread') {
+      list = list.filter(n => !n.read);
+    } else if (notifCategoryFilter === 'security') {
+      list = list.filter(n => isSecurityNotificationItem(n));
+    } else if (notifCategoryFilter === 'system') {
+      list = list.filter(n => !isSecurityNotificationItem(n));
+    }
+
+    if (notifSearchQuery.trim()) {
+      const q = notifSearchQuery.toLowerCase().trim();
+      list = list.filter(n => {
+        const title = (n.title || '').toLowerCase();
+        const msg = (n.message || '').toLowerCase();
+        const cat = (n.category || '').toLowerCase();
+        return title.includes(q) || msg.includes(q) || cat.includes(q);
+      });
+    }
+    return list;
+  }, [suspendedFilteredList, notifFilter, notifCategoryFilter, notifSearchQuery, isSecurityNotificationItem]);
 
   const totalNotificationsCount = useMemo(() => {
     if (isStoreSuspended) return suspendedFilteredList.length;
-    return notifTotal > 0 ? notifTotal : notifications.length;
-  }, [isStoreSuspended, suspendedFilteredList.length, notifTotal, notifications.length]);
+    return suspendedFilteredList.length > 0 ? suspendedFilteredList.length : notifTotal;
+  }, [isStoreSuspended, suspendedFilteredList.length, notifTotal]);
 
   const unreadCount = useMemo(() => {
     if (isStoreSuspended) {
       return suspendedFilteredList.filter(n => !n.read).length;
     }
-    return notifUnreadCount;
+    return suspendedFilteredList.length > 0 ? suspendedFilteredList.filter(n => !n.read).length : notifUnreadCount;
   }, [notifUnreadCount, isStoreSuspended, suspendedFilteredList]);
+
+  const readCount = useMemo(() => {
+    if (isStoreSuspended) {
+      return suspendedFilteredList.filter(n => n.read).length;
+    }
+    return Math.max(0, totalNotificationsCount - unreadCount);
+  }, [isStoreSuspended, suspendedFilteredList, totalNotificationsCount, unreadCount]);
 
   // Smart default tab: Saat membuka notifikasi, prioritaskan 'unread' jika ada yang belum dibaca saat tab pertama kali dibuka
   const prevAdminTabForNotifRef = useRef<string>(adminTab);
@@ -6469,8 +6514,10 @@ Terima kasih.`;
     if (adminTab === 'notifications' && prevAdminTabForNotifRef.current !== 'notifications') {
       if (unreadCount > 0) {
         setNotifFilter('unread');
+        setNotifCategoryFilter('unread');
       } else {
         setNotifFilter('all');
+        setNotifCategoryFilter('all');
       }
     }
     prevAdminTabForNotifRef.current = adminTab;
@@ -19839,7 +19886,45 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               handleSwitchStore={handleSwitchStore}
               handleLogout={handleLogout}
               goToCatalog={goToCatalog}
-              onOpenNotifications={() => setShowNotificationModal(true)}
+              onOpenNotifications={() => {}}
+              notifications={notifications}
+              onMarkAsRead={handleMarkAsRead}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              onSelectNotification={(n) => {
+                handleMarkAsRead(n.id);
+                const norm = normalizeNotification(n);
+                if (norm.isModerationNotif || n.id === 'system_suspended_notice') {
+                  setSelectedNotificationDetail(n);
+                  try {
+                    sessionStorage.setItem('catavor_active_desktop_notification_id', String(n.id));
+                    sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(n));
+                  } catch {}
+                  setAdminTab('notifications');
+                  const slug = storeSlug || getStoreSlug();
+                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${n.id}`);
+                  return;
+                }
+                if (norm.isTicketNotif) {
+                  handleNavigateToTicketFromNotif(n);
+                  return;
+                }
+                if (norm.isDirectNav && norm.subTab) {
+                  setAdminTab(norm.subTab as any);
+                  if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
+                  const slug = getStoreSlug();
+                  if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
+                } else if (norm.isDetail) {
+                  setSelectedNotificationDetail(n);
+                  setAdminTab('notifications');
+                  const slug = storeSlug || getStoreSlug();
+                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${n.id}`);
+                } else if (norm.isExternal && norm.actionUrl) {
+                  handleSafeExternalRedirect(norm.actionUrl);
+                } else {
+                  setSelectedNotificationDetail(n);
+                  setAdminTab('notifications');
+                }
+              }}
               onOpenCreateItem={() => openCreateModal('physical')}
               isPlatformAdminUser={isPlatformAdmin(adminUser)}
               isSuperAdminUser={isSuperAdmin(adminUser)}
@@ -20291,200 +20376,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     >
                       Nanti Saja
                     </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Modal Pusat Notifikasi Dashboard */}
-              {showNotificationModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-                  <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '540px', borderRadius: '1.25rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
-                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <Bell size={20} style={{ color: '#f59e0b' }} />
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>Pusat Notifikasi System &amp; Admin</h3>
-                      </div>
-                      <button 
-                        type="button"
-                        onClick={() => setShowNotificationModal(false)}
-                        style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.25rem', cursor: 'pointer', fontWeight: 700 }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div style={{ padding: '1.25rem 1.5rem', maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                      {notifications.length === 0 ? (
-                        <div style={{ textAlign: 'center', color: '#9ca3af', padding: '2rem 0', fontSize: '0.85rem' }}>
-                          Belum ada notifikasi baru untuk Anda.
-                        </div>
-                      ) : (
-                        notifications.map((n: any) => {
-                          const modCase = parseModerationCase(n);
-                          const isModerationNotif = modCase.isModeration;
-                          const ticketRef = extractTicketFromNotif(n);
-                          let rawSubTab = n.link_sub_tab || n.linkSubTab || '';
-                          if (rawSubTab === 'support') rawSubTab = 'help';
-                          if (rawSubTab === 'products') rawSubTab = 'items';
-
-                          const isTicketNotif = !isModerationNotif && (Boolean(ticketRef) || n.type === 'ticket' || rawSubTab === 'help' || (n.title && (n.title.includes('CS Catavor') || n.title.includes('Balasan Baru'))));
-                          const rawSettingsTab = n.link_settings_sub_tab || n.linkSettingsSubTab || n.link_mobile_settings_tab || n.linkMobileSettingsTab || '';
-                          
-                          const actionUrl = n.action_url || n.actionUrl || '';
-                          const rawActionLabel = n.action_label || n.actionLabel || '';
-                          const detailContent = n.detail_content || n.detailContent || '';
-
-                          let cleanLabel = (rawActionLabel || '').replace(/[→↗›>]/g, '').trim();
-                          if (
-                            cleanLabel.toLowerCase().includes('pengumuman lengkap') || 
-                            cleanLabel.toLowerCase() === 'buka pengumuman' || 
-                            cleanLabel.toLowerCase() === 'buka menu terkait' || 
-                            cleanLabel.toLowerCase() === 'buka tautan luar' ||
-                            cleanLabel.toLowerCase() === 'kunjungi tautan'
-                          ) {
-                            cleanLabel = '';
-                          }
-
-                          let rawActionType = n.action_type || n.actionType;
-                          if (isModerationNotif) {
-                            rawActionType = 'detail';
-                          } else if (!rawActionType || rawActionType === 'none') {
-                            if (isTicketNotif) rawActionType = 'navigate';
-                            else if (actionUrl) rawActionType = 'external_link';
-                            else if (rawSubTab) rawActionType = 'navigate';
-                            else if (detailContent) rawActionType = 'detail';
-                            else rawActionType = 'none';
-                          }
-
-                          const isDirectNav = (rawActionType === 'navigate' && Boolean(rawSubTab)) || isTicketNotif;
-                          const isExternal = rawActionType === 'external_link' && Boolean(actionUrl);
-                          const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
-                          const dropdownModCase = isModerationNotif ? parseModerationCase(n) : null;
-                          const isDropdownRestored = Boolean(dropdownModCase?.isRestored);
-
-                          return (
-                            <div 
-                              key={n.id} 
-                              onClick={() => {
-                                handleMarkAsRead(n.id);
-                                setShowNotificationModal(false);
-
-                                if (isModerationNotif) {
-                                  setSelectedNotificationDetail(n);
-                                  try {
-                                    sessionStorage.setItem('catavor_active_desktop_notification_id', String(n.id));
-                                    sessionStorage.setItem('catavor_active_desktop_notification_data', JSON.stringify(n));
-                                  } catch {}
-                                  setAdminTab('notifications');
-                                  const slug = storeSlug || getStoreSlug();
-                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${n.id}`);
-                                  return;
-                                }
-
-                                if (isTicketNotif) {
-                                  handleNavigateToTicketFromNotif(n);
-                                  return;
-                                }
-
-                                if (isDirectNav && rawSubTab) {
-                                  setAdminTab(rawSubTab as any);
-                                  if (rawSettingsTab) {
-                                    setSettingsSubTab(rawSettingsTab as any);
-                                  }
-                                  const slug = getStoreSlug();
-                                  if (slug) window.history.pushState({}, '', `/${slug}/admin/${rawSubTab}`);
-                                } else if (isDetail) {
-                                  setSelectedNotificationDetail(n);
-                                } else if (isExternal && actionUrl) {
-                                  handleSafeExternalRedirect(actionUrl);
-                                } else {
-                                  showToast('Notifikasi ditandai dibaca');
-                                }
-                              }}
-                              style={{ 
-                                padding: '0.85rem 1rem', 
-                                borderRadius: '0.75rem', 
-                                backgroundColor: n.read 
-                                  ? 'rgba(255,255,255,0.03)' 
-                                  : isDropdownRestored 
-                                    ? 'rgba(16, 185, 129, 0.08)' 
-                                    : isModerationNotif 
-                                      ? 'rgba(244, 63, 94, 0.08)' 
-                                      : 'rgba(16, 185, 129, 0.08)', 
-                                border: n.read 
-                                  ? '1px solid rgba(255,255,255,0.08)' 
-                                  : isDropdownRestored 
-                                    ? '1px solid rgba(16, 185, 129, 0.35)' 
-                                    : isModerationNotif 
-                                      ? '1px solid rgba(244, 63, 94, 0.3)' 
-                                      : '1px solid rgba(16, 185, 129, 0.25)', 
-                                display: 'flex', 
-                                gap: '0.75rem', 
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              <div style={{ 
-                                width: '32px', 
-                                height: '32px', 
-                                borderRadius: '50%', 
-                                backgroundColor: isDropdownRestored 
-                                  ? 'rgba(16, 185, 129, 0.18)' 
-                                  : isModerationNotif 
-                                    ? 'rgba(244, 63, 94, 0.18)' 
-                                    : n.type === 'success' 
-                                      ? 'rgba(16, 185, 129, 0.15)' 
-                                      : 'rgba(245, 158, 11, 0.15)', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                flexShrink: 0 
-                              }}>
-                                {isDropdownRestored ? (
-                                  <CheckCircle size={16} style={{ color: '#10b981' }} />
-                                ) : isModerationNotif ? (
-                                  <ShieldAlert size={16} style={{ color: '#f43f5e' }} />
-                                ) : n.type === 'success' ? (
-                                  <CheckCircle size={16} style={{ color: '#10b981' }} />
-                                ) : (
-                                  <Clock size={16} style={{ color: '#f59e0b' }} />
-                                )}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                                  <strong style={{ fontSize: '0.85rem', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</strong>
-                                  <span style={{ fontSize: '0.65rem', color: '#6b7280', flexShrink: 0, marginLeft: '0.5rem' }}>{n.time || n.timestamp}</span>
-                                </div>
-                                <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: 0, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.message}</p>
-                              </div>
-                              {(isDirectNav || isExternal || isDetail) && (
-                                <div style={{ color: isDropdownRestored ? '#10b981' : isExternal ? '#3b82f6' : isDirectNav ? 'var(--primary)' : isModerationNotif ? '#f43f5e' : '#f59e0b', flexShrink: 0 }}>
-                                  {isExternal ? <ExternalLink size={14} /> : isDirectNav ? <ArrowRight size={14} /> : <ChevronRight size={14} />}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(0, 0, 0, 0.3)', display: 'flex', justifyContent: 'space-between' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                        style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        Tandai Semua Sudah Dibaca
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => setShowNotificationModal(false)}
-                        style={{ padding: '0.45rem 1rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        Tutup
-                      </button>
-                    </div>
                   </div>
                 </div>
               )}
@@ -23931,83 +23822,278 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
                     );
                   })() : (
-                    /* ==========================================================
-                       VIEW 2: NOTIFICATION LIST FEED (DESKTOP)
-                       ========================================================== */
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Notifikasi &amp; Aktivitas</h3>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Informasi sistem, pembaruan, dan aktivitas penting akun Anda.</p>
+                      <>
+                        <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                          <div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <Bell size={20} style={{ color: 'var(--primary)' }} />
+                              <span>Pusat Notifikasi &amp; Aktivitas</span>
+                            </h3>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Pantau keamanan, moderasi, pembaruan tiket CS, dan aktivitas toko Anda secara real-time.</p>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            {unreadCount > 0 && (
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={handleMarkAllAsRead}
+                                style={{ fontSize: '0.78rem', padding: '0.45rem 1rem', borderRadius: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+                              >
+                                <CheckCircle size={14} />
+                                <span>Tandai Semua Dibaca</span>
+                              </button>
+                            )}
+                            {notifications.some(n => n.read) && (
+                              <button
+                                type="button"
+                                onClick={handleClearReadNotifications}
+                                style={{
+                                  fontSize: '0.78rem',
+                                  padding: '0.45rem 0.9rem',
+                                  borderRadius: '0.65rem',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'rgba(255, 255, 255, 0.04)',
+                                  color: 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                  fontWeight: 700,
+                                  transition: 'all 0.2s ease'
+                                }}
+                                title="Bersihkan riwayat notifikasi yang sudah dibaca"
+                              >
+                                Bersihkan Terbaca
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleNotifFilterChange('all')}
-                            style={{
-                              padding: '0.45rem 1rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 800,
-                              border: notifFilter === 'all' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: notifFilter === 'all' ? 'var(--primary)' : 'var(--bg-deep)',
-                              color: notifFilter === 'all' ? '#ffffff' : 'var(--text-primary)',
-                              boxShadow: notifFilter === 'all' ? '0 2px 8px var(--primary-glow)' : 'none',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            Semua ({totalNotificationsCount})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleNotifFilterChange('unread')}
-                            style={{
-                              padding: '0.45rem 1rem',
-                              borderRadius: '999px',
-                              fontSize: '0.78rem',
-                              fontWeight: 800,
-                              border: notifFilter === 'unread' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                              backgroundColor: notifFilter === 'unread' ? 'var(--primary)' : 'var(--bg-deep)',
-                              color: notifFilter === 'unread' ? '#ffffff' : 'var(--text-primary)',
-                              boxShadow: notifFilter === 'unread' ? '0 2px 8px var(--primary-glow)' : 'none',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            Belum Dibaca ({unreadCount})
-                          </button>
-                          {unreadCount > 0 && (
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={handleMarkAllAsRead}
-                              style={{ fontSize: '0.78rem', padding: '0.45rem 1rem', borderRadius: '999px' }}
-                            >
-                              Tandai Semua Dibaca
-                            </button>
-                          )}
-                          {notifFilter === 'all' && notifications.some(n => n.read) && (
-                            <button
-                              type="button"
-                              onClick={handleClearReadNotifications}
-                              style={{
-                                fontSize: '0.78rem',
-                                padding: '0.45rem 0.9rem',
+                        {/* 30-Day Retention & Quick Filter Widget */}
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem',
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.85rem',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                          marginBottom: '1rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.2rem 0.55rem',
                                 borderRadius: '999px',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                backgroundColor: 'var(--primary-glow)',
+                                color: 'var(--primary)',
+                                border: '1px solid var(--border-light)'
+                              }}>
+                                <Clock size={12} />
+                                <span>Retensi 30 Hari</span>
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                Akumulasi total aktivitas toko 30 hari terakhir
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => fetchNotificationsFromBackend(1, false)}
+                              disabled={notifInitialLoading}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.25rem 0.65rem',
+                                borderRadius: '0.5rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
                                 border: '1px solid var(--border-light)',
                                 background: 'transparent',
-                                color: 'var(--text-muted)',
+                                color: 'var(--text-secondary)',
                                 cursor: 'pointer',
-                                fontWeight: 700,
-                                transition: 'all 0.2s ease'
+                                transition: 'all 0.15s ease'
                               }}
-                              title="Bersihkan riwayat notifikasi yang sudah dibaca"
                             >
-                              Bersihkan Terbaca
+                              <RefreshCw size={12} className={notifInitialLoading ? 'animate-spin' : ''} />
+                              <span>Segarkan Data</span>
                             </button>
-                          )}
+                          </div>
+
+                          {/* 3 Metrics Clean Grid: Total Masuk, Belum Dibaca, Terbaca */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.65rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleNotifFilterChange('all');
+                              }}
+                              style={{
+                                backgroundColor: (notifFilter === 'all' && notifCategoryFilter === 'all') ? 'var(--primary-glow)' : 'rgba(255, 255, 255, 0.03)',
+                                padding: '0.65rem 0.85rem',
+                                borderRadius: '0.65rem',
+                                border: (notifFilter === 'all' && notifCategoryFilter === 'all') ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <span style={{ fontSize: '0.7rem', color: (notifFilter === 'all' && notifCategoryFilter === 'all') ? 'var(--primary)' : 'var(--text-secondary)', display: 'block', fontWeight: 700 }}>
+                                Total Notifikasi Masuk
+                              </span>
+                              <strong style={{ fontSize: '1.2rem', color: (notifFilter === 'all' && notifCategoryFilter === 'all') ? 'var(--primary)' : 'var(--text-primary)', fontWeight: 800 }}>
+                                {totalNotificationsCount}
+                              </strong>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleNotifFilterChange('unread');
+                              }}
+                              style={{
+                                backgroundColor: (notifFilter === 'unread' || notifCategoryFilter === 'unread') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.03)',
+                                padding: '0.65rem 0.85rem',
+                                borderRadius: '0.65rem',
+                                border: (notifFilter === 'unread' || notifCategoryFilter === 'unread') ? '1px solid #ef4444' : '1px solid var(--border-light)',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <span style={{ fontSize: '0.7rem', color: unreadCount > 0 ? '#ef4444' : 'var(--text-secondary)', display: 'block', fontWeight: 700 }}>
+                                Belum Dibaca
+                              </span>
+                              <strong style={{ fontSize: '1.2rem', color: unreadCount > 0 ? '#ef4444' : 'var(--text-primary)', fontWeight: 800 }}>
+                                {unreadCount}
+                              </strong>
+                            </button>
+
+                            <div style={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              border: '1px solid var(--border-light)',
+                              textAlign: 'left'
+                            }}>
+                              <span style={{ fontSize: '0.7rem', color: '#10b981', display: 'block', fontWeight: 700 }}>
+                                Terbaca
+                              </span>
+                              <strong style={{ fontSize: '1.2rem', color: '#10b981', fontWeight: 800 }}>
+                                {readCount}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Live Synchronizer Banner */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: 'var(--primary-glow)',
+                            padding: '0.45rem 0.85rem',
+                            borderRadius: '0.55rem',
+                            border: '1px solid var(--border-light)',
+                            fontSize: '0.75rem',
+                            flexWrap: 'wrap',
+                            gap: '0.35rem'
+                          }}>
+                            <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <Clock size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                              <span>Status Tampilan:</span>
+                            </span>
+                            <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                              Menampilkan {filteredNotifications.length} dari {
+                                (notifFilter === 'unread' || notifCategoryFilter === 'unread') 
+                                  ? unreadCount 
+                                  : notifCategoryFilter === 'security' 
+                                    ? notifSecurityCount 
+                                    : notifCategoryFilter === 'system' 
+                                      ? notifSystemCount 
+                                      : totalNotificationsCount
+                              } notifikasi
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Search Bar & Category Filter Pills */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                          <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: '380px' }}>
+                            <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <input
+                              type="text"
+                              placeholder="Cari judul, pesan, atau jenis notifikasi..."
+                              value={notifSearchQuery}
+                              onChange={(e) => setNotifSearchQuery(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem 2rem 0.5rem 2.25rem',
+                                borderRadius: '0.65rem',
+                                border: '1px solid var(--border-light)',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.8rem',
+                                outline: 'none'
+                              }}
+                            />
+                            {notifSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setNotifSearchQuery('')}
+                                style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {[
+                              { id: 'all', label: 'Semua', count: totalNotificationsCount },
+                              { id: 'unread', label: 'Belum Dibaca', count: unreadCount, badgeColor: '#f59e0b' },
+                              { id: 'security', label: 'Keamanan & Moderasi', count: notifSecurityCount, badgeColor: '#f43f5e' },
+                              { id: 'system', label: 'Sistem Toko', count: notifSystemCount }
+                            ].map((tab) => {
+                              const isActive = notifCategoryFilter === tab.id;
+                              return (
+                                <button
+                                  key={tab.id}
+                                  type="button"
+                                  onClick={() => handleNotifFilterChange(tab.id as any)}
+                                  style={{
+                                    padding: '0.42rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                    backgroundColor: isActive ? 'var(--primary)' : 'rgba(255, 255, 255, 0.03)',
+                                    color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                                    boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  <span>{tab.label}</span>
+                                  <span style={{
+                                    fontSize: '0.7rem',
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '999px',
+                                    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : (tab.badgeColor ? `${tab.badgeColor}22` : 'rgba(255, 255, 255, 0.08)'),
+                                    color: isActive ? '#ffffff' : (tab.badgeColor || 'var(--text-muted)')
+                                  }}>
+                                    {tab.count}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
 
