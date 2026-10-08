@@ -378,3 +378,10 @@ func ValidateOrderLimits(minVal interface{}, maxVal interface{}) (int, *int) {
 
 	return minOrder, maxOrder
 }
+
+// IsBotHoneypotTriggered detects automated spam bots by checking if a hidden honeypot trap field was filled.
+// Legitimate human users will not see or fill this hidden field.
+func IsBotHoneypotTriggered(val string) bool {
+	return strings.TrimSpace(val) != ""
+}
+

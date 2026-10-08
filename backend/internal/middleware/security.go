@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strings"
 	"time"
 
 	"catavor-backend/internal/config"
@@ -44,11 +45,16 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 	})
 
 	// 4. Strict CORS Middleware
+	allowedOrigins := strings.Join(cfg.AllowedOrigins, ", ")
+	if allowedOrigins == "" || cfg.AppEnv == "local" {
+		allowedOrigins = "http://localhost:8000, http://127.0.0.1:8000, http://localhost:5173, http://localhost:3000, http://127.0.0.1:5173"
+	}
+
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*",
+		AllowOrigins:     allowedOrigins,
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Store-Slug, X-Request-ID",
 		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
-		AllowCredentials: false,
+		AllowCredentials: true,
 		MaxAge:           86400,
 	}))
 
@@ -76,6 +82,31 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 			Msg("HTTP")
 
 		return err
+	})
+}
+
+// GlobalAPIRateLimiter provides Layer-7 DoS protection across public API routes
+func GlobalAPIRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        180, // 180 requests per minute per IP
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP() + "_global_api"
+		},
+		Next: func(c *fiber.Ctx) bool {
+			path := c.Path()
+			// Exclude real-time SSE stream from rate limiting to prevent dropping persistent connections
+			if strings.Contains(path, "/notifications/stream") {
+				return true
+			}
+			return false
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"message": "Terlalu banyak permintaan ke server. Harap tunggu sebentar sebelum mencoba kembali.",
+			})
+		},
 	})
 }
 

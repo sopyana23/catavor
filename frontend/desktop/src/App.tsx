@@ -164,6 +164,12 @@ import { FormattedText, ExternalLinkWarningModal } from './components/RichTextar
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
+import { 
+  getSavedUserSlug, 
+  saveUserActiveSlug, 
+  broadcastAuthEvent, 
+  subscribeAuthSync 
+} from './utils/authSync'
 
 export interface UserStoreSummary {
   id: number;
@@ -6963,7 +6969,7 @@ Terima kasih.`;
 
     return () => clearTimeout(timer);
   }, [adminTab, storeSlug, adminPage, adminPerPage, adminSortBy, adminSearch, adminProductTypeFilter, adminClassFilter, adminActiveFilter, token]);
-  const [adminUser, setAdminUser] = useState<{name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[]} | null>(
+  const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[]} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(
@@ -7345,10 +7351,16 @@ Terima kasih.`;
         document.body.setAttribute('data-theme', newTheme);
         setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
 
-        try { 
-          localStorage.setItem('catavor_active_slug', targetSlug);
-          sessionStorage.setItem('catavor_active_slug_selected', targetSlug);
-        } catch {}
+        const currentUserId = data.user?.id || adminUser?.id;
+        if (currentUserId) {
+          saveUserActiveSlug(currentUserId, targetSlug);
+          broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUserId, slug: targetSlug });
+        } else {
+          try { 
+            localStorage.setItem('catavor_active_slug', targetSlug);
+            sessionStorage.setItem('catavor_active_slug_selected', targetSlug);
+          } catch {}
+        }
         setStoreSlug(targetSlug);
         setShowStoreDropdown(false);
         setShowStoreSwitcherModal(false);
@@ -7436,6 +7448,17 @@ Terima kasih.`;
         document.documentElement.setAttribute('data-theme', newTheme);
         document.body.setAttribute('data-theme', newTheme);
         setSettingsForm(prev => ({ ...prev, store_theme: newTheme }));
+
+        const currentUserId = data.user?.id || adminUser?.id;
+        if (currentUserId && newSlug) {
+          saveUserActiveSlug(currentUserId, newSlug);
+          broadcastAuthEvent({ type: 'STORE_CHANGED', userId: currentUserId, slug: newSlug });
+        } else if (newSlug) {
+          try {
+            localStorage.setItem('catavor_active_slug', newSlug);
+            sessionStorage.setItem('catavor_active_slug_selected', newSlug);
+          } catch {}
+        }
 
         setStoreSlug(newSlug);
         setShowCreateStoreModal(false);
@@ -9622,6 +9645,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setPortalTab('home');
     setLoginForm({ email: '', password: '' });
     window.history.pushState({}, '', '/');
+    broadcastAuthEvent({ type: 'LOGOUT' });
     showToast(msg, 'error');
   };
 
@@ -9658,6 +9682,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setView('admin');
     setAdminTab('items');
     setLoginForm({ email: '', password: '' });
+    broadcastAuthEvent({ type: 'LOGOUT' });
     showToast(msg, 'error');
   };
 
@@ -9890,6 +9915,42 @@ Terima kasih atas perhatian dan kerja samanya.`;
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
   }, [token]);
+
+  // Industry Best Practice: Cross-Tab Session & Store Synchronization
+  useEffect(() => {
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'LOGOUT') {
+        if (token) {
+          handleUnauthorized('Sesi akun telah keluar dari tab lain.', false);
+        }
+      } else if (event.type === 'LOGIN_SUCCESS') {
+        const storedToken = localStorage.getItem('catavor_token');
+        if (storedToken && storedToken !== token) {
+          showToast('Sesi akun telah diperbarui di tab lain. Memuat ulang sesi...', 'info');
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+        }
+      } else if (event.type === 'STORE_CHANGED') {
+        if (event.slug && event.slug !== storeSlug) {
+          const rawUser = localStorage.getItem('catavor_user');
+          if (rawUser) {
+            try {
+              const u = JSON.parse(rawUser);
+              if (String(u?.id) === String(event.userId)) {
+                setStoreSlug(event.slug);
+                loadData(event.slug);
+                showToast(`Profil katalog disinkronkan ke "${event.slug}" dari tab lain`, 'info');
+              }
+            } catch {}
+          }
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [token, storeSlug]);
+
 
 
   const isInvalidRoute = () => {
@@ -10562,6 +10623,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           if (currentRequestedSlug) {
             sessionStorage.removeItem('catavor_auth_redirect');
             const targetSlug = currentRequestedSlug;
+            saveUserActiveSlug(data.user.id, targetSlug);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
             setStoreSlug(targetSlug);
             setIsFirstTimeLogin(false);
             setShowStoreSwitcherModal(false);
@@ -10578,10 +10641,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
           if (availableStores.length === 1 && availableStores[0]?.slug) {
             const singleSlug = availableStores[0].slug;
-            try {
-              sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
-              localStorage.setItem('catavor_active_slug', singleSlug);
-            } catch {}
+            saveUserActiveSlug(data.user.id, singleSlug);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
             setStoreSlug(singleSlug);
             setIsFirstTimeLogin(false);
             setShowStoreSwitcherModal(false);
@@ -10591,6 +10652,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
             window.history.pushState({}, '', `/${singleSlug}/admin/items`);
             loadData(singleSlug);
             showToast(`Selamat datang di ${availableStores[0].store_title || singleSlug}!`, 'success');
+            return;
+          }
+
+          // Case 3: Merchant with >= 2 stores - Check if user has a remembered active store
+          const rememberedSlug = getSavedUserSlug(data.user.id);
+          if (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug)) {
+            saveUserActiveSlug(data.user.id, rememberedSlug);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+            setStoreSlug(rememberedSlug);
+            setIsFirstTimeLogin(false);
+            setShowStoreSwitcherModal(false);
+            setPortalTab('home');
+            setView('admin');
+            setAdminTab('items');
+            window.history.pushState({}, '', `/${rememberedSlug}/admin/items`);
+            loadData(rememberedSlug);
+            const matchedStore = availableStores.find((s: any) => s.slug === rememberedSlug);
+            showToast(`Selamat datang kembali di ${matchedStore?.store_title || rememberedSlug}!`, 'success');
             return;
           }
 
@@ -10608,6 +10687,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 redirectRestored = true;
                 const pathSlug = parsed.path.split('/').filter(Boolean)[0];
                 if (pathSlug && !isReservedStoreSlug(pathSlug)) {
+                  saveUserActiveSlug(data.user.id, pathSlug);
+                  broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
                   setStoreSlug(pathSlug);
                   loadData(pathSlug);
                 }
@@ -10616,6 +10697,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           } catch (e) {}
 
           if (!redirectRestored) {
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
             try {
               sessionStorage.removeItem('catavor_active_slug_selected');
             } catch {}
@@ -11397,6 +11479,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (currentRequestedSlug) {
           sessionStorage.removeItem('catavor_auth_redirect');
           const targetSlug = currentRequestedSlug;
+          saveUserActiveSlug(data.user.id, targetSlug);
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           setStoreSlug(targetSlug);
           setIsFirstTimeLogin(false);
           setShowStoreSwitcherModal(false);
@@ -11413,10 +11497,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
         if (availableStores.length === 1 && availableStores[0]?.slug) {
           const singleSlug = availableStores[0].slug;
-          try {
-            sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
-            localStorage.setItem('catavor_active_slug', singleSlug);
-          } catch {}
+          saveUserActiveSlug(data.user.id, singleSlug);
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           setStoreSlug(singleSlug);
           setIsFirstTimeLogin(false);
           setShowStoreSwitcherModal(false);
@@ -11426,6 +11508,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
           window.history.pushState({}, '', `/${singleSlug}/admin/items`);
           loadData(singleSlug);
           showToast(`Selamat datang di ${availableStores[0].store_title || singleSlug}!`, 'success');
+          return;
+        }
+
+        // Case 3: Merchant with >= 2 stores - Check if user has a remembered active store
+        const rememberedSlug = getSavedUserSlug(data.user.id);
+        if (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug)) {
+          saveUserActiveSlug(data.user.id, rememberedSlug);
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+          setStoreSlug(rememberedSlug);
+          setIsFirstTimeLogin(false);
+          setShowStoreSwitcherModal(false);
+          setPortalTab('home');
+          setView('admin');
+          setAdminTab('items');
+          window.history.pushState({}, '', `/${rememberedSlug}/admin/items`);
+          loadData(rememberedSlug);
+          const matchedStore = availableStores.find((s: any) => s.slug === rememberedSlug);
+          showToast(`Selamat datang kembali di ${matchedStore?.store_title || rememberedSlug}!`, 'success');
           return;
         }
 
@@ -11443,6 +11543,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
               redirectRestored = true;
               const pathSlug = parsed.path.split('/').filter(Boolean)[0];
               if (pathSlug && !isReservedStoreSlug(pathSlug)) {
+                saveUserActiveSlug(data.user.id, pathSlug);
+                broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
                 setStoreSlug(pathSlug);
                 loadData(pathSlug);
               }
@@ -11451,6 +11553,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         } catch (e) {}
 
         if (!redirectRestored) {
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
           try {
             sessionStorage.removeItem('catavor_active_slug_selected');
           } catch {}

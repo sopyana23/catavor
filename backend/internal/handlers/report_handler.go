@@ -42,6 +42,7 @@ type CreateReportRequest struct {
 	ReasonLabel    string `json:"reason_label"`    // Human-readable violation title
 	Description    string `json:"description"`     // Additional user notes
 	ReporterEmail  string `json:"reporter_email"`  // Optional reporter email
+	WebsiteHP      string `json:"website_hp,omitempty"` // Anti-bot honeypot
 }
 
 // GenerateReportNumber generates a unique, human-readable ticket reference e.g. RPT-20260829-AB12C
@@ -115,6 +116,17 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Format data laporan tidak valid.",
+		})
+	}
+
+	// Security Defense: Anti-bot honeypot check
+	if security.IsBotHoneypotTriggered(req.WebsiteHP) {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Laporan berhasil diterima dan akan ditinjau oleh tim kepatuhan kami.",
+			"data": fiber.Map{
+				"report_number": GenerateReportNumber(),
+			},
 		})
 	}
 

@@ -17,6 +17,7 @@ type User struct {
 	IsPasswordChanged bool       `gorm:"default:false" json:"is_password_changed"`
 	PlatformRole      string     `gorm:"size:50;default:'merchant';index" json:"platform_role"`
 	IsBlacklisted     bool       `gorm:"default:false;index" json:"is_blacklisted"`
+	TokenVersion      int        `gorm:"default:1" json:"token_version"`
 	RememberToken     *string    `gorm:"size:100" json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

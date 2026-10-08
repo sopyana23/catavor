@@ -88,14 +88,26 @@ export function getStoredToken(): string | null {
 export function getActiveStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    const fromStorage = localStorage.getItem('catavor_active_slug');
-    if (fromStorage) return fromStorage;
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
     const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'catalogs', 'stores'];
     if (parts.length > 0 && !reserved.includes(parts[0])) {
       return parts[0];
     }
+
+    const rawUser = localStorage.getItem('catavor_user');
+    if (rawUser) {
+      try {
+        const user = JSON.parse(rawUser);
+        if (user?.id) {
+          const scoped = localStorage.getItem(`catavor_active_slug_${user.id}`);
+          if (scoped) return scoped;
+        }
+      } catch {}
+    }
+
+    const fromStorage = localStorage.getItem('catavor_active_slug');
+    if (fromStorage) return fromStorage;
   } catch {}
   return null;
 }

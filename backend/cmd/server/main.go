@@ -48,12 +48,15 @@ func main() {
 
 	// 4. Initialize Fiber App with Industrial SaaS timeouts (WriteTimeout 0 for SSE streaming)
 	app := fiber.New(fiber.Config{
-		AppName:               "Catavor Multi-Channel Commerce Server",
-		BodyLimit:             12 * 1024 * 1024, // 12 MB max payload
-		ReadTimeout:           0,                 // Unlimited for streaming & SSE
-		WriteTimeout:          0,                 // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
-		IdleTimeout:           120 * time.Second,
-		DisableStartupMessage: false,
+		AppName:                 "Catavor Multi-Channel Commerce Server",
+		BodyLimit:               12 * 1024 * 1024, // 12 MB max payload
+		ReadTimeout:             0,                 // Unlimited for streaming & SSE
+		WriteTimeout:            0,                 // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
+		IdleTimeout:             120 * time.Second,
+		DisableStartupMessage:   false,
+		ProxyHeader:             fiber.HeaderXForwardedFor,
+		EnableTrustedProxyCheck: true,
+		TrustedProxies:          []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"},
 	})
 
 	// 5. Setup Security Middlewares (CORS, Headers, Recovery, Tracing, Logger)
@@ -171,7 +174,7 @@ func main() {
 
 	// 8. Register API Endpoints
 	app.Get("/ads.txt", settingHandler.GetAdsTxt)
-	api := app.Group("/api")
+	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
 
 	// Public Modern Product & Category Endpoints
 	api.Get("/products", productHandler.Index)
@@ -469,7 +472,8 @@ func main() {
 		adminApi.Post("/safe-domains/reset-defaults", safeDomainHandler.ResetDefaultSafeDomains)
 
 		// Finance & Billing
-		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.GetOrders)
+		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
+		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)

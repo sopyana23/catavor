@@ -70,6 +70,16 @@ func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
+	// Security Defense: Restrict direct plan upgrade to Platform Admins / Superadmins
+	userRole, _ := c.Locals("platform_role").(string)
+	isSuperadmin, _ := c.Locals("is_superadmin").(bool)
+	if userRole != "admin" && userRole != "superadmin" && !isSuperadmin {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Peningkatan paket langsung hanya dapat dilakukan oleh administrator platform. Silakan gunakan alur checkout pesanan langganan.",
+		})
+	}
+
 	var req struct {
 		PlanCode string `json:"plan_code"`
 		Months   int    `json:"months"`
@@ -248,9 +258,14 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
+	msg := "Transaksi langganan berhasil diproses dan paket Anda telah aktif."
+	if order.PaymentStatus != "paid" {
+		msg = "Pesanan langganan berhasil dibuat. Silakan selesaikan pembayaran agar paket dapat diverifikasi dan diaktifkan."
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Transaksi langganan berhasil diproses dan paket Anda telah aktif.",
+		"message": msg,
 		"order":   order,
 		"quota":   quota,
 	})
@@ -306,3 +321,55 @@ func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
 		"data":    quota,
 	})
 }
+
+// ApproveOrder allows platform admin to verify payment and activate subscription plan
+func (h *SubscriptionHandler) ApproveOrder(c *fiber.Ctx) error {
+	orderIDVal, err := c.ParamsInt("id")
+	if err != nil || orderIDVal <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID pesanan langganan tidak valid.",
+		})
+	}
+
+	adminIDVal := c.Locals("user_id")
+	var adminID uint = 0
+	if adminIDVal != nil {
+		adminID = adminIDVal.(uint)
+	}
+
+	order, quota, err := services.ApproveSubscriptionOrder(database.DB, uint(orderIDVal), adminID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Invoice langganan berhasil disetujui dan paket toko telah aktif.",
+		"order":   order,
+		"quota":   quota,
+	})
+}
+
+// AdminListOrders allows platform admin to view all subscription orders
+func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
+	var orders []models.SubscriptionOrder
+	query := database.DB.Preload("Store").Preload("User").Order("created_at desc")
+	if status := c.Query("status"); status != "" {
+		query = query.Where("payment_status = ?", status)
+	}
+	if err := query.Find(&orders).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat daftar transaksi langganan.",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    orders,
+	})
+}
+

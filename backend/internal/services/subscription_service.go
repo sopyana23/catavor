@@ -596,13 +596,14 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	if paymentMethod == "" {
 		paymentMethod = "bank"
 	}
+	paymentStatus := "pending"
+	var paidAt *time.Time = nil
 	if finalAmount == 0 {
 		paymentMethod = "coupon_free"
+		paymentStatus = "paid"
+		now := time.Now().UTC()
+		paidAt = &now
 	}
-
-	paymentStatus := "paid"
-	now := time.Now().UTC()
-	var paidAt *time.Time = &now
 
 	orderType := req.Type
 	if orderType == "" {
@@ -640,11 +641,53 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", err)
 	}
 
-	// Instantly execute Upgrade / Renewal
-	quota, err := UpgradeStorePlan(db, storeID, planCode, durationMonths)
-	if err != nil {
-		return nil, nil, fmt.Errorf("gagal mengaktifkan paket: %w", err)
+	// Security Hardening: Only execute instant Upgrade/Renewal if order is 100% free / discount coupon
+	var quota *StoreQuotaInfo
+	if finalAmount == 0 {
+		var err error
+		quota, err = UpgradeStorePlan(db, storeID, planCode, durationMonths)
+		if err != nil {
+			return nil, nil, fmt.Errorf("gagal mengaktifkan paket: %w", err)
+		}
+	} else {
+		// Non-free orders require payment verification / admin approval before plan activation
+		quota, _ = GetStoreQuotaInfo(db, storeID)
 	}
+
+	return &order, quota, nil
+}
+
+// ApproveSubscriptionOrder confirms payment and activates the subscription plan for an order
+func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.SubscriptionOrder, *StoreQuotaInfo, error) {
+	var order models.SubscriptionOrder
+	if err := db.First(&order, orderID).Error; err != nil {
+		return nil, nil, fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
+	}
+
+	if order.PaymentStatus == "paid" {
+		quota, _ := GetStoreQuotaInfo(db, order.StoreID)
+		return &order, quota, nil
+	}
+
+	now := time.Now().UTC()
+	order.PaymentStatus = "paid"
+	order.PaidAt = &now
+
+	if err := db.Save(&order).Error; err != nil {
+		return nil, nil, fmt.Errorf("gagal memperbarui status invoice: %w", err)
+	}
+
+	quota, err := UpgradeStorePlan(db, order.StoreID, order.PlanCode, order.DurationMonths)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gagal mengaktifkan paket langganan: %w", err)
+	}
+
+	log.Info().
+		Uint("order_id", order.ID).
+		Uint("store_id", order.StoreID).
+		Str("plan", order.PlanCode).
+		Uint("approved_by_admin", adminID).
+		Msg("Subscription order approved and store plan activated")
 
 	return &order, quota, nil
 }

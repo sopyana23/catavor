@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -52,11 +52,13 @@ type RegisterRequest struct {
 	WhatsappNumber       string  `json:"whatsapp_number"`
 	RegistrationTimezone string  `json:"registration_timezone"`
 	Timezone             string  `json:"timezone"`
+	WebsiteHP            string  `json:"website_hp,omitempty"` // Anti-bot honeypot field
 }
 
 type SendRegistrationOTPRequest struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	WebsiteHP string `json:"website_hp,omitempty"` // Anti-bot honeypot field
 }
 
 type VerifyRegistrationOTPRequest struct {
@@ -209,8 +211,22 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
+	cleanedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+
+	// Security Defense: Check if account is temporarily locked due to excessive failed attempts
+	isLocked, remaining := database.IsAccountLoginLocked(cleanedEmail)
+	if isLocked {
+		mins := int(remaining.Minutes()) + 1
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"code":    "ACCOUNT_LOCKED",
+			"message": fmt.Sprintf("Akun Anda sementara dikunci karena terlalu banyak percobaan salah. Harap coba lagi dalam %d menit.", mins),
+		})
+	}
+
 	var user models.User
-	if err := database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&user).Error; err != nil {
+	if err := database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ?", cleanedEmail).First(&user).Error; err != nil {
+		_, _ = database.RecordLoginFailure(cleanedEmail)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"message": "Email atau kata sandi yang Anda masukkan salah.",
@@ -218,11 +234,29 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	if !user.CheckPassword(req.Password) {
+		attempts, locked := database.RecordLoginFailure(cleanedEmail)
+		if locked {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_LOCKED",
+				"message": "Terlalu banyak percobaan kata sandi salah. Akun Anda sementara dikunci selama 15 menit demi keamanan.",
+			})
+		}
+		remainingAttempts := 5 - attempts
+		if remainingAttempts > 0 && remainingAttempts <= 2 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Email atau kata sandi yang Anda masukkan salah. Sisa kesempatan: %d kali sebelum akun dikunci sementara.", remainingAttempts),
+			})
+		}
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"message": "Email atau kata sandi yang Anda masukkan salah.",
 		})
 	}
+
+	// Reset failed attempts counter on successful password verification
+	database.ResetLoginFailures(cleanedEmail)
 
 	isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") ||
 		strings.EqualFold(user.PlatformRole, "support") ||
@@ -349,6 +383,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Format data pendaftaran tidak valid.",
+		})
+	}
+
+	// Security Defense: Anti-bot honeypot check
+	if security.IsBotHoneypotTriggered(req.WebsiteHP) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Permintaan pendaftaran ditolak oleh filter keamanan sistem.",
 		})
 	}
 
@@ -534,11 +576,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	rawPlan := strings.ToLower(strings.TrimSpace(req.Plan))
-	plan := "free"
+	requestedPlan := "free"
 	if rawPlan == "pro" || rawPlan == "pro_starter" {
-		plan = "pro_starter"
+		requestedPlan = "pro_starter"
 	} else if rawPlan == "pro_business" {
-		plan = "pro_business"
+		requestedPlan = "pro_business"
 	}
 
 	billingCycle := strings.ToLower(strings.TrimSpace(req.BillingCycle))
@@ -552,21 +594,64 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	now := time.Now().UTC()
+	var origAmount float64
+	var discountAmount float64
+	var finalAmount float64
+	cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
+
+	if requestedPlan != "free" {
+		planInfo, _ := services.GetPlanByCode(database.DB, requestedPlan)
+		if planInfo != nil {
+			if billingCycle == "annual" {
+				origAmount = planInfo.PriceAnnual
+			} else {
+				origAmount = planInfo.PriceMonthly
+			}
+		}
+
+		if cleanCoupon == "CATAVOR100" || cleanCoupon == "GRATISPRO" {
+			discountAmount = origAmount
+			finalAmount = 0
+		} else if cleanCoupon == "DISKON10K" {
+			discountAmount = 10000
+			if discountAmount > origAmount {
+				discountAmount = origAmount
+			}
+			finalAmount = origAmount - discountAmount
+		} else if cleanCoupon == "DISKON50K" {
+			discountAmount = 50000
+			if discountAmount > origAmount {
+				discountAmount = origAmount
+			}
+			finalAmount = origAmount - discountAmount
+		} else {
+			finalAmount = origAmount
+		}
+	}
+
+	// Security Defense Against Free Upgrade Exploit:
+	// A paid plan is only activated immediately if the final payable amount is 0 (100% coupon applied).
+	// If finalAmount > 0, the store starts in Free tier with payment_status 'pending_verification'
+	// until an administrator verifies the bank transfer.
+	actualStorePlan := "free"
+	paymentStatus := "free_active"
 	var planExpiresAt *time.Time
 	planStatus := "active"
 	customDomainStatus := "none"
 
-	if plan != "free" {
-		exp := now.AddDate(0, durationMonths, 0)
-		planExpiresAt = &exp
-		if plan == "pro_business" {
-			customDomainStatus = "active"
+	if requestedPlan != "free" {
+		if finalAmount == 0 {
+			actualStorePlan = requestedPlan
+			paymentStatus = "paid"
+			exp := now.AddDate(0, durationMonths, 0)
+			planExpiresAt = &exp
+			if requestedPlan == "pro_business" {
+				customDomainStatus = "active"
+			}
+		} else {
+			actualStorePlan = "free"
+			paymentStatus = "pending_verification"
 		}
-	}
-
-	paymentStatus := "free_active"
-	if plan != "free" {
-		paymentStatus = "paid"
 	}
 
 	tz := strings.TrimSpace(req.RegistrationTimezone)
@@ -586,7 +671,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		StoreTitle:              storeTitle,
 		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
 		WhatsappNumber:          req.WhatsappNumber,
-		Plan:                    plan,
+		Plan:                    actualStorePlan,
 		PlanStatus:              planStatus,
 		PlanExpiresAt:           planExpiresAt,
 		CustomDomainStatus:      customDomainStatus,
@@ -609,37 +694,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	// If paid plan, record initial SubscriptionOrder
-	if plan != "free" {
-		planInfo, _ := services.GetPlanByCode(database.DB, plan)
-		var origAmount float64
-		if planInfo != nil {
-			if billingCycle == "annual" {
-				origAmount = planInfo.PriceAnnual
-			} else {
-				origAmount = planInfo.PriceMonthly
-			}
-		}
-
-		finalAmount := origAmount
-		discountAmount := float64(0)
-		cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
-		if cleanCoupon == "CATAVOR100" || cleanCoupon == "GRATISPRO" {
-			discountAmount = origAmount
-			finalAmount = 0
-		} else if cleanCoupon == "DISKON10K" {
-			discountAmount = 10000
-			if discountAmount > origAmount {
-				discountAmount = origAmount
-			}
-			finalAmount = origAmount - discountAmount
-		} else if cleanCoupon == "DISKON50K" {
-			discountAmount = 50000
-			if discountAmount > origAmount {
-				discountAmount = origAmount
-			}
-			finalAmount = origAmount - discountAmount
-		}
-
+	if requestedPlan != "free" {
 		payMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
 		if payMethod == "" {
 			payMethod = "bank"
@@ -648,13 +703,20 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			payMethod = "coupon_free"
 		}
 
+		orderPaymentStatus := "paid"
+		var orderPaidAt *time.Time = &now
+		if finalAmount > 0 {
+			orderPaymentStatus = "pending"
+			orderPaidAt = nil
+		}
+
 		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), newStore.ID%10000, (time.Now().Nanosecond()/1000)%10000)
 		subOrder := models.SubscriptionOrder{
 			StoreID:         newStore.ID,
 			UserID:          targetUser.ID,
 			OrderNumber:     orderNumber,
 			Type:            "initial",
-			PlanCode:        plan,
+			PlanCode:        requestedPlan,
 			BillingCycle:    billingCycle,
 			DurationMonths:  durationMonths,
 			OriginalAmount:  origAmount,
@@ -663,8 +725,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			CouponCode:      cleanCoupon,
 			PaymentMethod:   payMethod,
 			PaymentProofURL: req.PaymentProofURL,
-			PaymentStatus:   "paid",
-			PaidAt:          &now,
+			PaymentStatus:   orderPaymentStatus,
+			PaidAt:          orderPaidAt,
 		}
 		_ = database.DB.Create(&subOrder).Error
 	}
@@ -682,9 +744,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		WhatsappNumber: newStore.WhatsappNumber,
 	}
 
+	regMsg := "Pendaftaran akun dan toko berhasil!"
+	if requestedPlan != "free" && finalAmount > 0 {
+		regMsg = "Pendaftaran berhasil! Akun dan katalog Anda telah aktif. Bukti pembayaran paket Pro Anda sedang dalam antrean verifikasi tim kami."
+	}
+
 	return c.JSON(fiber.Map{
 		"success":      true,
-		"message":      "Pendaftaran berhasil.",
+		"message":      regMsg,
 		"token":        token,
 		"stores":       []StoreSummary{singleSummary},
 		"active_store": singleSummary,
@@ -711,12 +778,6 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 	}
 
-	email := strings.TrimSpace(req.Email)
-	name := strings.TrimSpace(req.Name)
-	googleID := strings.TrimSpace(req.GoogleID)
-	avatar := strings.TrimSpace(req.Avatar)
-
-	// Decode GSI JWT Credential if present
 	credentialStr := req.Credential
 	if credentialStr == "" {
 		credentialStr = req.IDToken
@@ -725,71 +786,31 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		credentialStr = req.Token
 	}
 
-	if credentialStr != "" && email == "" {
-		decEmail, decName, decSub, decPic := decodeGoogleJWT(credentialStr)
-		if decEmail != "" {
-			email = decEmail
-			if name == "" {
-				name = decName
-			}
-			if googleID == "" {
-				googleID = decSub
-			}
-			if avatar == "" {
-				avatar = decPic
-			}
-		} else {
-			// Fallback to Google TokenInfo API (for ID Token)
-			resp, err := http.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + credentialStr)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer resp.Body.Close()
-				body, _ := io.ReadAll(resp.Body)
-				var gMap struct {
-					Email   string `json:"email"`
-					Name    string `json:"name"`
-					Sub     string `json:"sub"`
-					Picture string `json:"picture"`
-				}
-				if err := json.Unmarshal(body, &gMap); err == nil {
-					email = gMap.Email
-					name = gMap.Name
-					googleID = gMap.Sub
-					avatar = gMap.Picture
-				}
-			}
+	if credentialStr == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Kredensial token resmi Google wajib disertakan.",
+		})
+	}
 
-			// Fallback: Check if credentialStr is an OAuth2 access_token via Google UserInfo API
-			if email == "" {
-				client := &http.Client{Timeout: 10 * time.Second}
-				uReq, uErr := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
-				if uErr == nil {
-					uReq.Header.Set("Authorization", "Bearer "+credentialStr)
-					uResp, err := client.Do(uReq)
-					if err == nil && uResp.StatusCode == http.StatusOK {
-						defer uResp.Body.Close()
-						uBody, _ := io.ReadAll(uResp.Body)
-						var uMap struct {
-							Email   string `json:"email"`
-							Name    string `json:"name"`
-							Sub     string `json:"sub"`
-							Picture string `json:"picture"`
-						}
-						if err := json.Unmarshal(uBody, &uMap); err == nil && uMap.Email != "" {
-							email = uMap.Email
-							if name == "" {
-								name = uMap.Name
-							}
-							if googleID == "" {
-								googleID = uMap.Sub
-							}
-							if avatar == "" {
-								avatar = uMap.Picture
-							}
-						}
-					}
-				}
-			}
-		}
+	// Cryptographically verify Google credential via official Google endpoints
+	verifiedEmail, verifiedName, verifiedGoogleID, verifiedAvatar, err := verifyGoogleCredential(credentialStr, h.cfg.GoogleClientID)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Verifikasi otentikasi Google gagal: " + err.Error(),
+		})
+	}
+
+	email := verifiedEmail
+	name := verifiedName
+	if name == "" {
+		name = strings.TrimSpace(req.Name)
+	}
+	googleID := verifiedGoogleID
+	avatar := verifiedAvatar
+	if avatar == "" {
+		avatar = strings.TrimSpace(req.Avatar)
 	}
 
 	if email == "" {
@@ -808,7 +829,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		query = database.DB.Preload("Stores").Preload("Store").Where("LOWER(email) = ? OR google_id = ?", email, googleID)
 	}
 
-	err := query.First(&user).Error
+	err = query.First(&user).Error
 
 	// CASE A: USER ALREADY EXISTS (LOGIN FLOW)
 	if err == nil {
@@ -1020,34 +1041,65 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	})
 }
 
-func decodeGoogleJWT(jwtStr string) (email, name, googleID, avatar string) {
-	parts := strings.Split(jwtStr, ".")
-	if len(parts) < 2 {
-		return
+// verifyGoogleCredential cryptographically validates Google ID Token or Access Token via official Google endpoints
+func verifyGoogleCredential(credentialStr string, expectedClientID string) (email, name, googleID, avatar string, err error) {
+	credentialStr = strings.TrimSpace(credentialStr)
+	if credentialStr == "" {
+		return "", "", "", "", fmt.Errorf("kredensial Google kosong")
 	}
-	p := parts[1]
-	p = strings.ReplaceAll(p, "-", "+")
-	p = strings.ReplaceAll(p, "_", "/")
-	for len(p)%4 != 0 {
-		p += "="
+
+	client := &http.Client{Timeout: 8 * time.Second}
+
+	// 1. Validate ID Token using Google TokenInfo endpoint (verifies Google's RSA signature and expiry)
+	tURL := "https://oauth2.googleapis.com/tokeninfo?id_token=" + url.QueryEscape(credentialStr)
+	resp, tErr := client.Get(tURL)
+	if tErr == nil && resp.StatusCode == http.StatusOK {
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		var gMap struct {
+			Email         string `json:"email"`
+			EmailVerified any    `json:"email_verified"`
+			Name          string `json:"name"`
+			Sub           string `json:"sub"`
+			Picture       string `json:"picture"`
+			Aud           string `json:"aud"`
+		}
+		if err := json.Unmarshal(body, &gMap); err == nil && gMap.Email != "" {
+			if expectedClientID != "" && gMap.Aud != "" && gMap.Aud != expectedClientID {
+				return "", "", "", "", fmt.Errorf("token Google audience tidak cocok dengan konfigurasi aplikasi")
+			}
+			return strings.ToLower(strings.TrimSpace(gMap.Email)), gMap.Name, gMap.Sub, gMap.Picture, nil
+		}
 	}
-	decoded, err := base64.StdEncoding.DecodeString(p)
-	if err != nil {
-		return
+	if resp != nil {
+		_ = resp.Body.Close()
 	}
-	var gMap struct {
-		Email   string `json:"email"`
-		Name    string `json:"name"`
-		Sub     string `json:"sub"`
-		Picture string `json:"picture"`
+
+	// 2. Fallback: Validate OAuth2 Access Token using Google UserInfo endpoint
+	uReq, uErr := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
+	if uErr == nil {
+		uReq.Header.Set("Authorization", "Bearer "+credentialStr)
+		uResp, err := client.Do(uReq)
+		if err == nil && uResp.StatusCode == http.StatusOK {
+			defer uResp.Body.Close()
+			uBody, _ := io.ReadAll(uResp.Body)
+			var uMap struct {
+				Email         string `json:"email"`
+				EmailVerified any    `json:"email_verified"`
+				Name          string `json:"name"`
+				Sub           string `json:"sub"`
+				Picture       string `json:"picture"`
+			}
+			if err := json.Unmarshal(uBody, &uMap); err == nil && uMap.Email != "" {
+				return strings.ToLower(strings.TrimSpace(uMap.Email)), uMap.Name, uMap.Sub, uMap.Picture, nil
+			}
+		}
+		if uResp != nil {
+			_ = uResp.Body.Close()
+		}
 	}
-	if err := json.Unmarshal(decoded, &gMap); err == nil {
-		email = gMap.Email
-		name = gMap.Name
-		googleID = gMap.Sub
-		avatar = gMap.Picture
-	}
-	return
+
+	return "", "", "", "", fmt.Errorf("token otentikasi Google tidak valid atau telah kedaluwarsa")
 }
 
 // VerifyToken checks token validity, returns fresh user profile & store state
@@ -1207,9 +1259,36 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	// Revoke current JWT token via Blacklist (Redis & Memory)
+	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil {
+		if claims.ID != "" {
+			ttl := 72 * time.Hour
+			if claims.ExpiresAt != nil {
+				remaining := time.Until(claims.ExpiresAt.Time)
+				if remaining > 0 {
+					ttl = remaining
+				}
+			}
+			database.BlacklistToken(claims.ID, ttl)
+		}
+	} else {
+		// Fallback: extract optional claims if Locals not populated
+		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		if claims != nil && claims.ID != "" {
+			ttl := 72 * time.Hour
+			if claims.ExpiresAt != nil {
+				remaining := time.Until(claims.ExpiresAt.Time)
+				if remaining > 0 {
+					ttl = remaining
+				}
+			}
+			database.BlacklistToken(claims.ID, ttl)
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Logout berhasil.",
+		"message": "Logout berhasil. Sesi Anda telah ditutup dengan aman.",
 	})
 }
 
@@ -1267,6 +1346,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			})
 		}
 		user.IsPasswordChanged = true
+		user.TokenVersion++
 	}
 
 	if err := database.DB.Save(user).Error; err != nil {
@@ -1303,7 +1383,12 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		UserAgent:   c.Get("User-Agent"),
 	})
 
-	return c.JSON(fiber.Map{
+	var newToken string
+	if req.Password != "" {
+		newToken, _ = middleware.GenerateToken(user, user.Store, h.cfg)
+	}
+
+	resMap := fiber.Map{
 		"success": true,
 		"message": "Profil dan kata sandi berhasil diperbarui.",
 		"user": fiber.Map{
@@ -1312,7 +1397,12 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			"email":               user.Email,
 			"is_password_changed": user.IsPasswordChanged,
 		},
-	})
+	}
+	if newToken != "" {
+		resMap["token"] = newToken
+	}
+
+	return c.JSON(resMap)
 }
 
 // SendRegistrationOTP issues a 6-digit email OTP for manual registration.
@@ -1325,6 +1415,14 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 				"message": "Format data tidak valid: " + err.Error() + " (body: " + string(c.Body()) + ")",
 			})
 		}
+	}
+
+	// Security Defense: Anti-bot honeypot check
+	if security.IsBotHoneypotTriggered(req.WebsiteHP) {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Kode OTP 6-digit telah dikirimkan ke kotak masuk email Anda.",
+		})
 	}
 
 	reqEmail := strings.TrimSpace(strings.ToLower(req.Email))
@@ -1510,6 +1608,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	now := time.Now()
 	user.EmailVerifiedAt = &now
 	user.IsPasswordChanged = true
+	user.TokenVersion++
 
 	if err := database.DB.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

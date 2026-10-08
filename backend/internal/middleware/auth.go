@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -22,6 +23,7 @@ type JWTClaims struct {
 	StoreSlug         string `json:"store_slug"`
 	StoreID           uint   `json:"store_id"`
 	IsPasswordChanged bool   `json:"is_password_changed"`
+	TokenVersion      int    `json:"token_version"`
 	jwt.RegisteredClaims
 }
 
@@ -34,6 +36,11 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 		storeID = store.ID
 	}
 
+	tokenVersion := user.TokenVersion
+	if tokenVersion == 0 {
+		tokenVersion = 1
+	}
+
 	claims := JWTClaims{
 		UserID:            user.ID,
 		Email:             user.Email,
@@ -41,7 +48,9 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 		StoreSlug:         storeSlug,
 		StoreID:           storeID,
 		IsPasswordChanged: user.IsPasswordChanged,
+		TokenVersion:      tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(cfg.JWTExpirationHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
@@ -143,6 +152,15 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			})
 		}
 
+		// Security Check: Verify if token has been revoked via Logout or Blacklist
+		if claims.ID != "" && database.IsTokenBlacklisted(claims.ID) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "SESSION_REVOKED",
+				"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
+			})
+		}
+
 		// Retrieve user and their stores from DB to guarantee freshest state
 		var user models.User
 		if err := database.DB.Preload("Stores", func(db *gorm.DB) *gorm.DB {
@@ -154,6 +172,15 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				"success": false,
 				"code":    "USER_NOT_FOUND",
 				"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
+			})
+		}
+
+		// Security Check: Verify global token version (e.g. password reset or credential invalidation)
+		if user.TokenVersion > 0 && claims.TokenVersion > 0 && claims.TokenVersion < user.TokenVersion {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "PASSWORD_CHANGED",
+				"message": "Kata sandi atau hak akses akun Anda telah diperbarui. Silakan login kembali dengan kredensial terbaru.",
 			})
 		}
 
@@ -185,6 +212,7 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 
 		c.Locals("user", &user)
 		c.Locals("user_id", user.ID)
+		c.Locals("claims", claims)
 
 		// Determine initial store context
 		var activeStore *models.Store
