@@ -189,12 +189,21 @@ func (h *ArticleHandler) StoreComment(c *fiber.Ctx) error {
 		Content     string `json:"content"`
 		ParentID    *uint  `json:"parent_id"`
 		ReplyToName string `json:"reply_to_name"`
+		WebsiteHP   string `json:"website_hp,omitempty"` // Anti-bot honeypot
 	}
 
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Format data komentar tidak valid.",
+		})
+	}
+
+	// Security Defense: Anti-bot honeypot check
+	if security.IsBotHoneypotTriggered(req.WebsiteHP) {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Komentar berhasil dikirim dan menunggu persetujuan moderator.",
 		})
 	}
 

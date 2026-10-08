@@ -279,3 +279,142 @@ func InvalidateStoreQuotaCache(ctx context.Context, storeID uint) {
 	_ = RedisClient.Del(ctx, key).Err()
 }
 
+var (
+	memoryTokenBlacklist sync.Map
+	memoryLoginFailures  sync.Map
+)
+
+type loginFailureRecord struct {
+	Count     int
+	ExpiresAt time.Time
+}
+
+// BlacklistToken adds a JWT ID (jti) to the revocation blacklist with a specified TTL.
+func BlacklistToken(jti string, ttl time.Duration) {
+	if jti == "" || ttl <= 0 {
+		return
+	}
+	memoryTokenBlacklist.Store(jti, time.Now().Add(ttl))
+
+	if IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		_ = RedisClient.Set(ctx, "jwt:blacklist:"+jti, "1", ttl).Err()
+	}
+}
+
+// IsTokenBlacklisted checks whether a JWT ID (jti) has been revoked.
+func IsTokenBlacklisted(jti string) bool {
+	if jti == "" {
+		return false
+	}
+
+	// 1. Check in-memory store
+	if val, ok := memoryTokenBlacklist.Load(jti); ok {
+		if expireTime, ok := val.(time.Time); ok {
+			if time.Now().Before(expireTime) {
+				return true
+			}
+			memoryTokenBlacklist.Delete(jti)
+		}
+	}
+
+	// 2. Check Redis if available
+	if IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		exists, err := RedisClient.Exists(ctx, "jwt:blacklist:"+jti).Result()
+		if err == nil && exists > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// RecordLoginFailure increments failed login attempts for an email and returns (attempts, isLocked).
+// Max 5 attempts within a 15-minute window triggers temporary lockout.
+func RecordLoginFailure(email string) (int, bool) {
+	cleaned := strings.ToLower(strings.TrimSpace(email))
+	if cleaned == "" {
+		return 0, false
+	}
+
+	lockWindow := 15 * time.Minute
+	maxAttempts := 5
+
+	if IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		key := "auth:fail:" + cleaned
+		count, err := RedisClient.Incr(ctx, key).Result()
+		if err == nil {
+			if count == 1 {
+				_ = RedisClient.Expire(ctx, key, lockWindow).Err()
+			}
+			return int(count), count >= int64(maxAttempts)
+		}
+	}
+
+	now := time.Now()
+	val, ok := memoryLoginFailures.Load(cleaned)
+	record := loginFailureRecord{Count: 0, ExpiresAt: now.Add(lockWindow)}
+	if ok {
+		if prev, ok := val.(loginFailureRecord); ok && now.Before(prev.ExpiresAt) {
+			record = prev
+		}
+	}
+	record.Count++
+	record.ExpiresAt = now.Add(lockWindow)
+	memoryLoginFailures.Store(cleaned, record)
+	return record.Count, record.Count >= maxAttempts
+}
+
+// IsAccountLoginLocked checks if an email is temporarily locked due to excessive failed attempts.
+func IsAccountLoginLocked(email string) (bool, time.Duration) {
+	cleaned := strings.ToLower(strings.TrimSpace(email))
+	if cleaned == "" {
+		return false, 0
+	}
+
+	if IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		key := "auth:fail:" + cleaned
+		val, err := RedisClient.Get(ctx, key).Int()
+		if err == nil && val >= 5 {
+			ttl, _ := RedisClient.TTL(ctx, key).Result()
+			if ttl > 0 {
+				return true, ttl
+			}
+		}
+	}
+
+	if val, ok := memoryLoginFailures.Load(cleaned); ok {
+		if record, ok := val.(loginFailureRecord); ok && time.Now().Before(record.ExpiresAt) {
+			if record.Count >= 5 {
+				return true, time.Until(record.ExpiresAt)
+			}
+		} else {
+			memoryLoginFailures.Delete(cleaned)
+		}
+	}
+
+	return false, 0
+}
+
+// ResetLoginFailures clears the failure counter upon successful login.
+func ResetLoginFailures(email string) {
+	cleaned := strings.ToLower(strings.TrimSpace(email))
+	if cleaned == "" {
+		return
+	}
+	memoryLoginFailures.Delete(cleaned)
+	if IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		_ = RedisClient.Del(ctx, "auth:fail:"+cleaned).Err()
+	}
+}
+
+
