@@ -13,6 +13,7 @@ import {
   Loader,
   FileText,
   Lock,
+  Key,
   LogOut,
   Upload,
   Paperclip,
@@ -5878,6 +5879,50 @@ Terima kasih.`;
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string, type: 'free' | 'discount', discount: number, label: string } | null>(null);
   const [couponMsg, setCouponMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+  // Registration OTP & Email Verification State (Mobile)
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [showRegOTPModal, setShowRegOTPModal] = useState(false);
+  const [regOTPCode, setRegOTPCode] = useState('');
+  const [regOTPLoading, setRegOTPLoading] = useState(false);
+  const [regOTPError, setRegOTPError] = useState<string | null>(null);
+  const [regOTPCooldown, setRegOTPCooldown] = useState(0);
+  const [pendingCheckoutIsFree, setPendingCheckoutIsFree] = useState<boolean>(false);
+
+  // Forgot Password State (Mobile)
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<1 | 2>(1);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOTP, setForgotOTP] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [forgotCooldown, setForgotCooldown] = useState(0);
+
+  // Backup Password State (Mobile)
+  const [showBackupPasswordSection, setShowBackupPasswordSection] = useState(false);
+  const [backupPasswordForm, setBackupPasswordForm] = useState({ password: '', confirm_password: '' });
+  const [backupPasswordLoading, setBackupPasswordLoading] = useState(false);
+  const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
+  const [backupPasswordSuccess, setBackupPasswordSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let timer: any;
+    if (regOTPCooldown > 0) {
+      timer = setInterval(() => setRegOTPCooldown(c => Math.max(0, c - 1)), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [regOTPCooldown]);
+
+  useEffect(() => {
+    let timer: any;
+    if (forgotCooldown > 0) {
+      timer = setInterval(() => setForgotCooldown(c => Math.max(0, c - 1)), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [forgotCooldown]);
+
   const validateStep1 = () => {
     const errors: Record<string, string> = {};
     if (!registerForm.name || !registerForm.name.trim()) {
@@ -8897,6 +8942,20 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   }, [storeSlug, (settings as any)?.store_theme, (settingsForm as any)?.store_theme, adminUser?.store_theme]);
 
+  // Admin Profile SubTab & State (Mobile)
+  const [profileSubTab, setProfileSubTab] = useState<'info' | 'logs'>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = (urlParams.get('tab') || '').toLowerCase();
+      const sub = (urlParams.get('sub') || '').toLowerCase();
+      const path = window.location.pathname.toLowerCase();
+      if (['audit_logs', 'audit', 'logs', 'riwayat'].includes(tab) || ['audit_logs', 'audit', 'logs'].includes(sub) || path.includes('/admin/audit-logs')) {
+        return 'logs';
+      }
+    }
+    return 'info';
+  });
+
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
     name: adminUser?.name || 'Administrator',
@@ -8906,6 +8965,79 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (adminUser?.name) {
+      setProfileForm(prev => ({
+        ...prev,
+        name: adminUser.name,
+        email: adminUser.email || prev.email
+      }));
+    }
+  }, [adminUser?.name, adminUser?.email]);
+
+  // Store Slug Management & Validation State (Mobile)
+  const [settingsSlug, setSettingsSlug] = useState<string>('');
+  const [slugCheckStatus, setSlugCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'current'>('idle');
+  const [slugCheckMessage, setSlugCheckMessage] = useState<string>('');
+  const [showSlugConfirmModal, setShowSlugConfirmModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const initialSlug = (settings as any)?.slug || storeSlug || '';
+    if (initialSlug && !settingsSlug) {
+      setSettingsSlug(initialSlug);
+    }
+  }, [settings, storeSlug]);
+
+  useEffect(() => {
+    const raw = settingsSlug.trim().toLowerCase();
+    const currentSlug = ((settings as any)?.slug || storeSlug || '').toLowerCase();
+
+    if (!raw) {
+      setSlugCheckStatus('idle');
+      setSlugCheckMessage('');
+      return;
+    }
+
+    if (raw === currentSlug) {
+      setSlugCheckStatus('current');
+      setSlugCheckMessage('Tautan saat ini');
+      return;
+    }
+
+    if (raw.length < 3) {
+      setSlugCheckStatus('invalid');
+      setSlugCheckMessage('Minimal 3 karakter');
+      return;
+    }
+
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(raw)) {
+      setSlugCheckStatus('invalid');
+      setSlugCheckMessage('Hanya huruf kecil, angka, & tanda hubung');
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSlugCheckStatus('checking');
+      setSlugCheckMessage('Memeriksa ketersediaan...');
+      try {
+        const res = await fetch(`${API_BASE}/stores/check-slug/${encodeURIComponent(raw)}`);
+        const data = await res.json();
+        if (data.available) {
+          setSlugCheckStatus('available');
+          setSlugCheckMessage('Tersedia!');
+        } else {
+          setSlugCheckStatus('taken');
+          setSlugCheckMessage(data.message || 'Tautan sudah digunakan');
+        }
+      } catch (err) {
+        setSlugCheckStatus('idle');
+        setSlugCheckMessage('');
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [settingsSlug, (settings as any)?.slug, storeSlug]);
 
   const [crudLoading, setCrudLoading] = useState<boolean>(false)
   const [crudError, setCrudError] = useState<string | null>(null)
@@ -9184,7 +9316,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               }
             }
           } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
-            setAdminSubTab('audit_logs');
+            setAdminSubTab('profile');
+            setProfileSubTab('logs');
             setView('tabs');
             fetchActivityLogs(1, false);
           } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
@@ -9492,7 +9625,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
               setAdminSubTab('share');
               setView('tabs');
             } else if (pageSub === 'audit_logs' || pageSub === 'audit-logs' || pageSub === 'logs' || pageSub === 'riwayat-log' || pageSub === 'riwayat-aktivitas' || pageSub === 'activity-logs') {
-              setAdminSubTab('audit_logs');
+              setAdminSubTab('profile');
+              setProfileSubTab('logs');
               setView('tabs');
               fetchActivityLogs(1, false);
             } else if (pageSub === 'rbac' || pageSub === 'permissions' || pageSub === 'hak-akses' || pageSub === 'staf') {
@@ -10975,8 +11109,8 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
   // Handle Login Submit
   
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRegisterSubmit = async (e?: React.FormEvent, overrideToken?: string) => {
+    if (e) e.preventDefault();
     if (!agreeTerms) {
       setAgreeTermsError(true);
       showToast('Silakan centang persetujuan Syarat & Ketentuan serta Kebijakan Privasi terlebih dahulu.', 'error');
@@ -10999,11 +11133,18 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ ...registerForm, plan: 'free', payment_status: 'none', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta' })
+        body: JSON.stringify({
+          ...registerForm,
+          verification_token: overrideToken || verificationToken || undefined,
+          plan: 'free',
+          payment_status: 'none',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta'
+        })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
+        setVerificationToken(null);
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
         if (data.stores && Array.isArray(data.stores)) {
@@ -11064,12 +11205,14 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
     }
   };
 
-  const processCheckoutSubmission = async (isFreeCoupon: boolean) => {
+  const processCheckoutSubmission = async (isFreeCoupon: boolean, overrideToken?: string) => {
+    setPendingCheckoutIsFree(isFreeCoupon);
     setRegisterLoading(true);
     setRegisterError(null);
     try {
       const payload = {
         ...registerForm,
+        verification_token: overrideToken || verificationToken || undefined,
         plan: registerPlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
@@ -11090,6 +11233,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
 
       const data = await res.json();
       if (res.ok && data.success) {
+        setVerificationToken(null);
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
         if (data.stores && Array.isArray(data.stores)) {
@@ -11216,6 +11360,186 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       alert('Koneksi terputus. Pastikan server backend Catavor aktif.');
     } finally {
       setRegisterLoading(false);
+    }
+  };
+
+  // Mobile OTP Handlers
+  const handleVerifyRegistrationOTP = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (regOTPCode.trim().length !== 6) {
+      setRegOTPError('Kode OTP harus terdiri dari 6 digit angka.');
+      return;
+    }
+    setRegOTPLoading(true);
+    setRegOTPError(null);
+    try {
+      const res = await fetch(`${API_BASE}/verify-register-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: registerForm.email.trim(),
+          otp: regOTPCode.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.verification_token) {
+        setVerificationToken(data.verification_token);
+        setShowRegOTPModal(false);
+        showToast('Email berhasil diverifikasi! Menyelesaikan registrasi...');
+        if (registerPlan === 'pro_starter' || registerPlan === 'pro_business') {
+          processCheckoutSubmission(pendingCheckoutIsFree, data.verification_token);
+        } else {
+          handleRegisterSubmit(undefined, data.verification_token);
+        }
+      } else {
+        setRegOTPError(data.message || 'Kode OTP salah atau telah kadaluarsa.');
+      }
+    } catch {
+      setRegOTPError('Gagal menghubungi server verifikasi OTP.');
+    } finally {
+      setRegOTPLoading(false);
+    }
+  };
+
+  const handleResendRegistrationOTP = async () => {
+    if (regOTPCooldown > 0) return;
+    setRegOTPLoading(true);
+    setRegOTPError(null);
+    try {
+      const res = await fetch(`${API_BASE}/send-register-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerForm.email.trim(), name: registerForm.name.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRegOTPCooldown(60);
+        showToast('Kode OTP baru telah dikirimkan ke email Anda.');
+      } else {
+        setRegOTPError(data.message || 'Gagal mengirim ulang kode OTP.');
+      }
+    } catch {
+      setRegOTPError('Gagal menghubungi server.');
+    } finally {
+      setRegOTPLoading(false);
+    }
+  };
+
+  // Mobile Forgot Password Handlers
+  const handleSendForgotPasswordOTP = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!forgotEmail.trim()) {
+      setForgotError('Alamat email wajib diisi.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError(null);
+    setForgotSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setForgotPasswordStep(2);
+        setForgotCooldown(60);
+        setForgotSuccess('Kode pemulihan telah dikirim ke email Anda.');
+        showToast('Kode pemulihan telah dikirim!');
+      } else {
+        setForgotError(data.message || 'Gagal mengirim kode pemulihan.');
+      }
+    } catch {
+      setForgotError('Gagal menghubungi server.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetForgotPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (forgotOTP.trim().length !== 6) {
+      setForgotError('Kode OTP harus 6 digit.');
+      return;
+    }
+    if (forgotNewPassword.length < 6) {
+      setForgotError('Kata sandi baru minimal 6 karakter.');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError('Konfirmasi kata sandi tidak cocok.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError(null);
+    try {
+      const res = await fetch(`${API_BASE}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          otp: forgotOTP.trim(),
+          password: forgotNewPassword,
+          confirm_password: forgotConfirmPassword
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Kata sandi berhasil diperbarui! Silakan login.');
+        setShowForgotPasswordModal(false);
+        setLoginForm({ email: forgotEmail.trim(), password: forgotNewPassword });
+        setForgotEmail('');
+        setForgotOTP('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
+        setForgotPasswordStep(1);
+      } else {
+        setForgotError(data.message || 'Gagal mengatur ulang kata sandi.');
+      }
+    } catch {
+      setForgotError('Gagal menghubungi server.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Mobile Backup Password Handler
+  const handleSaveBackupPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!backupPasswordForm.password || backupPasswordForm.password.length < 6) {
+      setBackupPasswordError('Kata sandi minimal 6 karakter.');
+      return;
+    }
+    if (backupPasswordForm.password !== backupPasswordForm.confirm_password) {
+      setBackupPasswordError('Konfirmasi kata sandi tidak cocok.');
+      return;
+    }
+    setBackupPasswordLoading(true);
+    setBackupPasswordError(null);
+    setBackupPasswordSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/profile`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: profileForm.name || (adminUser as any)?.name || 'Admin',
+          password: backupPasswordForm.password,
+          confirm_password: backupPasswordForm.confirm_password
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBackupPasswordSuccess('Kata sandi cadangan berhasil disimpan!');
+        showToast('Kata sandi cadangan berhasil disetel!');
+        setBackupPasswordForm({ password: '', confirm_password: '' });
+      } else {
+        setBackupPasswordError(data.message || 'Gagal menyimpan kata sandi cadangan.');
+      }
+    } catch {
+      setBackupPasswordError('Gagal menghubungi server.');
+    } finally {
+      setBackupPasswordLoading(false);
     }
   };
 
@@ -11529,18 +11853,33 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   }
 
   // Save Settings
-  const handleSettingsSave = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSettingsSave = async (e?: React.FormEvent, forceConfirmSlug: boolean = false) => {
+    if (e) e.preventDefault()
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
       alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Perubahan pengaturan tidak dapat disimpan.');
       return;
     }
+
+    const currentNormalized = ((settings as any)?.slug || storeSlug || '').toLowerCase();
+    const cleanNewSlug = settingsSlug.trim().toLowerCase();
+
+    // If slug changed, validate and ask for confirmation
+    if (cleanNewSlug && cleanNewSlug !== currentNormalized && !forceConfirmSlug) {
+      if (slugCheckStatus === 'invalid' || slugCheckStatus === 'taken') {
+        showToast(slugCheckMessage || 'ID tautan toko tidak valid atau sudah terpakai.', 'error');
+        return;
+      }
+      setShowSlugConfirmModal(true);
+      return;
+    }
+
     setSettingsLoading(true)
     setSettingsSuccess(null)
     try {
       // Decode arrays from JSON string for backend validation
       const payload = {
         ...settingsForm,
+        slug: cleanNewSlug || currentNormalized,
         about_cards: settingsForm.about_cards ? JSON.parse(settingsForm.about_cards) : [],
         social_links: settingsForm.social_links ? JSON.parse(settingsForm.social_links) : []
       };
@@ -11554,6 +11893,7 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       if (res.ok && data.success) {
         const store = data.data;
         const updated = {
+          slug: store.slug || cleanNewSlug || currentNormalized,
           whatsapp_number: store.whatsapp_number || '',
           store_slogan: store.store_slogan || '',
           promo_banner: store.promo_banner || '',
@@ -11574,20 +11914,40 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         }
         setSettings(updated)
         setSettingsForm(updated)
+        setShowSlugConfirmModal(false);
+
         try {
-          const slug = getStoreSlug();
+          const slug = store.slug || getStoreSlug();
           if (slug && updated.store_logo_url) {
             cacheLogoAsBase64(slug, updated.store_logo_url);
           }
+          if (slug) {
+            localStorage.setItem(`catavor_store_${slug.toLowerCase()}`, JSON.stringify(updated));
+          }
           localStorage.setItem('catavor_settings', JSON.stringify(updated));
         } catch {}
+
         document.documentElement.setAttribute('data-theme', updated.store_theme);
-        showToast('Pengaturan & logo katalog berhasil disimpan!')
+
+        if (data.slug_changed && data.new_slug) {
+          const newSlug = data.new_slug;
+          setStoreSlug(newSlug);
+          setUserStores(prev => (prev || []).map(s => s.id === store.id ? { ...s, slug: newSlug } : s));
+          try {
+            localStorage.setItem('catavor_active_store_slug', newSlug);
+            const currentPath = window.location.pathname;
+            const updatedPath = currentPath.replace(new RegExp(`^/${currentNormalized}\\b`), `/${newSlug}`);
+            window.history.replaceState({}, '', updatedPath || `/${newSlug}/admin?tab=settings`);
+          } catch {}
+          showToast(`Tautan toko berhasil diperbarui ke catavor.com/${newSlug}!`);
+        } else {
+          showToast('Pengaturan & logo katalog berhasil disimpan!');
+        }
       } else {
         if (res.status === 401) {
           handleUnauthorized()
         } else {
-          showToast('Akses ditolak atau sesi Anda telah habis. Silakan masuk kembali.', 'error')
+          showToast(data.message || 'Gagal menyimpan pengaturan.', 'error')
         }
       }
     } catch (err) {
@@ -13951,18 +14311,23 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         {/* LOGIN TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
         {portalTab === 'login' && (
           <div style={{ padding: '2.5rem 1.25rem', maxWidth: '420px', margin: '0 auto' }}>
-            <div className="portal-card" style={{ padding: '1.75rem 1.5rem' }}>
+            <div style={{ width: '100%', padding: '2.25rem 1.6rem', borderRadius: '1.25rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 12px 35px -8px rgba(15, 23, 42, 0.08)' }} className="animate-fade-in">
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto', border: '1px solid #bfdbfe' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto', border: '1px solid #dbeafe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)' }}>
                   <Lock size={22} />
                 </div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.25rem 0' }}>Masuk Administrator</h2>
-                <p style={{ color: '#64748b', fontSize: '0.78rem', margin: 0 }}>Kelola profil &amp; katalog bisnis Anda</p>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0', letterSpacing: '-0.02em' }}>
+                  Masuk Administrator
+                </h2>
+                <p style={{ color: '#64748b', fontSize: '0.8rem', margin: 0, lineHeight: 1.45 }}>
+                  Kelola profil katalog &amp; pesanan bisnis Anda
+                </p>
               </div>
               
               {loginError && (
-                <div className="alert-message alert-danger" style={{ marginBottom: '1rem' }}>
-                  {loginError}
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 0.9rem', borderRadius: '0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', fontWeight: 600 }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{loginError}</span>
                 </div>
               )}
 
@@ -13972,21 +14337,21 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 onClick={handleGoogleSSO}
                 style={{ 
                   width: '100%', 
-                  padding: '0.75rem', 
-                  borderRadius: '0.65rem', 
+                  padding: '0.75rem 1rem', 
+                  borderRadius: '0.75rem', 
                   backgroundColor: '#ffffff', 
-                  border: '1px solid #cbd5e1', 
-                  color: '#334155', 
-                  fontSize: '0.82rem', 
+                  border: '1.5px solid #cbd5e1', 
+                  color: '#1e293b', 
+                  fontSize: '0.84rem', 
                   fontWeight: 700, 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center', 
-                  gap: '0.5rem', 
-                  marginBottom: '1.25rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-                  transition: 'all 0.2s ease'
+                  gap: '0.65rem', 
+                  marginBottom: '1.25rem', 
+                  cursor: 'pointer', 
+                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)', 
+                  transition: 'all 0.15s ease' 
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -14000,40 +14365,105 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
               <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.5rem' }}>
                 <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.05em' }}>ATAU MASUK MANUAL</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU MASUK MANUAL</span>
                 <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
               </div>
 
               <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Email Administrator</label>
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Email Administrator</label>
                   <input 
                     type="email" 
-                    className="form-input" 
                     placeholder="nama@email.com" 
                     required 
                     value={loginForm.email} 
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '0.75rem',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Kata Sandi</label>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'block' }}>Kata Sandi</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPasswordModal(true);
+                        setForgotPasswordStep(1);
+                        setForgotEmail(loginForm.email || '');
+                        setForgotError(null);
+                        setForgotSuccess(null);
+                      }}
+                      style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.74rem', color: '#2563eb', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Lupa Kata Sandi?
+                    </button>
+                  </div>
                   <input 
                     type="password" 
-                    className="form-input" 
                     placeholder="Ketik kata sandi..." 
                     required 
                     value={loginForm.password} 
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '0.75rem',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
                   />
                 </div>
-                <button type="submit" className="btn-portal-primary" style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem' }} disabled={loginLoading}>
+                <button 
+                  type="submit" 
+                  disabled={loginLoading}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    border: 'none',
+                    cursor: loginLoading ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
                   {loginLoading ? 'Memproses...' : 'Masuk Dashboard'}
                 </button>
                 <button 
                   type="button" 
-                  className="btn-portal-secondary" 
-                  style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.7rem', 
+                    fontWeight: 700, 
+                    fontSize: '0.8rem', 
+                    borderRadius: '0.75rem', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.45rem', 
+                    backgroundColor: '#ffffff', 
+                    border: '1.5px solid #cbd5e1', 
+                    color: '#475569', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.15s ease' 
+                  }}
                   onClick={() => {
                     setPortalTab('home');
                     setLoginError(null);
@@ -14043,8 +14473,11 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <span>Kembali ke Beranda</span>
                 </button>
               </form>
-              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.76rem', color: '#64748b' }}>
-                Belum punya akun? <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setPortalTab('register'); }}>Daftar Gratis</span>
+              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
+                Belum punya akun?{' '}
+                <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 800 }} onClick={() => { setRegisterStep(1); setPortalTab('register'); }}>
+                  Daftar Gratis
+                </span>
               </div>
             </div>
           </div>
@@ -14053,37 +14486,37 @@ Mohon info ketersediaan stok & pengiriman ya!`}
         {/* REGISTER TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
         {portalTab === 'register' && (
           <div style={{ padding: '2.5rem 1.25rem', maxWidth: '460px', margin: '0 auto' }}>
-            <div className="portal-card animate-fade-in" style={{ padding: '1.75rem 1.35rem' }}>
-              <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.65rem auto', border: '1px solid #bfdbfe' }}>
+            <div style={{ width: '100%', padding: '2.25rem 1.5rem', borderRadius: '1.25rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 12px 35px -8px rgba(15, 23, 42, 0.08)' }} className="animate-fade-in">
+              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto', border: '1px solid #dbeafe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)' }}>
                   <Store size={22} />
                 </div>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0', letterSpacing: '-0.02em' }}>
                   Buat Katalog Bisnis
                 </h2>
-                <p style={{ color: '#64748b', fontSize: '0.76rem', margin: 0 }}>
-                  Katalog Online &amp; Biolink Terhubung Langsung ke WhatsApp
+                <p style={{ color: '#64748b', fontSize: '0.78rem', margin: 0, lineHeight: 1.45 }}>
+                  Katalog online &amp; biolink terhubung langsung ke WhatsApp
                 </p>
               </div>
 
               {/* 3-Step Progress Indicator Clean Mobile */}
               <div style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.1rem' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep >= 1 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep >= 1 ? '#2563eb' : '#e2e8f0', color: registerStep >= 1 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>1</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: registerStep >= 1 ? 800 : 600, color: registerStep >= 1 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: registerStep >= 1 ? '#2563eb' : '#f1f5f9', color: registerStep >= 1 ? '#ffffff' : '#64748b', border: registerStep >= 1 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>1</span>
                     Akun
                   </span>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep >= 2 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep >= 2 ? '#2563eb' : '#e2e8f0', color: registerStep >= 2 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>2</span>
-                    Profil Katalog
+                  <span style={{ fontSize: '0.72rem', fontWeight: registerStep >= 2 ? 800 : 600, color: registerStep >= 2 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: registerStep >= 2 ? '#2563eb' : '#f1f5f9', color: registerStep >= 2 ? '#ffffff' : '#64748b', border: registerStep >= 2 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>2</span>
+                    Profil Toko
                   </span>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 800, color: registerStep === 3 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: registerStep === 3 ? '#2563eb' : '#e2e8f0', color: registerStep === 3 ? '#ffffff' : '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 900 }}>3</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: registerStep === 3 ? 800 : 600, color: registerStep === 3 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: registerStep === 3 ? '#2563eb' : '#f1f5f9', color: registerStep === 3 ? '#ffffff' : '#64748b', border: registerStep === 3 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>3</span>
                     Pilih Paket
                   </span>
                 </div>
-                <div style={{ width: '100%', height: '4px', backgroundColor: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
-                  <div style={{ width: registerStep === 1 ? '33.3%' : registerStep === 2 ? '66.6%' : '100%', height: '100%', background: '#2563eb', transition: 'all 0.3s ease-in-out' }} />
+                <div style={{ width: '100%', height: '4px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{ width: registerStep === 1 ? '33.3%' : registerStep === 2 ? '66.6%' : '100%', height: '100%', backgroundColor: '#2563eb', borderRadius: '999px', transition: 'all 0.3s ease-in-out' }} />
                 </div>
               </div>
 
@@ -14093,7 +14526,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   style={{ 
                     marginBottom: '1rem', 
                     fontSize: '0.76rem', 
-                    borderRadius: '0.65rem', 
+                    borderRadius: '0.75rem', 
                     padding: '0.75rem 0.85rem',
                     backgroundColor: '#fef2f2',
                     border: '1px solid #fecaca',
@@ -14119,20 +14552,20 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     onClick={handleGoogleSSO}
                     style={{ 
                       width: '100%', 
-                      padding: '0.75rem', 
-                      borderRadius: '0.65rem', 
+                      padding: '0.75rem 1rem', 
+                      borderRadius: '0.75rem', 
                       backgroundColor: '#ffffff', 
-                      border: '1px solid #cbd5e1', 
-                      color: '#334155', 
-                      fontSize: '0.82rem', 
+                      border: '1.5px solid #cbd5e1', 
+                      color: '#1e293b', 
+                      fontSize: '0.84rem', 
                       fontWeight: 700, 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'center', 
-                      gap: '0.5rem', 
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-                      transition: 'all 0.2s ease'
+                      gap: '0.65rem', 
+                      cursor: 'pointer', 
+                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)', 
+                      transition: 'all 0.15s ease' 
                     }}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -14146,7 +14579,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.05em' }}>ATAU DAFTAR MANUAL</span>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU DAFTAR MANUAL</span>
                     <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
                   </div>
 
@@ -14164,69 +14597,127 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     }} 
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
                   >
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nama Lengkap Pemilik *</label>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Nama Lengkap Pemilik *</label>
                       <input 
                         type="text" 
-                        className="form-input" 
                         placeholder="Contoh: Budi Santoso" 
                         value={registerForm.name} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, name: e.target.value });
                           if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
                         }}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '0.75rem',
+                          border: fieldErrors.name ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
                       />
                       {fieldErrors.name && (
-                        <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.name}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.name}</div>
                       )}
                     </div>
 
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Email *</label>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Email *</label>
                       <input 
                         type="email" 
-                        className="form-input" 
                         placeholder="nama@domain.com" 
                         value={registerForm.email} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, email: e.target.value });
                           if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
                         }}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '0.75rem',
+                          border: fieldErrors.email ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
                       />
                       {fieldErrors.email && (
-                        <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.email}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.email}</div>
                       )}
                     </div>
 
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Kata Sandi *</label>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Kata Sandi *</label>
                       <input 
                         type="password" 
-                        className="form-input" 
                         placeholder="Minimal 6 karakter..." 
                         value={registerForm.password} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, password: e.target.value });
                           if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: '' }));
                         }}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '0.75rem',
+                          border: fieldErrors.password ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
                       />
                       {fieldErrors.password && (
-                        <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.password}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.password}</div>
                       )}
                     </div>
 
                     <button 
                       type="submit" 
-                      className="btn-portal-primary" 
-                      style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem', marginTop: '0.35rem' }}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.8rem', 
+                        justifyContent: 'center', 
+                        fontSize: '0.86rem', 
+                        marginTop: '0.35rem',
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        border: 'none',
+                        borderRadius: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                      }}
                     >
                       <span>Lanjut ke Informasi Usaha</span>
                       <ChevronRight size={15} />
                     </button>
                     <button 
                       type="button" 
-                      className="btn-portal-secondary" 
-                      style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.7rem', 
+                        justifyContent: 'center', 
+                        fontSize: '0.8rem',
+                        backgroundColor: '#ffffff',
+                        border: '1.5px solid #cbd5e1',
+                        color: '#475569',
+                        fontWeight: 700,
+                        borderRadius: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer'
+                      }}
                       onClick={() => {
                         resetRegisterFormState();
                         setPortalTab('home');
@@ -14273,27 +14764,52 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   }} 
                   style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
                 >
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Nama Katalog / Usaha *</label>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Nama Katalog / Usaha *</label>
                     <input 
                       type="text" 
-                      className="form-input" 
                       placeholder="Contoh: Kopi Senja Roastery" 
                       value={registerForm.store_name} 
                       onChange={(e) => {
                         setRegisterForm({ ...registerForm, store_name: e.target.value });
                         if (fieldErrors.store_name) setFieldErrors(prev => ({ ...prev, store_name: '' }));
                       }}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '0.75rem',
+                        border: fieldErrors.store_name ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
                     />
                     {fieldErrors.store_name && (
-                      <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.store_name}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>{fieldErrors.store_name}</div>
                     )}
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Link Tautan Katalog *</label>
-                    <div style={{ display: 'flex', alignItems: 'center', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', overflow: 'hidden', paddingLeft: '0.65rem' }}>
-                      <span style={{ color: '#64748b', fontSize: '0.78rem', fontWeight: 700, userSelect: 'none' }}>catavor.com/</span>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Link Tautan Katalog (ID Unik) *</label>
+                    <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                      <span style={{
+                        padding: '0.75rem 0.85rem',
+                        background: '#f8fafc',
+                        border: '1.5px solid #cbd5e1',
+                        borderRight: 'none',
+                        borderRadius: '0.75rem 0 0 0.75rem',
+                        fontSize: '0.82rem',
+                        color: '#475569',
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontWeight: 700,
+                        userSelect: 'none',
+                        fontFamily: 'monospace'
+                      }}>
+                        catavor.com/
+                      </span>
                       <input 
                         type="text" 
                         placeholder="toko-saya" 
@@ -14302,24 +14818,45 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           setRegisterForm({ ...registerForm, store_slug: e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, '') });
                           if (fieldErrors.store_slug) setFieldErrors(prev => ({ ...prev, store_slug: '' }));
                         }}
-                        style={{ flex: 1, padding: '0.65rem 0.5rem', fontSize: '0.85rem', border: 'none', outline: 'none', color: '#0f172a' }}
+                        style={{
+                          flex: 1,
+                          padding: '0.75rem 0.85rem',
+                          borderRadius: '0 0.75rem 0.75rem 0',
+                          border: fieldErrors.store_slug ? '1.5px solid #dc2626' : (slugStatus ? (slugStatus.available ? '1.5px solid #16a34a' : '1.5px solid #dc2626') : '1.5px solid #cbd5e1'),
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          fontFamily: 'monospace'
+                        }}
                       />
                     </div>
                     {slugChecking && (
-                      <div style={{ fontSize: '0.7rem', color: '#2563eb', marginTop: '0.3rem' }}>Memeriksa ketersediaan username...</div>
+                      <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.3rem', fontWeight: 600 }}>Memeriksa ketersediaan username...</div>
                     )}
                     {!slugChecking && slugStatus && (
-                      <div style={{ fontSize: '0.7rem', color: slugStatus.available ? '#16a34a' : '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>
+                      <div style={{ fontSize: '0.72rem', color: slugStatus.available ? '#16a34a' : '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>
                         {slugStatus.message}
                       </div>
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
+                  <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.35rem' }}>
                     <button 
                       type="button" 
-                      className="btn-portal-secondary" 
-                      style={{ padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}
+                      style={{ 
+                        padding: '0.75rem 1rem', 
+                        fontSize: '0.8rem',
+                        backgroundColor: '#ffffff',
+                        border: '1.5px solid #cbd5e1',
+                        color: '#475569',
+                        fontWeight: 700,
+                        borderRadius: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        cursor: 'pointer'
+                      }}
                       onClick={() => smartBack(() => setRegisterStep(1))}
                     >
                       <ChevronLeft size={15} />
@@ -14327,8 +14864,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </button>
                     <button 
                       type="submit" 
-                      className="btn-portal-primary" 
-                      style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.82rem' }}
+                      style={{ 
+                        flex: 1, 
+                        padding: '0.8rem', 
+                        justifyContent: 'center', 
+                        fontSize: '0.84rem',
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        border: 'none',
+                        borderRadius: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: registerLoading ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                      }}
                       disabled={registerLoading}
                     >
                       <span>{registerLoading ? 'Memeriksa...' : 'Lanjut ke Pilih Paket'}</span>
@@ -14341,31 +14892,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               {/* STEP 3: Plan Selection Mobile */}
               {registerStep === 3 && (
                 <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '0.15rem' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.15rem 0' }}>
-                      Langkah 3: Pilih Paket Katalog
-                    </h4>
-                    <p style={{ fontSize: '0.74rem', color: '#64748b', margin: 0 }}>
-                      Pilih paket terbaik untuk <strong>{registerForm.store_name}</strong>
-                    </p>
-                  </div>
-
                   {/* Billing Cycle Selector Switcher Mobile */}
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ display: 'inline-flex', padding: '0.2rem', borderRadius: '999px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'inline-flex', padding: '0.25rem', borderRadius: '999px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
                       <button
                         type="button"
                         onClick={() => setRegisterBillingCycle('monthly')}
                         style={{
-                          padding: '0.35rem 0.85rem',
+                          padding: '0.4rem 0.95rem',
                           borderRadius: '999px',
-                          fontSize: '0.74rem',
+                          fontSize: '0.76rem',
                           fontWeight: registerBillingCycle === 'monthly' ? 800 : 600,
                           border: 'none',
                           cursor: 'pointer',
                           backgroundColor: registerBillingCycle === 'monthly' ? '#2563eb' : 'transparent',
                           color: registerBillingCycle === 'monthly' ? '#ffffff' : '#64748b',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.15s ease'
                         }}
                       >
                         Bulanan
@@ -14374,22 +14916,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         type="button"
                         onClick={() => setRegisterBillingCycle('annual')}
                         style={{
-                          padding: '0.35rem 0.85rem',
+                          padding: '0.4rem 0.95rem',
                           borderRadius: '999px',
-                          fontSize: '0.74rem',
+                          fontSize: '0.76rem',
                           fontWeight: registerBillingCycle === 'annual' ? 800 : 600,
                           border: 'none',
                           cursor: 'pointer',
                           backgroundColor: registerBillingCycle === 'annual' ? '#2563eb' : 'transparent',
                           color: registerBillingCycle === 'annual' ? '#ffffff' : '#64748b',
-                          transition: 'all 0.2s ease',
+                          transition: 'all 0.15s ease',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.3rem'
+                          gap: '0.35rem'
                         }}
                       >
                         <span>Tahunan</span>
-                        <span style={{ fontSize: '0.58rem', fontWeight: 900, padding: '0.05rem 0.35rem', borderRadius: '999px', backgroundColor: '#dcfce7', color: '#15803d' }}>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 800, padding: '0.08rem 0.4rem', borderRadius: '999px', backgroundColor: '#dcfce7', color: '#15803d' }}>
                           Hemat 2 Bln
                         </span>
                       </button>
@@ -14401,23 +14943,35 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div 
                       onClick={() => setRegisterPlan('free')}
                       style={{ 
-                        padding: '0.9rem 1rem', 
-                        borderRadius: '0.75rem', 
-                        border: registerPlan === 'free' ? '2px solid #16a34a' : '1px solid #e2e8f0', 
+                        padding: '0.95rem 1.05rem', 
+                        borderRadius: '0.85rem', 
+                        border: registerPlan === 'free' ? '2px solid #16a34a' : '1.5px solid #e2e8f0', 
                         backgroundColor: registerPlan === 'free' ? '#f0fdf4' : '#ffffff', 
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.15s ease',
+                        boxShadow: registerPlan === 'free' ? '0 4px 15px rgba(22, 163, 74, 0.08)' : 'none'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'free' ? '5px solid #16a34a' : '2px solid #94a3b8', backgroundColor: '#fff' }} />
-                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: registerPlan === 'free' ? '#16a34a' : '#0f172a' }}>Gratis (Free)</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'free' ? '5px solid #16a34a' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'free' ? '#16a34a' : '#0f172a' }}>Gratis (Free)</span>
                         </div>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#0f172a' }}>Rp 0 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400 }}>/selamanya</small></span>
+                        <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Rp 0 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/selamanya</small></span>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#475569', lineHeight: 1.4, paddingLeft: '1.4rem' }}>
-                        ✅ 15 postingan produk • 100MB Storage • Direct WA
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#16a34a', flexShrink: 0 }} /> 15 item produk
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#16a34a', flexShrink: 0 }} /> 100 MB Storage
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#16a34a', flexShrink: 0 }} /> Direct WhatsApp
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#16a34a', flexShrink: 0 }} /> Subdomain Toko
+                        </div>
                       </div>
                     </div>
 
@@ -14425,29 +14979,43 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div 
                       onClick={() => setRegisterPlan('pro_starter')}
                       style={{ 
-                        padding: '0.9rem 1rem', 
-                        borderRadius: '0.75rem', 
-                        border: registerPlan === 'pro_starter' ? '2px solid #0284c7' : '1px solid #e2e8f0', 
+                        padding: '0.95rem 1.05rem', 
+                        borderRadius: '0.85rem', 
+                        border: registerPlan === 'pro_starter' ? '2px solid #0284c7' : '1.5px solid #e2e8f0', 
                         backgroundColor: registerPlan === 'pro_starter' ? '#f0f9ff' : '#ffffff', 
                         cursor: 'pointer',
                         position: 'relative',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.15s ease',
+                        boxShadow: registerPlan === 'pro_starter' ? '0 4px 15px rgba(2, 132, 199, 0.08)' : 'none'
                       }}
                     >
-                      <div style={{ position: 'absolute', top: '-8px', right: '12px', background: '#0284c7', color: '#ffffff', fontSize: '0.55rem', fontWeight: 900, padding: '0.12rem 0.5rem', borderRadius: '999px' }}>
-                        POPULER
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro_starter' ? '5px solid #0284c7' : '2px solid #94a3b8', backgroundColor: '#fff' }} />
-                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#0284c7' : '#0f172a' }}>Pro Starter</span>
-                        </div>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#0f172a' }}>
-                          {registerBillingCycle === 'annual' ? 'Rp 300.000' : 'Rp 30.000'} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400 }}>{registerBillingCycle === 'annual' ? '/thn' : '/bln'}</small>
+                      <div style={{ position: 'absolute', top: '-9px', right: '12px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#0284c7', color: '#ffffff', fontSize: '0.6rem', fontWeight: 800, padding: '0.12rem 0.5rem', borderRadius: '999px' }}>
+                          <Zap size={10} /> POPULER
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#475569', lineHeight: 1.4, paddingLeft: '1.4rem' }}>
-                        ⚡ 150 produk • 2GB Storage • Bebas Watermark • Verified Store
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro_starter' ? '5px solid #0284c7' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#0284c7' : '#0f172a' }}>Pro Starter</span>
+                        </div>
+                        <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
+                          {registerBillingCycle === 'annual' ? 'Rp 300.000' : 'Rp 30.000'} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>{registerBillingCycle === 'annual' ? '/thn' : '/bln'}</small>
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> 150 item produk
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> 2 GB Storage
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> Verified Store
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> No Watermark
+                        </div>
                       </div>
                     </div>
 
@@ -14455,40 +15023,54 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div 
                       onClick={() => setRegisterPlan('pro_business')}
                       style={{ 
-                        padding: '0.9rem 1rem', 
-                        borderRadius: '0.75rem', 
-                        border: registerPlan === 'pro_business' ? '2px solid #f59e0b' : '1px solid #e2e8f0', 
+                        padding: '0.95rem 1.05rem', 
+                        borderRadius: '0.85rem', 
+                        border: registerPlan === 'pro_business' ? '2px solid #d97706' : '1.5px solid #e2e8f0', 
                         backgroundColor: registerPlan === 'pro_business' ? '#fffbeb' : '#ffffff', 
                         cursor: 'pointer',
                         position: 'relative',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.15s ease',
+                        boxShadow: registerPlan === 'pro_business' ? '0 4px 15px rgba(217, 119, 6, 0.08)' : 'none'
                       }}
                     >
-                      <div style={{ position: 'absolute', top: '-8px', right: '12px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.55rem', fontWeight: 900, padding: '0.12rem 0.5rem', borderRadius: '999px' }}>
-                        👑 UNLIMITED
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro_business' ? '5px solid #f59e0b' : '2px solid #94a3b8', backgroundColor: '#fff' }} />
-                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#d97706' : '#0f172a' }}>Pro Bisnis</span>
-                        </div>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#0f172a' }}>
-                          {registerBillingCycle === 'annual' ? 'Rp 1.290.000' : 'Rp 129.000'} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400 }}>{registerBillingCycle === 'annual' ? '/thn' : '/bln'}</small>
+                      <div style={{ position: 'absolute', top: '-9px', right: '12px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#d97706', color: '#ffffff', fontSize: '0.6rem', fontWeight: 800, padding: '0.12rem 0.5rem', borderRadius: '999px' }}>
+                          <Crown size={10} /> PRO BISNIS
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#475569', lineHeight: 1.4, paddingLeft: '1.4rem' }}>
-                        👑 <strong>Unlimited Produk</strong> • 10GB Storage • <strong>Custom Domain</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro_business' ? '5px solid #d97706' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#d97706' : '#0f172a' }}>Pro Bisnis</span>
+                        </div>
+                        <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
+                          {registerBillingCycle === 'annual' ? 'Rp 1.290.000' : 'Rp 129.000'} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>{registerBillingCycle === 'annual' ? '/thn' : '/bln'}</small>
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#d97706', flexShrink: 0 }} /> Unlimited Item
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#d97706', flexShrink: 0 }} /> 10 GB Storage
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#d97706', flexShrink: 0 }} /> Custom Domain
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Check size={13} style={{ color: '#d97706', flexShrink: 0 }} /> Prioritas VIP
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ margin: '0.35rem 0', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.74rem', color: '#475569', lineHeight: 1.4 }}>
+                  <div style={{ margin: '0.35rem 0', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.75rem', color: '#334155', lineHeight: 1.45, backgroundColor: agreeTermsError && !agreeTerms ? '#fef2f2' : '#f8fafc', padding: '0.65rem 0.75rem', borderRadius: '0.65rem', border: agreeTermsError && !agreeTerms ? '1.5px solid #dc2626' : '1px solid #e2e8f0' }}>
                     <input 
                       type="checkbox" 
                       id="mobile-register-agree" 
                       checked={agreeTerms} 
                       onChange={(e) => { setAgreeTerms(e.target.checked); if (e.target.checked) setAgreeTermsError(false); }} 
-                      style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer' }} 
+                      style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0 }} 
                       required 
                     />
                     <label htmlFor="mobile-register-agree" style={{ cursor: 'pointer' }}>
@@ -14496,11 +15078,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </label>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
+                  <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.35rem' }}>
                     <button 
                       type="button" 
-                      className="btn-portal-secondary" 
-                      style={{ padding: '0.65rem 0.85rem', fontSize: '0.78rem' }}
+                      style={{ 
+                        padding: '0.75rem 1rem', 
+                        fontSize: '0.8rem',
+                        backgroundColor: '#ffffff',
+                        border: '1.5px solid #cbd5e1',
+                        color: '#475569',
+                        fontWeight: 700,
+                        borderRadius: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        cursor: 'pointer'
+                      }}
                       onClick={() => smartBack(() => setRegisterStep(2))}
                     >
                       <ChevronLeft size={15} />
@@ -14508,17 +15101,21 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     </button>
                     <button 
                       type="submit" 
-                      className="btn-portal-primary" 
                       style={{ 
                         flex: 1, 
-                        padding: '0.65rem', 
+                        padding: '0.8rem', 
                         justifyContent: 'center', 
-                        fontSize: '0.82rem',
-                        background: registerPlan === 'free' 
-                          ? '#16a34a' 
-                          : (registerPlan === 'pro_business' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : '#0284c7'),
-                        color: registerPlan === 'pro_business' ? '#000000' : '#ffffff',
-                        fontWeight: 800
+                        fontSize: '0.84rem',
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        border: 'none',
+                        borderRadius: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: registerLoading ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                       }}
                       disabled={registerLoading}
                     >
@@ -14533,8 +15130,8 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </form>
               )}
 
-              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.76rem', color: '#64748b' }}>
-                Sudah punya akun? <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 700 }} onClick={() => setPortalTab('login')}>Masuk Admin</span>
+              <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.78rem', color: '#64748b' }}>
+                Sudah punya akun? <span style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 800 }} onClick={() => setPortalTab('login')}>Masuk Admin</span>
               </div>
             </div>
           </div>
@@ -19295,9 +19892,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       }
                       return { title: 'Notifikasi & Aktivitas', subtitle: unreadCount > 0 ? `${unreadCount} Pesan Belum Dibaca` : 'Semua Aktivitas Toko' };
                     case 'profile':
-                      return { title: 'Profil Akun Admin', subtitle: adminUser?.email || 'Akun Merchant' };
+                      if (profileSubTab === 'logs') {
+                        return { title: 'Riwayat Aktivitas & Log', subtitle: `${activityTotal} Rekaman Tercatat` };
+                      }
+                      return { title: 'Profil Akun Pengelola', subtitle: adminUser?.email || 'Akun Merchant' };
                     case 'audit_logs':
-                      return { title: 'Riwayat & Log Audit', subtitle: `${activityTotal} Catatan Aktivitas` };
+                      return { title: 'Riwayat Aktivitas & Log', subtitle: `${activityTotal} Rekaman Tercatat` };
                     case 'share':
                       return { title: 'Bagikan Katalog', subtitle: `catavor.com/${storeSlug || getStoreSlug()}` };
                     default:
@@ -20856,20 +21456,21 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 onClick={handleGoogleSSO}
                 style={{ 
                   width: '100%', 
-                  padding: '0.65rem', 
-                  borderRadius: '0.5rem', 
-                  backgroundColor: 'var(--btn-secondary-bg)', 
-                  border: '1px solid var(--btn-secondary-border)', 
-                  color: 'var(--btn-secondary-text)', 
-                  fontSize: '0.8rem', 
+                  padding: '0.75rem 1rem', 
+                  borderRadius: '0.75rem', 
+                  backgroundColor: '#ffffff', 
+                  border: '1.5px solid #cbd5e1', 
+                  color: '#1e293b', 
+                  fontSize: '0.84rem', 
                   fontWeight: 700, 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center', 
-                  gap: '0.5rem', 
-                  marginBottom: '1rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  gap: '0.65rem', 
+                  marginBottom: '1rem', 
+                  cursor: 'pointer', 
+                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)', 
+                  transition: 'all 0.15s ease' 
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -20882,9 +21483,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               </button>
 
               <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0', gap: '0.5rem' }}>
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>ATAU LOGIN MANUAL</span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 800, letterSpacing: '0.06em' }}>ATAU LOGIN MANUAL</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
               </div>
 
               <form onSubmit={handleLoginSubmit}>
@@ -20900,7 +21501,22 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   />
                 </div>
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Password *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700, margin: 0 }}>Password *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPasswordModal(true);
+                        setForgotPasswordStep(1);
+                        setForgotEmail(loginForm.email || '');
+                        setForgotError(null);
+                        setForgotSuccess(null);
+                      }}
+                      style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Lupa Kata Sandi?
+                    </button>
+                  </div>
                   <input 
                     type="password" 
                     className="form-input" 
@@ -21423,7 +22039,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </button>
                     </div>
 
-
                     {/* Quota & Storage Compact Row (Fixed -1 Bug) */}
                     <div style={{
                       display: 'flex',
@@ -21812,14 +22427,14 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </span>
                       </button>
 
-                      {/* 5. Riwayat */}
+                      {/* 5. Profil Akun */}
                       <button
                         type="button"
                         onClick={() => { 
-                          setAdminSubTab('audit_logs'); 
-                          fetchActivityLogs(1, false);
+                          setAdminSubTab('profile'); 
+                          setProfileSubTab('info');
                           const slug = getStoreSlug();
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/audit-logs`);
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/profile?sub=info`);
                         }}
                         style={{
                           display: 'flex',
@@ -21843,10 +22458,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           justifyContent: 'center',
                           color: 'var(--primary)'
                         }}>
-                          <History size={20} />
+                          <UserCheck size={20} />
                         </div>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
-                          Riwayat
+                          Profil Akun
                         </span>
                       </button>
 
@@ -21951,14 +22566,15 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </span>
                       </button>
 
-                      {/* 8. Tentang */}
+                      {/* 8. Riwayat Log */}
                       <button
                         type="button"
-                        onClick={() => {
-                          setAdminSubTab('settings');
-                          setMobileSettingsTab('about');
+                        onClick={() => { 
+                          setAdminSubTab('profile'); 
+                          setProfileSubTab('logs');
+                          fetchActivityLogs(1, false);
                           const slug = getStoreSlug();
-                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/about`);
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/profile?sub=logs`);
                         }}
                         style={{
                           display: 'flex',
@@ -21982,10 +22598,10 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           justifyContent: 'center',
                           color: 'var(--primary)'
                         }}>
-                          <BookOpen size={20} />
+                          <History size={20} />
                         </div>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
-                          Tentang
+                          Riwayat Log
                         </span>
                       </button>
 
@@ -22876,6 +23492,69 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               </div>
 
                               <div className="form-group">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                  <label className="form-label" style={{ margin: 0 }}>ID / Tautan Toko *</label>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}>
+                                    {slugCheckStatus === 'checking' && (
+                                      <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <Loader size={11} className="animate-spin" /> Cek...
+                                      </span>
+                                    )}
+                                    {slugCheckStatus === 'available' && (
+                                      <span style={{ color: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <Check size={12} /> {slugCheckMessage}
+                                      </span>
+                                    )}
+                                    {slugCheckStatus === 'current' && (
+                                      <span style={{ color: '#94a3b8', fontWeight: 600 }}>Tautan Saat Ini</span>
+                                    )}
+                                    {(slugCheckStatus === 'taken' || slugCheckStatus === 'invalid') && (
+                                      <span style={{ color: '#f87171', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <AlertTriangle size={12} /> {slugCheckMessage}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                                  <span style={{
+                                    padding: '0.5rem 0.65rem',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid var(--border-light)',
+                                    borderRight: 'none',
+                                    borderRadius: '0.5rem 0 0 0.5rem',
+                                    fontSize: '0.78rem',
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    userSelect: 'none',
+                                    fontFamily: 'monospace'
+                                  }}>
+                                    catavor.com/
+                                  </span>
+                                  <input 
+                                    type="text" 
+                                    className="form-input" 
+                                    placeholder="nama-toko-anda"
+                                    required
+                                    value={settingsSlug}
+                                    onChange={(e) => {
+                                      const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                                      setSettingsSlug(val);
+                                    }}
+                                    style={{
+                                      borderRadius: '0 0.5rem 0.5rem 0',
+                                      fontFamily: 'monospace',
+                                      fontSize: '0.82rem',
+                                      borderColor: slugCheckStatus === 'available' ? '#34d399' : (slugCheckStatus === 'taken' || slugCheckStatus === 'invalid') ? '#f87171' : undefined
+                                    }}
+                                  />
+                                </div>
+                                <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: '0.3rem 0 0 0', lineHeight: 1.35 }}>
+                                  Alamat link publik toko. Hanya huruf kecil, angka, dan strip (-).
+                                </p>
+                              </div>
+
+                              <div className="form-group">
                                 <label className="form-label">Logo Resmi Katalog</label>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                                   {settingsForm.store_logo_url && (
@@ -23344,6 +24023,114 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </form>
                       )}
 
+                      {/* Modal Konfirmasi Penggantian Tautan / Slug Toko di Mobile */}
+                      {showSlugConfirmModal && (
+                        <div style={{
+                          position: 'fixed',
+                          inset: 0,
+                          zIndex: 9999,
+                          backgroundColor: 'rgba(0, 0, 0, 0.82)',
+                          backdropFilter: 'blur(8px)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '1rem'
+                        }}>
+                          <div className="glass-panel animate-scale-up" style={{
+                            maxWidth: '420px',
+                            width: '100%',
+                            padding: '1.35rem',
+                            borderRadius: '1rem',
+                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                            background: 'linear-gradient(180deg, rgba(24, 24, 27, 0.98) 0%, rgba(9, 9, 11, 0.99) 100%)',
+                            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.85)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                              <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '9px',
+                                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ef4444',
+                                flexShrink: 0
+                              }}>
+                                <AlertTriangle size={20} />
+                              </div>
+                              <div>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>
+                                  Ubah Tautan Toko?
+                                </h3>
+                                <p style={{ margin: 0, fontSize: '0.72rem', color: '#94a3b8' }}>
+                                  Tautan lama akan langsung dinonaktifkan
+                                </p>
+                              </div>
+                            </div>
+
+                            <div style={{
+                              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              borderRadius: '0.65rem',
+                              padding: '0.85rem',
+                              marginBottom: '1rem',
+                              fontSize: '0.76rem',
+                              lineHeight: 1.5,
+                              color: '#fca5a5'
+                            }}>
+                              <p style={{ margin: '0 0 0.4rem 0', fontWeight: 700, color: '#f87171' }}>
+                                ⚠️ Dampak Pergantian Tautan:
+                              </p>
+                              <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                                <li>Tautan lama <strong>catavor.com/{storeSlug || 'toko-lama'}</strong> tidak bisa diakses lagi.</li>
+                                <li>Kode QR atau brosur cetak lama tidak akan berfungsi.</li>
+                                <li>Link di medsos atau chat pelanggan akan menjadi tidak aktif.</li>
+                              </ul>
+                            </div>
+
+                            <div style={{
+                              marginBottom: '1.25rem',
+                              padding: '0.75rem 0.85rem',
+                              background: 'rgba(255,255,255,0.03)',
+                              borderRadius: '0.55rem',
+                              border: '1px solid var(--border-light)'
+                            }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.25rem' }}>
+                                Tautan Baru Anda:
+                              </div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                https://catavor.com/{settingsSlug.trim().toLowerCase()}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowSlugConfirmModal(false);
+                                  handleSettingsSave(undefined, true);
+                                }}
+                                className="btn-danger btn-full"
+                                disabled={settingsLoading}
+                                style={{ padding: '0.65rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                {settingsLoading ? 'Memproses...' : 'Ya, Saya Paham & Ubah Tautan'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowSlugConfirmModal(false)}
+                                className="btn-secondary btn-full"
+                                style={{ padding: '0.6rem', fontSize: '0.8rem', cursor: 'pointer' }}
+                              >
+                                Batalkan
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Custom Domain Settings View on Mobile */}
                       {mobileSettingsTab === 'domain' && storeQuota?.plan?.has_custom_domain && (
                         <div className="glass-panel animate-fade-in" style={{ padding: '1.15rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -23704,61 +24491,481 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
               )}
 
-              {adminSubTab === 'profile' && (
-                /* TAB 3: ADMIN PROFILE FORM */
-                <div style={{ paddingTop: '0.25rem' }}>
-                  <form onSubmit={handleProfileUpdate} className="glass-panel" style={{ padding: '1.25rem' }}>
-                  {profileSuccess && (
-                    <div className="alert-box alert-success">
-                      {profileSuccess}
+              {(adminSubTab === 'profile' || adminSubTab === 'audit_logs') && (
+                /* TAB: ADMIN PROFILE & AUDIT LOGS (MOBILE) */
+                <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {/* Segmented SubTab Switcher */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '0.35rem',
+                    background: 'var(--bg-deep)',
+                    padding: '0.3rem',
+                    borderRadius: '0.65rem',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setProfileSubTab('info')}
+                      style={{
+                        flex: 1,
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
+                        backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
+                        color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
+                        boxShadow: profileSubTab === 'info' ? '0 2px 8px var(--primary-glow)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <UserCheck size={14} />
+                      <span>Profil Pengguna</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileSubTab('logs');
+                        fetchActivityLogs(1, false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        border: profileSubTab === 'logs' ? '1px solid var(--primary)' : '1px solid transparent',
+                        backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
+                        color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
+                        boxShadow: profileSubTab === 'logs' ? '0 2px 8px var(--primary-glow)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <History size={14} />
+                      <span>Riwayat &amp; Log</span>
+                    </button>
+                  </div>
+
+                  {/* SUBTAB 1: INFO PROFIL */}
+                  {profileSubTab === 'info' && (
+                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                      {profileSuccess && (
+                        <div className="alert-box alert-success" style={{ marginBottom: '1rem' }}>
+                          {profileSuccess}
+                        </div>
+                      )}
+                      {profileError && (
+                        <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', marginBottom: '1rem' }}>
+                          {profileError}
+                        </div>
+                      )}
+
+                      {/* Account Summary Mini Card */}
+                      <div style={{
+                        padding: '0.85rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        marginBottom: '1.15rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Role Akun</span>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Shield size={12} />
+                            {(adminUser as any)?.role === 'superadmin' || (adminUser as any)?.is_superadmin ? 'Superadmin' : 'Pengelola Katalog'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>ID Akun</span>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                            #{(adminUser as any)?.id || '-'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Status</span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Check size={12} /> Terverifikasi
+                          </span>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleProfileUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Nama Lengkap Pengelola *</label>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            required
+                            placeholder="Nama lengkap Anda..."
+                            value={profileForm.name}
+                            onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                          />
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0' }}>
+                            Nama ini digunakan sebagai identitas akun pengelola di seluruh sistem.
+                          </p>
+                        </div>
+
+                        <div className="form-group">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                            <label className="form-label" style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>Email Login Terdaftar</label>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                              <Lock size={10} /> Terkunci
+                            </span>
+                          </div>
+                          <div style={{ position: 'relative' }}>
+                            <input 
+                              type="email" 
+                              className="form-input" 
+                              disabled
+                              value={profileForm.email || adminUser?.email || ''}
+                              style={{
+                                opacity: 0.85,
+                                cursor: 'not-allowed',
+                                backgroundColor: 'var(--bg-deep)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-light)',
+                                paddingRight: '2rem',
+                                fontSize: '0.82rem'
+                              }}
+                            />
+                            <div style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+                              <Lock size={13} />
+                            </div>
+                          </div>
+                          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0', lineHeight: 1.35 }}>
+                            Email dikunci untuk keamanan otentikasi Single Sign-On (SSO).
+                          </p>
+                        </div>
+
+                        <button 
+                          type="submit" 
+                          className="btn-full btn-primary" 
+                          disabled={profileLoading}
+                          style={{ fontSize: '0.82rem', padding: '0.65rem', fontWeight: 800 }}
+                        >
+                          {profileLoading ? 'Memproses...' : 'Simpan Nama Profil'}
+                        </button>
+                      </form>
+
+                      {/* Mobile Backup Password Accordion */}
+                      <div style={{
+                        marginTop: '1.25rem',
+                        backgroundColor: 'var(--bg-deep)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.75rem',
+                        padding: '1rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                          <div>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <Key size={14} style={{ color: 'var(--primary)' }} />
+                              <span>Kata Sandi Cadangan</span>
+                            </div>
+                            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                              Untuk login darurat jika Google SSO bermasalah.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowBackupPasswordSection(!showBackupPasswordSection)}
+                            className="btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.7rem', borderRadius: '0.45rem', fontWeight: 700 }}
+                          >
+                            {showBackupPasswordSection ? 'Tutup' : 'Setel'}
+                          </button>
+                        </div>
+
+                        {showBackupPasswordSection && (
+                          <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)' }}>
+                            {backupPasswordSuccess && (
+                              <div className="alert-message alert-success" style={{ marginBottom: '0.65rem', fontSize: '0.72rem' }}>
+                                {backupPasswordSuccess}
+                              </div>
+                            )}
+                            {backupPasswordError && (
+                              <div className="alert-message alert-danger" style={{ marginBottom: '0.65rem', fontSize: '0.72rem' }}>
+                                {backupPasswordError}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                              <div>
+                                <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Kata Sandi Baru</label>
+                                <input
+                                  type="password"
+                                  className="form-input"
+                                  placeholder="Minimal 6 karakter"
+                                  value={backupPasswordForm.password}
+                                  onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
+                                  style={{ fontSize: '0.8rem' }}
+                                />
+                              </div>
+                              <div>
+                                <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Konfirmasi Kata Sandi Baru</label>
+                                <input
+                                  type="password"
+                                  className="form-input"
+                                  placeholder="Ulangi kata sandi baru"
+                                  value={backupPasswordForm.confirm_password}
+                                  onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
+                                  style={{ fontSize: '0.8rem' }}
+                                />
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleSaveBackupPassword}
+                              disabled={backupPasswordLoading}
+                              className="btn-full btn-primary"
+                              style={{ padding: '0.55rem', fontSize: '0.75rem', fontWeight: 800 }}
+                            >
+                              {backupPasswordLoading ? 'Menyimpan...' : 'Simpan Kata Sandi Cadangan'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  {profileError && (
-                    <div className="alert-box alert-success" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                      {profileError}
+
+                  {/* SUBTAB 2: RIWAYAT & LOG AUDIT */}
+                  {profileSubTab === 'logs' && (
+                    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      {/* Top Stats Banner */}
+                      <div className="glass-panel" style={{ padding: '0.95rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '0.55rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                            <History size={17} />
+                          </div>
+                          <div>
+                            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                              Riwayat Aktivitas &amp; Log
+                            </h3>
+                            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+                              {activityTotal} rekaman aksi operasional tercatat
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => fetchActivityLogs(1, false)}
+                          disabled={activityLoading}
+                          className="btn-secondary"
+                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.5rem' }}
+                        >
+                          <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
+                          <span>Segarkan</span>
+                        </button>
+                      </div>
+
+                      {/* Search Bar */}
+                      <div className="search-wrapper" style={{ position: 'relative', width: '100%' }}>
+                        <Search className="search-icon" size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input
+                          type="text"
+                          className="search-input"
+                          placeholder="Cari aksi, produk, atau IP..."
+                          value={activitySearch}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setActivitySearch(val);
+                            fetchActivityLogs(1, false, activityCategory, val);
+                          }}
+                          style={{ paddingLeft: '2.2rem', fontSize: '0.78rem' }}
+                        />
+                      </div>
+
+                      {/* Horizontal Scrollable Category Filter Chips */}
+                      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
+                        {[
+                          { key: 'all', label: 'Semua' },
+                          { key: 'security', label: 'Autentikasi' },
+                          { key: 'catalog', label: 'Produk' },
+                          { key: 'store', label: 'Katalog' },
+                          { key: 'billing', label: 'Paket' },
+                        ].map(cat => {
+                          const isActive = activityCategory === cat.key;
+                          return (
+                            <button
+                              key={cat.key}
+                              type="button"
+                              onClick={() => {
+                                setActivityCategory(cat.key);
+                                setActivityPage(1);
+                                fetchActivityLogs(1, false, cat.key, activitySearch);
+                              }}
+                              style={{
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.5rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                                cursor: 'pointer',
+                                border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                                backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
+                                color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                                boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              {cat.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Activity Logs Timeline Stream */}
+                      {activityLoading && activityLogs.length === 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.65rem', color: 'var(--text-secondary)' }}>
+                          <Loader size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Memuat riwayat log...</span>
+                        </div>
+                      ) : activityLogs.length === 0 ? (
+                        <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                          <History size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem', opacity: 0.6 }} />
+                          <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Log Aktivitas</h4>
+                          <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data &amp; login akan tercatat otomatis di sini.</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                          {activityLogs.map((logItem: any) => {
+                            const isSecurity = logItem.category === 'security';
+                            const isCatalog = logItem.category === 'catalog';
+                            const isStore = logItem.category === 'store';
+                            const isBilling = logItem.category === 'billing';
+
+                            let iconBg = 'rgba(59, 130, 246, 0.12)';
+                            let iconColor = '#60a5fa';
+                            let IconComp = FileText;
+
+                            if (isSecurity) {
+                              iconBg = 'rgba(16, 185, 129, 0.12)';
+                              iconColor = '#10b981';
+                              IconComp = ShieldCheck;
+                            } else if (isCatalog) {
+                              iconBg = 'rgba(59, 130, 246, 0.12)';
+                              iconColor = '#60a5fa';
+                              IconComp = Package;
+                            } else if (isStore) {
+                              iconBg = 'rgba(168, 85, 247, 0.12)';
+                              iconColor = '#c084fc';
+                              IconComp = Store;
+                            } else if (isBilling) {
+                              iconBg = 'rgba(245, 158, 11, 0.12)';
+                              iconColor = '#f59e0b';
+                              IconComp = CreditCard;
+                            }
+
+                            return (
+                              <div
+                                key={logItem.id}
+                                className="glass-panel"
+                                style={{
+                                  padding: '0.85rem 0.95rem',
+                                  borderRadius: '0.75rem',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'var(--card-bg-gradient)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.5rem'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      <IconComp size={14} />
+                                    </div>
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
+                                      {logItem.action}
+                                    </span>
+                                  </div>
+
+                                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                                    {new Date(logItem.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                                  </span>
+                                </div>
+
+                                <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
+                                  {logItem.description}
+                                </p>
+
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
+                                  <span>Oleh: <strong style={{ color: 'var(--text-primary)' }}>{logItem.actor_name}</strong></span>
+                                  {logItem.changes && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActivitySelectedLog(logItem)}
+                                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: 0 }}
+                                    >
+                                      <Eye size={12} />
+                                      <span>Detail Diff</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Load More Button for Mobile */}
+                          {activityHasMore && (
+                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch)}
+                                disabled={activityLoading}
+                                className="btn-secondary"
+                                style={{ padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
+                              >
+                                {activityLoading ? <Loader size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+                                <span>Muat Log Sebelumnya</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Mobile Diff Bottom Sheet / Modal */}
+                      {activitySelectedLog && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                          <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
+                            <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-deep)' }}>
+                              <div>
+                                <span style={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Snapshot Perubahan</span>
+                                <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.1rem 0 0 0' }}>{activitySelectedLog.action}</h4>
+                              </div>
+                              <button type="button" onClick={() => setActivitySelectedLog(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+                            </div>
+
+                            <div style={{ padding: '1rem 1.15rem', maxHeight: '320px', overflowY: 'auto' }}>
+                              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem' }}>{activitySelectedLog.description}</p>
+                              <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--primary)', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.4 }}>
+                                {JSON.stringify(activitySelectedLog.changes, null, 2)}
+                              </div>
+                            </div>
+
+                            <div style={{ padding: '0.75rem 1.15rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--bg-deep)' }}>
+                              <button type="button" className="btn-primary" onClick={() => setActivitySelectedLog(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }}>Tutup</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="form-group">
-                    <label className="form-label">Nama Lengkap Admin *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      required
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Login *</label>
-                    <input 
-                      type="email" 
-                      className="form-input" 
-                      required
-                      value={profileForm.email}
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Password Baru (Kosongkan jika tidak diubah)</label>
-                    <input 
-                      type="password" 
-                      className="form-input" 
-                      placeholder="Minimal 6 karakter..."
-                      value={profileForm.password}
-                      onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
-                    />
-                  </div>
-                  <button 
-                    type="submit" 
-                    className="btn-full btn-primary" 
-                    disabled={profileLoading}
-                    style={{ fontSize: '0.85rem' }}
-                  >
-                    {profileLoading ? 'Memproses...' : 'Perbarui Profil'}
-                  </button>
-                </form>
-              </div>
-            )}
+                </div>
+              )}
 
             {adminSubTab === 'policies' && (
                 <div style={{ paddingTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -25190,229 +26397,6 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                       )}
                     </>
-                  )}
-                </div>
-              )}
-
-              {adminSubTab === 'audit_logs' && (
-                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.25rem' }}>
-                  {/* Top Stats Banner */}
-                  <div className="glass-panel" style={{ padding: '1rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '0.55rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                        <History size={17} />
-                      </div>
-                      <div>
-                        <h3 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                          Riwayat Aktivitas &amp; Audit
-                        </h3>
-                        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
-                          {activityTotal} rekaman aksi operasional tercatat
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => fetchActivityLogs(1, false)}
-                      disabled={activityLoading}
-                      className="btn-secondary"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.5rem' }}
-                    >
-                      <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
-                      <span>Segarkan</span>
-                    </button>
-                  </div>
-
-                  {/* Search Bar */}
-                  <div className="search-wrapper" style={{ position: 'relative', width: '100%' }}>
-                    <Search className="search-icon" size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input
-                      type="text"
-                      className="search-input"
-                      placeholder="Cari aksi, produk, atau IP..."
-                      value={activitySearch}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setActivitySearch(val);
-                        fetchActivityLogs(1, false, activityCategory, val);
-                      }}
-                      style={{ paddingLeft: '2.2rem', fontSize: '0.78rem' }}
-                    />
-                  </div>
-
-                  {/* Horizontal Scrollable Category Filter Chips */}
-                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
-                    {[
-                      { key: 'all', label: 'Semua' },
-                      { key: 'security', label: 'Autentikasi' },
-                      { key: 'catalog', label: 'Produk' },
-                      { key: 'store', label: 'Katalog' },
-                      { key: 'billing', label: 'Paket' },
-                    ].map(cat => {
-                      const isActive = activityCategory === cat.key;
-                      return (
-                        <button
-                          key={cat.key}
-                          type="button"
-                          onClick={() => {
-                            setActivityCategory(cat.key);
-                            setActivityPage(1);
-                            fetchActivityLogs(1, false, cat.key, activitySearch);
-                          }}
-                          style={{
-                            padding: '0.35rem 0.75rem',
-                            borderRadius: '0.5rem',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            whiteSpace: 'nowrap',
-                            cursor: 'pointer',
-                            border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                            backgroundColor: isActive ? 'var(--primary-glow)' : 'rgba(255,255,255,0.03)',
-                            color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                            transition: 'all 0.2s ease'
-                          }}
-                        >
-                          {cat.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Activity Logs Timeline Stream */}
-                  {activityLoading && activityLogs.length === 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3.5rem 1.5rem', gap: '0.65rem', color: 'var(--text-secondary)' }}>
-                      <Loader size={24} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Memuat riwayat log...</span>
-                    </div>
-                  ) : activityLogs.length === 0 ? (
-                    <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
-                      <History size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem' }} />
-                      <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Log Aktivitas</h4>
-                      <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data &amp; login akan tercatat otomatis di sini.</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                      {activityLogs.map((logItem: any) => {
-                        const isSecurity = logItem.category === 'security';
-                        const isCatalog = logItem.category === 'catalog';
-                        const isStore = logItem.category === 'store';
-                        const isBilling = logItem.category === 'billing';
-
-                        let iconBg = 'rgba(59, 130, 246, 0.12)';
-                        let iconColor = '#60a5fa';
-                        let IconComp = FileText;
-
-                        if (isSecurity) {
-                          iconBg = 'rgba(16, 185, 129, 0.12)';
-                          iconColor = '#34d399';
-                          IconComp = ShieldCheck;
-                        } else if (isCatalog) {
-                          iconBg = 'rgba(59, 130, 246, 0.12)';
-                          iconColor = '#60a5fa';
-                          IconComp = Package;
-                        } else if (isStore) {
-                          iconBg = 'rgba(168, 85, 247, 0.12)';
-                          iconColor = '#c084fc';
-                          IconComp = Store;
-                        } else if (isBilling) {
-                          iconBg = 'rgba(245, 158, 11, 0.12)';
-                          iconColor = '#fbbf24';
-                          IconComp = CreditCard;
-                        }
-
-                        return (
-                          <div
-                            key={logItem.id}
-                            className="glass-panel"
-                            style={{
-                              padding: '0.85rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              border: '1px solid var(--border-light)',
-                              background: 'var(--card-bg-gradient)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.5rem'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <IconComp size={14} />
-                                </div>
-                                <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
-                                  {logItem.action}
-                                </span>
-                              </div>
-
-                              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                                {new Date(logItem.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
-                              </span>
-                            </div>
-
-                            <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.4, fontWeight: 500 }}>
-                              {logItem.description}
-                            </p>
-
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
-                              <span>Oleh: <strong style={{ color: '#ffffff' }}>{logItem.actor_name}</strong></span>
-                              {logItem.changes && (
-                                <button
-                                  type="button"
-                                  onClick={() => setActivitySelectedLog(logItem)}
-                                  style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: 0 }}
-                                >
-                                  <Eye size={12} />
-                                  <span>Detail Diff</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Load More Button for Mobile */}
-                      {activityHasMore && (
-                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch)}
-                            disabled={activityLoading}
-                            className="btn-secondary"
-                            style={{ padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
-                          >
-                            {activityLoading ? <Loader size={14} className="animate-spin" /> : <ChevronDown size={14} />}
-                            <span>Muat Log Sebelumnya</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Mobile Diff Bottom Sheet / Modal */}
-                  {activitySelectedLog && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                      <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
-                        <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div>
-                            <span style={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Snapshot Perubahan</span>
-                            <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff', margin: '0.1rem 0 0 0' }}>{activitySelectedLog.action}</h4>
-                          </div>
-                          <button type="button" onClick={() => setActivitySelectedLog(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
-                        </div>
-
-                        <div style={{ padding: '1rem 1.15rem', maxHeight: '320px', overflowY: 'auto' }}>
-                          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem' }}>{activitySelectedLog.description}</p>
-                          <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.72rem', color: '#34d399', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>
-                            {JSON.stringify(activitySelectedLog.changes, null, 2)}
-                          </div>
-                        </div>
-
-                        <div style={{ padding: '0.75rem 1.15rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', justifyContent: 'flex-end' }}>
-                          <button type="button" className="btn-primary" onClick={() => setActivitySelectedLog(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }}>Tutup</button>
-                        </div>
-                      </div>
-                    </div>
                   )}
                 </div>
               )}
@@ -30633,6 +31617,288 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   <span>Lanjut Mengedit</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MOBILE REGISTRATION OTP VERIFICATION MODAL */}
+      {showRegOTPModal && (
+        <div className="modal-backdrop-clean" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-card-clean" style={{ maxWidth: '400px', width: '100%', borderRadius: '1.25rem', padding: '1.5rem', background: '#ffffff', boxShadow: '0 20px 40px -15px rgba(0,0,0,0.2)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
+                <Mail size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+                Verifikasi Email Anda
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>
+                Kode OTP 6-digit telah dikirimkan ke <strong>{registerForm.email}</strong>. Masukkan kode untuk mengaktifkan akun.
+              </p>
+            </div>
+
+            {regOTPError && (
+              <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: '#fef2f2', color: '#dc2626', fontSize: '0.78rem', marginBottom: '1rem', border: '1px solid #fee2e2' }}>
+                {regOTPError}
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyRegistrationOTP}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <input
+                  type="text"
+                  maxLength={6}
+                  autoFocus
+                  placeholder="• • • • • •"
+                  value={regOTPCode}
+                  onChange={(e) => setRegOTPCode(e.target.value.replace(/\D/g, ''))}
+                  style={{
+                    width: '100%',
+                    textAlign: 'center',
+                    fontSize: '1.75rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.5rem',
+                    padding: '0.75rem',
+                    borderRadius: '0.85rem',
+                    border: '2px solid #e2e8f0',
+                    outline: 'none',
+                    color: '#0f172a',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={regOTPLoading || regOTPCode.trim().length !== 6}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  border: 'none',
+                  cursor: regOTPLoading ? 'not-allowed' : 'pointer',
+                  opacity: (regOTPLoading || regOTPCode.trim().length !== 6) ? 0.6 : 1,
+                  marginBottom: '0.75rem'
+                }}
+              >
+                {regOTPLoading ? 'Memverifikasi...' : 'Verifikasi & Selesaikan'}
+              </button>
+            </form>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={handleResendRegistrationOTP}
+                disabled={regOTPCooldown > 0 || regOTPLoading}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: regOTPCooldown > 0 ? '#94a3b8' : '#2563eb',
+                  fontWeight: 700,
+                  cursor: regOTPCooldown > 0 ? 'default' : 'pointer'
+                }}
+              >
+                {regOTPCooldown > 0 ? `Kirim ulang (${regOTPCooldown}d)` : 'Kirim Ulang Kode'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowRegOTPModal(false); setRegOTPError(null); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: '#64748b', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE FORGOT PASSWORD MODAL */}
+      {showForgotPasswordModal && (
+        <div className="modal-backdrop-clean" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-card-clean" style={{ maxWidth: '400px', width: '100%', borderRadius: '1.25rem', padding: '1.5rem', background: '#ffffff', boxShadow: '0 20px 40px -15px rgba(0,0,0,0.2)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
+                <Key size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+                {forgotPasswordStep === 1 ? 'Lupa Kata Sandi' : 'Atur Kata Sandi Baru'}
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>
+                {forgotPasswordStep === 1
+                  ? 'Masukkan email akun toko Anda untuk menerima kode OTP pemulihan kata sandi.'
+                  : `Kode pemulihan telah dikirim ke ${forgotEmail}. Masukkan kode dan sandi baru Anda.`}
+              </p>
+            </div>
+
+            {forgotError && (
+              <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: '#fef2f2', color: '#dc2626', fontSize: '0.78rem', marginBottom: '1rem', border: '1px solid #fee2e2' }}>
+                {forgotError}
+              </div>
+            )}
+            {forgotSuccess && (
+              <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: '#f0fdf4', color: '#16a34a', fontSize: '0.78rem', marginBottom: '1rem', border: '1px solid #dcfce7' }}>
+                {forgotSuccess}
+              </div>
+            )}
+
+            {forgotPasswordStep === 1 ? (
+              <form onSubmit={handleSendForgotPasswordOTP}>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.35rem' }}>Alamat Email</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="nama@email.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '0.75rem',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={forgotLoading || !forgotEmail.trim()}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    border: 'none',
+                    cursor: forgotLoading ? 'not-allowed' : 'pointer',
+                    opacity: (forgotLoading || !forgotEmail.trim()) ? 0.6 : 1,
+                    marginBottom: '0.75rem'
+                  }}
+                >
+                  {forgotLoading ? 'Mengirim Kode...' : 'Kirim Kode Pemulihan'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetForgotPassword}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.25rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.3rem' }}>Kode OTP (6 Digit)</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      placeholder="• • • • • •"
+                      value={forgotOTP}
+                      onChange={(e) => setForgotOTP(e.target.value.replace(/\D/g, ''))}
+                      style={{
+                        width: '100%',
+                        textAlign: 'center',
+                        fontSize: '1.4rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.4rem',
+                        padding: '0.65rem',
+                        borderRadius: '0.75rem',
+                        border: '1.5px solid #cbd5e1',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.3rem' }}>Kata Sandi Baru</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Minimal 6 karakter"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem',
+                        borderRadius: '0.75rem',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.3rem' }}>Konfirmasi Kata Sandi</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Ulangi kata sandi baru"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem',
+                        borderRadius: '0.75rem',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 6}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#16a34a',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    border: 'none',
+                    cursor: forgotLoading ? 'not-allowed' : 'pointer',
+                    opacity: (forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 6) ? 0.6 : 1,
+                    marginBottom: '0.75rem'
+                  }}
+                >
+                  {forgotLoading ? 'Menyimpan...' : 'Perbarui Kata Sandi & Masuk'}
+                </button>
+              </form>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+              {forgotPasswordStep === 2 && (
+                <button
+                  type="button"
+                  onClick={handleSendForgotPasswordOTP}
+                  disabled={forgotCooldown > 0 || forgotLoading}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: forgotCooldown > 0 ? '#94a3b8' : '#2563eb',
+                    fontWeight: 700,
+                    cursor: forgotCooldown > 0 ? 'default' : 'pointer'
+                  }}
+                >
+                  {forgotCooldown > 0 ? `Kirim ulang (${forgotCooldown}d)` : 'Kirim Ulang OTP'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setShowForgotPasswordModal(false); setForgotError(null); setForgotSuccess(null); }}
+                style={{ background: 'none', border: 'none', padding: 0, color: '#64748b', fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

@@ -49,6 +49,21 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
+	// Ensure critical security and verification tables exist idempotently
+	_ = db.Exec(`CREATE TABLE IF NOT EXISTS email_verification_otps (
+		id BIGSERIAL PRIMARY KEY,
+		email VARCHAR(255) NOT NULL,
+		otp_hash VARCHAR(255) NOT NULL,
+		purpose VARCHAR(50) NOT NULL,
+		token VARCHAR(255),
+		attempts INT DEFAULT 0,
+		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	);`).Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON email_verification_otps(email, purpose);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON email_verification_otps(expires_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_token ON email_verification_otps(token);").Error
+
 	if !cfg.DBAutoMigrate {
 		DB = db
 		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED)")
@@ -437,6 +452,12 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_status_retry ON email_jobs (status, next_retry_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_recipient ON email_jobs (recipient_email);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_reference ON email_jobs (reference_id);").Error
+
+	// 8.2 Auto-Migrate Email Verification OTP Table & Indexes
+	_ = db.AutoMigrate(&models.EmailVerificationOTP{})
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON email_verification_otps(email, purpose);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON email_verification_otps(expires_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_token ON email_verification_otps(token);").Error
 
 	// 9. Auto-populate categories from store master_classes if categories table is empty
 	ensureStoreCategoriesPopulated(db)

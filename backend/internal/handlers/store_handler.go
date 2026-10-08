@@ -937,6 +937,44 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		store.SocialLinks = datatypes.JSON([]byte(security.SanitizeSocialLinks(string(b))))
 	}
 
+	oldSlug := store.Slug
+	slugChanged := false
+	if rawSlug, ok := payload["slug"].(string); ok {
+		cleanNewSlug := cleanSlug(rawSlug)
+		if cleanNewSlug != "" && cleanNewSlug != oldSlug {
+			if len(cleanNewSlug) < 3 || len(cleanNewSlug) > 50 {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Link username toko harus memiliki panjang antara 3 hingga 50 karakter.",
+				})
+			}
+			if IsReservedSlug(cleanNewSlug) {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": fmt.Sprintf("Link username \"%s\" adalah kata cadangan sistem dan tidak dapat digunakan.", cleanNewSlug),
+				})
+			}
+			var blacklistedCount int64
+			database.DB.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", cleanNewSlug).Count(&blacklistedCount)
+			if blacklistedCount > 0 {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Link username toko ini masuk daftar hitam dan tidak dapat digunakan.",
+				})
+			}
+			var existingCount int64
+			database.DB.Model(&models.Store{}).Where("LOWER(slug) = ? AND id != ?", cleanNewSlug, store.ID).Count(&existingCount)
+			if existingCount > 0 {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": fmt.Sprintf("Link username toko \"%s\" sudah digunakan oleh toko lain. Silakan pilih username lain.", cleanNewSlug),
+				})
+			}
+			store.Slug = cleanNewSlug
+			slugChanged = true
+		}
+	}
+
 	if err := database.DB.Save(store).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -945,6 +983,9 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	}
 
 	InvalidateStoreProfileCache(store.Slug)
+	if slugChanged {
+		InvalidateStoreProfileCache(oldSlug)
+	}
 
 	// Refresh store activity timestamp for active stores
 	services.TouchStoreActivity(database.DB, store.ID)
@@ -965,6 +1006,13 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		}
 	}
 
+	action := "store.profile_update"
+	desc := fmt.Sprintf("Pengaturan profil katalog '%s' berhasil diperbarui.", store.StoreTitle)
+	if slugChanged {
+		action = "store.slug_changed"
+		desc = fmt.Sprintf("Pengaturan profil katalog '%s' diperbarui dan link username diubah dari '%s' menjadi '%s'.", store.StoreTitle, oldSlug, store.Slug)
+	}
+
 	services.RecordActivity(services.RecordActivityParams{
 		DB:          database.DB,
 		StoreID:     &store.ID,
@@ -972,20 +1020,23 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		ActorRole:   actorRole,
 		ActorName:   actorName,
 		ActorEmail:  actorEmail,
-		Action:      "store.profile_update",
+		Action:      action,
 		Category:    "store",
 		EntityType:  "store",
 		EntityID:    &store.ID,
 		EntityTitle: store.StoreTitle,
-		Description: fmt.Sprintf("Pengaturan profil katalog '%s' berhasil diperbarui.", store.StoreTitle),
+		Description: desc,
 		IPAddress:   c.IP(),
 		UserAgent:   c.Get("User-Agent"),
 	})
 
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Profil toko berhasil diperbarui.",
-		"data":    store,
+		"success":      true,
+		"message":      "Profil toko berhasil diperbarui.",
+		"data":         store,
+		"new_slug":     store.Slug,
+		"old_slug":     oldSlug,
+		"slug_changed": slugChanged,
 	})
 }
 

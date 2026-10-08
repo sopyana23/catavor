@@ -87,6 +87,9 @@ func main() {
 	// Start Background Transactional Email Queue Worker (Outbox Pattern with Exponential Retry)
 	services.InitEmailQueue(database.DB)
 
+	// Initialize OTP Service for Email Verification & Password Recovery
+	services.InitOTPService(database.DB)
+
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
 
@@ -229,6 +232,14 @@ func main() {
 	api.Post("/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/google", middleware.AuthRateLimiter(), authHandler.GoogleAuth)
+	api.Post("/auth/send-registration-otp", middleware.AuthRateLimiter(), authHandler.SendRegistrationOTP)
+	api.Post("/send-register-otp", middleware.AuthRateLimiter(), authHandler.SendRegistrationOTP)
+	api.Post("/auth/verify-registration-otp", middleware.AuthRateLimiter(), authHandler.VerifyRegistrationOTP)
+	api.Post("/verify-register-otp", middleware.AuthRateLimiter(), authHandler.VerifyRegistrationOTP)
+	api.Post("/auth/forgot-password-request", middleware.AuthRateLimiter(), authHandler.ForgotPasswordRequest)
+	api.Post("/forgot-password", middleware.AuthRateLimiter(), authHandler.ForgotPasswordRequest)
+	api.Post("/auth/forgot-password-reset", middleware.AuthRateLimiter(), authHandler.ForgotPasswordReset)
+	api.Post("/reset-password", middleware.AuthRateLimiter(), authHandler.ForgotPasswordReset)
 
 	// Public Slug Availability Checking
 	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
