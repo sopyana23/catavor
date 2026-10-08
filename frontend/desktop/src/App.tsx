@@ -23012,44 +23012,35 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             </div>
                           </div>
 
-                          {/* Desktop Case Sheet Container */}
-                          <div className="glass-panel" style={{
-                            padding: '2.25rem',
-                            borderRadius: '1.25rem',
-                            border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(244, 63, 94, 0.28)',
-                            background: modCase.isRestored 
-                              ? 'radial-gradient(ellipse at top left, rgba(16, 185, 129, 0.12) 0%, var(--card-bg-gradient) 70%)'
-                              : 'radial-gradient(ellipse at top left, rgba(244, 63, 94, 0.08) 0%, var(--card-bg-gradient) 70%)',
-                            boxShadow: modCase.isRestored 
-                              ? '0 12px 35px rgba(0, 0, 0, 0.35), 0 0 20px rgba(16, 185, 129, 0.12)'
-                              : '0 12px 35px rgba(0, 0, 0, 0.35)',
+                          {/* Desktop Case Sheet Container - Sleek Professional Document Layout */}
+                          <div style={{
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '1.75rem'
+                            gap: '1.25rem'
                           }}>
                             {/* Incident or Recovery Header Banner */}
                             <div style={{
-                              padding: '1.35rem 1.5rem',
-                              borderRadius: '0.9rem',
-                              background: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.1)',
-                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.28)' : '1px solid rgba(244, 63, 94, 0.25)',
+                              padding: '1.25rem 1.5rem',
+                              borderRadius: '0.85rem',
+                              background: modCase.isRestored ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(244, 63, 94, 0.22)',
                               display: 'flex',
                               alignItems: 'flex-start',
                               gap: '1.25rem'
                             }}>
                               <div style={{
-                                width: '48px',
-                                height: '48px',
-                                borderRadius: '0.8rem',
-                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
-                                border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(244, 63, 94, 0.35)',
+                                width: '46px',
+                                height: '46px',
+                                borderRadius: '0.75rem',
+                                backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                                border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(244, 63, 94, 0.3)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 flexShrink: 0,
                                 color: modCase.isRestored ? '#10b981' : '#f43f5e'
                               }}>
-                                {modCase.isRestored ? <CheckCircle2 size={26} style={{ strokeWidth: 2.3 }} /> : <ShieldAlert size={26} style={{ strokeWidth: 2.3 }} />}
+                                {modCase.isRestored ? <CheckCircle2 size={24} style={{ strokeWidth: 2.3 }} /> : <ShieldAlert size={24} style={{ strokeWidth: 2.3 }} />}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
@@ -23057,9 +23048,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     fontSize: '0.72rem',
                                     fontWeight: 800,
                                     textTransform: 'uppercase',
-                                    letterSpacing: '0.06em',
+                                    letterSpacing: '0.05em',
                                     color: modCase.isRestored ? '#10b981' : '#f43f5e',
-                                    backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.18)',
+                                    backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                                    border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(244, 63, 94, 0.25)',
                                     padding: '0.2rem 0.6rem',
                                     borderRadius: '0.35rem'
                                   }}>
@@ -23073,7 +23065,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     alignItems: 'center',
                                     gap: '0.35rem'
                                   }}>
-                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: modCase.statusColor, boxShadow: `0 0 8px ${modCase.statusColor}` }} />
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: modCase.statusColor, boxShadow: `0 0 6px ${modCase.statusColor}` }} />
                                     Status: {modCase.statusBadge}
                                   </span>
                                 </div>
@@ -23090,7 +23082,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   fontSize: '0.84rem',
                                   color: 'var(--text-secondary)',
                                   margin: 0,
-                                  lineHeight: 1.5
+                                  lineHeight: 1.55
                                 }}>
                                   {modCase.isRestored 
                                     ? 'Pemberitahuan resmi pencabutan sanksi penangguhan operasional. Seluruh layanan profil katalog dan etalase publik toko Anda telah aktif normal.'
@@ -23104,22 +23096,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              padding: '0.85rem 1.25rem',
+                              padding: '0.75rem 1.15rem',
                               borderRadius: '0.75rem',
-                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              backgroundColor: 'var(--bg-card-hover)',
                               border: '1px solid var(--border-light)',
                               flexWrap: 'wrap',
                               gap: '0.85rem'
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                <FileText size={16} color="var(--primary)" />
-                                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>ID Berkas Resmi:</span>
+                                <FileText size={15} color="var(--primary)" />
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>ID Berkas Resmi:</span>
                                 <span style={{
                                   fontFamily: 'monospace',
-                                  fontSize: '0.92rem',
+                                  fontSize: '0.86rem',
                                   fontWeight: 800,
                                   color: 'var(--text-primary)',
-                                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                                  backgroundColor: 'var(--bg-card)',
                                   padding: '0.15rem 0.55rem',
                                   borderRadius: '0.35rem',
                                   border: '1px solid var(--border-light)'
@@ -23137,11 +23129,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     style={{
                                       background: 'none',
                                       border: 'none',
-                                      color: 'var(--text-secondary)',
+                                      color: 'var(--text-muted)',
                                       cursor: 'pointer',
                                       padding: '0.2rem',
                                       display: 'flex',
-                                      alignItems: 'center'
+                                      alignItems: 'center',
+                                      transition: 'color 0.15s ease'
                                     }}
                                     title="Salin Nomor Berkas"
                                   >
@@ -23159,140 +23152,143 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             {/* 4-Column Structured Metric Cards */}
                             <div style={{
                               display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                              gap: '1rem'
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                              gap: '0.85rem'
                             }}>
                               {/* Card 1: Entitas */}
                               <div style={{
-                                padding: '1.1rem 1.25rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                padding: '1rem 1.15rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-card-hover)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.4rem'
+                                gap: '0.35rem'
                               }}>
-                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                   Entitas Terkait
                                 </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                  <Package size={17} color={modCase.isRestored ? '#10b981' : 'var(--primary)'} style={{ flexShrink: 0 }} />
-                                  <span style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <Package size={16} color={modCase.isRestored ? '#10b981' : 'var(--primary)'} style={{ flexShrink: 0 }} />
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-word' }}>
                                     {modCase.targetName || 'Profil Katalog Toko'}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                                   Tipe: {modCase.targetType === 'store' ? 'Profil Toko (Katalog Publik)' : 'Item Katalog'}
                                 </span>
                               </div>
 
                               {/* Card 2: Pelanggaran / Status Peninjauan */}
                               <div style={{
-                                padding: '1.1rem 1.25rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                padding: '1rem 1.15rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-card-hover)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.4rem'
+                                gap: '0.35rem'
                               }}>
-                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                   {modCase.isRestored ? 'Status Evaluasi' : 'Kategori Pelanggaran'}
                                 </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   {modCase.isRestored ? (
-                                    <CheckCircle size={17} color="#10b981" style={{ flexShrink: 0 }} />
+                                    <CheckCircle size={16} color="#10b981" style={{ flexShrink: 0 }} />
                                   ) : (
-                                    <AlertTriangle size={17} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                    <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
                                   )}
                                   <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : 'var(--text-primary)', wordBreak: 'break-word' }}>
                                     {modCase.isRestored ? 'Lulus Kepatuhan & Dipulihkan' : modCase.reason}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                                   {modCase.isRestored ? 'Verifikasi Berkas Selesai' : 'Kepatuhan Regulasi & Komunitas'}
                                 </span>
                               </div>
 
                               {/* Card 3: Status Visibilitas */}
                               <div style={{
-                                padding: '1.1rem 1.25rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                padding: '1rem 1.15rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-card-hover)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.4rem'
+                                gap: '0.35rem'
                               }}>
-                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                   Status Visibilitas
                                 </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   {modCase.isRestored ? (
-                                    <Eye size={17} color="#10b981" style={{ flexShrink: 0 }} />
+                                    <Eye size={16} color="#10b981" style={{ flexShrink: 0 }} />
                                   ) : (
-                                    <Lock size={17} color={modCase.statusColor} style={{ flexShrink: 0 }} />
+                                    <Lock size={16} color={modCase.statusColor} style={{ flexShrink: 0 }} />
                                   )}
                                   <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.statusColor }}>
                                     {modCase.isRestored ? 'Aktif & Terbuka Publik' : modCase.statusBadge}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                                   {modCase.isRestored ? 'Dapat Diakses Seluruh Pengunjung' : 'Disembunyikan dari Publik'}
                                 </span>
                               </div>
 
                               {/* Card 4: Hak Banding / Kanal Transaksi */}
                               <div style={{
-                                padding: '1.1rem 1.25rem',
-                                borderRadius: '0.85rem',
-                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                padding: '1rem 1.15rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-card-hover)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.4rem'
+                                gap: '0.35rem'
                               }}>
-                                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                   {modCase.isRestored ? 'Kanal Transaksi & Fitur' : 'Hak Banding Mitra'}
                                 </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   {modCase.isRestored ? (
-                                    <Sparkles size={17} color="#10b981" style={{ flexShrink: 0 }} />
+                                    <Sparkles size={16} color="#10b981" style={{ flexShrink: 0 }} />
                                   ) : (
-                                    <Scale size={17} color={modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+                                    <Scale size={16} color={modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
                                   )}
                                   <span style={{ fontSize: '0.92rem', fontWeight: 800, color: modCase.isRestored ? '#10b981' : (modCase.isAppealEligible ? '#10b981' : 'var(--text-muted)') }}>
                                     {modCase.isRestored ? 'Normal & Berfungsi Penuh' : (modCase.isAppealEligible ? 'Terbuka & Dijamin' : 'Telah Selesai')}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                                   {modCase.isRestored ? 'Checkout WhatsApp & Katalog Aktif' : 'Maksimal 14 hari kalender'}
                                 </span>
                               </div>
                             </div>
 
-                            {/* Verified Examiner Findings Callout Box */}
+                            {/* Verified Examiner Findings Callout Box - High Contrast & Crisp Hierarchy */}
                             <div style={{
-                              padding: '1.35rem 1.5rem',
-                              borderRadius: '0.9rem',
-                              backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                              border: '1px solid var(--border-light)',
+                              padding: '1.25rem 1.4rem',
+                              borderRadius: '0.85rem',
+                              backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.05)' : 'rgba(244, 63, 94, 0.05)',
+                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.22)' : '1px solid rgba(244, 63, 94, 0.22)',
                               display: 'flex',
                               flexDirection: 'column',
                               gap: '0.75rem'
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                                 <BadgeCheck size={18} color={modCase.isRestored ? '#10b981' : 'var(--primary)'} />
-                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                                   {modCase.isRestored ? 'Pernyataan Resmi Pemulihan & Catatan Kepatuhan' : 'Temuan Audit & Catatan Resmi Tim Trust & Safety'}
                                 </span>
                               </div>
 
                               <div style={{
-                                padding: '1rem 1.25rem',
+                                padding: '0.95rem 1.25rem',
                                 borderRadius: '0.65rem',
-                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                backgroundColor: 'var(--bg-card)',
                                 borderLeft: modCase.isRestored ? '3.5px solid #10b981' : '3.5px solid #f43f5e',
+                                borderTop: '1px solid var(--border-light)',
+                                borderRight: '1px solid var(--border-light)',
+                                borderBottom: '1px solid var(--border-light)',
                                 fontSize: '0.88rem',
                                 color: 'var(--text-primary)',
                                 lineHeight: 1.65,
@@ -23301,7 +23297,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 "{modCase.notes || (modCase.isRestored ? 'Penangguhan operasional resmi dicabut. Seluruh akses katalog dan manajemen toko Anda telah dipulihkan secara penuh.' : 'Penonaktifan sementara atas dasar kepatuhan kebijakan.')}"
                               </div>
 
-                              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
                                 {modCase.isRestored 
                                   ? 'Berdasarkan peninjauan komprehensif, profil toko dan katalog digital Anda telah dinyatakan selaras dengan Standar Komunitas Catavor dan diizinkan beroperasi secara normal.'
                                   : 'Sesuai Peraturan Perlindungan Ekosistem Pasar Satwa & Flora Catavor Pasal 4 (Standar Verifikasi & Izin Edar), tindakan penghentian tayang sementara diberlakukan guna melindungi pembeli dan reputasi seluruh mitra penjual.'}
@@ -23310,18 +23306,18 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                             {/* Advisory Guide Box */}
                             <div style={{
-                              padding: '1.1rem 1.35rem',
+                              padding: '1.05rem 1.25rem',
                               borderRadius: '0.85rem',
                               backgroundColor: modCase.isRestored ? 'rgba(16, 185, 129, 0.08)' : 'rgba(59, 130, 246, 0.08)',
-                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(59, 130, 246, 0.22)',
+                              border: modCase.isRestored ? '1px solid rgba(16, 185, 129, 0.22)' : '1px solid rgba(59, 130, 246, 0.22)',
                               display: 'flex',
                               alignItems: 'flex-start',
                               gap: '0.85rem'
                             }}>
                               {modCase.isRestored ? (
-                                <Sparkles size={20} color="#10b981" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                                <Sparkles size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
                               ) : (
-                                <LifeBuoy size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+                                <LifeBuoy size={18} color="#3b82f6" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
                               )}
                               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
                                 <strong style={{ color: modCase.isRestored ? '#10b981' : '#3b82f6', display: 'block', marginBottom: '0.2rem', fontSize: '0.84rem' }}>
@@ -23521,18 +23517,18 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
                         </div>
 
-                        {/* Detail Body Container */}
-                        <div className="glass-panel" style={{
-                          padding: '2rem',
-                          borderRadius: '1rem',
-                          border: '1px solid var(--border-light)',
-                          background: 'var(--card-bg-gradient)',
-                          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
+                        {/* Detail Body Container - Clean Document Flow */}
+                        <div style={{
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '1.5rem'
+                          gap: '1.25rem'
                         }}>
-                          <div>
+                          <div style={{
+                            padding: '1.5rem 1.75rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'var(--bg-card-hover)',
+                            border: '1px solid var(--border-light)'
+                          }}>
                             <h2 style={{
                               fontSize: '1.45rem',
                               fontWeight: 800,
@@ -23541,7 +23537,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               lineHeight: 1.35,
                               letterSpacing: '-0.01em',
                               borderBottom: '1px solid var(--border-light)',
-                              paddingBottom: '1rem'
+                              paddingBottom: '0.85rem'
                             }}>
                               {selectedNotificationDetail.title}
                             </h2>
