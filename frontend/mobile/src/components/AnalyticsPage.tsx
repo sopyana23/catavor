@@ -1780,11 +1780,21 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div
+            className="catavor-custom-scrollbar"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem',
+              maxHeight: '235px',
+              overflowY: 'auto',
+              paddingRight: '0.25rem'
+            }}
+          >
             {(analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0
               ? analyticsData.traffic_sources
               : [{ source: 'direct', name: 'Direct / Link Langsung', views: storeViews, total_actions: totalActions, percentage: 100, conversion_rate_percent: conversionRate }]
-            ).map(ts => {
+            ).slice().sort((a, b) => (b.views || 0) - (a.views || 0)).map(ts => {
               const getSourceColor = (s: string) => {
                 if (s === 'instagram') return '#e1306c';
                 if (s === 'tiktok') return '#06b6d4';
