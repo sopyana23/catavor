@@ -139,22 +139,17 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       ]
     },
     {
-      group: 'Performa & Aktivitas',
+      group: 'Performa & Bisnis',
       items: [
         {
           id: 'analytics',
           label: 'Statistik & Trafik',
           icon: <BarChart3 size={18} />
-        },
-        {
-          id: 'audit_logs',
-          label: 'Riwayat & Audit Log',
-          icon: <History size={18} />
         }
       ]
     },
     {
-      group: 'Pengaturan & Toko',
+      group: 'Pengaturan & Akun',
       items: [
         {
           id: 'settings',
@@ -171,7 +166,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
         },
         {
           id: 'profile',
-          label: 'Profil & Keamanan',
+          label: 'Profil & Log Akun',
           icon: <UserCheck size={18} />
         }
       ]
@@ -239,7 +234,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       case 'notifications': return 'Pusat Notifikasi Sistem';
       case 'audit_logs': return 'Riwayat Aktivitas & Audit Trail';
       case 'settings': return 'Pengaturan Profil & Tampilan Katalog';
-      case 'profile': return 'Profil Pengelola & Keamanan Akun';
+      case 'profile': return 'Profil Pengelola & Log Aktivitas Akun';
       case 'policies': return 'Legal, Ketentuan & Kebijakan Platform';
       case 'help': return 'Pusat Bantuan & Layanan Tiket';
       case 'rbac': return 'Manajemen Staf & Akses RBAC';

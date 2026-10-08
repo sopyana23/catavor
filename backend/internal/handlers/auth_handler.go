@@ -35,6 +35,7 @@ type RegisterRequest struct {
 	Name                 string  `json:"name"`
 	Email                string  `json:"email"`
 	Password             string  `json:"password"`
+	VerificationToken    string  `json:"verification_token"`
 	StoreSlug            string  `json:"store_slug"`
 	Slug                 string  `json:"slug"`
 	StoreName            string  `json:"store_name"`
@@ -51,6 +52,27 @@ type RegisterRequest struct {
 	WhatsappNumber       string  `json:"whatsapp_number"`
 	RegistrationTimezone string  `json:"registration_timezone"`
 	Timezone             string  `json:"timezone"`
+}
+
+type SendRegistrationOTPRequest struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type VerifyRegistrationOTPRequest struct {
+	Email string `json:"email"`
+	OTP   string `json:"otp"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type ForgotPasswordResetRequest struct {
+	Email           string `json:"email"`
+	OTP             string `json:"otp"`
+	NewPassword     string `json:"new_password"`
+	ConfirmPassword string `json:"confirm_password"`
 }
 
 type GoogleAuthRequest struct {
@@ -473,16 +495,20 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			})
 		}
 	} else {
+		now := time.Now()
+		if req.GoogleID == "" && req.VerificationToken != "" {
+			_ = services.GetOTPService().ValidateAndConsumeToken(req.Email, req.VerificationToken, "registration")
+		}
+
 		newUser := models.User{
 			Name:              req.Name,
 			Email:             req.Email,
+			EmailVerifiedAt:   &now,
 			IsPasswordChanged: true,
 		}
 		if req.GoogleID != "" {
 			googleID := req.GoogleID
 			newUser.GoogleID = &googleID
-			now := time.Now()
-			newUser.EmailVerifiedAt = &now
 			_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
 		} else {
 			if err := newUser.SetPassword(req.Password); err != nil {
@@ -1286,6 +1312,231 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			"email":               user.Email,
 			"is_password_changed": user.IsPasswordChanged,
 		},
+	})
+}
+
+// SendRegistrationOTP issues a 6-digit email OTP for manual registration.
+func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
+	var req SendRegistrationOTPRequest
+	if err := c.BodyParser(&req); err != nil {
+		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format data tidak valid: " + err.Error() + " (body: " + string(c.Body()) + ")",
+			})
+		}
+	}
+
+	reqEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	if reqEmail == "" || !security.ValidateEmail(reqEmail) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Format alamat email tidak valid.",
+		})
+	}
+
+	// Check if email is blacklisted
+	var blacklistedCount int64
+	database.DB.Model(&models.User{}).Where("LOWER(email) = ? AND is_blacklisted = true", reqEmail).Count(&blacklistedCount)
+	if blacklistedCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Alamat email ini telah ditangguhkan secara permanen oleh platform.",
+		})
+	}
+
+	// Check if email already registered
+	var existingCount int64
+	database.DB.Model(&models.User{}).Where("LOWER(email) = ?", reqEmail).Count(&existingCount)
+	if existingCount > 0 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Email sudah terdaftar. Silakan login atau gunakan email lain.",
+		})
+	}
+
+	_, err := services.GetOTPService().GenerateAndSendRegistrationOTP(reqEmail, req.Name)
+	if err != nil {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Kode OTP 6-digit telah dikirimkan ke kotak masuk email Anda.",
+	})
+}
+
+// VerifyRegistrationOTP checks the OTP and generates a temporary verification token.
+func (h *AuthHandler) VerifyRegistrationOTP(c *fiber.Ctx) error {
+	var req VerifyRegistrationOTPRequest
+	if err := c.BodyParser(&req); err != nil {
+		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format data tidak valid.",
+			})
+		}
+	}
+
+	reqEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	token, err := services.GetOTPService().VerifyOTP(reqEmail, req.OTP, "registration")
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":            true,
+		"message":            "Email berhasil diverifikasi!",
+		"verification_token": token,
+	})
+}
+
+// ForgotPasswordRequest sends a password recovery OTP to the user's email.
+func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
+	var req ForgotPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format data tidak valid.",
+			})
+		}
+	}
+
+	reqEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	if reqEmail == "" || !security.ValidateEmail(reqEmail) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Format alamat email tidak valid.",
+		})
+	}
+
+	var user models.User
+	if err := database.DB.Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
+		// Return success message even if not found to prevent user enumeration
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Jika email terdaftar, instruksi pemulihan telah dikirimkan ke kotak masuk Anda.",
+		})
+	}
+
+	if user.IsBlacklisted {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akun ini telah dinonaktifkan.",
+		})
+	}
+
+	_, err := services.GetOTPService().GenerateAndSendPasswordResetOTP(user.Email, user.Name)
+	if err != nil {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Kode OTP pemulihan kata sandi telah dikirimkan ke email Anda.",
+	})
+}
+
+// ForgotPasswordReset validates the recovery OTP and resets the user's password.
+func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
+	var req ForgotPasswordResetRequest
+	if err := c.BodyParser(&req); err != nil {
+		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format data tidak valid.",
+			})
+		}
+	}
+
+	reqEmail := strings.TrimSpace(strings.ToLower(req.Email))
+	if req.NewPassword == "" || req.ConfirmPassword == "" {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Kata sandi baru dan konfirmasi kata sandi wajib diisi.",
+		})
+	}
+
+	if req.NewPassword != req.ConfirmPassword {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Konfirmasi kata sandi tidak cocok.",
+		})
+	}
+
+	if err := security.ValidatePassword(req.NewPassword); err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	token, err := services.GetOTPService().VerifyOTP(reqEmail, req.OTP, "password_reset")
+	if err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	// Consume verification token
+	_ = services.GetOTPService().ValidateAndConsumeToken(reqEmail, token, "password_reset")
+
+	var user models.User
+	if err := database.DB.Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Pengguna tidak ditemukan.",
+		})
+	}
+
+	if err := user.SetPassword(req.NewPassword); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengenkripsi kata sandi.",
+		})
+	}
+
+	now := time.Now()
+	user.EmailVerifiedAt = &now
+	user.IsPasswordChanged = true
+
+	if err := database.DB.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui kata sandi.",
+		})
+	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          database.DB,
+		UserID:      &user.ID,
+		ActorRole:   "merchant",
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "auth.password_reset_via_otp",
+		Category:    "security",
+		EntityType:  "user",
+		EntityID:    &user.ID,
+		EntityTitle: user.Email,
+		Description: fmt.Sprintf("Kata sandi akun %s berhasil diatur ulang melalui verifikasi OTP email.", user.Email),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Kata sandi Anda berhasil diperbarui. Silakan login dengan kata sandi baru Anda.",
 	})
 }
 
