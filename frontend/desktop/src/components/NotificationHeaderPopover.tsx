@@ -92,7 +92,7 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
     return list;
   }, [notifications, filter]);
 
-  // Industry Best Practice: Dropdown popover displays the top 5 most recent notifications
+  // Industry Best Practice: Dropdown popover displays top 5 most recent notifications
   const displayedList = useMemo(() => {
     return normalizedList.slice(0, 5);
   }, [normalizedList]);
@@ -101,21 +101,21 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
 
   const renderIcon = (norm: NormalizedNotification) => {
     if (norm.modCase.isRestored) {
-      return <CheckCircle2 size={14} color="#10b981" />;
+      return <CheckCircle2 size={15} color="#059669" />;
     }
     if (norm.isModerationNotif) {
-      return <ShieldAlert size={14} color="#f43f5e" />;
+      return <ShieldAlert size={15} color="#dc2626" />;
     }
     if (norm.isTicketNotif) {
-      return <LifeBuoy size={14} color="#38bdf8" />;
+      return <LifeBuoy size={15} color="#0284c7" />;
     }
     if (norm.category === 'FITUR & PROMO' || norm.type === 'success') {
-      return <Sparkles size={14} color="#a855f7" />;
+      return <Sparkles size={15} color="#7c3aed" />;
     }
     if (norm.category === 'INVENTARIS' || norm.type === 'order') {
-      return <Package size={14} color="#10b981" />;
+      return <Package size={15} color="#059669" />;
     }
-    return <Bell size={14} color={norm.read ? 'var(--text-muted)' : 'var(--primary)'} />;
+    return <Bell size={15} color={norm.read ? 'var(--text-muted)' : 'var(--primary)'} />;
   };
 
   return (
@@ -126,15 +126,12 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
         position: 'absolute',
         top: 'calc(100% + 10px)',
         right: 0,
-        width: '400px',
+        width: '415px',
         maxWidth: 'calc(100vw - 24px)',
         borderRadius: '1rem',
         backgroundColor: 'var(--bg-card)',
-        backgroundImage: 'var(--card-bg-gradient, none)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid var(--border-light)',
-        boxShadow: 'var(--shadow-premium, 0 20px 45px rgba(0, 0, 0, 0.5)), 0 0 1px 1px var(--border-light)',
+        border: '1px solid var(--border-hover, var(--border-light))',
+        boxShadow: '0 24px 50px -10px rgba(0, 0, 0, 0.24), 0 10px 20px -5px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-hover, rgba(0, 0, 0, 0.12))',
         color: 'var(--text-primary)',
         zIndex: 1200,
         overflow: 'hidden',
@@ -142,34 +139,34 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
         flexDirection: 'column'
       }}
     >
-      {/* 1. Header Bar - Dynamic Theme Styling */}
+      {/* 1. Header Bar - High-Contrast Header */}
       <div
         style={{
           padding: '0.85rem 1.15rem',
-          borderBottom: '1px solid var(--border-light)',
+          borderBottom: '1px solid var(--border-hover, var(--border-light))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: 'var(--bg-card-hover)'
+          backgroundColor: 'var(--bg-card)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <div
             style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '0.5rem',
+              width: '30px',
+              height: '30px',
+              borderRadius: '0.55rem',
               backgroundColor: 'var(--primary-glow)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--primary)',
-              border: '1px solid var(--primary-glow)'
+              border: '1px solid var(--border-hover, var(--border-light))'
             }}
           >
-            <Bell size={14} />
+            <Bell size={15} />
           </div>
-          <span style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
             Notifikasi
           </span>
           {unreadCount > 0 ? (
@@ -177,10 +174,10 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
               style={{
                 fontSize: '0.66rem',
                 fontWeight: 800,
-                padding: '0.12rem 0.5rem',
+                padding: '0.15rem 0.55rem',
                 borderRadius: '999px',
-                backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                color: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                color: '#dc2626',
                 border: '1px solid rgba(239, 68, 68, 0.3)'
               }}
             >
@@ -190,12 +187,12 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
             <span
               style={{
                 fontSize: '0.66rem',
-                fontWeight: 700,
-                padding: '0.12rem 0.5rem',
+                fontWeight: 800,
+                padding: '0.15rem 0.55rem',
                 borderRadius: '999px',
-                backgroundColor: 'var(--primary-glow)',
-                color: 'var(--primary)',
-                border: '1px solid var(--primary-glow)'
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                color: '#059669',
+                border: '1px solid rgba(16, 185, 129, 0.3)'
               }}
             >
               Semua Dibaca
@@ -213,7 +210,7 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
                 background: 'transparent',
                 border: 'none',
                 color: 'var(--text-secondary)',
-                fontSize: '0.72rem',
+                fontSize: '0.74rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'inline-flex',
@@ -246,7 +243,7 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
               border: 'none',
               color: 'var(--text-muted)',
               cursor: 'pointer',
-              padding: '0.3rem',
+              padding: '0.35rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -261,91 +258,92 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
         </div>
       </div>
 
-      {/* 2. Filter Pills Toolbar - Best Practice Quick Switcher */}
+      {/* 2. Filter Segmented Switcher - Distinct Tactical Depth */}
       <div
         style={{
-          padding: '0.45rem 1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.4rem',
-          borderBottom: '1px solid var(--border-light)',
-          backgroundColor: 'rgba(0, 0, 0, 0.04)'
+          padding: '0.55rem 0.85rem',
+          borderBottom: '1px solid var(--border-hover, var(--border-light))',
+          backgroundColor: 'var(--bg-card)'
         }}
       >
-        <button
-          type="button"
-          onClick={() => setFilter('all')}
+        <div
           style={{
-            padding: '0.25rem 0.65rem',
-            borderRadius: '999px',
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            border: filter === 'all' ? '1px solid var(--primary)' : '1px solid transparent',
-            backgroundColor: filter === 'all' ? 'var(--primary-glow)' : 'transparent',
-            color: filter === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
-          }}
-          onMouseEnter={(e) => {
-            if (filter !== 'all') e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-          }}
-          onMouseLeave={(e) => {
-            if (filter !== 'all') e.currentTarget.style.backgroundColor = 'transparent';
+            display: 'flex',
+            backgroundColor: 'var(--bg-card-hover)',
+            padding: '3px',
+            borderRadius: '0.6rem',
+            border: '1px solid var(--border-light)',
+            gap: '3px'
           }}
         >
-          Terbaru
-        </button>
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            style={{
+              flex: 1,
+              padding: '0.35rem 0.75rem',
+              borderRadius: '0.45rem',
+              fontSize: '0.74rem',
+              fontWeight: filter === 'all' ? 800 : 600,
+              border: filter === 'all' ? '1px solid var(--border-hover, var(--border-light))' : '1px solid transparent',
+              backgroundColor: filter === 'all' ? 'var(--bg-card)' : 'transparent',
+              color: filter === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              boxShadow: filter === 'all' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Terbaru
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setFilter('unread')}
-          style={{
-            padding: '0.25rem 0.65rem',
-            borderRadius: '999px',
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            border: filter === 'unread' ? '1px solid var(--primary)' : '1px solid transparent',
-            backgroundColor: filter === 'unread' ? 'var(--primary-glow)' : 'transparent',
-            color: filter === 'unread' ? 'var(--primary)' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.35rem'
-          }}
-          onMouseEnter={(e) => {
-            if (filter !== 'unread') e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-          }}
-          onMouseLeave={(e) => {
-            if (filter !== 'unread') e.currentTarget.style.backgroundColor = 'transparent';
-          }}
-        >
-          <span>Belum Dibaca</span>
-          {unreadCount > 0 && (
-            <span
-              style={{
-                fontSize: '0.62rem',
-                padding: '0.05rem 0.35rem',
-                borderRadius: '999px',
-                backgroundColor: filter === 'unread' ? 'var(--primary)' : 'rgba(239, 68, 68, 0.15)',
-                color: filter === 'unread' ? '#ffffff' : '#ef4444',
-                fontWeight: 800
-              }}
-            >
-              {unreadCount}
-            </span>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={() => setFilter('unread')}
+            style={{
+              flex: 1,
+              padding: '0.35rem 0.75rem',
+              borderRadius: '0.45rem',
+              fontSize: '0.74rem',
+              fontWeight: filter === 'unread' ? 800 : 600,
+              border: filter === 'unread' ? '1px solid var(--border-hover, var(--border-light))' : '1px solid transparent',
+              backgroundColor: filter === 'unread' ? 'var(--bg-card)' : 'transparent',
+              color: filter === 'unread' ? 'var(--primary)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              boxShadow: filter === 'unread' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>Belum Dibaca</span>
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  padding: '0.05rem 0.35rem',
+                  borderRadius: '999px',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: 800
+                }}
+              >
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* 3. Notification Feed - Minimalist, Scannable & Actionable */}
+      {/* 3. Notification Feed - Elevated Distinct Cards */}
       <div
         style={{
           maxHeight: '340px',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          padding: '0.35rem 0.5rem'
+          padding: '0.45rem 0.65rem'
         }}
       >
         {displayedList.length === 0 ? (
@@ -362,11 +360,11 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
           >
             <div
               style={{
-                width: '40px',
-                height: '40px',
+                width: '42px',
+                height: '42px',
                 borderRadius: '50%',
                 backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
+                border: '1px solid var(--border-hover, var(--border-light))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -374,12 +372,12 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
                 color: filter === 'unread' ? 'var(--primary)' : 'var(--text-muted)'
               }}
             >
-              {filter === 'unread' ? <CheckCircle2 size={20} /> : <Inbox size={20} />}
+              {filter === 'unread' ? <CheckCircle2 size={22} /> : <Inbox size={22} />}
             </div>
-            <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+            <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
               {filter === 'unread' ? 'Semua sudah dibaca' : 'Belum ada notifikasi'}
             </strong>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '240px', lineHeight: 1.4 }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '240px', lineHeight: 1.4 }}>
               {filter === 'unread'
                 ? 'Tidak ada pemberitahuan baru yang belum dibaca.'
                 : 'Pemberitahuan aktivitas dan sistem toko akan muncul di sini.'}
@@ -395,30 +393,39 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
                 onSelectNotification(norm.item);
               }}
               style={{
-                padding: '0.65rem 0.75rem',
+                padding: '0.75rem 0.85rem',
                 borderRadius: '0.65rem',
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '0.75rem',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                backgroundColor: !norm.read ? 'var(--primary-glow)' : 'transparent',
-                borderLeft: !norm.read ? '3px solid var(--primary)' : '3px solid transparent',
-                marginBottom: '0.2rem'
+                backgroundColor: !norm.read ? 'var(--primary-glow)' : 'var(--bg-card)',
+                border: !norm.read
+                  ? '1px solid var(--primary)'
+                  : '1px solid var(--border-hover, var(--border-light))',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                marginBottom: '0.45rem'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                e.currentTarget.style.borderColor = 'var(--primary)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.08)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = !norm.read ? 'var(--primary-glow)' : 'transparent';
+                e.currentTarget.style.backgroundColor = !norm.read ? 'var(--primary-glow)' : 'var(--bg-card)';
+                e.currentTarget.style.borderColor = !norm.read ? 'var(--primary)' : 'var(--border-hover, var(--border-light))';
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
               }}
             >
               {/* Category Icon Badge */}
               <div
                 style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '0.5rem',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '0.55rem',
                   backgroundColor: norm.categoryBg,
                   border: `1px solid ${norm.categoryBorder}`,
                   display: 'flex',
@@ -431,32 +438,36 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
                 {renderIcon(norm)}
               </div>
 
-              {/* Text Body - Scannable & Clean */}
+              {/* Text Body - Crisp Typography & Separation */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', marginBottom: '0.15rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', marginBottom: '0.2rem' }}>
                   <span
                     style={{
-                      fontSize: '0.62rem',
+                      fontSize: '0.63rem',
                       fontWeight: 800,
                       textTransform: 'uppercase',
-                      letterSpacing: '0.03em',
-                      color: norm.categoryColor
+                      letterSpacing: '0.04em',
+                      padding: '0.12rem 0.45rem',
+                      borderRadius: '0.35rem',
+                      backgroundColor: norm.categoryBg,
+                      color: norm.categoryColor,
+                      border: `1px solid ${norm.categoryBorder}`
                     }}
                   >
                     {norm.category}
                   </span>
-                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {formatRelativeTime(norm.item.created_at || norm.item.timestamp || norm.time)}
                   </span>
                 </div>
 
                 <div
                   style={{
-                    fontSize: '0.82rem',
-                    fontWeight: !norm.read ? 750 : 600,
-                    color: !norm.read ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontSize: '0.84rem',
+                    fontWeight: !norm.read ? 800 : 700,
+                    color: 'var(--text-primary)',
                     marginBottom: '0.15rem',
-                    lineHeight: 1.3,
+                    lineHeight: 1.35,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
@@ -467,36 +478,35 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
 
                 <p
                   style={{
-                    fontSize: '0.72rem',
+                    fontSize: '0.73rem',
                     color: 'var(--text-secondary)',
                     margin: 0,
-                    lineHeight: 1.35,
+                    lineHeight: 1.4,
                     display: '-webkit-box',
-                    WebkitLineClamp: 1,
+                    WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    opacity: 0.85
+                    overflow: 'hidden'
                   }}
                 >
                   {norm.message}
                 </p>
               </div>
 
-              {/* Trailing Unread Dot / Action Indicator */}
-              <div style={{ flexShrink: 0, paddingTop: '0.4rem' }}>
+              {/* Trailing Unread Indicator */}
+              <div style={{ flexShrink: 0, paddingTop: '0.35rem' }}>
                 {!norm.read ? (
                   <span
                     style={{
-                      width: '7px',
-                      height: '7px',
+                      width: '8px',
+                      height: '8px',
                       borderRadius: '50%',
                       backgroundColor: 'var(--primary)',
                       display: 'block',
-                      boxShadow: '0 0 6px var(--primary)'
+                      boxShadow: '0 0 8px var(--primary)'
                     }}
                   />
                 ) : (
-                  <ChevronRight size={13} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+                  <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
                 )}
               </div>
             </div>
@@ -508,23 +518,25 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
       {normalizedList.length > 5 && (
         <div
           style={{
-            fontSize: '0.68rem',
+            fontSize: '0.7rem',
+            fontWeight: 600,
             color: 'var(--text-muted)',
             textAlign: 'center',
-            padding: '0.2rem 0',
-            backgroundColor: 'rgba(0, 0, 0, 0.02)'
+            padding: '0.35rem 0',
+            borderTop: '1px solid var(--border-hover, var(--border-light))',
+            backgroundColor: 'var(--bg-card-hover)'
           }}
         >
           Menampilkan 5 notifikasi terbaru
         </div>
       )}
 
-      {/* 4. Footer Bar - Primary Theme CTA */}
+      {/* 4. Footer Bar - High-Contrast Primary Button */}
       <div
         style={{
-          padding: '0.65rem 1rem',
-          borderTop: '1px solid var(--border-light)',
-          backgroundColor: 'var(--bg-card-hover)',
+          padding: '0.75rem 1rem',
+          borderTop: '1px solid var(--border-hover, var(--border-light))',
+          backgroundColor: 'var(--bg-card)',
           display: 'flex',
           alignItems: 'center'
         }}
@@ -537,23 +549,23 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
           }}
           style={{
             width: '100%',
-            padding: '0.55rem 1rem',
-            borderRadius: '0.6rem',
+            padding: '0.65rem 1rem',
+            borderRadius: '0.65rem',
             backgroundColor: 'var(--primary)',
-            border: 'none',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
             color: '#ffffff',
-            fontSize: '0.8rem',
+            fontSize: '0.82rem',
             fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.45rem',
-            boxShadow: '0 2px 10px var(--primary-glow)',
+            boxShadow: '0 4px 14px var(--primary-glow, rgba(0, 0, 0, 0.15))',
             transition: 'all 0.15s ease'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.filter = 'brightness(1.1)';
+            e.currentTarget.style.filter = 'brightness(1.08)';
             e.currentTarget.style.transform = 'translateY(-1px)';
           }}
           onMouseLeave={(e) => {
@@ -562,7 +574,7 @@ export const NotificationHeaderPopover: React.FC<NotificationHeaderPopoverProps>
           }}
         >
           <span>Buka Pusat Notifikasi Lengkap</span>
-          <ArrowRight size={13} />
+          <ArrowRight size={14} />
         </button>
       </div>
     </div>
