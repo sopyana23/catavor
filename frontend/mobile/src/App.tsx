@@ -5101,12 +5101,29 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const [notifInitialLoading, setNotifInitialLoading] = useState<boolean>(false);
   const [notifTotal, setNotifTotal] = useState<number>(0);
   const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
+  const [notifSecurityCountState, setNotifSecurityCountState] = useState<number>(0);
+  const [notifSystemCountState, setNotifSystemCountState] = useState<number>(0);
   const [notifSearchQuery, setNotifSearchQuery] = useState<string>('');
+  const [notifDebouncedSearch, setNotifDebouncedSearch] = useState<string>('');
   const [notifCategoryFilter, setNotifCategoryFilter] = useState<'all' | 'unread' | 'security' | 'system'>('all');
   const notifSentinelRef = useRef<HTMLDivElement | null>(null);
+  const notifSearchInitialMount = useRef<boolean>(true);
+
+  // Debounce search query (300ms) for server-side search (Mobile)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNotifDebouncedSearch(notifSearchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [notifSearchQuery]);
 
   // Realtime Notifications Synchronizer & API Handlers (Mobile)
-  const fetchNotificationsFromBackend = useCallback(async (pageToFetch: number = 1, append: boolean = false) => {
+  const fetchNotificationsFromBackend = useCallback(async (
+    pageToFetch: number = 1,
+    append: boolean = false,
+    categoryToUse: 'all' | 'unread' | 'security' | 'system' = notifCategoryFilter,
+    searchToUse: string = notifDebouncedSearch
+  ) => {
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       if (!token) {
@@ -5120,8 +5137,11 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         setNotifLoadingMore(true);
       }
       const slug = storeSlug || getStoreSlug() || '';
-      // Always fetch complete master dataset with filter=all&limit=150 so categories and badges remain 100% consistent
-      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=150&filter=all${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
+      const filterParam = categoryToUse === 'unread' ? 'unread' : 'all';
+      const categoryParam = categoryToUse;
+      const searchParam = encodeURIComponent(searchToUse.trim());
+
+      const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=15&filter=${filterParam}&category=${categoryParam}${searchParam ? `&q=${searchParam}` : ''}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -5145,6 +5165,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
         if (typeof json.unread_count === 'number') {
           setNotifUnreadCount(json.unread_count);
         }
+        if (typeof json.security_count === 'number') {
+          setNotifSecurityCountState(json.security_count);
+        }
+        if (typeof json.system_count === 'number') {
+          setNotifSystemCountState(json.system_count);
+        }
         if (typeof json.total_all === 'number') {
           setNotifTotal(json.total_all);
         } else if (typeof json.total === 'number') {
@@ -5161,12 +5187,12 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       setNotifInitialLoading(false);
       setNotifLoadingMore(false);
     }
-  }, [storeSlug]);
+  }, [storeSlug, notifCategoryFilter, notifDebouncedSearch]);
 
   const loadMoreNotifications = useCallback(() => {
     if (notifLoadingMore || notifInitialLoading || !notifHasMore) return;
-    fetchNotificationsFromBackend(notifPage + 1, true);
-  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, fetchNotificationsFromBackend]);
+    fetchNotificationsFromBackend(notifPage + 1, true, notifCategoryFilter, notifDebouncedSearch);
+  }, [notifLoadingMore, notifInitialLoading, notifHasMore, notifPage, notifCategoryFilter, notifDebouncedSearch, fetchNotificationsFromBackend]);
 
   const handleNotifFilterChange = useCallback((newFilter: 'all' | 'unread' | 'security' | 'system') => {
     if (newFilter === 'all' || newFilter === 'unread') {
@@ -5177,7 +5203,18 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       setNotifCategoryFilter(newFilter);
     }
     setNotifPage(1);
-  }, []);
+    fetchNotificationsFromBackend(1, false, newFilter, notifDebouncedSearch);
+  }, [fetchNotificationsFromBackend, notifDebouncedSearch]);
+
+  // Sync debounced search to backend (Mobile)
+  useEffect(() => {
+    if (notifSearchInitialMount.current) {
+      notifSearchInitialMount.current = false;
+      return;
+    }
+    setNotifPage(1);
+    fetchNotificationsFromBackend(1, false, notifCategoryFilter, notifDebouncedSearch);
+  }, [notifDebouncedSearch]);
 
   const handleMarkAsRead = useCallback(async (notifId: string | number) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
@@ -6331,18 +6368,17 @@ Terima kasih.`;
     return () => window.removeEventListener('popstate', handlePopState);
   }, [notifications]);
 
-  // Smart default tab: Saat membuka notifikasi, prioritaskan 'unread' jika ada yang belum dibaca saat tab pertama kali dibuka
+  // When navigating to notifications center, ensure view starts with clean 'all' tab consistently (Mobile)
   const prevAdminSubTabForNotifRef = useRef<string>(adminSubTab);
   useEffect(() => {
     if (adminSubTab === 'notifications' && prevAdminSubTabForNotifRef.current !== 'notifications') {
-      if (notifUnreadCount > 0) {
-        setNotifFilter('unread');
-      } else {
-        setNotifFilter('all');
-      }
+      setNotifFilter('all');
+      setNotifCategoryFilter('all');
+      setNotifPage(1);
+      fetchNotificationsFromBackend(1, false, 'all', notifDebouncedSearch);
     }
     prevAdminSubTabForNotifRef.current = adminSubTab;
-  }, [adminSubTab, notifUnreadCount]);
+  }, [adminSubTab, fetchNotificationsFromBackend, notifDebouncedSearch]);
   const [mobilePolicyTab, setMobilePolicyTab] = useState<'terms' | 'privacy' | 'acceptable_use'>('terms')
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false)
   const [agreeCheckoutTerms, setAgreeCheckoutTerms] = useState<boolean>(false)
@@ -6501,12 +6537,14 @@ Terima kasih.`;
   }, []);
 
   const notifSecurityCount = useMemo(() => {
-    return suspendedFilteredList.filter(n => isSecurityNotificationItem(n)).length;
-  }, [suspendedFilteredList, isSecurityNotificationItem]);
+    if (isStoreSuspended) return suspendedFilteredList.filter(n => isSecurityNotificationItem(n)).length;
+    return notifSecurityCountState > 0 ? notifSecurityCountState : suspendedFilteredList.filter(n => isSecurityNotificationItem(n)).length;
+  }, [isStoreSuspended, suspendedFilteredList, isSecurityNotificationItem, notifSecurityCountState]);
 
   const notifSystemCount = useMemo(() => {
-    return suspendedFilteredList.filter(n => !isSecurityNotificationItem(n)).length;
-  }, [suspendedFilteredList, isSecurityNotificationItem]);
+    if (isStoreSuspended) return suspendedFilteredList.filter(n => !isSecurityNotificationItem(n)).length;
+    return notifSystemCountState > 0 ? notifSystemCountState : suspendedFilteredList.filter(n => !isSecurityNotificationItem(n)).length;
+  }, [isStoreSuspended, suspendedFilteredList, isSecurityNotificationItem, notifSystemCountState]);
 
   const filteredNotifications = useMemo(() => {
     let list = suspendedFilteredList;
@@ -6532,14 +6570,14 @@ Terima kasih.`;
 
   const totalNotificationsCount = useMemo(() => {
     if (isStoreSuspended) return suspendedFilteredList.length;
-    return suspendedFilteredList.length > 0 ? suspendedFilteredList.length : notifTotal;
+    return notifTotal > 0 ? notifTotal : suspendedFilteredList.length;
   }, [isStoreSuspended, suspendedFilteredList.length, notifTotal]);
 
   const unreadCount = useMemo(() => {
     if (isStoreSuspended) {
       return suspendedFilteredList.filter(n => !n.read).length;
     }
-    return suspendedFilteredList.length > 0 ? suspendedFilteredList.filter(n => !n.read).length : notifUnreadCount;
+    return notifUnreadCount;
   }, [notifUnreadCount, isStoreSuspended, suspendedFilteredList]);
 
   const readCount = useMemo(() => {
@@ -16747,8 +16785,31 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       />
                       <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
                         <div>
-                          <span style={{ display: 'inline-block', fontSize: '0.6rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>
-                            {rec.class}
+                          <span 
+                            title={rec.class || 'Umum'}
+                            style={{ 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontSize: '0.58rem', 
+                              color: 'var(--primary)', 
+                              backgroundColor: 'var(--primary-glow)',
+                              border: '1px solid var(--border-light)',
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '999px',
+                              fontWeight: 600, 
+                              marginBottom: '0.2rem',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: '100%',
+                              lineHeight: '1.25'
+                            }}
+                          >
+                            <Tag size={9} strokeWidth={2.4} style={{ flexShrink: 0, opacity: 0.85 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {rec.class || 'Umum'}
+                            </span>
                           </span>
                           <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em', lineHeight: 1.2, marginBottom: '0.25rem' }}>
                             {rec.name}
@@ -21187,6 +21248,82 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               e.currentTarget.style.display = 'none';
                             }}
                           />
+
+                          {/* Operational Status Badges Overlay on Mobile Photo */}
+                          <div style={{
+                            position: 'absolute',
+                            top: '0.5rem',
+                            left: '0.5rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem',
+                            alignItems: 'flex-start',
+                            zIndex: 4,
+                            maxWidth: 'calc(100% - 2.8rem)'
+                          }}>
+                            {item.conservation_status && item.conservation_status !== 'Tersedia' && (
+                              <div 
+                                title={item.conservation_status}
+                                style={{
+                                  padding: '0.14rem 0.45rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: item.conservation_status === 'Habis Terjual'
+                                    ? 'rgba(239, 68, 68, 0.92)'
+                                    : item.conservation_status === 'Pre-Order'
+                                    ? 'rgba(217, 119, 6, 0.92)'
+                                    : item.conservation_status === 'Buka Jadwal'
+                                    ? 'rgba(124, 58, 237, 0.92)'
+                                    : 'rgba(59, 130, 246, 0.92)',
+                                  backdropFilter: 'blur(8px)',
+                                  color: '#ffffff',
+                                  fontSize: '0.58rem',
+                                  fontWeight: 700,
+                                  letterSpacing: '0.02em',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                                  maxWidth: '100%',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                <span style={{
+                                  width: '4px',
+                                  height: '4px',
+                                  borderRadius: '50%',
+                                  backgroundColor: '#ffffff',
+                                  flexShrink: 0
+                                }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.conservation_status}</span>
+                              </div>
+                            )}
+
+                            {(item as any).is_active === false && (
+                              <div style={{
+                                padding: '0.14rem 0.45rem',
+                                borderRadius: '4px',
+                                backgroundColor: 'rgba(217, 119, 6, 0.92)',
+                                backdropFilter: 'blur(8px)',
+                                color: '#ffffff',
+                                fontSize: '0.58rem',
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                                maxWidth: '100%',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                <Archive size={9} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                                <span>ARSIP</span>
+                              </div>
+                            )}
+                          </div>
+
                           <button
                             type="button"
                             onClick={(e) => {
@@ -21203,19 +21340,31 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         {/* Card Body with Clean Typography and Prominent Price */}
                         <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
                           <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                              <span style={{
-                                fontSize: '0.62rem',
-                                fontWeight: 700,
-                                padding: '0.12rem 0.45rem',
-                                borderRadius: '4px',
-                                backgroundColor: 'var(--primary-glow)',
-                                color: 'var(--primary)',
-                                border: '1px solid var(--border-light)',
-                                display: 'inline-flex',
-                                alignItems: 'center'
-                              }}>
-                                {item.class}
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
+                              <span 
+                                title={item.class || 'Umum'}
+                                style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 600,
+                                  padding: '0.14rem 0.55rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'var(--primary-glow)',
+                                  color: 'var(--primary)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: '100%',
+                                  lineHeight: '1.3'
+                                }}
+                              >
+                                <Tag size={9.5} strokeWidth={2.4} style={{ flexShrink: 0, opacity: 0.85 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.class || 'Umum'}
+                                </span>
                               </span>
                             </div>
                             <h3 style={{
@@ -21245,7 +21394,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                 : item.product_type === 'digital' 
                                 ? `${item.attributes?.file_format ? item.attributes.file_format + ' • ' : ''}${item.attributes?.file_size || 'Digital File'}${item.attributes?.license_type ? ' • ' + item.attributes.license_type : ''}`
                                 : item.product_type === 'physical'
-                                ? `${item.attributes?.brand ? item.attributes.brand + ' • ' : ''}${item.attributes?.condition || 'Baru'}${item.attributes?.weight ? ' • ' + item.attributes.weight + 'g' : ''}`
+                                ? `${item.attributes?.brand ? item.attributes.brand + ' • ' : ''}${item.attributes?.weight ? item.attributes.weight + 'g' : (item.attributes?.material || 'Produk Fisik')}`
                                 : item.product_type === 'service'
                                 ? `Durasi: ${item.attributes?.duration || '1 Sesi'}${item.attributes?.service_location ? ' • ' + item.attributes.service_location : ''}`
                                 : item.product_type === 'food'
@@ -26177,15 +26326,18 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             <span>Status Tampilan:</span>
                           </span>
                           <span style={{ fontWeight: 800, color: 'var(--primary)' }}>
-                            Menampilkan {filteredNotifications.length} dari {
-                              (notifFilter === 'unread' || notifCategoryFilter === 'unread') 
-                                ? unreadCount 
-                                : notifCategoryFilter === 'security' 
-                                  ? notifSecurityCount 
-                                  : notifCategoryFilter === 'system' 
-                                    ? notifSystemCount 
-                                    : totalNotificationsCount
-                            } notifikasi
+                            {notifHasMore 
+                              ? `Menampilkan ${filteredNotifications.length} dari ${
+                                  (notifFilter === 'unread' || notifCategoryFilter === 'unread') 
+                                    ? unreadCount 
+                                    : notifCategoryFilter === 'security' 
+                                      ? notifSecurityCount 
+                                      : notifCategoryFilter === 'system' 
+                                        ? notifSystemCount 
+                                        : totalNotificationsCount
+                                } notifikasi (Gulir atau klik untuk memuat lainnya)`
+                              : `Menampilkan seluruh ${filteredNotifications.length} notifikasi aktif (30 hari terakhir)`
+                            }
                           </span>
                         </div>
                       </div>
@@ -26662,8 +26814,43 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           {/* Sentinel element to trigger next page load */}
                           <div ref={notifSentinelRef} style={{ height: '20px', width: '100%', pointerEvents: 'none' }} />
 
-                          {/* End of list banner & 30-Day Retention Notice */}
-                          {filteredNotifications.length > 0 && (
+                          {/* Fallback Manual Load More Button if more notifications exist */}
+                          {notifHasMore && !notifLoadingMore && filteredNotifications.length > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.65rem', marginBottom: '0.45rem' }}>
+                              <button
+                                type="button"
+                                onClick={loadMoreNotifications}
+                                style={{
+                                  padding: '0.45rem 1rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--primary)',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.4rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <ChevronDown size={13} />
+                                <span>Muat Notifikasi Lainnya ({filteredNotifications.length} dari {
+                                  (notifFilter === 'unread' || notifCategoryFilter === 'unread') 
+                                    ? unreadCount 
+                                    : notifCategoryFilter === 'security' 
+                                      ? notifSecurityCount 
+                                      : notifCategoryFilter === 'system' 
+                                        ? notifSystemCount 
+                                        : totalNotificationsCount
+                                } termuat)</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* End of list banner: ONLY displayed when all notifications have been loaded */}
+                          {!notifHasMore && filteredNotifications.length > 0 && (
                             <div style={{
                               marginTop: '0.75rem',
                               marginBottom: '0.5rem',
@@ -26680,7 +26867,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               textAlign: 'left'
                             }}>
                               <Clock size={15} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
-                              <span>Menampilkan riwayat notifikasi 30 hari terakhir. Sistem otomatis membersihkan notifikasi lama untuk menjaga performa akun.</span>
+                              <span>Seluruh riwayat notifikasi aktif 30 hari terakhir telah ditampilkan ({filteredNotifications.length} notifikasi). Sistem secara otomatis mengarsipkan aktivitas lama untuk menjaga performa akun.</span>
                             </div>
                           )}
                         </div>
