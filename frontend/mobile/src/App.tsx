@@ -26471,11 +26471,37 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Memuat notifikasi...</span>
                         </div>
                       ) : filteredNotifications.length === 0 ? (
-                        <div className="glass-panel" style={{ padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
-                          <Bell size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
-                          <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan dan notifikasi aktivitas akan tampil di sini.</p>
-                        </div>
+                        notifSearchQuery.trim() ? (
+                          <div className="glass-panel" style={{ padding: '2.5rem 1.25rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                            <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border-light)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                              <Search size={20} style={{ color: 'var(--text-secondary)' }} />
+                            </div>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ditemukan Notifikasi yang Cocok</h4>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem 0' }}>Tidak ada riwayat yang cocok dengan "<strong>{notifSearchQuery}</strong>".</p>
+                            <button
+                              type="button"
+                              onClick={() => setNotifSearchQuery('')}
+                              style={{
+                                padding: '0.4rem 0.95rem',
+                                borderRadius: '0.6rem',
+                                backgroundColor: 'var(--primary)',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Hapus Pencarian
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="glass-panel" style={{ padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                            <Bell size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan dan notifikasi aktivitas akan tampil di sini.</p>
+                          </div>
+                        )
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                           {filteredNotifications.map((item) => {
@@ -26803,11 +26829,24 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             );
                           })}
 
-                          {/* Infinite Scroll Bottom Loader */}
+                          {/* Infinite Scroll Bottom Loader with Micro-Card */}
                           {notifLoadingMore && (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: 600 }}>
-                              <Loader size={16} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                              <span>Memuat notifikasi lainnya...</span>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.75rem 1rem',
+                              borderRadius: '0.75rem',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--card-bg-gradient)',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                              marginTop: '0.15rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <Loader size={14} className="animate-spin" style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>Memuat lebih banyak...</span>
+                              </div>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hal {notifPage + 1}</span>
                             </div>
                           )}
 

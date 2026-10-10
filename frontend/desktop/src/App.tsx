@@ -46,6 +46,7 @@ import {
   ListOrdered,
   Heading,
   Image,
+  ImageOff,
   Settings,
   ShoppingCart,
   ShieldCheck,
@@ -7567,22 +7568,27 @@ Terima kasih.`;
 
   // Support Ticket System State (Desktop)
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  // Best Practice: Default null saat membuka halaman bantuan untuk menghindari pesan otomatis terbaca langsung
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(() => {
     if (typeof window !== 'undefined') {
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket');
-        const cached = sessionStorage.getItem('catavor_merchant_active_ticket_data');
-        if (ticketParam && cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && (String(parsed.id) === String(ticketParam) || (parsed.ticket_number && parsed.ticket_number.toLowerCase() === String(ticketParam).toLowerCase()))) {
-            return parsed;
+        const ticketParam = urlParams.get('ticket');
+        if (ticketParam) {
+          const cached = sessionStorage.getItem('catavor_merchant_active_ticket_data');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && (String(parsed.id) === String(ticketParam) || (parsed.ticket_number && parsed.ticket_number.toLowerCase() === String(ticketParam).toLowerCase()))) {
+              return parsed;
+            }
           }
         }
       } catch {}
     }
     return null;
   });
+  // Track broken/failed image attachment URLs in chat for graceful fallback UI
+  const [brokenImageUrls, setBrokenImageUrls] = useState<Set<string>>(new Set());
   const [loadingTickets, setLoadingTickets] = useState<boolean>(false);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
   const [ticketSearch, setTicketSearch] = useState<string>('');
@@ -8123,10 +8129,10 @@ Terima kasih.`;
 
         setTickets(mappedTickets);
 
-        // Auto-restore selected ticket on initial page reload if not yet selected
-        const pendingTicketId = sessionStorage.getItem('catavor_merchant_active_ticket') || (new URLSearchParams(window.location.search)).get('ticket');
-        if (pendingTicketId && !selectedTicket) {
-          const matched = mappedTickets.find(t => String(t.id) === String(pendingTicketId) || (t.ticket_number && t.ticket_number.toLowerCase() === String(pendingTicketId).toLowerCase()));
+        // Auto-restore selected ticket on initial page reload ONLY if explicitly in URL query params
+        const urlTicketId = (new URLSearchParams(window.location.search)).get('ticket');
+        if (urlTicketId && !selectedTicket) {
+          const matched = mappedTickets.find(t => String(t.id) === String(urlTicketId) || (t.ticket_number && t.ticket_number.toLowerCase() === String(urlTicketId).toLowerCase()));
           if (matched) {
             setSelectedTicket(matched);
             fetchTicketDetails(matched.id);
@@ -9327,7 +9333,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminTab('help');
-            const ticketParam = urlParams.get('ticket') || sessionStorage.getItem('catavor_merchant_active_ticket_id');
+            const ticketParam = urlParams.get('ticket');
             if (ticketParam) {
               const cachedStr = sessionStorage.getItem('catavor_merchant_active_ticket_data');
               if (cachedStr) {
@@ -24207,11 +24213,40 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Memuat notifikasi...</span>
                         </div>
                       ) : filteredNotifications.length === 0 ? (
-                        <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                          <Bell size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
-                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan aktivitas akan ditampilkan di sini.</p>
-                        </div>
+                        notifSearchQuery.trim() ? (
+                          <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border-light)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.85rem' }}>
+                              <Search size={22} style={{ color: 'var(--text-secondary)' }} />
+                            </div>
+                            <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ditemukan Notifikasi yang Cocok</h4>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Tidak ada riwayat notifikasi yang cocok dengan kata kunci "<strong>{notifSearchQuery}</strong>".</p>
+                            <button
+                              type="button"
+                              onClick={() => setNotifSearchQuery('')}
+                              style={{
+                                padding: '0.45rem 1rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--primary)',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem'
+                              }}
+                            >
+                              <span>Hapus Pencarian</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            <Bell size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
+                            <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Tidak Ada Notifikasi</h4>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Semua pembaruan aktivitas akan ditampilkan di sini.</p>
+                          </div>
+                        )
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                           {filteredNotifications.map((item) => {
@@ -24563,11 +24598,24 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             );
                           })}
 
-                          {/* Infinite Scroll Bottom Loader */}
+                          {/* Infinite Scroll Bottom Loader with Micro-Card Shimmer */}
                           {notifLoadingMore && (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1.25rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>
-                              <Loader size={18} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                              <span>Memuat notifikasi lainnya...</span>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.85rem 1.25rem',
+                              borderRadius: '0.85rem',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--card-bg-gradient)',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                              marginTop: '0.25rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                <Loader size={16} className="animate-spin" style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>Memuat notifikasi lainnya...</span>
+                              </div>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Menarik halaman {notifPage + 1}</span>
                             </div>
                           )}
 
@@ -24710,43 +24758,42 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         </button>
                       )}
                       <div style={{ 
-                        width: '52px', 
-                        height: '52px', 
-                        borderRadius: '1rem', 
-                        backgroundColor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'rgba(239, 68, 68, 0.15)' : 'var(--primary-glow)', 
+                        width: '44px', 
+                        height: '44px', 
+                        borderRadius: '0.85rem', 
+                        backgroundColor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'rgba(239, 68, 68, 0.12)' : 'var(--primary-glow)', 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center', 
                         color: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '#ef4444' : 'var(--primary)', 
-                        border: '1px solid var(--border-light)',
-                        boxShadow: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '0 4px 15px rgba(239, 68, 68, 0.25)' : '0 4px 15px var(--primary-glow)'
+                        border: '1px solid var(--border-light)'
                       }}>
                         {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? (
-                          <Scale size={28} />
+                          <Scale size={22} />
                         ) : (
-                          <HelpCircle size={28} />
+                          <HelpCircle size={22} />
                         )}
                       </div>
                       <div>
-                        <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Pusat Banding Kepatuhan & Tiket' : 'Pusat Tiket Support Catavor'}
                         </h3>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Layanan Klarifikasi dan Pemulihan Akun Toko' : 'Layanan Bantuan & Monitoring Kendala Pengelolaan Katalog'}
                         </span>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <div style={{ display: 'flex', gap: '1rem', padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <div style={{ display: 'flex', gap: '0.85rem', padding: '0.45rem 0.95rem', background: 'var(--bg-deep)', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontSize: '0.8rem' }}>
                         <div>
-                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Total Tiket</span>
-                          <strong style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{tickets.length}</strong>
+                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.68rem', fontWeight: 600 }}>Total Tiket</span>
+                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.98rem' }}>{tickets.length}</strong>
                         </div>
                         <div style={{ width: '1px', backgroundColor: 'var(--border-light)' }} />
                         <div>
-                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Aktif Diproses</span>
-                          <strong style={{ color: '#f59e0b', fontSize: '1rem' }}>{tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length}</strong>
+                          <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.68rem', fontWeight: 600 }}>Aktif Diproses</span>
+                          <strong style={{ color: '#f59e0b', fontSize: '0.98rem' }}>{tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length}</strong>
                         </div>
                       </div>
 
@@ -24803,7 +24850,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '1.25rem', minHeight: '560px' }}>
                     
                     {/* LEFT PANEL: TICKET LIST & FILTERS */}
-                    <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* LEFT PANEL: TICKET LIST & FILTERS */}
+                    <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                       
                       {/* Search & Filter Bar */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -24814,13 +24862,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             placeholder="Cari ID atau judul tiket..."
                             value={ticketSearch}
                             onChange={(e) => setTicketSearch(e.target.value)}
-                            style={{ paddingLeft: '2.25rem', height: '38px', fontSize: '0.8rem', borderRadius: '0.6rem' }}
+                            style={{ paddingLeft: '2.25rem', paddingRight: ticketSearch ? '2rem' : '0.75rem', height: '38px', fontSize: '0.8rem', borderRadius: '0.6rem', width: '100%', boxSizing: 'border-box' }}
                           />
                           <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                          {ticketSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setTicketSearch('')}
+                              style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
 
                         {/* Store Scope Switcher (Best Practice: Toko Ini vs Semua Toko) */}
-                        <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.2)', padding: '0.2rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg-deep)', padding: '0.22rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
                           <button
                             type="button"
                             onClick={() => {
@@ -24829,7 +24886,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             }}
                             style={{
                               flex: 1,
-                              padding: '0.32rem 0.5rem',
+                              padding: '0.36rem 0.5rem',
                               borderRadius: '0.45rem',
                               border: 'none',
                               fontSize: '0.73rem',
@@ -24841,7 +24898,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               alignItems: 'center',
                               justifyContent: 'center',
                               gap: '0.35rem',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.15s ease'
                             }}
                           >
                             <Store size={13} />
@@ -24855,7 +24912,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             }}
                             style={{
                               flex: 1,
-                              padding: '0.32rem 0.5rem',
+                              padding: '0.36rem 0.5rem',
                               borderRadius: '0.45rem',
                               border: 'none',
                               fontSize: '0.73rem',
@@ -24867,7 +24924,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               alignItems: 'center',
                               justifyContent: 'center',
                               gap: '0.35rem',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.15s ease'
                             }}
                           >
                             <Globe size={13} />
@@ -24875,7 +24932,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </button>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(0,0,0,0.3)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
+                        {/* Filter Tabs */}
+                        <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-deep)', padding: '0.25rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
                           {(() => {
                             const allCount = ticketMetrics.total > 0 ? ticketMetrics.total : tickets.length;
                             const actCount = ticketMetrics.total > 0 ? ticketMetrics.active : tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length;
@@ -24890,11 +24948,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     padding: '0.35rem',
                                     borderRadius: '0.45rem',
                                     border: 'none',
-                                    fontSize: '0.75rem',
+                                    fontSize: '0.74rem',
                                     fontWeight: 700,
                                     backgroundColor: ticketFilter === 'all' ? 'var(--primary)' : 'transparent',
                                     color: ticketFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
                                   }}
                                 >
                                   Semua ({allCount})
@@ -24907,11 +24966,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     padding: '0.35rem',
                                     borderRadius: '0.45rem',
                                     border: 'none',
-                                    fontSize: '0.75rem',
+                                    fontSize: '0.74rem',
                                     fontWeight: 700,
                                     backgroundColor: ticketFilter === 'active' ? 'var(--primary)' : 'transparent',
                                     color: ticketFilter === 'active' ? '#ffffff' : 'var(--text-secondary)',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
                                   }}
                                 >
                                   Aktif ({actCount})
@@ -24924,11 +24984,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     padding: '0.35rem',
                                     borderRadius: '0.45rem',
                                     border: 'none',
-                                    fontSize: '0.75rem',
+                                    fontSize: '0.74rem',
                                     fontWeight: 700,
                                     backgroundColor: ticketFilter === 'resolved' ? 'var(--primary)' : 'transparent',
                                     color: ticketFilter === 'resolved' ? '#ffffff' : 'var(--text-secondary)',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
                                   }}
                                 >
                                   Selesai ({resCount})
@@ -24940,7 +25001,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       </div>
 
                       {/* Tickets List */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', overflowY: 'auto', maxHeight: '460px', paddingRight: '0.2rem' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '0.65rem', 
+                        overflowY: 'auto', 
+                        flex: 1, 
+                        minHeight: '380px', 
+                        maxHeight: '580px', 
+                        padding: '0.2rem 0.35rem 0.85rem 0.2rem',
+                        boxSizing: 'border-box'
+                      }}>
                         {filteredTickets.length === 0 ? (
                           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                             <MessageSquare size={32} style={{ marginBottom: '0.5rem', opacity: 0.4 }} />
@@ -24959,7 +25030,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <div
                                 key={ticket.id}
                                 onClick={() => {
-                                  // Hapus status unread secara instan di UI lokal & referensi read
                                   readTicketIdsRef.current.add(ticket.id);
                                   readTicketIdsRef.current.add(String(ticket.id));
                                   setTickets(prev => prev.map(t => (t.id === ticket.id || String(t.id) === String(ticket.id)) ? { ...t, unread_count: 0, has_unread: false, status: t.status === 'waiting_user' ? 'in_progress' : t.status } : t));
@@ -24975,121 +25045,141 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   }
                                 }}
                                 style={{
-                                  padding: '0.95rem 1rem',
+                                  padding: '0.85rem 0.95rem',
                                   borderRadius: '0.75rem',
                                   border: isSelected 
                                     ? '1.5px solid var(--primary)' 
                                     : (isUnread ? '1.5px solid #0284c7' : '1px solid var(--border-light)'),
                                   backgroundColor: isSelected 
                                     ? 'var(--primary-glow)' 
-                                    : (isUnread ? 'rgba(2, 132, 199, 0.08)' : 'rgba(255, 255, 255, 0.02)'),
+                                    : (isUnread ? 'rgba(2, 132, 199, 0.08)' : 'var(--bg-deep)'),
                                   cursor: 'pointer',
                                   display: 'flex',
                                   flexDirection: 'column',
                                   gap: '0.45rem',
-                                  transition: 'all 0.2s ease',
-                                  boxShadow: isSelected 
-                                    ? '0 4px 15px rgba(0,0,0,0.3)' 
-                                    : (isUnread ? '0 4px 18px rgba(2, 132, 199, 0.2)' : 'none'),
+                                  transition: 'all 0.15s ease',
+                                  boxShadow: isSelected ? '0 2px 10px rgba(0,0,0,0.06)' : 'none',
                                   position: 'relative',
-                                  overflow: 'hidden'
+                                  overflow: 'hidden',
+                                  flexShrink: 0,
+                                  boxSizing: 'border-box'
                                 }}
                               >
-                                {isUnread && (
+                                {isSelected && (
                                   <div style={{
                                     position: 'absolute',
                                     top: 0,
                                     left: 0,
                                     width: '3.5px',
                                     height: '100%',
-                                    backgroundColor: '#0284c7',
-                                    boxShadow: '0 0 8px #0284c7'
+                                    backgroundColor: 'var(--primary)'
+                                  }} />
+                                )}
+                                {isUnread && !isSelected && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '3.5px',
+                                    height: '100%',
+                                    backgroundColor: '#0284c7'
                                   }} />
                                 )}
 
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: isUnread ? 'rgba(2, 132, 199, 0.18)' : 'var(--primary-glow)', padding: '0.15rem 0.5rem', borderRadius: '0.4rem', border: `1px solid ${isUnread ? 'rgba(2, 132, 199, 0.4)' : 'var(--border-light)'}`, maxWidth: '100%' }}>
-                                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: isUnread ? '#38bdf8' : 'var(--primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                                        {ticket.ticket_number || ticket.id}
-                                      </span>
-                                    </div>
+                                {/* Top Row: ID, Store & Status Badges */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'nowrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', minWidth: 0 }}>
+                                    <span style={{ 
+                                       fontSize: '0.72rem', 
+                                       fontWeight: 800, 
+                                       color: isSelected ? 'var(--primary)' : 'var(--text-secondary)', 
+                                       fontFamily: 'monospace',
+                                       backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                                       padding: '0.12rem 0.4rem',
+                                       borderRadius: '0.35rem',
+                                       border: '1px solid var(--border-light)',
+                                       flexShrink: 0
+                                     }}>
+                                      {ticket.ticket_number || ticket.id}
+                                    </span>
 
                                     {ticket.store && (
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'rgba(14, 165, 233, 0.08)', padding: '0.12rem 0.45rem', borderRadius: '0.4rem', border: '1px solid rgba(14, 165, 233, 0.2)' }}>
-                                        <Store size={10} color="#0284c7" />
-                                        <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                          {ticket.store.name}
-                                        </span>
-                                        <span style={{
-                                          fontSize: '0.55rem',
-                                          padding: '0.04rem 0.32rem',
-                                          borderRadius: '3px',
-                                          background: ticket.store.plan === 'enterprise' 
-                                            ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
-                                            : ticket.store.plan === 'pro' 
-                                              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
-                                              : 'rgba(148, 163, 184, 0.2)',
-                                          color: ticket.store.plan === 'enterprise' || ticket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
-                                          fontWeight: 800,
-                                          letterSpacing: '0.03em'
-                                        }}>
-                                          {String(ticket.store.plan || 'FREE').toUpperCase()}
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(14, 165, 233, 0.08)', padding: '0.1rem 0.35rem', borderRadius: '0.35rem', border: '1px solid rgba(14, 165, 233, 0.2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                                        <Store size={9} color="#0284c7" style={{ flexShrink: 0 }} />
+                                        <span style={{ fontSize: '0.64rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {(ticket.store as any).store_title || ticket.store.name || ticket.store_slug || 'Toko'}
                                         </span>
                                       </div>
-                                    )}
-
-                                    {isUnread && (
-                                      <span style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.3rem',
-                                        padding: '0.12rem 0.5rem',
-                                        borderRadius: '999px',
-                                        backgroundColor: '#0284c7',
-                                        color: '#ffffff',
-                                        fontSize: '0.64rem',
-                                        fontWeight: 800,
-                                        boxShadow: '0 0 8px rgba(2, 132, 199, 0.6)',
-                                        animation: 'pulse 1.8s infinite'
-                                      }}>
-                                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ffffff' }} />
-                                        Balasan Baru CS
-                                        {ticket.unread_count && ticket.unread_count > 1 ? ` (${ticket.unread_count})` : ''}
-                                      </span>
                                     )}
                                   </div>
 
                                   <span style={{
-                                    fontSize: '0.65rem',
+                                    fontSize: '0.64rem',
                                     fontWeight: 800,
-                                    padding: '0.18rem 0.55rem',
+                                    padding: '0.14rem 0.5rem',
                                     borderRadius: '999px',
                                     whiteSpace: 'nowrap',
                                     flexShrink: 0,
-                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.15)' : (isUnread ? 'rgba(2, 132, 199, 0.2)' : isInProgress ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)'),
-                                    color: isResolved ? '#10b981' : (isUnread ? '#38bdf8' : isInProgress ? '#f59e0b' : '#3b82f6'),
-                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.3)' : (isUnread ? 'rgba(2, 132, 199, 0.4)' : isInProgress ? 'rgba(245, 158, 11, 0.3)' : 'rgba(59, 130, 246, 0.3)')}`
+                                    backgroundColor: isResolved ? 'rgba(16, 185, 129, 0.12)' : (isUnread ? 'rgba(2, 132, 199, 0.18)' : isInProgress ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)'),
+                                    color: isResolved ? '#10b981' : (isUnread ? '#0284c7' : isInProgress ? '#f59e0b' : '#3b82f6'),
+                                    border: `1px solid ${isResolved ? 'rgba(16, 185, 129, 0.28)' : (isUnread ? 'rgba(2, 132, 199, 0.35)' : isInProgress ? 'rgba(245, 158, 11, 0.28)' : 'rgba(59, 130, 246, 0.28)')}`
                                   }}>
-                                    {isResolved ? '✓ Selesai' : (isUnread ? '● Perlu Dibaca' : isInProgress ? '● Proses' : '● Open')}
+                                    {isResolved ? '✓ Selesai' : (isUnread ? '● Balasan CS' : isInProgress ? '● Proses' : '● Open')}
                                   </span>
                                 </div>
 
-                                <h4 style={{ fontSize: '0.9rem', fontWeight: isUnread ? 900 : 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
-                                  {ticket.subject}
+                                {/* Subject Line - Clamped to 2 lines to prevent cut off */}
+                                <h4 style={{ 
+                                  fontSize: '0.86rem', 
+                                  fontWeight: isUnread ? 800 : 700, 
+                                  color: 'var(--text-primary)', 
+                                  margin: 0, 
+                                  lineHeight: 1.38, 
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  wordBreak: 'break-word',
+                                  minHeight: '1.2rem'
+                                }}>
+                                  {(ticket.subject && ticket.subject.trim()) ? ticket.subject : '(Tanpa Judul Kendala)'}
                                 </h4>
 
-                                {lastMsg && (
-                                  <p style={{ fontSize: '0.74rem', color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 700 : 400, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#38bdf8' }}>
+                                {/* Last message snippet if present */}
+                                {lastMsg ? (
+                                  <p style={{ 
+                                    fontSize: '0.72rem', 
+                                    color: 'var(--text-secondary)', 
+                                    margin: 0, 
+                                    whiteSpace: 'nowrap', 
+                                    overflow: 'hidden', 
+                                    textOverflow: 'ellipsis',
+                                    lineHeight: 1.3
+                                  }}>
+                                    <strong style={{ color: lastMsg.sender === 'user' ? 'var(--primary)' : '#0284c7' }}>
                                       {lastMsg.sender === 'user'
                                         ? getChatFirstName(lastMsg.sender_name || adminUser?.name || 'Pengelola')
                                         : (lastMsg.sender_name || (lastMsg.sender === 'agent' ? 'CS Support' : 'User'))}:
-                                    </strong> {lastMsg.message}
+                                    </strong> {lastMsg.message || 'Melampirkan berkas'}
+                                  </p>
+                                ) : (
+                                  <p style={{ 
+                                    fontSize: '0.72rem', 
+                                    color: 'var(--text-muted)', 
+                                    margin: 0, 
+                                    fontStyle: 'italic',
+                                    lineHeight: 1.3,
+                                    whiteSpace: 'nowrap', 
+                                    overflow: 'hidden', 
+                                    textOverflow: 'ellipsis'
+                                  }}>
+                                    Belum ada pesan obrolan
                                   </p>
                                 )}
 
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                {/* Card Footer: Category tag & updated time */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)', fontSize: '0.67rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
                                   {(() => {
                                     const catMeta = getTicketCategoryMeta(ticket.category);
                                     return (
@@ -25102,15 +25192,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                         border: catMeta.border,
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '0.25rem'
+                                        gap: '0.25rem',
+                                        fontSize: '0.65rem',
+                                        lineHeight: 1.2
                                       }}>
-                                        <Tag size={10} style={{ color: catMeta.color }} />
-                                        <span>{catMeta.label}</span>
+                                        <Tag size={9} style={{ color: catMeta.color }} />
+                                        <span>{catMeta.shortLabel || catMeta.label}</span>
                                       </span>
                                     );
                                   })()}
-                                  <span style={{ fontWeight: isUnread ? 700 : 400, color: isUnread ? '#38bdf8' : 'var(--text-muted)' }}>
-                                    {msgs.length} Pesan &bull; {ticket.updated_at}
+                                  <span style={{ fontWeight: isUnread ? 700 : 500, color: isUnread ? '#0284c7' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                    {ticket.updated_at || ticket.created_at}
                                   </span>
                                 </div>
                               </div>
@@ -25208,6 +25300,36 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 }}>
                                   {selectedTicket.status === 'resolved' ? '✓ Tiket Selesai' : selectedTicket.status === 'in_progress' ? '● Dalam Proses' : selectedTicket.status === 'waiting_agent' ? '● Menunggu Agen CS' : '● Tiket Open'}
                                 </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTicket(null);
+                                    try {
+                                      sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+                                      sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+                                    } catch {}
+                                    const slug = storeSlug || getStoreSlug();
+                                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                                  }}
+                                  title="Tutup detail tiket"
+                                  style={{
+                                    background: 'var(--bg-deep)',
+                                    border: '1px solid var(--border-light)',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-muted)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '26px',
+                                    height: '26px',
+                                    borderRadius: '0.4rem',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                                >
+                                  <X size={15} />
+                                </button>
                               </div>
                             </div>
 
@@ -25360,24 +25482,29 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     boxSizing: 'border-box',
                                     overflowWrap: 'anywhere',
                                     wordBreak: 'break-word',
-                                    padding: '1rem 1.15rem',
-                                    borderRadius: isUser ? '1.1rem 1.1rem 0.25rem 1.1rem' : '1.1rem 1.1rem 1.1rem 0.25rem',
-                                    background: isUser ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)' : 'var(--bg-card, rgba(15, 23, 42, 0.95))',
-                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
-                                    border: isUser ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid var(--border-light)',
-                                    boxShadow: isUser ? '0 4px 20px var(--primary-glow, rgba(0,0,0,0.25))' : '0 4px 20px rgba(0,0,0,0.1)'
+                                    padding: '0.95rem 1.15rem',
+                                    borderRadius: '0.9rem',
+                                    backgroundColor: isUser ? 'var(--bg-deep)' : 'var(--bg-card)',
+                                    color: 'var(--text-primary)',
+                                    border: isUser ? '1px solid var(--border-light)' : '1px solid rgba(14, 165, 233, 0.25)',
+                                    borderLeft: isUser ? '3.5px solid var(--primary)' : '3.5px solid #0284c7',
+                                    boxShadow: '0 2px 10px rgba(0,0,0,0.04)'
                                   }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', marginBottom: '0.45rem' }}>
-                                      <strong style={{ fontSize: '0.82rem', color: isUser ? '#ffffff' : 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
-                                        {!isUser && <ShieldCheck size={16} color="var(--primary)" />}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.25rem', marginBottom: '0.45rem', paddingBottom: '0.35rem', borderBottom: '1px solid var(--border-light)' }}>
+                                      <strong style={{ fontSize: '0.8rem', color: isUser ? 'var(--text-primary)' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800 }}>
+                                        {isUser ? (
+                                          <User size={14} color="var(--primary)" />
+                                        ) : (
+                                          <ShieldCheck size={16} color="#0284c7" />
+                                        )}
                                         {isUser
                                           ? (selectedTicket.store?.name ? `${selectedTicket.store.name} (${getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola')})` : getChatFirstName(msg.sender_name || adminUser?.name || 'Pengelola'))
                                           : (msg.sender_name || 'Catavor Official Support')}
                                       </strong>
-                                      <span style={{ fontSize: '0.68rem', color: isUser ? 'rgba(255, 255, 255, 0.82)' : 'var(--text-muted)' }}>{msg.timestamp}</span>
+                                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{msg.timestamp}</span>
                                     </div>
                                     {msg.message ? (
-                                      <p style={{ fontSize: '0.88rem', color: isUser ? '#ffffff' : 'var(--text-primary)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                      <p style={{ fontSize: '0.86rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                                         {msg.message}
                                       </p>
                                     ) : null}
@@ -25385,12 +25512,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     {/* ATTACHMENT IMAGES / SCREENSHOTS GALLERY */}
                                     {msg.attachments && msg.attachments.length > 0 && (
                                       <div style={{
-                                        marginTop: msg.message ? '0.85rem' : '0.25rem',
-                                        paddingTop: msg.message ? '0.75rem' : '0',
-                                        borderTop: msg.message ? (isUser ? '1px dashed rgba(255,255,255,0.35)' : '1px dashed var(--border-light)') : 'none'
+                                        marginTop: msg.message ? '0.75rem' : '0.25rem',
+                                        paddingTop: msg.message ? '0.65rem' : '0',
+                                        borderTop: msg.message ? '1px dashed var(--border-light)' : 'none'
                                       }}>
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isUser ? 'rgba(255,255,255,0.95)' : 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                          <Paperclip size={13} color={isUser ? '#ffffff' : 'var(--primary)'} /> {msg.attachments.length} Lampiran File:
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                          <Paperclip size={13} color="var(--primary)" /> {msg.attachments.length} Lampiran File:
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.6rem' }}>
                                           {msg.attachments.map((att: any, idx: number) => {
@@ -25408,10 +25535,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                     gap: '0.6rem',
                                                     padding: '0.75rem 0.85rem',
                                                     borderRadius: '0.85rem',
-                                                    backgroundColor: isUser ? 'rgba(255, 255, 255, 0.16)' : 'var(--bg-card-hover, rgba(0, 0, 0, 0.04))',
-                                                    border: isUser ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.1))',
-                                                    boxShadow: isUser ? 'none' : '0 2px 10px rgba(0, 0, 0, 0.04)',
-                                                    color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                    backgroundColor: 'var(--bg-card)',
+                                                    border: '1px solid var(--border-light)',
+                                                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+                                                    color: 'var(--text-primary)',
                                                     minWidth: '240px',
                                                     maxWidth: '380px',
                                                     width: '100%',
@@ -25435,13 +25562,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                       width: '38px',
                                                       height: '38px',
                                                       borderRadius: '0.5rem',
-                                                      backgroundColor: isUser ? 'rgba(255, 255, 255, 0.95)' : 'rgba(239, 68, 68, 0.12)',
-                                                      border: isUser ? 'none' : '1px solid rgba(239, 68, 68, 0.28)',
+                                                      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                                      border: '1px solid rgba(239, 68, 68, 0.28)',
                                                       display: 'flex',
                                                       alignItems: 'center',
                                                       justifyContent: 'center',
-                                                      flexShrink: 0,
-                                                      boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.15)' : 'none'
+                                                      flexShrink: 0
                                                     }}>
                                                       <FileText size={20} color="#ef4444" />
                                                     </div>
@@ -25452,14 +25578,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                         textOverflow: 'ellipsis',
                                                         whiteSpace: 'nowrap',
                                                         fontSize: '0.82rem',
-                                                        color: isUser ? '#ffffff' : 'var(--text-primary)',
+                                                        color: 'var(--text-primary)',
                                                         lineHeight: 1.3
                                                       }}>
                                                         {att.file_name || 'Dokumen.pdf'}
                                                       </div>
                                                       <div style={{
                                                         fontSize: '0.68rem',
-                                                        color: isUser ? 'rgba(255, 255, 255, 0.88)' : 'var(--text-secondary)',
+                                                        color: 'var(--text-secondary)',
                                                         marginTop: '0.15rem',
                                                         fontWeight: 500,
                                                         whiteSpace: 'nowrap',
@@ -25477,7 +25603,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                     gridTemplateColumns: '1fr 1fr',
                                                     gap: '0.5rem',
                                                     paddingTop: '0.55rem',
-                                                    borderTop: isUser ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid var(--border-light, rgba(0, 0, 0, 0.08))',
+                                                    borderTop: '1px solid var(--border-light)',
                                                     width: '100%',
                                                     boxSizing: 'border-box'
                                                   }}>
@@ -25491,13 +25617,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                         gap: '0.35rem',
                                                         padding: '0.42rem 0.65rem',
                                                         borderRadius: '0.5rem',
-                                                        backgroundColor: isUser ? '#ffffff' : 'var(--primary, #0284c7)',
-                                                        color: isUser ? '#0f172a' : '#ffffff',
+                                                        backgroundColor: 'var(--primary)',
+                                                        color: '#ffffff',
                                                         border: 'none',
                                                         fontSize: '0.74rem',
                                                         fontWeight: 700,
                                                         cursor: 'pointer',
-                                                        boxShadow: isUser ? '0 2px 6px rgba(0,0,0,0.18)' : '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))',
+                                                        boxShadow: '0 2px 8px var(--primary-glow, rgba(2, 132, 199, 0.35))',
                                                         transition: 'all 0.15s ease'
                                                       }}
                                                       title="Lihat Pratinjau Dokumen"
@@ -25514,9 +25640,9 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                         gap: '0.35rem',
                                                         padding: '0.42rem 0.65rem',
                                                         borderRadius: '0.5rem',
-                                                        backgroundColor: isUser ? 'rgba(255, 255, 255, 0.22)' : 'var(--bg-card, rgba(0, 0, 0, 0.05))',
-                                                        color: isUser ? '#ffffff' : 'var(--text-primary)',
-                                                        border: isUser ? '1px solid rgba(255, 255, 255, 0.45)' : '1px solid var(--border-light)',
+                                                        backgroundColor: 'var(--bg-deep)',
+                                                        color: 'var(--text-primary)',
+                                                        border: '1px solid var(--border-light)',
                                                         fontSize: '0.74rem',
                                                         fontWeight: 600,
                                                         cursor: 'pointer',
@@ -25540,10 +25666,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                                 position: 'relative',
                                                 borderRadius: '0.65rem',
                                                 overflow: 'hidden',
-                                                border: isUser ? '1px solid rgba(255,255,255,0.35)' : '1px solid var(--border-light)',
+                                                border: '1px solid var(--border-light)',
                                                 aspectRatio: '1',
                                                 display: 'block',
-                                                backgroundColor: 'rgba(0,0,0,0.4)',
+                                                backgroundColor: 'var(--bg-deep)',
                                                 cursor: 'pointer',
                                                 transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                                               }}

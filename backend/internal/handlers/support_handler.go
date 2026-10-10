@@ -170,7 +170,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			}
 			term := "%" + strings.ToLower(cleanW) + "%"
 			baseQuery = baseQuery.Where(
-				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR id IN (SELECT ticket_id FROM support_messages WHERE LOWER(message) LIKE ?))",
+				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR EXISTS (SELECT 1 FROM support_messages sm WHERE sm.ticket_id = support_tickets.id AND LOWER(sm.message) LIKE ?))",
 				term, term, term, term,
 			)
 		}
@@ -246,8 +246,26 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			latestMsgMap[lm.TicketID] = lm
 		}
 
+		type attRes struct {
+			TicketID uint `gorm:"column:ticket_id"`
+			Count    int  `gorm:"column:count"`
+		}
+		var attRows []attRes
+		database.DB.Table("support_attachments").
+			Select("support_messages.ticket_id, COUNT(support_attachments.id) as count").
+			Joins("INNER JOIN support_messages ON support_messages.id = support_attachments.message_id").
+			Where("support_messages.ticket_id IN (?) AND support_attachments.deleted_at IS NULL AND support_messages.deleted_at IS NULL", ticketIDs).
+			Group("support_messages.ticket_id").
+			Scan(&attRows)
+
+		attMap := make(map[uint]int, len(attRows))
+		for _, r := range attRows {
+			attMap[r.TicketID] = r.Count
+		}
+
 		for i := range tickets {
 			tickets[i].UnreadCount = unreadMap[tickets[i].ID]
+			tickets[i].AttachmentCount = attMap[tickets[i].ID]
 			if lm, ok := latestMsgMap[tickets[i].ID]; ok {
 				tickets[i].Messages = []models.SupportMessage{lm}
 			} else {
@@ -802,7 +820,7 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			}
 			term := "%" + strings.ToLower(cleanW) + "%"
 			query = query.Where(
-				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR LOWER(priority) LIKE ? OR LOWER(status) LIKE ? OR user_id IN (SELECT id FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?) OR store_id IN (SELECT id FROM stores WHERE LOWER(store_title) LIKE ? OR LOWER(slug) LIKE ?) OR id IN (SELECT ticket_id FROM support_messages WHERE LOWER(message) LIKE ?))",
+				"(LOWER(ticket_number) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(category) LIKE ? OR LOWER(priority) LIKE ? OR LOWER(status) LIKE ? OR user_id IN (SELECT id FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?) OR store_id IN (SELECT id FROM stores WHERE LOWER(store_title) LIKE ? OR LOWER(slug) LIKE ?) OR EXISTS (SELECT 1 FROM support_messages sm WHERE sm.ticket_id = support_tickets.id AND LOWER(sm.message) LIKE ?))",
 				term, term, term, term, term, term, term, term, term, term,
 			)
 		}
@@ -864,8 +882,26 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			latestMsgMap[lm.TicketID] = lm
 		}
 
+		type attRes struct {
+			TicketID uint `gorm:"column:ticket_id"`
+			Count    int  `gorm:"column:count"`
+		}
+		var attRows []attRes
+		database.DB.Table("support_attachments").
+			Select("support_messages.ticket_id, COUNT(support_attachments.id) as count").
+			Joins("INNER JOIN support_messages ON support_messages.id = support_attachments.message_id").
+			Where("support_messages.ticket_id IN (?) AND support_attachments.deleted_at IS NULL AND support_messages.deleted_at IS NULL", ticketIDs).
+			Group("support_messages.ticket_id").
+			Scan(&attRows)
+
+		attMap := make(map[uint]int, len(attRows))
+		for _, r := range attRows {
+			attMap[r.TicketID] = r.Count
+		}
+
 		for i := range tickets {
 			tickets[i].UnreadCount = unreadMap[tickets[i].ID]
+			tickets[i].AttachmentCount = attMap[tickets[i].ID]
 			if lm, ok := latestMsgMap[tickets[i].ID]; ok {
 				tickets[i].Messages = []models.SupportMessage{lm}
 			} else {
