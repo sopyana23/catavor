@@ -7593,7 +7593,6 @@ Terima kasih.`;
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState<string>('');
-  const [ticketStoreScope, setTicketStoreScope] = useState<'store' | 'all'>('store');
   const [ticketPage, setTicketPage] = useState<number>(1);
   const [ticketTotalPages, setTicketTotalPages] = useState<number>(1);
   const [ticketTotalItems, setTicketTotalItems] = useState<number>(0);
@@ -7609,10 +7608,10 @@ Terima kasih.`;
     return () => clearTimeout(timer);
   }, [ticketSearch]);
 
-  // Reset to page 1 on filter tab or store scope change
+  // Reset to page 1 on filter tab change
   useEffect(() => {
     setTicketPage(1);
-  }, [ticketFilter, ticketStoreScope]);
+  }, [ticketFilter]);
   const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
   const merchantTicketTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -7983,10 +7982,8 @@ Terima kasih.`;
       }
 
       const activeSlug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
-      if (ticketStoreScope === 'store' && activeSlug) {
+      if (activeSlug) {
         queryParams.set('store_slug', activeSlug);
-      } else {
-        queryParams.set('scope', 'all');
       }
 
       const res = await fetch(`${API_BASE}/support/tickets?${queryParams.toString()}`, {
@@ -8533,11 +8530,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
-  // Trigger fetch ketika filter status, kata kunci debounced search, scope toko, atau halaman paginasi berubah (HANYA saat tab bantuan aktif)
+  // Trigger fetch ketika filter status, kata kunci debounced search, atau halaman paginasi berubah (HANYA saat tab bantuan aktif)
   useEffect(() => {
     if (!token || adminTab !== 'help') return;
     fetchSupportTickets(tickets.length > 0, ticketPage);
-  }, [adminTab, token, debouncedTicketSearch, ticketFilter, ticketStoreScope, storeSlug, ticketPage]);
+  }, [adminTab, token, debouncedTicketSearch, ticketFilter, storeSlug, ticketPage]);
 
   // Polling santai fallback (45 detik saat tab bantuan aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
@@ -8566,7 +8563,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [adminTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter, ticketStoreScope, storeSlug]);
+  }, [adminTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter, storeSlug]);
 
   // Upload attachment helper for screenshots
   const handleUploadSupportAttachment = async (files: FileList | null, isReply: boolean = false) => {
@@ -24847,14 +24844,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   </div>
 
                   {/* MASTER-DETAIL TICKET LAYOUT */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '1.25rem', minHeight: '560px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '370px 1fr', gap: '1.25rem', height: 'calc(100vh - 190px)', minHeight: '620px', maxHeight: 'calc(100vh - 190px)' }}>
                     
                     {/* LEFT PANEL: TICKET LIST & FILTERS */}
-                    {/* LEFT PANEL: TICKET LIST & FILTERS */}
-                    <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    <div className="glass-panel" style={{ padding: '1.15rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.85rem', height: '100%', minHeight: 0, boxSizing: 'border-box', overflow: 'hidden' }}>
                       
                       {/* Search & Filter Bar */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', flexShrink: 0 }}>
                         <div style={{ position: 'relative' }}>
                           <input
                             type="text"
@@ -24874,62 +24870,6 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               ✕
                             </button>
                           )}
-                        </div>
-
-                        {/* Store Scope Switcher (Best Practice: Toko Ini vs Semua Toko) */}
-                        <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg-deep)', padding: '0.22rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTicketStoreScope('store');
-                              setTicketPage(1);
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: '0.36rem 0.5rem',
-                              borderRadius: '0.45rem',
-                              border: 'none',
-                              fontSize: '0.73rem',
-                              fontWeight: 700,
-                              backgroundColor: ticketStoreScope === 'store' ? 'var(--primary)' : 'transparent',
-                              color: ticketStoreScope === 'store' ? '#ffffff' : 'var(--text-secondary)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Store size={13} />
-                            <span>Toko Ini</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTicketStoreScope('all');
-                              setTicketPage(1);
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: '0.36rem 0.5rem',
-                              borderRadius: '0.45rem',
-                              border: 'none',
-                              fontSize: '0.73rem',
-                              fontWeight: 700,
-                              backgroundColor: ticketStoreScope === 'all' ? 'var(--primary)' : 'transparent',
-                              color: ticketStoreScope === 'all' ? '#ffffff' : 'var(--text-secondary)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.35rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Globe size={13} />
-                            <span>Semua Toko</span>
-                          </button>
                         </div>
 
                         {/* Filter Tabs */}
@@ -25007,8 +24947,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         gap: '0.65rem', 
                         overflowY: 'auto', 
                         flex: 1, 
-                        minHeight: '380px', 
-                        maxHeight: '580px', 
+                        minHeight: 0, 
                         padding: '0.2rem 0.35rem 0.85rem 0.2rem',
                         boxSizing: 'border-box'
                       }}>
@@ -25218,7 +25157,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           padding: '0.75rem 0.25rem 0.25rem',
-                          marginTop: '0.5rem',
+                          marginTop: 'auto',
+                          flexShrink: 0,
                           borderTop: '1px solid var(--border-light)',
                           fontSize: '0.78rem'
                         }}>
@@ -25275,12 +25215,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     </div>
 
                     {/* RIGHT PANEL: TICKET DETAIL & THREAD */}
-                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column' }}>
+                    <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, boxSizing: 'border-box', overflow: 'hidden' }}>
                       {selectedTicket ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: '0.75rem', boxSizing: 'border-box' }}>
                           
                           {/* Ticket Details Header */}
-                          <div style={{ paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)' }}>
+                          <div style={{ paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-light)', flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', gap: '0.75rem', flexWrap: 'wrap' }}>
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary-glow)', padding: '0.2rem 0.65rem', borderRadius: '0.45rem', border: '1px solid var(--border-light)', maxWidth: '100%' }}>
                                 <span style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', letterSpacing: '0.02em', wordBreak: 'break-all' }}>
@@ -25419,7 +25359,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
 
                           {/* Discussion Thread Messages */}
-                          <div ref={desktopTicketChatContainerRef} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingRight: '0.5rem', maxHeight: '440px' }}>
+                          <div ref={desktopTicketChatContainerRef} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingRight: '0.5rem', flex: 1, minHeight: 0 }}>
                             {selectedTicket.messages.map((msg) => {
                               const isUser = msg.sender === 'user';
                               const isSystemBot = msg.sender === 'system';
@@ -25723,7 +25663,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                 border: '1px solid var(--border-light)',
                                 backgroundColor: 'var(--bg-deep)',
                                 boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                                marginTop: '0.4rem',
+                                marginTop: 'auto',
+                                flexShrink: 0,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 transition: 'all 0.2s ease'
@@ -25944,7 +25885,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               </div>
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: 'auto', flexShrink: 0 }}>
                               <div className="glass-panel" style={{ padding: '0.85rem 1rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
                                 <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 700 }}>
                                   ✓ Tiket ini telah ditandai Selesai. Anda dapat membuat tiket baru jika memiliki pertanyaan lain.
