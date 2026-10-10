@@ -45,6 +45,7 @@ type SupportTicket struct {
 	RatedAgent  *User            `gorm:"foreignKey:RatedAgentID" json:"rated_agent,omitempty"`
 	Messages    []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
 	UnreadCount int              `gorm:"-" json:"unread_count"`
+	AttachmentCount int          `gorm:"-" json:"attachment_count"`
 }
 
 // TableName explicitly maps SupportTicket model to 'support_tickets' table.
