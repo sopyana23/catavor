@@ -82,19 +82,21 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	now := time.Now().UTC()
 	thirtyDaysAgo := now.Add(-30 * 24 * time.Hour)
 
-	// Parse pagination parameters
+	// Parse pagination and filter parameters
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	if page < 1 {
 		page = 1
 	}
-	limit, _ := strconv.Atoi(c.Query("limit", "150"))
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
 	if limit < 1 {
-		limit = 150
-	} else if limit > 300 {
-		limit = 300
+		limit = 20
+	} else if limit > 100 {
+		limit = 100
 	}
 	offset := (page - 1) * limit
-	filter := c.Query("filter", "all")
+	filter := strings.ToLower(strings.TrimSpace(c.Query("filter", "all")))
+	categoryParam := strings.ToLower(strings.TrimSpace(c.Query("category", "all")))
+	searchParam := strings.ToLower(strings.TrimSpace(c.Query("q", c.Query("search", ""))))
 
 	// 2. Fetch all matching notifications with left join on reads
 	type NotifResult struct {
@@ -181,6 +183,8 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 	var allVisible []models.Notification
 	var filtered []models.Notification
 	unreadCount := 0
+	securityCount := 0
+	systemCount := 0
 	hasSeenCurrentSuspensionNotif := false
 
 	for _, res := range allResults {
@@ -248,10 +252,36 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 			unreadCount++
 		}
 
+		catUpper := strings.ToUpper(notif.Category)
+		isSecurity := catUpper == "KEAMANAN" || catUpper == "MODERASI" || catUpper == "KEPATUHAN" || catUpper == "SUSPEND" || catUpper == "TIKET" || notif.Type == "ticket" || notif.LinkSubTab == "help" || strings.Contains(titleLower, "keamanan") || strings.Contains(titleLower, "moderasi") || strings.Contains(titleLower, "suspend") || strings.Contains(titleLower, "banding") || strings.Contains(titleLower, "cs catavor") || strings.Contains(titleLower, "balasan baru")
+		if isSecurity {
+			securityCount++
+		} else {
+			systemCount++
+		}
+
 		allVisible = append(allVisible, notif)
 
-		if filter == "unread" && notif.IsRead {
+		// 1. Filter read/unread status
+		if (filter == "unread" || categoryParam == "unread") && notif.IsRead {
 			continue
+		}
+
+		// 2. Filter category
+		if categoryParam == "security" && !isSecurity {
+			continue
+		} else if categoryParam == "system" && isSecurity {
+			continue
+		}
+
+		// 3. Filter search query keyword
+		if searchParam != "" {
+			catLower := strings.ToLower(notif.Category)
+			if !strings.Contains(titleLower, searchParam) &&
+				!strings.Contains(msgLower, searchParam) &&
+				!strings.Contains(catLower, searchParam) {
+				continue
+			}
 		}
 
 		filtered = append(filtered, notif)
@@ -259,19 +289,6 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 
 	totalAll := len(allVisible)
 	totalFiltered := len(filtered)
-
-	securityCount := 0
-	systemCount := 0
-	for _, notif := range allVisible {
-		cat := strings.ToUpper(notif.Category)
-		title := strings.ToLower(notif.Title)
-		isSecurity := cat == "KEAMANAN" || cat == "MODERASI" || cat == "KEPATUHAN" || cat == "SUSPEND" || cat == "TIKET" || notif.Type == "ticket" || notif.LinkSubTab == "help" || strings.Contains(title, "keamanan") || strings.Contains(title, "moderasi") || strings.Contains(title, "suspend") || strings.Contains(title, "banding") || strings.Contains(title, "cs catavor") || strings.Contains(title, "balasan baru")
-		if isSecurity {
-			securityCount++
-		} else {
-			systemCount++
-		}
-	}
 
 	// Apply pagination slice
 	var pagedData []models.Notification
