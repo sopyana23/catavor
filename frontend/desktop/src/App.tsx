@@ -25716,15 +25716,36 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                           {/* Reply Input Form with Multi-Image Screenshot Upload */}
                           {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
-                            <div className="glass-panel" style={{ padding: '0.85rem 1rem', borderRadius: '0.9rem', border: '1px solid var(--border-light)', background: 'rgba(0,0,0,0.3)', marginTop: '0.2rem' }}>
+                            <div
+                              style={{
+                                padding: '1rem 1.15rem',
+                                borderRadius: '0.95rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                                marginTop: '0.4rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
                               
                               {/* Attached Screenshots Preview Chips */}
                               {ticketReplyAttachments.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', padding: '0.5rem', borderRadius: '0.6rem', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)' }}>
+                                <div style={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  gap: '0.5rem',
+                                  marginBottom: '0.75rem',
+                                  padding: '0.55rem',
+                                  borderRadius: '0.65rem',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)'
+                                }}>
                                   {ticketReplyAttachments.map((att, idx) => {
                                     const isPDF = att.file_type === 'application/pdf' || att.file_name?.toLowerCase().endsWith('.pdf') || att.file_url?.toLowerCase().endsWith('.pdf');
                                     return (
-                                    <div key={idx} style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isPDF ? 'rgba(239,68,68,0.1)' : 'transparent' }}>
+                                    <div key={idx} style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '0.5rem', overflow: 'hidden', border: '1.5px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isPDF ? 'rgba(239,68,68,0.1)' : 'var(--bg-card-hover)' }}>
                                       {isPDF ? (
                                         <FileText size={24} color="#ef4444" />
                                       ) : (
@@ -25740,7 +25761,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                           width: '18px',
                                           height: '18px',
                                           borderRadius: '50%',
-                                          backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                                          backgroundColor: '#ef4444',
                                           color: '#ffffff',
                                           border: 'none',
                                           display: 'flex',
@@ -25755,7 +25776,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                       </button>
                                     </div>
                                   );})}
-                                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', paddingLeft: '0.25rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', paddingLeft: '0.25rem' }}>
                                     {ticketReplyAttachments.length} File terlampir
                                   </div>
                                 </div>
@@ -25777,19 +25798,37 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   }
                                 }}
                                 style={{
+                                  width: '100%',
+                                  backgroundColor: 'var(--bg-card)',
+                                  color: 'var(--text-primary)',
+                                  border: '1.5px solid var(--border-light)',
+                                  borderRadius: '0.65rem',
+                                  padding: '0.7rem 0.95rem',
                                   resize: 'none',
                                   marginBottom: '0.75rem',
                                   fontSize: '0.85rem',
-                                  minHeight: '38px',
+                                  fontWeight: 500,
+                                  minHeight: '42px',
                                   maxHeight: '140px',
                                   height: 'auto',
                                   lineHeight: 1.45,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
                                   overflowY: 'auto'
+                                }}
+                                onFocus={(e) => {
+                                  e.currentTarget.style.borderColor = 'var(--primary)';
+                                  e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-glow)';
+                                }}
+                                onBlur={(e) => {
+                                  e.currentTarget.style.borderColor = 'var(--border-light)';
+                                  e.currentTarget.style.boxShadow = 'none';
                                 }}
                               />
 
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                                   <input
                                     type="file"
                                     id="desktop-ticket-reply-file"
@@ -25800,26 +25839,34 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                   />
                                   <button
                                     type="button"
-                                    className="btn-secondary"
                                     disabled={isUploadingAttachment || ticketReplyAttachments.length >= 5}
                                     onClick={() => document.getElementById('desktop-ticket-reply-file')?.click()}
                                     style={{
-                                      padding: '0.45rem 0.85rem',
+                                      padding: '0.48rem 0.9rem',
                                       borderRadius: '0.55rem',
                                       fontSize: '0.78rem',
-                                      display: 'flex',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '0.4rem'
+                                      gap: '0.45rem',
+                                      backgroundColor: 'var(--btn-secondary-bg)',
+                                      color: 'var(--btn-secondary-text)',
+                                      border: '1px solid var(--btn-secondary-border)',
+                                      cursor: isUploadingAttachment || ticketReplyAttachments.length >= 5 ? 'not-allowed' : 'pointer',
+                                      opacity: isUploadingAttachment || ticketReplyAttachments.length >= 5 ? 0.6 : 1,
+                                      transition: 'all 0.15s ease'
                                     }}
                                   >
                                     {isUploadingAttachment ? (
                                       <Loader size={14} className="animate-spin" />
                                     ) : (
-                                      <Paperclip size={14} />
+                                      <Paperclip size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                                     )}
                                     <span>Lampirkan Screenshot</span>
                                   </button>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Maks 5 foto (10MB/foto)</span>
+                                  <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, userSelect: 'none' }}>
+                                    Maks. 5 foto (10MB/foto)
+                                  </span>
                                 </div>
 
                                 <button
@@ -25876,16 +25923,22 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     }
                                   }}
                                   style={{
-                                    padding: '0.55rem 1.25rem',
-                                    borderRadius: '0.6rem',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 800,
-                                    display: 'flex',
+                                    padding: '0.48rem 1.25rem',
+                                    borderRadius: '0.55rem',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '0.45rem'
+                                    gap: '0.45rem',
+                                    boxShadow: (!ticketReplyText.trim() && ticketReplyAttachments.length === 0) || isSubmittingReply
+                                      ? 'none'
+                                      : '0 4px 14px var(--primary-glow)',
+                                    opacity: (!ticketReplyText.trim() && ticketReplyAttachments.length === 0) || isSubmittingReply ? 0.6 : 1,
+                                    cursor: (!ticketReplyText.trim() && ticketReplyAttachments.length === 0) || isSubmittingReply ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.15s ease'
                                   }}
                                 >
-                                  {isSubmittingReply ? <Loader size={15} className="animate-spin" /> : <Send size={15} />}
+                                  {isSubmittingReply ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
                                   <span>Kirim Balasan</span>
                                 </button>
                               </div>

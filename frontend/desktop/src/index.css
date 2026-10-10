@@ -461,7 +461,12 @@ input::placeholder, textarea::placeholder, select::placeholder, .form-input::pla
 [data-theme="pastel"] input::placeholder, [data-theme="pastel"] textarea::placeholder, [data-theme="pastel"] select::placeholder, [data-theme="pastel"] .form-input::placeholder, [data-theme="pastel"] .form-textarea::placeholder, [data-theme="pastel"] .search-input::placeholder,
 [data-theme="sage"] input::placeholder, [data-theme="sage"] textarea::placeholder, [data-theme="sage"] select::placeholder, [data-theme="sage"] .form-input::placeholder, [data-theme="sage"] .form-textarea::placeholder, [data-theme="sage"] .search-input::placeholder,
 [data-theme="navy"] input::placeholder, [data-theme="navy"] textarea::placeholder, [data-theme="navy"] select::placeholder, [data-theme="navy"] .form-input::placeholder, [data-theme="navy"] .form-textarea::placeholder, [data-theme="navy"] .search-input::placeholder,
-[data-theme="cream"] input::placeholder, [data-theme="cream"] textarea::placeholder, [data-theme="cream"] select::placeholder, [data-theme="cream"] .form-input::placeholder, [data-theme="cream"] .form-textarea::placeholder, [data-theme="cream"] .search-input::placeholder,
+[data-theme="cream"] input::placeholder, [data-theme="cream"] textarea::placeholder, [data-theme="cream"] select::placeholder, [data-theme="cream"] .form-input::placeholder, [data-theme="cream"] .form-textarea::placeholder, [data-theme="cream"] .search-input::placeholder {
+  color: #4A5D54 !important;
+  font-weight: 500 !important;
+  opacity: 0.82 !important;
+}
+
 .portal-light input::placeholder, .portal-light textarea::placeholder, .portal-light .search-input::placeholder, .portal-light .filter-search-input::placeholder,
 .light-mode input::placeholder, .light-input::placeholder, input.light-input::placeholder {
   color: #64748b !important;
