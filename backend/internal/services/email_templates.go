@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"html"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -827,5 +828,105 @@ func BuildItemRetentionSoftDeletedEmail(storeTitle, targetEntityName, reportNumb
 func nl2br(text string) string {
 	return strings.ReplaceAll(text, "\n", "<br>")
 }
+
+// BuildPasswordChangedSecurityEmail creates a transactional security alert when an account's password is created or updated.
+func BuildPasswordChangedSecurityEmail(userName, userEmail, deviceName, ipAddress string) (subject string, bodyHTML string) {
+	subject = "[Pemberitahuan Keamanan] Kata Sandi Akun Catavor Anda Telah Berhasil Diperbarui"
+	title := "Kata Sandi Akun Anda Berhasil Diperbarui"
+	subtitle := "Pemberitahuan resmi aktivitas keamanan kredensial akun pengelola Catavor"
+
+	wibLocation := time.FixedZone("WIB", 7*3600)
+	timeStr := time.Now().In(wibLocation).Format("02 January 2006, 15:04 WIB")
+
+	if deviceName == "" {
+		deviceName = "Peramban Web / Tidak Diketahui"
+	}
+	if ipAddress == "" {
+		ipAddress = "127.0.0.1"
+	}
+
+	secureAccountURL := fmt.Sprintf("/login?action=forgot_password&email=%s", url.QueryEscape(userEmail))
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kata sandi untuk akun Catavor Anda (<strong>%s</strong>) baru saja berhasil <strong>disetel atau diperbarui</strong>.</p>
+
+	<!-- Details Card -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #334155;">
+				<div style="margin-bottom: 8px;"><strong>Waktu Perubahan:</strong> %s</div>
+				<div style="margin-bottom: 8px;"><strong>Perangkat / Peramban:</strong> %s</div>
+				<div><strong>Alamat IP:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 12px;">%s</code></div>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Warning Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #991b1b;">
+				<strong style="display: block; margin-bottom: 4px; font-size: 13px;">Bukan Anda yang melakukan perubahan ini?</strong>
+				Jika Anda tidak merasa mengganti kata sandi atau menyetel kata sandi ini, akun Anda mungkin telah diakses oleh pihak yang tidak bertanggung jawab. Segera amankan akun Anda sekarang juga dengan mereset kata sandi melalui tombol di bawah.
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">Seluruh sesi login lama pada perangkat lain telah otomatis dicabut demi menjaga keamanan data katalog dan transaksi toko Anda.</p>
+	`, html.EscapeString(userName), html.EscapeString(userEmail), timeStr, html.EscapeString(deviceName), html.EscapeString(ipAddress))
+
+	bodyHTML = wrapEmailLayout("KEAMANAN KREDENSIAL", "#dc2626", title, subtitle, mainContent, "Amankan Akun Saya →", secureAccountURL)
+	return
+}
+
+// BuildNewDeviceLoginSecurityEmail creates a transactional security alert when an account logs in from an unrecognized device or browser.
+func BuildNewDeviceLoginSecurityEmail(userName, userEmail, deviceName, ipAddress string) (subject string, bodyHTML string) {
+	subject = "[Pemberitahuan Keamanan] Login Baru Terdeteksi pada Akun Catavor Anda"
+	title := "Aktivitas Login Baru Terdeteksi"
+	subtitle := "Sistem mendeteksi sesi masuk dari peramban atau perangkat baru"
+
+	wibLocation := time.FixedZone("WIB", 7*3600)
+	timeStr := time.Now().In(wibLocation).Format("02 January 2006, 15:04 WIB")
+
+	if deviceName == "" {
+		deviceName = "Peramban Web / Tidak Diketahui"
+	}
+	if ipAddress == "" {
+		ipAddress = "127.0.0.1"
+	}
+
+	adminSettingsURL := "/admin?tab=settings"
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Akun Catavor Anda (<strong>%s</strong>) baru saja digunakan untuk masuk dari <strong>perangkat atau peramban yang belum pernah tercatat sebelumnya</strong>.</p>
+
+	<!-- Details Card -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #334155;">
+				<div style="margin-bottom: 8px;"><strong>Waktu Masuk:</strong> %s</div>
+				<div style="margin-bottom: 8px;"><strong>Perangkat / Peramban:</strong> %s</div>
+				<div><strong>Alamat IP:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 12px;">%s</code></div>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Notice Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #1e40af;">
+				<strong style="display: block; margin-bottom: 4px; font-size: 13px;">Apakah ini Anda?</strong>
+				Jika aktivitas ini dilakukan oleh Anda, Anda dapat mengabaikan email ini dengan tenang.<br>
+				Jika Anda <strong>tidak merasa melakukan login ini</strong>, segera periksa pengaturan akun Anda dan ganti kata sandi demi keamanan toko Anda.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(userName), html.EscapeString(userEmail), timeStr, html.EscapeString(deviceName), html.EscapeString(ipAddress))
+
+	bodyHTML = wrapEmailLayout("LOGIN PERANGKAT BARU", "#2563eb", title, subtitle, mainContent, "Periksa Keamanan Akun →", adminSettingsURL)
+	return
+}
+
 
 

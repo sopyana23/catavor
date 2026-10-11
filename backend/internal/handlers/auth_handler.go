@@ -20,6 +20,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 )
 
@@ -94,6 +95,7 @@ type GoogleAuthRequest struct {
 type UpdateProfileRequest struct {
 	Name            string `json:"name"`
 	Email           string `json:"email"`
+	CurrentPassword string `json:"current_password"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 }
@@ -330,6 +332,27 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if activeStore.ID > 0 {
 		activeStoreID = &activeStore.ID
 	}
+	// Industry Standard Security: Detect logins from new or unrecognized devices / browsers
+	var previousLoginCount int64
+	database.DB.Model(&models.ActivityLog{}).Where(
+		"user_id = ? AND category = 'security' AND action = 'auth.login'",
+		user.ID,
+	).Count(&previousLoginCount)
+
+	if previousLoginCount > 0 {
+		var matchUA int64
+		database.DB.Model(&models.ActivityLog{}).Where(
+			"user_id = ? AND category = 'security' AND action = 'auth.login' AND user_agent = ?",
+			user.ID, c.Get("User-Agent"),
+		).Count(&matchUA)
+
+		if matchUA == 0 {
+			// Unrecognized device / browser detected! Enqueue security alert email
+			subj, body := services.BuildNewDeviceLoginSecurityEmail(user.Name, user.Email, c.Get("User-Agent"), c.IP())
+			_, _ = services.EnqueueEmail(user.Email, user.Name, "Catavor Keamanan", subj, body, "security_alert", fmt.Sprintf("new_dev_%d_%d", user.ID, time.Now().Unix()))
+		}
+	}
+
 	services.RecordActivity(services.RecordActivityParams{
 		DB:          database.DB,
 		StoreID:     activeStoreID,
@@ -352,6 +375,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		"message":             "Login berhasil.",
 		"token":               token,
 		"is_password_changed": user.IsPasswordChanged,
+		"has_custom_password": user.HasCustomPassword,
 		"stores":                   storeList,
 		"stores_count":             len(storeList),
 		"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
@@ -365,6 +389,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
 			"permissions":         services.GetRBACService().GetUserPermissions(&user),
 			"is_password_changed": user.IsPasswordChanged,
+			"has_custom_password": user.HasCustomPassword,
 			"store_slug":          activeStore.Slug,
 			"store_title":         activeStore.StoreTitle,
 			"store_theme":         activeStore.StoreTheme,
@@ -551,8 +576,10 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if req.GoogleID != "" {
 			googleID := req.GoogleID
 			newUser.GoogleID = &googleID
+			newUser.HasCustomPassword = false
 			_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
 		} else {
+			newUser.HasCustomPassword = true
 			if err := newUser.SetPassword(req.Password); err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"success": false,
@@ -880,12 +907,55 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			services.TouchStoreActivity(database.DB, user.Store.ID)
 		}
 
+		// Industry Standard Security: Detect logins from new or unrecognized devices / browsers
+		var previousLoginCount int64
+		database.DB.Model(&models.ActivityLog{}).Where(
+			"user_id = ? AND category = 'security' AND action = 'auth.login'",
+			user.ID,
+		).Count(&previousLoginCount)
+
+		if previousLoginCount > 0 {
+			var matchUA int64
+			database.DB.Model(&models.ActivityLog{}).Where(
+				"user_id = ? AND category = 'security' AND action = 'auth.login' AND user_agent = ?",
+				user.ID, c.Get("User-Agent"),
+			).Count(&matchUA)
+
+			if matchUA == 0 {
+				// Unrecognized device / browser detected! Enqueue security alert email
+				subj, body := services.BuildNewDeviceLoginSecurityEmail(user.Name, user.Email, c.Get("User-Agent"), c.IP())
+				_, _ = services.EnqueueEmail(user.Email, user.Name, "Catavor Keamanan", subj, body, "security_alert", fmt.Sprintf("new_dev_%d_%d", user.ID, time.Now().Unix()))
+			}
+		}
+
+		var activeStoreID *uint
+		if activeStore.ID > 0 {
+			activeStoreID = &activeStore.ID
+		}
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          database.DB,
+			StoreID:     activeStoreID,
+			UserID:      &user.ID,
+			ActorRole:   "merchant",
+			ActorName:   user.Name,
+			ActorEmail:  user.Email,
+			Action:      "auth.login",
+			Category:    "security",
+			EntityType:  "user",
+			EntityID:    &user.ID,
+			EntityTitle: user.Email,
+			Description: fmt.Sprintf("Pengguna %s (%s) berhasil login via Google SSO.", user.Name, user.Email),
+			IPAddress:   c.IP(),
+			UserAgent:   c.Get("User-Agent"),
+		})
+
 		return c.JSON(fiber.Map{
 			"success":             true,
 			"is_new_user":         false,
 			"message":             "Login Google berhasil!",
 			"token":               token,
 			"is_password_changed": true,
+			"has_custom_password": user.HasCustomPassword,
 			"stores":                   storeList,
 			"stores_count":             len(storeList),
 			"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
@@ -895,6 +965,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"name":                user.Name,
 				"email":               user.Email,
 				"avatar":              avatar,
+				"has_custom_password": user.HasCustomPassword,
 				"store_slug":          activeStore.Slug,
 				"store_title":         activeStore.StoreTitle,
 				"store_theme":         activeStore.StoreTheme,
@@ -945,6 +1016,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		GoogleID:          &googleID,
 		EmailVerifiedAt:   &now,
 		IsPasswordChanged: true,
+		HasCustomPassword: false,
 	}
 	_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
 
@@ -1027,11 +1099,13 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		"message":             "Pendaftaran Google berhasil!",
 		"token":               token,
 		"is_password_changed": true,
+		"has_custom_password": false,
 		"user": fiber.Map{
 			"id":                  newUser.ID,
 			"name":                newUser.Name,
 			"email":               newUser.Email,
 			"avatar":              avatar,
+			"has_custom_password": false,
 			"store_slug":          newStore.Slug,
 			"store_title":         newStore.StoreTitle,
 			"store_theme":         newStore.StoreTheme,
@@ -1163,6 +1237,7 @@ func (h *AuthHandler) VerifyToken(c *fiber.Ctx) error {
 			"is_admin":            (user.PlatformRole != "" && user.PlatformRole != "merchant") || user.Email == "admin@catavor.com",
 			"permissions":         services.GetRBACService().GetUserPermissions(user),
 			"is_password_changed": user.IsPasswordChanged,
+			"has_custom_password": user.HasCustomPassword,
 			"store_slug":          activeStore.Slug,
 			"store_title":         activeStore.StoreTitle,
 			"store_theme":         activeStore.StoreTheme,
@@ -1326,7 +1401,23 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		user.Email = reqEmail
 	}
 
+	passwordWasChanged := false
 	if req.Password != "" {
+		if user.HasCustomPassword {
+			if strings.TrimSpace(req.CurrentPassword) == "" {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Kata sandi saat ini wajib diisi untuk mengubah kata sandi akun.",
+				})
+			}
+			if !user.CheckPassword(req.CurrentPassword) {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Kata sandi saat ini yang Anda masukkan salah.",
+				})
+			}
+		}
+
 		if err := security.ValidatePassword(req.Password); err != nil {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
@@ -1345,11 +1436,14 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 				"message": "Gagal mengenkripsi kata sandi.",
 			})
 		}
+		user.HasCustomPassword = true
 		user.IsPasswordChanged = true
 		user.TokenVersion++
+		passwordWasChanged = true
 	}
 
 	if err := database.DB.Save(user).Error; err != nil {
+		log.Error().Err(err).Msg("UpdateProfile DB.Save failed")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui profil.",
@@ -1383,9 +1477,19 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		UserAgent:   c.Get("User-Agent"),
 	})
 
+	if passwordWasChanged {
+		// Enqueue real-time transactional security alert email
+		subj, body := services.BuildPasswordChangedSecurityEmail(user.Name, user.Email, c.Get("User-Agent"), c.IP())
+		_, _ = services.EnqueueEmail(user.Email, user.Name, "Catavor Keamanan", subj, body, "security_alert", fmt.Sprintf("pwd_change_%d_%d", user.ID, time.Now().Unix()))
+	}
+
 	var newToken string
 	if req.Password != "" {
-		newToken, _ = middleware.GenerateToken(user, user.Store, h.cfg)
+		activeStore, _ := c.Locals("store").(*models.Store)
+		if activeStore == nil {
+			activeStore = user.Store
+		}
+		newToken, _ = middleware.GenerateToken(user, activeStore, h.cfg)
 	}
 
 	resMap := fiber.Map{
@@ -1396,6 +1500,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			"name":                user.Name,
 			"email":               user.Email,
 			"is_password_changed": user.IsPasswordChanged,
+			"has_custom_password": user.HasCustomPassword,
 		},
 	}
 	if newToken != "" {
@@ -1608,6 +1713,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	now := time.Now()
 	user.EmailVerifiedAt = &now
 	user.IsPasswordChanged = true
+	user.HasCustomPassword = true
 	user.TokenVersion++
 
 	if err := database.DB.Save(&user).Error; err != nil {
@@ -1616,6 +1722,10 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 			"message": "Gagal memperbarui kata sandi.",
 		})
 	}
+
+	// Enqueue real-time transactional security alert email
+	subj, body := services.BuildPasswordChangedSecurityEmail(user.Name, user.Email, c.Get("User-Agent"), c.IP())
+	_, _ = services.EnqueueEmail(user.Email, user.Name, "Catavor Keamanan", subj, body, "security_alert", fmt.Sprintf("pwd_reset_%d_%d", user.ID, time.Now().Unix()))
 
 	services.RecordActivity(services.RecordActivityParams{
 		DB:          database.DB,

@@ -8,6 +8,6 @@ export default defineConfig({
   base: '/desktop/',
   build: {
     outDir: '../../public/desktop',
-    emptyOutDir: true
+    emptyOutDir: false
   }
 })
