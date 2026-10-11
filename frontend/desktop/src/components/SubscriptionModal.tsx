@@ -833,7 +833,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
                           <Package size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span><strong>{plan.max_items === -1 ? 'Unlimited' : `${plan.max_items}`}</strong> Item Produk Aktif</span>
+                          <span><strong>{plan.max_items === -1 ? 'Unlimited' : `${plan.max_items}`}</strong> Item Katalog Aktif</span>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
@@ -1692,7 +1692,7 @@ export const QuotaDashboardWidget: React.FC<{
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: '0.82rem' }}>
             <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
-              <Package size={14} style={{ color: 'var(--primary)' }} /> Kuota Produk Aktif
+              <Package size={14} style={{ color: 'var(--primary)' }} /> Kuota Item Aktif
             </span>
             <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '3px' }}>
               <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 800 }}>
@@ -1725,7 +1725,7 @@ export const QuotaDashboardWidget: React.FC<{
           {quota.archived_items_count > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: '#f59e0b', marginTop: '0.15rem' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                <Archive size={11} strokeWidth={2.2} /> Produk Diarsipkan
+                <Archive size={11} strokeWidth={2.2} /> Item Diarsipkan
               </span>
               <strong style={{ fontWeight: 800 }}>{quota.archived_items_count.toLocaleString('id-ID')} Item</strong>
             </div>

@@ -136,7 +136,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       items: [
         {
           id: 'items',
-          label: 'Daftar Item / Produk',
+          label: 'Daftar Item Katalog',
           icon: <PackageCheck size={18} />,
           badge: totalItemsCount > 0 ? totalItemsCount : null,
           badgeColor: 'var(--primary-glow)',
@@ -986,7 +986,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
               title="Lihat status kuota & upgrade paket"
             >
               <PackageCheck size={13} color="var(--primary)" />
-              <span>{activeItemsCount} / {maxItems === -1 ? '∞' : maxItems} Produk</span>
+              <span>{activeItemsCount} / {maxItems === -1 ? '∞' : maxItems} Item</span>
               <span style={{
                 fontSize: '0.62rem',
                 fontWeight: 800,
@@ -1167,7 +1167,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
                       cursor: 'pointer',
                       border: '1px solid var(--border-light)'
                     }}
-                    title="Buka Pengelolaan Daftar Item & Produk"
+                    title="Buka Pengelolaan Daftar Item Katalog"
                   >
                     <Package size={15} style={{ color: 'var(--primary)' }} />
                     <span>Kelola Daftar Item</span>
