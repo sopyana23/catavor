@@ -241,7 +241,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       case 'items': return 'Daftar Item & Inventaris';
       case 'categories': return 'Manajemen Kategori & Etalase Katalog';
       case 'analytics': return 'Statistik & Analisis Trafik';
-      case 'subscription': return 'Paket Langganan & Kuota Toko';
+      case 'subscription': return 'Paket Langganan & Kuota Katalog';
       case 'notifications': return 'Pusat Notifikasi Sistem';
       case 'audit_logs': return 'Riwayat Aktivitas & Audit Trail';
       case 'settings': return 'Pengaturan Profil & Tampilan Katalog';

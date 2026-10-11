@@ -405,7 +405,7 @@ export function getItemActionConfig(item: any) {
       Icon: Download,
       modalTitle: 'Pilih Metode Pembelian File Digital',
       modalSubtitle: 'Pilih metode pembayaran resmi untuk pengiriman instan file digital:',
-      badgeText: 'Produk Digital',
+      badgeText: 'Item Digital',
       directActionTitle: 'Chat WA (Pembelian & Kirim File)',
       directActionSubtitle: 'Dapatkan invoice pembayaran dan tautan download file berlisensi resmi',
       marketplaceTitle: 'Beli via Toko Online / Marketplace Digital',
@@ -457,9 +457,9 @@ export function getItemActionConfig(item: any) {
     shortLabel: 'Beli Sekarang',
     fullLabel: 'Beli Sekarang / Pilih Pembelian',
     Icon: ShoppingCart,
-    modalTitle: 'Pilih Metode Pembelian Produk',
+    modalTitle: 'Pilih Metode Pembelian Item',
     modalSubtitle: 'Pilih metode transaksi resmi kami:',
-    badgeText: 'Produk Fisik',
+    badgeText: 'Item Fisik',
     directActionTitle: 'Chat WA (Transaksi Langsung)',
     directActionSubtitle: 'Konsultasi ketersediaan barang dan kirim format order',
     marketplaceTitle: 'Beli via Online Shop / Marketplace',
@@ -582,7 +582,7 @@ export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any
 
 export function getReportingSectorInfo(targetType: 'store' | 'item', item?: any): { label: string; color: string; icon: any } {
   if (targetType === 'store') {
-    return { label: 'Profil Toko & Katalog', color: '#6366f1', icon: Store };
+    return { label: 'Profil & Identitas Katalog', color: '#6366f1', icon: Store };
   }
   const pType = String(item?.product_type || item?.type || item?.attributes?.product_type || 'physical').trim().toLowerCase();
   switch (pType) {
@@ -934,16 +934,16 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'food':
       return {
         type: 'food',
-        typeName: 'Produk Kuliner (F&B)',
+        typeName: 'Kuliner & F&B',
         badgeName: 'Kuliner & F&B',
         icon: Utensils,
         color: '#ea580c',
         gradientBg: 'radial-gradient(circle at top left, rgba(234, 88, 12, 0.15) 0%, transparent 70%)',
-        modalTitle: (mode) => mode === 'create' ? 'Tambah Produk Kuliner' : 'Edit Produk Kuliner',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Item Kuliner' : 'Edit Item Kuliner',
         modalSubtitle: 'Lengkapi takaran porsi/kemasan, masa simpan, suhu penyimpanan, dan metode pengiriman.',
-        nameLabel: 'Nama Produk Kuliner / Menu *',
+        nameLabel: 'Nama Item Kuliner / Menu *',
         namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Cold Brew Coffee / Frozen Dimsum 20pcs / Bumbu Rendang...',
-        categoryLabel: 'Kategori Menu / Toko *',
+        categoryLabel: 'Kategori Menu / Katalog *',
         defaultCategory: 'Makanan Utama (Main Course)',
         categoryOptions: [
           'Makanan Utama (Main Course)',
@@ -957,9 +957,9 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 35.000',
-        photoLabel: 'Foto Produk / Penyajian (1-10 Foto) *',
-        photoHelper: 'Unggah 1 hingga 10 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
-        videoLabel: 'Video Produk / Penyajian (Opsional)',
+        photoLabel: 'Foto Item / Penyajian (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto makanan, minuman, kemasan, atau bahan kuliner.',
+        videoLabel: 'Video Item / Penyajian (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
         deliveryOptions: [
@@ -5963,12 +5963,12 @@ Terima kasih.`;
     }
     const errors: Record<string, string> = {};
     if (!registerForm.store_name || !registerForm.store_name.trim()) {
-      errors.store_name = 'Nama Toko / Bisnis wajib diisi.';
+      errors.store_name = 'Nama Katalog / Bisnis wajib diisi.';
     }
     if (!registerForm.store_slug || !registerForm.store_slug.trim()) {
-      errors.store_slug = 'Link Username Toko wajib diisi.';
+      errors.store_slug = 'Link Username Katalog wajib diisi.';
     } else if (registerForm.store_slug.length < 3) {
-      errors.store_slug = 'Link Username Toko minimal 3 karakter.';
+      errors.store_slug = 'Link Username Katalog minimal 3 karakter.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -10829,7 +10829,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setRegisterStep(2);
           setPortalTab('register');
           window.history.pushState({ tab: 'register', step: 2 }, '', '/register/step-2');
-          showToast('Otentikasi Google Berhasil! Silakan lengkapi Informasi Toko & Link Username Anda di Langkah 2.', 'info');
+          showToast('Otentikasi Google Berhasil! Silakan lengkapi Informasi Katalog & Link Username Anda di Langkah 2.', 'info');
         }
       } else {
         showToast(data.message || 'Gagal otentikasi Google SSO.', 'error');
@@ -11866,7 +11866,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const handleSettingsSave = async (e?: React.FormEvent, forceConfirmSlug: boolean = false) => {
     if (e) e.preventDefault()
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
-      showToast('Operasional toko sedang dibekukan sementara. Perubahan pengaturan dinonaktifkan.', 'error');
+      showToast('Operasional katalog sedang dibekukan sementara. Perubahan pengaturan dinonaktifkan.', 'error');
       return;
     }
 
@@ -11876,7 +11876,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     // If slug changed, validate and ask for confirmation
     if (cleanNewSlug && cleanNewSlug !== currentNormalized && !forceConfirmSlug) {
       if (slugCheckStatus === 'invalid' || slugCheckStatus === 'taken') {
-        showToast(slugCheckMessage || 'ID tautan toko tidak valid atau sudah terpakai.', 'error');
+        showToast(slugCheckMessage || 'ID tautan katalog tidak valid atau sudah terpakai.', 'error');
         return;
       }
       setShowSlugConfirmModal(true);
@@ -11948,7 +11948,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             const updatedPath = currentPath.replace(new RegExp(`^/${currentNormalized}\\b`), `/${newSlug}`);
             window.history.replaceState({}, '', updatedPath || `/${newSlug}/admin?tab=settings`);
           } catch {}
-          showToast(`Tautan toko berhasil diperbarui ke catavor.com/${newSlug}!`);
+          showToast(`Tautan katalog berhasil diperbarui ke catavor.com/${newSlug}!`);
         } else {
           showToast('Pengaturan katalog Anda berhasil disimpan!');
         }
@@ -12770,7 +12770,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   // Handle Fauna/Product Delete
   const handleFaunaDelete = async (id: number): Promise<boolean> => {
     if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
-      showToast('Operasional toko sedang dibekukan sementara. Penghapusan item dinonaktifkan.', 'error');
+      showToast('Operasional katalog sedang dibekukan sementara. Penghapusan item dinonaktifkan.', 'error');
       return false;
     }
     if (!window.confirm('Apakah Anda yakin ingin menghapus postingan item ini?')) return false
@@ -12784,7 +12784,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (res.ok && data.success) {
         loadData()
         fetchMyQuota()
-        showToast('Data produk berhasil dihapus!')
+        showToast('Data item berhasil dihapus!')
         if (view === 'admin') {
           sessionStorage.setItem('catavor_desktop_view', 'admin')
           sessionStorage.setItem('catavor_desktop_admin_tab', adminTab || 'items')
@@ -12797,13 +12797,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (res.status === 401) {
           handleUnauthorized()
         } else {
-          showToast(data.message || 'Gagal menghapus data produk.', 'error')
+          showToast(data.message || 'Gagal menghapus data item.', 'error')
         }
         return false
       }
     } catch (err) {
       console.error(err)
-      showToast('Koneksi terputus. Gagal menghapus data produk.', 'error')
+      showToast('Koneksi terputus. Gagal menghapus data item.', 'error')
       return false
     }
   }
@@ -21159,138 +21159,155 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
               {adminTab === 'settings' && (
                 <>
-                  {/* Desktop Settings Sub-Tab Pills (5 Pillars Structure) */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className={`btn-secondary ${settingsSubTab === 'general' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('general')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.55rem 1.1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'general' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'general' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'general' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      <Store size={15} />
-                      <span>Profil &amp; Identitas Utama</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn-secondary ${settingsSubTab === 'contact' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('contact')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.55rem 1.1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'contact' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'contact' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'contact' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      <MessageSquare size={15} />
-                      <span>Kontak &amp; Saluran Resmi</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn-secondary ${settingsSubTab === 'about' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('about')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.55rem 1.1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'about' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'about' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      <Sparkles size={15} />
-                      <span>Halaman Tentang Kami</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn-secondary ${settingsSubTab === 'theme' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('theme')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.55rem 1.1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'theme' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'theme' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'theme' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      <Palette size={15} />
-                      <span>Tema &amp; Tampilan Visual</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn-secondary ${settingsSubTab === 'master' ? 'active' : ''}`}
-                      onClick={() => setSettingsSubTab('master')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        padding: '0.55rem 1.1rem',
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        backgroundColor: settingsSubTab === 'master' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: settingsSubTab === 'master' ? '#fff' : 'var(--text-secondary)',
-                        border: settingsSubTab === 'master' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
-                      }}
-                    >
-                      <Database size={15} />
-                      <span>Master Data Katalog</span>
-                    </button>
+                  {/* Desktop Settings Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginTop: '0.5rem',
+                    marginBottom: '1.25rem',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                    borderBottom: '1px solid var(--border-light)',
+                    paddingBottom: '1.25rem'
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem' }}>
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          backgroundColor: 'var(--primary-glow)',
+                          border: '1px solid var(--primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)'
+                        }}>
+                          <SlidersHorizontal size={20} strokeWidth={2.2} />
+                        </div>
+                        <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                          Pengaturan Profil &amp; Tampilan Katalog
+                        </h2>
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                        Kelola identitas publik, branding visual, kontak resmi, dan preferensi etalase katalog Anda.
+                      </p>
+                    </div>
+
+                    {/* Top Action Save Button for form subtabs */}
+                    {(settingsSubTab === 'general' || settingsSubTab === 'contact' || settingsSubTab === 'about') && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleSettingsSave()}
+                          className="btn-primary"
+                          disabled={settingsLoading || settings.dormancy_status === 'suspended' || settings.is_suspended}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            padding: '0.6rem 1.35rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            borderRadius: '0.5rem',
+                            cursor: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)',
+                            ...((settings.dormancy_status === 'suspended' || settings.is_suspended) ? { opacity: 0.6 } : {})
+                          }}
+                        >
+                          <Save size={15} strokeWidth={2.2} />
+                          <span>
+                            {(settings.dormancy_status === 'suspended' || settings.is_suspended)
+                              ? 'Terkunci: Katalog Dibekukan'
+                              : (settingsLoading ? 'Menyimpan...' : 'Simpan Perubahan')}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop Settings Segmented Sub-Tab Bar (5 Pillars + Pro Structure) */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '0.4rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    padding: '0.35rem',
+                    borderRadius: '0.75rem',
+                    border: '1px solid var(--border-light)',
+                    marginBottom: '1.5rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    {[
+                      { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
+                      { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
+                      { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
+                      { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
+                      { id: 'master', label: 'Master Data Katalog', icon: Database }
+                    ].map(tab => {
+                      const Icon = tab.icon;
+                      const isActive = settingsSubTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setSettingsSubTab(tab.id as any)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flex: '1 1 0',
+                            minWidth: 'max-content',
+                            gap: '0.45rem',
+                            padding: '0.55rem 0.85rem',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            borderRadius: '0.55rem',
+                            cursor: 'pointer',
+                            border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
+                            backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                            color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: isActive ? '0 2px 8px rgba(16, 185, 129, 0.25)' : 'none',
+                            whiteSpace: 'nowrap',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Icon size={15} strokeWidth={2} />
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
+
                     {storeQuota?.plan?.has_custom_domain && (
                       <button
                         type="button"
-                        className={`btn-secondary ${settingsSubTab === 'domain' ? 'active' : ''}`}
                         onClick={() => setSettingsSubTab('domain')}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
+                          flex: '1 1 0',
+                          minWidth: 'max-content',
                           gap: '0.45rem',
-                          padding: '0.55rem 1.1rem',
-                          fontSize: '0.82rem',
+                          padding: '0.55rem 0.85rem',
+                          fontSize: '0.8rem',
                           fontWeight: 700,
-                          borderRadius: '20px',
+                          borderRadius: '0.55rem',
                           cursor: 'pointer',
-                          backgroundColor: settingsSubTab === 'domain' ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                          color: settingsSubTab === 'domain' ? '#fff' : 'var(--text-secondary)',
-                          border: settingsSubTab === 'domain' ? '1px solid var(--primary)' : '1px solid var(--border-light)'
+                          border: settingsSubTab === 'domain' ? '1px solid var(--primary)' : '1px solid transparent',
+                          backgroundColor: settingsSubTab === 'domain' ? 'var(--primary)' : 'transparent',
+                          color: settingsSubTab === 'domain' ? '#ffffff' : 'var(--text-secondary)',
+                          boxShadow: settingsSubTab === 'domain' ? '0 2px 8px rgba(16, 185, 129, 0.25)' : 'none',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
                         }}
                       >
-                        <Globe size={15} style={{ color: settingsSubTab === 'domain' ? '#fff' : 'var(--primary)' }} />
+                        <Globe size={15} strokeWidth={2} />
                         <span>Custom Domain</span>
                         <span style={{
                           fontSize: '0.6rem',
                           fontWeight: 900,
-                          padding: '2px 6px',
+                          padding: '1px 5px',
                           borderRadius: '4px',
                           backgroundColor: settingsSubTab === 'domain' ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
                           color: '#ffffff'
@@ -21946,17 +21963,17 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             fontWeight: 800,
                             ...((settings.dormancy_status === 'suspended' || settings.is_suspended) ? { opacity: 0.6, cursor: 'not-allowed' } : {})
                           }}
-                          title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Toko sedang dibekukan sementara' : ''}
+                          title={(settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Katalog sedang dibekukan sementara' : ''}
                         >
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended)
-                            ? 'Terkunci: Toko Dibekukan'
+                            ? 'Terkunci: Katalog Dibekukan'
                             : (settingsLoading ? 'Menyimpan...' : 'Simpan Pengaturan')}
                         </button>
                       </div>
                     </form>
                   )}
 
-                  {/* Modal Konfirmasi Penggantian Tautan / Slug Toko */}
+                  {/* Modal Konfirmasi Penggantian Tautan / Slug Katalog */}
                   {showSlugConfirmModal && (
                     <div style={{
                       position: 'fixed',
@@ -21995,7 +22012,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           </div>
                           <div>
                             <h3 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 800, color: '#ffffff' }}>
-                              Konfirmasi Penggantian Tautan Toko
+                              Konfirmasi Penggantian Tautan Katalog
                             </h3>
                             <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
                               Perubahan tautan katalog publik berdampak langsung ke pelanggan
@@ -22017,7 +22034,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             ⚠️ Peringatan Tautan Lama & Kode QR:
                           </p>
                           <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
-                            <li>Tautan lama <strong>catavor.com/{storeSlug || 'toko-lama'}</strong> akan langsung dinonaktifkan.</li>
+                            <li>Tautan lama <strong>catavor.com/{storeSlug || 'katalog-lama'}</strong> akan langsung dinonaktifkan.</li>
                             <li>Kode QR atau brosur cetak yang memakai link lama tidak dapat membuka katalog lagi.</li>
                             <li>Tautan yang sudah dibagikan di bio media sosial atau chat WhatsApp akan menjadi tidak aktif.</li>
                           </ul>
@@ -22554,7 +22571,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                           {[
                             { key: 'all', label: 'Semua Kategori' },
                             { key: 'security', label: 'Autentikasi' },
-                            { key: 'catalog', label: 'Produk & Item' },
+                            { key: 'catalog', label: 'Item Katalog' },
                             { key: 'store', label: 'Profil & Identitas' },
                             { key: 'billing', label: 'Paket & Langganan' },
                             ...(adminUser?.email === 'admin@catavor.com' ? [
