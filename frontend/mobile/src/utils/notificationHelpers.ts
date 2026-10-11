@@ -258,14 +258,14 @@ export function normalizeNotification(item: any): NormalizedNotification {
   const isDetail = rawActionType === 'detail' || (Boolean(detailContent) && !isDirectNav && !isExternal);
 
   const tabLabels: Record<string, string> = {
-    settings: 'Pengaturan Toko',
-    items: 'Katalog Produk',
+    settings: 'Pengaturan Katalog',
+    items: 'Daftar Item Katalog',
     subscription: 'Paket Langganan',
     help: 'Pusat Bantuan & Tiket CS',
-    analytics: 'Statistik Toko',
-    share: 'Bagikan Toko / QR',
+    analytics: 'Statistik Katalog',
+    share: 'Bagikan Katalog / QR',
     articles: 'Artikel & Berita',
-    policies: 'Kebijakan Toko',
+    policies: 'Kebijakan Katalog',
     profile: 'Profil Pengguna',
     audit_logs: 'Log Aktivitas',
     rbac: 'Hak Akses Tim'

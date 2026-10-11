@@ -18754,7 +18754,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                         {/* Helper Description */}
                         <small style={{ color: 'var(--text-secondary)', fontSize: '0.69rem', display: 'block', marginBottom: '0.65rem', lineHeight: 1.4 }}>
-                          Unggah hingga {MAX_PRODUCT_PHOTOS} foto produk. Foto pertama otomatis menjadi foto sampul utama.
+                          Unggah hingga {MAX_PRODUCT_PHOTOS} foto item. Foto pertama otomatis menjadi foto sampul utama.
                         </small>
 
                         {/* Mobile Action Buttons: 2 Balanced Touch-Friendly Buttons */}
@@ -19046,7 +19046,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           ? 'Belum ada link platform freelance. Klik "+ Tambah Link" jika menyediakan pemesanan via Fastwork, Projects.co.id, dll.'
                           : (crudForm.product_type === 'food'
                               ? 'Belum ada link pesan-antar. Klik "+ Tambah Link" untuk GoFood, GrabFood, ShopeeFood, atau Tokopedia.'
-                              : 'Belum ada link marketplace. Klik "+ Tambah Link" jika produk ini dijual di marketplace.')}
+                              : 'Belum ada link marketplace. Klik "+ Tambah Link" jika item ini dijual di marketplace.')}
                       </p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.5rem' }}>
@@ -19106,7 +19106,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             </div>
 
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem' }}>URL Link Produk *</label>
+                              <label className="form-label" style={{ fontSize: '0.7rem', marginBottom: '0.2rem' }}>URL Link Item *</label>
                               <input
                                 type="url"
                                 className="form-input"
@@ -19363,7 +19363,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         );
                       })()}
                       <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.3rem', lineHeight: 1.3 }}>
-                        Arahkan pertanyaan produk, pemesanan, dan transaksi item ini ke CS tertentu secara spesifik.
+                        Arahkan pertanyaan, pemesanan, dan transaksi item ini ke CS tertentu secara spesifik.
                       </span>
                     </div>
                   </div>
@@ -20078,7 +20078,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     case 'items':
                       return {
                         title: 'Kelola Inventaris',
-                        subtitle: `${faunas.length} Produk & Varian Aktif`
+                        subtitle: `${faunas.length} Item & Varian Aktif`
                       };
                     case 'subscription':
                       return {
@@ -20088,13 +20088,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         subtitle: storeQuota?.plan?.name || 'Paket Merchant Catavor'
                       };
                     case 'settings':
-                      if (mobileSettingsTab === 'general') return { title: 'Profil & Identitas', subtitle: 'Nama, Logo & Slogan Toko' };
+                      if (mobileSettingsTab === 'general') return { title: 'Profil & Identitas', subtitle: 'Nama, Logo & Slogan Katalog' };
                       if (mobileSettingsTab === 'contact') return { title: 'Kontak & Saluran Resmi', subtitle: 'WhatsApp, Web & Sosmed' };
                       if (mobileSettingsTab === 'about') return { title: 'Halaman Tentang Kami', subtitle: 'Cerita, Komitmen & Informasi' };
                       if (mobileSettingsTab === 'theme') return { title: 'Tema & Tampilan Visual', subtitle: 'Palet Warna & Gaya Estetik' };
                       if (mobileSettingsTab === 'domain') return { title: 'Custom Domain', subtitle: 'Hubungkan Domain Brand Anda' };
                       if (mobileSettingsTab === 'master') return { title: 'Master Data Katalog', subtitle: 'Opsi Kategori, Status & Wilayah' };
-                      return { title: 'Pengaturan Toko', subtitle: 'Konfigurasi & Branding Katalog' };
+                      return { title: 'Pengaturan Katalog', subtitle: 'Konfigurasi & Branding Katalog' };
                     case 'help':
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
                         if (isCreatingTicket) return { title: 'Banding Kepatuhan', subtitle: 'Formulir Peninjauan Pembekuan' };
@@ -20892,7 +20892,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         onClick={openCreateSheet}
                         style={{ padding: '0.6rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, borderRadius: '0.5rem', marginTop: '0.25rem' }}
                       >
-                        + Tambah Produk Pertama
+                        + Tambah Item Pertama
                       </button>
                     )}
                   </div>
@@ -20907,7 +20907,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <input 
                             type="text" 
                             className="search-input" 
-                            placeholder="Cari produk / item katalog..."
+                            placeholder="Cari item katalog..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                           />
@@ -21113,7 +21113,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.2rem 0.15rem 0', marginTop: '0.2rem', flexWrap: 'wrap', gap: '0.35rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                            <strong style={{ color: 'var(--text-primary)' }}>{serverPagination.totalItems > 0 ? serverPagination.totalItems : filteredFaunas.length}</strong> produk
+                            <strong style={{ color: 'var(--text-primary)' }}>{serverPagination.totalItems > 0 ? serverPagination.totalItems : filteredFaunas.length}</strong> item
                           </span>
                           {classFilter !== 'all' && (
                             <button
@@ -21331,7 +21331,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               setActionMenuData({ type: 'item', item });
                             }}
                             className="card-more-action-btn"
-                            title="Opsi Produk"
+                            title="Opsi Item"
                           >
                             <MoreVertical size={13} />
                           </button>
@@ -22046,7 +22046,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600 }}>
                           <Lock size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
-                          <span>Penambahan dan pengubahan produk ditangguhkan</span>
+                          <span>Penambahan dan pengubahan item ditangguhkan</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 600 }}>
                           <Scale size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
@@ -22267,7 +22267,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             {settings.dormancy_status === 'warning_2' ? 'Katalog akan dinonaktifkan sementara' : 'Katalog terdeteksi tidak aktif selama 30 hari'}
                           </h4>
                           <p style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                            Perpanjang masa aktif gratis Anda agar etalase produk tetap tampil publik dan terhindar dari penonaktifan sistem.
+                            Perpanjang masa aktif gratis Anda agar etalase katalog tetap tampil publik dan terhindar dari penonaktifan sistem.
                           </p>
                         </div>
                       </div>
@@ -22360,7 +22360,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <Package size={13} style={{ color: 'var(--primary)' }} />
                         <span>
-                          Produk: <strong style={{ color: 'var(--text-primary)' }}>{faunas.length}</strong> / {(storeQuota?.max_items === -1 || (storeQuota?.max_items || 0) < 0) ? '∞ (Tanpa Batas)' : (storeQuota?.max_items || 100)}
+                          Item: <strong style={{ color: 'var(--text-primary)' }}>{faunas.length}</strong> / {(storeQuota?.max_items === -1 || (storeQuota?.max_items || 0) < 0) ? '∞ (Tanpa Batas)' : (storeQuota?.max_items || 100)}
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -23190,7 +23190,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <div className="glass-panel" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: '0.85rem', background: 'var(--card-bg-gradient)', border: '1px solid var(--border-light)' }}>
                       <Database size={36} style={{ marginBottom: '0.65rem', color: 'var(--primary)' }} />
                       <h4 style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>Belum Ada Item Terdaftar</h4>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Mulai tambahkan produk, menu, jasa, atau file digital pertama Anda.</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Mulai tambahkan barang, menu, jasa, atau file digital pertama Anda.</p>
                       <button 
                         type="button"
                         className="btn-primary" 
@@ -23800,7 +23800,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                               <div className="form-group">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                  <label className="form-label" style={{ margin: 0 }}>ID / Tautan Toko *</label>
+                                  <label className="form-label" style={{ margin: 0 }}>ID / Tautan Katalog *</label>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}>
                                     {slugCheckStatus === 'checking' && (
                                       <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -23841,7 +23841,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   <input 
                                     type="text" 
                                     className="form-input" 
-                                    placeholder="nama-toko-anda"
+                                    placeholder="nama-katalog-anda"
                                     required
                                     value={settingsSlug}
                                     onChange={(e) => {
@@ -23857,7 +23857,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                                   />
                                 </div>
                                 <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: '0.3rem 0 0 0', lineHeight: 1.35 }}>
-                                  Alamat link publik toko. Hanya huruf kecil, angka, dan strip (-).
+                                  Alamat link publik katalog. Hanya huruf kecil, angka, dan strip (-).
                                 </p>
                               </div>
 
@@ -25921,7 +25921,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                                 const tabLabels: Record<string, string> = {
                                   settings: 'Pengaturan Toko',
-                                  items: 'Katalog Produk',
+                                  items: 'Daftar Item Katalog',
                                   subscription: 'Paket Langganan',
                                   help: 'Pusat Bantuan & Tiket CS',
                                   analytics: 'Statistik Toko',
@@ -26551,7 +26551,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                               const tabLabels: Record<string, string> = {
                                 settings: 'Pengaturan Toko',
-                                items: 'Katalog Produk',
+                                items: 'Daftar Item Katalog',
                                 subscription: 'Paket Langganan',
                                 help: 'Pusat Bantuan & Tiket CS',
                                 analytics: 'Statistik Toko',
@@ -30147,7 +30147,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div className="bottom-sheet-title-box">
                 <SlidersHorizontal size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                 <div>
-                  <h3 className="bottom-sheet-title">Filter &amp; Urutkan Produk</h3>
+                  <h3 className="bottom-sheet-title">Filter &amp; Urutkan Item</h3>
                 </div>
               </div>
             </div>
@@ -30201,7 +30201,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexShrink: 0 }}>
                   <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Kategori Produk ({availableCategories.length})
+                    Kategori Item ({availableCategories.length})
                   </span>
                   {classFilter !== 'all' && (
                     <button 
@@ -30304,7 +30304,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 onClick={() => setShowFilterSheet(false)}
                 style={{ flex: 2, padding: '0.75rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.75rem' }}
               >
-                Terapkan ({filteredFaunas.length} Produk)
+                Terapkan ({filteredFaunas.length} Item)
               </button>
             </div>
           </div>
@@ -30776,7 +30776,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       </div>
                       <div className="action-menu-text-box">
                         <span className="action-menu-title" style={{ color: 'var(--primary)' }}>Kelola Inventaris & Katalog</span>
-                        <span className="action-menu-desc">Atur daftar produk, tambah item baru, atau kelola kategori</span>
+                        <span className="action-menu-desc">Atur daftar item katalog, tambah item baru, atau kelola kategori</span>
                       </div>
                       <ChevronRight size={16} style={{ color: 'var(--primary)' }} />
                     </button>
@@ -31227,17 +31227,17 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             >
               <div className="bottom-sheet-title-box">
                 <ArrowUpDown size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <h3 className="bottom-sheet-title">Urutkan Produk</h3>
+                <h3 className="bottom-sheet-title">Urutkan Item</h3>
               </div>
             </div>
 
             <div className="bottom-sheet-scrollable-body">
               {[
-                { id: 'newest', label: 'Produk Terbaru', desc: 'Menampilkan item yang baru ditambahkan' },
+                { id: 'newest', label: 'Item Terbaru', desc: 'Menampilkan item yang baru ditambahkan' },
                 { id: 'price_asc', label: 'Harga: Termurah', desc: 'Urutan dari harga paling hemat' },
                 { id: 'price_desc', label: 'Harga: Tertinggi', desc: 'Urutan dari harga paling tinggi / eksklusif' },
-                { id: 'name_asc', label: 'Nama Produk: A - Z', desc: 'Urutan alfabetis nama item katalog' },
-                { id: 'oldest', label: 'Produk Terlama', desc: 'Item katalog pertama' }
+                { id: 'name_asc', label: 'Nama Item: A - Z', desc: 'Urutan alfabetis nama item katalog' },
+                { id: 'oldest', label: 'Item Terlama', desc: 'Item katalog pertama' }
               ].map((opt) => {
                 const isSelected = sortBy === opt.id;
                 return (
@@ -31866,7 +31866,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                       {isQuotaExceeded
                         ? 'Batas Kuota Katalog Penuh'
-                        : (targetActive ? 'Aktifkan Produk ke Katalog?' : 'Arsipkan Produk Ini?')}
+                        : (targetActive ? 'Aktifkan Item ke Katalog?' : 'Arsipkan Item Ini?')}
                     </h3>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.name}
@@ -31887,7 +31887,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                     color: 'var(--text-secondary)',
                     lineHeight: 1.5
                   }}>
-                    Batas item aktif paket <strong>{storeQuota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item). Silakan upgrade ke paket Pro atau arsipkan produk lain terlebih dahulu.
+                    Batas item aktif paket <strong>{storeQuota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item). Silakan upgrade ke paket Pro atau arsipkan item lain terlebih dahulu.
                   </div>
                 ) : (
                   <div style={{
@@ -31901,13 +31901,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                   }}>
                     {targetActive ? (
                       <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
-                        <li>Produk akan segera <strong>ditampilkan kembali</strong> di etalase katalog toko.</li>
-                        <li>Calon pembeli dapat melihat dan memesan produk ini.</li>
-                        <li>Item ini akan menggunakan 1 kuota produk aktif toko Anda.</li>
+                        <li>Item akan segera <strong>ditampilkan kembali</strong> di etalase katalog.</li>
+                        <li>Calon pembeli dapat melihat dan memesan item ini.</li>
+                        <li>Item ini akan menggunakan 1 kuota item aktif katalog Anda.</li>
                       </ul>
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
-                        <li>Produk akan <strong>disembunyikan dari etalase toko</strong> publik.</li>
+                        <li>Item akan <strong>disembunyikan dari etalase katalog</strong> publik.</li>
                         <li>Data, foto, dan varian <strong>tetap tersimpan aman</strong> di database.</li>
                         <li>Anda dapat mengaktifkannya kembali kapan saja melalui tab <strong>"Arsip"</strong>.</li>
                       </ul>
@@ -31952,7 +31952,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       handleToggleActiveStatus(itemToToggle, nextStatus);
                     }}
                   >
-                    {targetActive ? 'Ya, Aktifkan Produk' : 'Ya, Arsipkan Produk'}
+                    {targetActive ? 'Ya, Aktifkan Item' : 'Ya, Arsipkan Item'}
                   </button>
                 )}
                 <button

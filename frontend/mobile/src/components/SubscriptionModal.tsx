@@ -796,7 +796,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.74rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
                           <Package size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span>Kapasitas: <strong>{plan.max_items === -1 ? 'Item Tak Terbatas' : `${plan.max_items} Item Produk`}</strong></span>
+                          <span>Kapasitas: <strong>{plan.max_items === -1 ? 'Item Tak Terbatas' : `${plan.max_items} Item Katalog`}</strong></span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
                           <HardDrive size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
@@ -1600,10 +1600,10 @@ export const MobileQuotaWidget: React.FC<{
 
       {/* Metrics Row: 2 Clean Balanced Columns */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-        {/* Metric 1: Produk */}
+        {/* Metric 1: Item */}
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: '0.74rem', gap: '0.35rem' }}>
-            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Produk</span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Item</span>
             <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '2px', flexShrink: 0 }}>
               <strong style={{ color: 'var(--text-primary)', fontSize: '0.82rem', fontWeight: 800 }}>
                 {quota.active_items_count.toLocaleString('id-ID')}

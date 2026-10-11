@@ -2626,7 +2626,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
       if (uploaded.length > 0) {
         setTicketReplyAttachments(prev => [...prev, ...uploaded]);
-        showToast(`${uploaded.length} gambar/screenshot terlampir!`, 'info');
+        showToast(`${uploaded.length} file berhasil dilampirkan!`, 'info');
       }
     } catch (e) {
       console.error(e);
@@ -7305,7 +7305,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     flexShrink: 0,
                     padding: 0
                   }}
-                  title="Lampirkan Gambar"
+                  title="Lampirkan File / Berkas (Foto atau PDF)"
                 >
                   {isUploadingTicketAttachment ? <RefreshCw size={15} className="animate-spin" /> : <Paperclip size={18} />}
                 </button>

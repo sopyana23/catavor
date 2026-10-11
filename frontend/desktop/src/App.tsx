@@ -8565,12 +8565,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
     };
   }, [adminTab, token, selectedTicket?.id, ticketPage, debouncedTicketSearch, ticketFilter, storeSlug]);
 
-  // Upload attachment helper for screenshots
+  // Upload attachment helper for support files (images, PDFs)
   const handleUploadSupportAttachment = async (files: FileList | null, isReply: boolean = false) => {
     if (!files || files.length === 0) return;
     const currentAttachments = isReply ? ticketReplyAttachments : ticketNewAttachments;
     if (currentAttachments.length + files.length > 5) {
-      showToast('Maksimum 5 file screenshot/gambar per pengiriman.', 'error');
+      showToast('Maksimum 5 file lampiran per pengiriman.', 'error');
       return;
     }
 
@@ -8627,11 +8627,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         } else {
           setTicketNewAttachments(prev => [...prev, ...uploaded]);
         }
-        showToast(`${uploaded.length} screenshot berhasil diunggah!`);
+        showToast(`${uploaded.length} file berhasil dilampirkan!`);
       }
     } catch (err) {
       console.error("Error uploading attachment:", err);
-      showToast('Terjadi kesalahan saat mengunggah gambar screenshot.', 'error');
+      showToast('Terjadi kesalahan saat mengunggah berkas lampiran.', 'error');
     } finally {
       setIsUploadingAttachment(false);
     }
@@ -12203,7 +12203,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
       const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
       if (maxActive !== -1 && currentActive >= maxActive) {
-        showToast(`Produk ini berstatus DIARSIPKAN. Kuota aktif toko Anda (${currentActive}/${maxActive}) sudah penuh. Upgrade paket atau arsipkan produk lain untuk mengedit/mengaktifkan item ini.`, 'error');
+        showToast(`Item ini berstatus DIARSIPKAN. Kuota aktif katalog Anda (${currentActive}/${maxActive}) sudah penuh. Upgrade paket atau arsipkan item lain untuk mengedit/mengaktifkan item ini.`, 'error');
         setView('admin');
         setAdminTab('subscription');
         const slug = getStoreSlug();
@@ -16547,12 +16547,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         {(selectedFauna as any).is_active !== false ? (
                           <>
                             <Archive size={15} style={{ color: '#d97706', flexShrink: 0 }} />
-                            <span>Arsipkan Produk</span>
+                            <span>Arsipkan Item</span>
                           </>
                         ) : (
                           <>
                             <Eye size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
-                            <span>Aktifkan Produk</span>
+                            <span>Aktifkan Item</span>
                           </>
                         )}
                       </button>
@@ -20106,14 +20106,14 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             borderRadius: '50%', 
                             backgroundColor: settings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--primary)' 
                           }} />
-                          {settings.dormancy_status === 'warning_2' ? 'Peringatan Masa Aktif Toko' : 'Pemberitahuan Inaktivitas Akun'}
+                          {settings.dormancy_status === 'warning_2' ? 'Peringatan Masa Aktif Katalog' : 'Pemberitahuan Inaktivitas Akun'}
                         </span>
                       </div>
                       <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>
                         {settings.dormancy_status === 'warning_2' ? 'Katalog akan dinonaktifkan sementara dalam beberapa hari' : 'Katalog terdeteksi tidak aktif selama 30 hari'}
                       </h4>
                       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                        Perpanjang masa aktif gratis Anda sekarang agar katalog tetap tampil di publik dan data produk Anda tidak terhapus.
+                        Perpanjang masa aktif gratis Anda sekarang agar katalog tetap tampil di publik dan data item Anda tidak terhapus.
                       </p>
                     </div>
                   </div>
@@ -20208,12 +20208,12 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                         Status: Dibekukan Sementara (Suspended)
                       </div>
                       <h2 style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 0.65rem 0', letterSpacing: '-0.02em' }}>
-                        Operasional Toko Sedang Terkunci
+                        Operasional Katalog Sedang Terkunci
                       </h2>
                       <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '580px' }}>
                         {settings.suspension_reason === 'moderation_violation'
                           ? 'Akses publik ke katalog dinonaktifkan sementara oleh Tim Kepatuhan platform sehubungan dengan peninjauan kebijakan komunitas. Seluruh pengelolaan data ditangguhkan hingga proses banding selesai.'
-                          : 'Katalog toko ini dibekukan sementara karena masa aktif belum diperpanjang. Pengelolaan data katalog dinonaktifkan.'}
+                          : 'Katalog ini dibekukan sementara karena masa aktif belum diperpanjang. Pengelolaan data katalog dinonaktifkan.'}
                       </p>
                     </div>
 
@@ -20239,7 +20239,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem' }}>
                         <Lock size={18} style={{ color: '#ef4444' }} />
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: 1.35 }}>
-                          Perubahan produk ditangguhkan
+                          Perubahan item ditangguhkan
                         </span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem' }}>
@@ -20557,7 +20557,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               }))
                             ]}
                             placeholder="Semua Kategori"
-                            ariaLabel="Filter Kategori Produk"
+                            ariaLabel="Filter Kategori Item"
                           />
 
                           {/* Sort Dropdown */}
@@ -20571,8 +20571,8 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               { value: 'price_asc', label: 'Harga Terendah' },
                               { value: 'price_desc', label: 'Harga Tertinggi' },
                             ]}
-                            placeholder="Urutan Produk"
-                            ariaLabel="Urutan Produk"
+                            placeholder="Urutan Item"
+                            ariaLabel="Urutan Item"
                           />
 
                           {/* Rows Per Page Dropdown with "Baris:" Label */}
@@ -21036,7 +21036,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                             color: '#f59e0b',
                                             borderColor: 'rgba(245, 158, 11, 0.3)'
                                           }}
-                                          title="Arsipkan Produk (Sembunyikan dari pembeli)"
+                                          title="Arsipkan Item (Sembunyikan dari pembeli)"
                                         >
                                           <Archive size={12} />
                                           Arsipkan
@@ -21425,7 +21425,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
 
                           <div className="form-group">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.4rem' }}>
-                              <label className="form-label" style={{ margin: 0 }}>ID / Tautan Toko (Username Katalog) *</label>
+                              <label className="form-label" style={{ margin: 0 }}>ID / Tautan Katalog *</label>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.74rem' }}>
                                 {slugCheckStatus === 'checking' && (
                                   <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -21466,7 +21466,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <input 
                                 type="text" 
                                 className="form-input" 
-                                placeholder="nama-toko-anda"
+                                placeholder="nama-katalog-anda"
                                 required
                                 value={settingsSlug}
                                 onChange={(e) => {
@@ -21581,7 +21581,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <RichTextarea 
                               label="Lokasi / Alamat Resmi"
                               rows={4}
-                              placeholder="Tuliskan alamat lengkap toko, gedung, patokan, tautan Google Maps, atau instruksi rute (Mendukung format teks tebal, poin, dan mode layar penuh)..."
+                              placeholder="Tuliskan alamat lengkap lokasi usaha/katalog, gedung, patokan, tautan Google Maps, atau instruksi rute (Mendukung format teks tebal, poin, dan mode layar penuh)..."
                               value={settingsForm.about_location || ''}
                               onChange={(val) => setSettingsForm({ ...settingsForm, about_location: val })}
                             />
@@ -21792,7 +21792,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                             <RichTextarea 
                               label="Deskripsi Profil Lengkap"
                               rows={5}
-                              placeholder="Tuliskan detail profil lengkap bisnis Anda, visi misi, sejarah, atau informasi penting toko (Mendukung format teks tebal, miring, daftar poin, dan mode layar penuh)..."
+                              placeholder="Tuliskan detail profil lengkap bisnis Anda, visi misi, sejarah, atau informasi penting katalog (Mendukung format teks tebal, miring, daftar poin, dan mode layar penuh)..."
                               value={settingsForm.about_description || ''}
                               onChange={(val) => setSettingsForm({ ...settingsForm, about_description: val })}
                             />
@@ -25617,7 +25617,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                             >
                                               <img
                                                 src={att.file_url}
-                                                alt={att.file_name || 'Screenshot'}
+                                                alt={att.file_name || 'Lampiran Berkas'}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.25s ease' }}
                                                 onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
                                                 onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1.0)')}
@@ -25803,10 +25803,10 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     ) : (
                                       <Paperclip size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                                     )}
-                                    <span>Lampirkan Screenshot</span>
+                                    <span>Lampirkan Berkas / File</span>
                                   </button>
                                   <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 600, userSelect: 'none' }}>
-                                    Maks. 5 foto (10MB/foto)
+                                    Maks. 5 file (Foto/PDF, maks. 10MB/file)
                                   </span>
                                 </div>
 
@@ -26368,7 +26368,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                                     {isPDF ? (
                                       <FileText size={32} color="#ef4444" />
                                     ) : (
-                                      <img src={att.file_url} alt="Screenshot" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      <img src={att.file_url} alt="Lampiran Berkas" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     )}
                                     <button
                                       type="button"
@@ -26400,7 +26400,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
                                 {(settings.dormancy_status === 'suspended' || settings.is_suspended)
                                   ? 'Unggah dokumen pendukung (Surat Izin Usaha, Foto Fisik Toko/Stok, atau Bukti Klarifikasi) untuk memperkuat permohonan banding.'
-                                  : 'Belum ada screenshot yang dilampirkan. Anda dapat mengunggah hingga 5 gambar format JPG/PNG/WEBP (Maks 10MB per foto).'}
+                                  : 'Belum ada berkas yang dilampirkan. Anda dapat mengunggah hingga 5 file pendukung format Foto (JPG/PNG/WEBP) atau Dokumen (PDF) maks. 10MB per file.'}
                               </p>
                             )}
                           </div>
@@ -26559,7 +26559,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                     {isQuotaExceeded 
                       ? 'Kuota Item Aktif Penuh'
-                      : (targetActive ? 'Aktifkan Produk ke Katalog?' : 'Arsipkan Produk Ini?')}
+                      : (targetActive ? 'Aktifkan Item ke Katalog?' : 'Arsipkan Item Ini?')}
                   </h3>
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     {item.name}
@@ -26578,7 +26578,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                   lineHeight: 1.5,
                   marginBottom: '1.35rem'
                 }}>
-                  Batas item katalog aktif untuk paket <strong>{storeQuota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item aktif). Silakan upgrade ke paket Pro atau arsipkan produk lain untuk mengaktifkan item ini.
+                  Batas item katalog aktif untuk paket <strong>{storeQuota?.plan?.name || 'Anda'}</strong> ({maxActive} item) telah tercapai ({currentActive}/{maxActive} item aktif). Silakan upgrade ke paket Pro atau arsipkan item lain untuk mengaktifkan item ini.
                 </div>
               ) : (
                 <div style={{
@@ -26593,13 +26593,13 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                 }}>
                   {targetActive ? (
                     <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
-                      <li>Produk akan segera <strong>ditampilkan kembali</strong> di etalase katalog publik toko Anda.</li>
-                      <li>Calon pembeli dapat melihat spesifikasi produk dan melakukan pemesanan via WhatsApp.</li>
-                      <li>Item ini akan menggunakan 1 kuota produk aktif toko Anda.</li>
+                      <li>Item akan segera <strong>ditampilkan kembali</strong> di etalase katalog publik Anda.</li>
+                      <li>Calon pembeli dapat melihat spesifikasi item dan melakukan pemesanan via WhatsApp.</li>
+                      <li>Item ini akan menggunakan 1 kuota item aktif katalog Anda.</li>
                     </ul>
                   ) : (
                     <ul style={{ margin: 0, paddingLeft: '1.15rem' }}>
-                      <li>Produk akan <strong>disembunyikan dari etalase publik</strong> dan tidak dapat dilihat oleh calon pembeli.</li>
+                      <li>Item akan <strong>disembunyikan dari etalase publik</strong> dan tidak dapat dilihat oleh calon pembeli.</li>
                       <li>Seluruh data, foto, varian, dan riwayat pesanan <strong>tetap tersimpan aman</strong> di database.</li>
                       <li>Anda dapat mengaktifkannya kembali kapan saja melalui tab <strong>"Diarsipkan"</strong>.</li>
                     </ul>
@@ -26648,7 +26648,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                       handleToggleActiveStatus(itemToToggle, nextStatus);
                     }}
                   >
-                    {targetActive ? 'Ya, Aktifkan Produk' : 'Ya, Arsipkan Produk'}
+                    {targetActive ? 'Ya, Aktifkan Item' : 'Ya, Arsipkan Item'}
                   </button>
                 )}
               </div>
@@ -29142,7 +29142,7 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
               >
                 <img
                   src={currentImg.file_url}
-                  alt={currentImg.file_name || 'Screenshot'}
+                  alt={currentImg.file_name || 'Lampiran Berkas'}
                   draggable={false}
                   style={{
                     maxWidth: '80vw',
