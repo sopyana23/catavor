@@ -2385,4 +2385,76 @@
   background: transparent !important;
 }
 
+/* ==========================================================================
+   Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid)
+   ========================================================================== */
+.desktop-settings-tabs-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--tab-count, 5), minmax(0, 1fr));
+  gap: 0.45rem;
+  background-color: var(--bg-deep);
+  padding: 0.35rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-light);
+  margin-bottom: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1100px) {
+  .desktop-settings-tabs-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .desktop-settings-tabs-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.35rem;
+    padding: 0.3rem;
+  }
+}
+
+.desktop-settings-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 0.55rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--text-secondary);
+  box-sizing: border-box;
+  text-align: center;
+  user-select: none;
+}
+
+.desktop-settings-tab-btn:hover:not(.active) {
+  background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.desktop-settings-tab-btn.active {
+  border: 1px solid var(--primary);
+  background-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 10px var(--primary-glow, rgba(16, 185, 129, 0.25));
+}
+
+.desktop-settings-tab-btn span.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 
