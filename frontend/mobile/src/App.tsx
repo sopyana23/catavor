@@ -405,7 +405,7 @@ export function getItemActionConfig(item: any) {
       Icon: Download,
       modalTitle: 'Pilih Metode Pembelian File Digital',
       modalSubtitle: 'Pilih metode pembayaran resmi untuk pengiriman instan file digital:',
-      badgeText: 'Produk Digital',
+      badgeText: 'Item Digital',
       directActionTitle: 'Chat WA (Pembelian & Kirim File)',
       directActionSubtitle: 'Dapatkan invoice pembayaran dan tautan download file berlisensi resmi',
       marketplaceTitle: 'Beli via Toko Online / Marketplace Digital',
@@ -1379,16 +1379,16 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
     case 'food':
       return {
         type: 'food',
-        typeName: 'Produk Kuliner (F&B)',
+        typeName: 'Kuliner & F&B',
         badgeName: 'Kuliner & F&B',
         icon: Utensils,
         color: '#dc2626',
         gradientBg: 'radial-gradient(circle at top left, rgba(220, 38, 38, 0.15) 0%, transparent 70%)',
-        modalTitle: (mode) => mode === 'create' ? 'Tambah Produk Kuliner' : 'Edit Produk Kuliner',
+        modalTitle: (mode) => mode === 'create' ? 'Tambah Item Kuliner' : 'Edit Item Kuliner',
         modalSubtitle: 'Lengkapi takaran porsi/kemasan, masa simpan, suhu penyimpanan, dan metode pengiriman.',
-        nameLabel: 'Nama Produk Kuliner / Menu *',
+        nameLabel: 'Nama Item Kuliner / Menu *',
         namePlaceholder: 'Contoh: Wagyu Beef Rice Bowl / Cold Brew Coffee / Frozen Dimsum 20pcs / Bumbu Rendang...',
-        categoryLabel: 'Kategori Menu / Toko *',
+        categoryLabel: 'Kategori Menu / Katalog *',
         defaultCategory: 'Makanan Utama (Main Course)',
         categoryOptions: [
           'Makanan Utama (Main Course)',
@@ -1402,15 +1402,15 @@ export function getItemTypeFormConfig(type: ItemCategoryType = 'physical'): Item
         ],
         priceLabel: 'Harga Satuan (IDR) *',
         pricePlaceholder: 'Contoh: 35.000',
-        photoLabel: 'Foto Produk / Penyajian (1-10 Foto) *',
-        photoHelper: 'Unggah 1 hingga 10 foto makanan, minuman, kemasan produk, atau bahan kuliner.',
-        videoLabel: 'Video Produk / Penyajian (Opsional)',
+        photoLabel: 'Foto Item / Penyajian (1-10 Foto) *',
+        photoHelper: 'Unggah 1 hingga 10 foto makanan, minuman, kemasan item, atau bahan kuliner.',
+        videoLabel: 'Video Item / Penyajian (Opsional)',
         videoPlaceholder: 'Tempel tautan video YouTube, Shorts, TikTok, atau Instagram Reels...',
         deliveryLabel: 'Pengiriman & Ketentuan Kemasan (F&B)',
         deliveryOptions: [
           'Khusus Kurir Instan / Sameday (Gojek / Grab / Maxim)',
           'Ekspedisi Cold-Chain / Paxel 1 Hari Sampai (Frozen / Makanan Segar)',
-          'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Produk Kering)',
+          'Bisa Kirim Seluruh Indonesia (Ekspedisi Reguler / Makanan Kering)',
           'Dine-in & Takeaway Only (Makan di Tempat / Bawa Pulang)',
           'Pre-Order Khusus (Katering / Acara)'
         ],
@@ -30679,7 +30679,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                       ? (adminUser?.email ? `Akun: ${adminUser.email}` : 'Opsi & Pengaturan Cepat')
                       : actionMenuData.type === 'store' 
                         ? 'Opsi dan menu katalog' 
-                        : `${actionMenuData.item?.class || 'Produk'} • ${formatPrice(actionMenuData.item?.price)}`}
+                        : `${actionMenuData.item?.class || 'Item'} • ${formatPrice(actionMenuData.item?.price)}`}
                   </span>
                 </div>
               </div>
@@ -30796,7 +30796,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                         <div className="action-menu-text-box">
                           <span className="action-menu-title" style={{ color: '#f59e0b' }}>Arsipkan Item Ini</span>
-                          <span className="action-menu-desc">Sembunyikan dari etalase toko (data tetap tersimpan aman)</span>
+                          <span className="action-menu-desc">Sembunyikan dari etalase katalog (data tetap tersimpan aman)</span>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </button>
@@ -30815,7 +30815,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         </div>
                         <div className="action-menu-text-box">
                           <span className="action-menu-title" style={{ color: '#10b981' }}>Aktifkan Kembali Item</span>
-                          <span className="action-menu-desc">Tampilkan kembali item ini di etalase katalog toko</span>
+                          <span className="action-menu-desc">Tampilkan kembali item ini di etalase katalog</span>
                         </div>
                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                       </button>
@@ -31134,7 +31134,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
             >
               <div className="bottom-sheet-title-box">
                 <Layers size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                <h3 className="bottom-sheet-title">Pilih Kategori Produk</h3>
+                <h3 className="bottom-sheet-title">Pilih Kategori Item</h3>
               </div>
             </div>
 
