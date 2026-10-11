@@ -62,7 +62,9 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	);`).Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON email_verification_otps(email, purpose);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON email_verification_otps(expires_at);").Error
-	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_token ON email_verification_otps(token);").Error
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 1;").Error
+	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_custom_password BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("UPDATE users SET has_custom_password = TRUE WHERE (google_id IS NULL OR google_id = '') AND has_custom_password = FALSE;").Error
 
 	if !cfg.DBAutoMigrate {
 		DB = db

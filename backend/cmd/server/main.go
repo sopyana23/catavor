@@ -258,6 +258,7 @@ func main() {
 		authOnly.Post("/auth/refresh", authHandler.RefreshToken)
 		authOnly.Post("/logout", authHandler.Logout)
 		authOnly.Post("/profile", authHandler.UpdateProfile)
+		authOnly.Put("/profile", authHandler.UpdateProfile)
 
 		// Multi-Store User Management
 		authOnly.Get("/user/stores", storeHandler.GetMyStores)

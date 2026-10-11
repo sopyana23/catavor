@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 var (
@@ -293,15 +294,43 @@ func ValidateEmail(email string) bool {
 	return emailRegex.MatchString(trimmed)
 }
 
-// ValidatePassword validates password length boundaries
+// ValidatePassword validates password length boundaries and industry-standard complexity requirements
 func ValidatePassword(password string) error {
 	trimmed := strings.TrimSpace(password)
 	if len(trimmed) < 8 {
-		return errors.New("Password minimal 8 karakter.")
+		return errors.New("Kata sandi minimal 8 karakter.")
 	}
 	if len([]byte(password)) > 72 {
-		return errors.New("Password maksimal 72 karakter.")
+		return errors.New("Kata sandi maksimal 72 karakter.")
 	}
+
+	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsNumber(r):
+			hasNumber = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r) || (!unicode.IsLetter(r) && !unicode.IsNumber(r)):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper {
+		return errors.New("Kata sandi harus mengandung minimal 1 huruf besar (A-Z).")
+	}
+	if !hasLower {
+		return errors.New("Kata sandi harus mengandung minimal 1 huruf kecil (a-z).")
+	}
+	if !hasNumber {
+		return errors.New("Kata sandi harus mengandung minimal 1 angka (0-9).")
+	}
+	if !hasSpecial {
+		return errors.New("Kata sandi harus mengandung minimal 1 karakter khusus atau simbol (@, #, $, %, !, dll).")
+	}
+
 	return nil
 }
 

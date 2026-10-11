@@ -8,6 +8,6 @@ export default defineConfig({
   base: '/mobile/',
   build: {
     outDir: '../../public/mobile',
-    emptyOutDir: true
+    emptyOutDir: false
   }
 })

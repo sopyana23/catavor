@@ -28,6 +28,7 @@ import {
   CheckCircle,
   X,
   Eye,
+  EyeOff,
   Tag,
   ArrowLeft,
   Home,
@@ -5956,7 +5957,10 @@ Terima kasih.`;
 
   // Backup Password State (Mobile)
   const [showBackupPasswordSection, setShowBackupPasswordSection] = useState(false);
-  const [backupPasswordForm, setBackupPasswordForm] = useState({ password: '', confirm_password: '' });
+  const [backupPasswordForm, setBackupPasswordForm] = useState({ current_password: '', password: '', confirm_password: '' });
+  const [showBackupCurrentPasswordText, setShowBackupCurrentPasswordText] = useState(false);
+  const [showBackupPasswordText, setShowBackupPasswordText] = useState(false);
+  const [showBackupConfirmPasswordText, setShowBackupConfirmPasswordText] = useState(false);
   const [backupPasswordLoading, setBackupPasswordLoading] = useState(false);
   const [backupPasswordError, setBackupPasswordError] = useState<string | null>(null);
   const [backupPasswordSuccess, setBackupPasswordSuccess] = useState<string | null>(null);
@@ -6953,7 +6957,7 @@ Terima kasih.`;
 
   // Authentication & Multi-Store State
   const [token, setToken] = useState<string | null>(localStorage.getItem('catavor_token'))
-  const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[]} | null>(
+  const [adminUser, setAdminUser] = useState<{id?: number, name: string, email: string, payment_status?: string, store_slug?: string, store_title?: string, store_theme?: string, store_plan?: string, platform_role?: string, is_superadmin?: boolean, is_admin?: boolean, permissions?: string[], has_custom_password?: boolean} | null>(
     localStorage.getItem('catavor_user') ? JSON.parse(localStorage.getItem('catavor_user')!) : null
   )
   const [isPasswordChanged, setIsPasswordChanged] = useState<boolean>(
@@ -11685,12 +11689,48 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   // Mobile Backup Password Handler
   const handleSaveBackupPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!backupPasswordForm.password || backupPasswordForm.password.length < 6) {
-      setBackupPasswordError('Kata sandi minimal 6 karakter.');
+    const isUpdating = Boolean((adminUser as any)?.has_custom_password);
+    if (isUpdating && !backupPasswordForm.current_password) {
+      const msg = 'Kata sandi saat ini wajib diisi.';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
-    if (backupPasswordForm.password !== backupPasswordForm.confirm_password) {
-      setBackupPasswordError('Konfirmasi kata sandi tidak cocok.');
+    const pass = backupPasswordForm.password || '';
+    if (pass.length < 8) {
+      const msg = 'Kata sandi minimal 8 karakter.';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[A-Z]/.test(pass)) {
+      const msg = 'Kata sandi harus mengandung minimal 1 huruf besar (A-Z).';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[a-z]/.test(pass)) {
+      const msg = 'Kata sandi harus mengandung minimal 1 huruf kecil (a-z).';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[0-9]/.test(pass)) {
+      const msg = 'Kata sandi harus mengandung minimal 1 angka (0-9).';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!/[^a-zA-Z0-9\s]/.test(pass)) {
+      const msg = 'Kata sandi harus mengandung minimal 1 karakter khusus atau simbol (@, #, $, %, !, dll).';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (pass !== backupPasswordForm.confirm_password) {
+      const msg = 'Konfirmasi kata sandi tidak cocok.';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
       return;
     }
     setBackupPasswordLoading(true);
@@ -11702,20 +11742,36 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
         headers: getAuthHeaders(),
         body: JSON.stringify({
           name: profileForm.name || (adminUser as any)?.name || 'Admin',
+          current_password: backupPasswordForm.current_password,
           password: backupPasswordForm.password,
           confirm_password: backupPasswordForm.confirm_password
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setBackupPasswordSuccess('Kata sandi cadangan berhasil disimpan!');
-        showToast('Kata sandi cadangan berhasil disetel!');
-        setBackupPasswordForm({ password: '', confirm_password: '' });
+        if (data.token) {
+          localStorage.setItem('catavor_token', data.token);
+          setToken(data.token);
+        }
+        const successMsg = isUpdating ? 'Kata sandi akun berhasil diperbarui!' : 'Kata sandi akun cadangan berhasil disimpan!';
+        setBackupPasswordSuccess(successMsg);
+        showToast(successMsg, 'success');
+        setBackupPasswordForm({ current_password: '', password: '', confirm_password: '' });
+        setShowBackupCurrentPasswordText(false);
+        setShowBackupPasswordText(false);
+        setShowBackupConfirmPasswordText(false);
+        if (adminUser) {
+          setAdminUser({ ...adminUser, has_custom_password: true });
+        }
       } else {
-        setBackupPasswordError(data.message || 'Gagal menyimpan kata sandi cadangan.');
+        const errorMsg = data.message || (isUpdating ? 'Gagal memperbarui kata sandi.' : 'Gagal menyimpan kata sandi cadangan.');
+        setBackupPasswordError(errorMsg);
+        showToast(errorMsg, 'error');
       }
     } catch {
-      setBackupPasswordError('Gagal menghubungi server.');
+      const netErrorMsg = 'Gagal menghubungi server. Periksa koneksi internet Anda.';
+      setBackupPasswordError(netErrorMsg);
+      showToast(netErrorMsg, 'error');
     } finally {
       setBackupPasswordLoading(false);
     }
@@ -24915,10 +24971,12 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                           <div>
                             <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                               <Key size={14} style={{ color: 'var(--primary)' }} />
-                              <span>Kata Sandi Cadangan</span>
+                              <span>{Boolean((adminUser as any)?.has_custom_password) ? 'Ubah Kata Sandi Akun' : 'Kata Sandi Cadangan'}</span>
                             </div>
                             <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                              Untuk login darurat jika Google SSO bermasalah.
+                              {Boolean((adminUser as any)?.has_custom_password)
+                                ? 'Perbarui kata sandi akun Anda secara berkala untuk menjaga keamanan.'
+                                : 'Untuk login darurat jika Google SSO bermasalah.'}
                             </p>
                           </div>
                           <button
@@ -24927,44 +24985,332 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                             className="btn-secondary"
                             style={{ padding: '0.35rem 0.65rem', fontSize: '0.7rem', borderRadius: '0.45rem', fontWeight: 700 }}
                           >
-                            {showBackupPasswordSection ? 'Tutup' : 'Setel'}
+                            {showBackupPasswordSection ? 'Tutup' : (Boolean((adminUser as any)?.has_custom_password) ? 'Ubah' : 'Setel')}
                           </button>
                         </div>
 
                         {showBackupPasswordSection && (
                           <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)' }}>
                             {backupPasswordSuccess && (
-                              <div className="alert-message alert-success" style={{ marginBottom: '0.65rem', fontSize: '0.72rem' }}>
-                                {backupPasswordSuccess}
+                              <div 
+                                className="animate-fade-in"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: '0.65rem',
+                                  padding: '0.75rem 0.85rem',
+                                  borderRadius: '0.65rem',
+                                  background: 'rgba(16, 185, 129, 0.08)',
+                                  border: '1px solid rgba(16, 185, 129, 0.28)',
+                                  backdropFilter: 'blur(8px)',
+                                  marginBottom: '0.85rem',
+                                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.08)'
+                                }}
+                              >
+                                <div style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  background: 'rgba(16, 185, 129, 0.16)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  color: '#10b981',
+                                  marginTop: '1px'
+                                }}>
+                                  <CheckCircle2 size={14} strokeWidth={2.5} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
+                                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#10b981' }}>
+                                      Berhasil Disimpan
+                                    </span>
+                                    <span style={{
+                                      fontSize: '0.6rem',
+                                      fontWeight: 700,
+                                      padding: '0.05rem 0.35rem',
+                                      borderRadius: '999px',
+                                      background: 'rgba(16, 185, 129, 0.2)',
+                                      color: '#10b981',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.03em'
+                                    }}>
+                                      Aktif
+                                    </span>
+                                  </div>
+                                  <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                    {backupPasswordSuccess}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setBackupPasswordSuccess(null)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '0.2rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: 0.7,
+                                    flexShrink: 0
+                                  }}
+                                  aria-label="Tutup"
+                                >
+                                  <X size={14} />
+                                </button>
                               </div>
                             )}
+
                             {backupPasswordError && (
-                              <div className="alert-message alert-danger" style={{ marginBottom: '0.65rem', fontSize: '0.72rem' }}>
-                                {backupPasswordError}
+                              <div 
+                                className="animate-fade-in"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: '0.65rem',
+                                  padding: '0.75rem 0.85rem',
+                                  borderRadius: '0.65rem',
+                                  background: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid rgba(239, 68, 68, 0.28)',
+                                  backdropFilter: 'blur(8px)',
+                                  marginBottom: '0.85rem',
+                                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.08)'
+                                }}
+                              >
+                                <div style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  background: 'rgba(239, 68, 68, 0.16)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  color: '#ef4444',
+                                  marginTop: '1px'
+                                }}>
+                                  <AlertCircle size={14} strokeWidth={2.5} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
+                                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#ef4444' }}>
+                                      Gagal Menyimpan
+                                    </span>
+                                    <span style={{
+                                      fontSize: '0.6rem',
+                                      fontWeight: 700,
+                                      padding: '0.05rem 0.35rem',
+                                      borderRadius: '999px',
+                                      background: 'rgba(239, 68, 68, 0.2)',
+                                      color: '#ef4444',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.03em'
+                                    }}>
+                                      Perhatian
+                                    </span>
+                                  </div>
+                                  <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                    {backupPasswordError}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setBackupPasswordError(null)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '0.2rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: 0.7,
+                                    flexShrink: 0
+                                  }}
+                                  aria-label="Tutup"
+                                >
+                                  <X size={14} />
+                                </button>
                               </div>
                             )}
+
+                            {/* Petunjuk Kriteria Kata Sandi Standar Industri */}
+                            <div style={{
+                              padding: '0.75rem 0.85rem',
+                              borderRadius: '0.65rem',
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px solid var(--border-light)',
+                              marginBottom: '0.85rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <ShieldCheck size={14} style={{ color: 'var(--primary)' }} />
+                                  <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                                    Kriteria Keamanan (Standar Industri)
+                                  </span>
+                                </div>
+                                <span style={{
+                                  fontSize: '0.6rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '999px',
+                                  background: 'rgba(59, 130, 246, 0.12)',
+                                  color: '#60a5fa',
+                                  border: '1px solid rgba(59, 130, 246, 0.25)'
+                                }}>
+                                  Wajib
+                                </span>
+                              </div>
+                              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                                Wajib memenuhi kombinasi karakter berikut:
+                              </p>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.35rem' }}>
+                                {[
+                                  { label: 'Minimal 8 karakter', valid: (backupPasswordForm.password?.length || 0) >= 8 },
+                                  { label: 'Huruf besar (A-Z) & kecil (a-z)', valid: /[A-Z]/.test(backupPasswordForm.password || '') && /[a-z]/.test(backupPasswordForm.password || '') },
+                                  { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(backupPasswordForm.password || '') },
+                                  { label: 'Karakter khusus / simbol (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(backupPasswordForm.password || '') },
+                                ].map((req, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      fontSize: '0.68rem',
+                                      fontWeight: req.valid ? 700 : 500,
+                                      color: req.valid ? '#10b981' : 'var(--text-secondary)',
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                  >
+                                    <div style={{
+                                      width: '13px',
+                                      height: '13px',
+                                      borderRadius: '50%',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      background: req.valid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                                      color: req.valid ? '#10b981' : 'var(--text-secondary)',
+                                      flexShrink: 0
+                                    }}>
+                                      {req.valid ? <Check size={9} strokeWidth={3} /> : <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'currentColor' }} />}
+                                    </div>
+                                    <span>{req.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                              {Boolean((adminUser as any)?.has_custom_password) && (
+                                <div>
+                                  <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Kata Sandi Saat Ini</label>
+                                  <div style={{ position: 'relative' }}>
+                                    <input
+                                      type={showBackupCurrentPasswordText ? 'text' : 'password'}
+                                      className="form-input"
+                                      placeholder="Masukkan kata sandi lama/saat ini"
+                                      value={backupPasswordForm.current_password}
+                                      onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, current_password: e.target.value })}
+                                      style={{ fontSize: '0.8rem', paddingRight: '2.4rem' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowBackupCurrentPasswordText(!showBackupCurrentPasswordText)}
+                                      style={{
+                                        position: 'absolute',
+                                        right: '0.5rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        padding: '0.25rem',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-secondary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title={showBackupCurrentPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                    >
+                                      {showBackupCurrentPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                               <div>
                                 <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Kata Sandi Baru</label>
-                                <input
-                                  type="password"
-                                  className="form-input"
-                                  placeholder="Minimal 6 karakter"
-                                  value={backupPasswordForm.password}
-                                  onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
-                                  style={{ fontSize: '0.8rem' }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                  <input
+                                    type={showBackupPasswordText ? 'text' : 'password'}
+                                    className="form-input"
+                                    placeholder="Minimal 8 karakter"
+                                    value={backupPasswordForm.password}
+                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
+                                    style={{ fontSize: '0.8rem', paddingRight: '2.4rem' }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowBackupPasswordText(!showBackupPasswordText)}
+                                    style={{
+                                      position: 'absolute',
+                                      right: '0.5rem',
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      background: 'none',
+                                      border: 'none',
+                                      padding: '0.25rem',
+                                      cursor: 'pointer',
+                                      color: 'var(--text-secondary)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                    title={showBackupPasswordText ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                  >
+                                    {showBackupPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                                  </button>
+                                </div>
                               </div>
                               <div>
                                 <label className="form-label" style={{ fontSize: '0.7rem', fontWeight: 700 }}>Konfirmasi Kata Sandi Baru</label>
-                                <input
-                                  type="password"
-                                  className="form-input"
-                                  placeholder="Ulangi kata sandi baru"
-                                  value={backupPasswordForm.confirm_password}
-                                  onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
-                                  style={{ fontSize: '0.8rem' }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                  <input
+                                    type={showBackupConfirmPasswordText ? 'text' : 'password'}
+                                    className="form-input"
+                                    placeholder="Ulangi kata sandi baru"
+                                    value={backupPasswordForm.confirm_password}
+                                    onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, confirm_password: e.target.value })}
+                                    style={{ fontSize: '0.8rem', paddingRight: '2.4rem' }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowBackupConfirmPasswordText(!showBackupConfirmPasswordText)}
+                                    style={{
+                                      position: 'absolute',
+                                      right: '0.5rem',
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      background: 'none',
+                                      border: 'none',
+                                      padding: '0.25rem',
+                                      cursor: 'pointer',
+                                      color: 'var(--text-secondary)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                    title={showBackupConfirmPasswordText ? 'Sembunyikan konfirmasi kata sandi' : 'Tampilkan konfirmasi kata sandi'}
+                                  >
+                                    {showBackupConfirmPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                                  </button>
+                                </div>
                               </div>
                             </div>
                             <button
@@ -24974,7 +25320,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                               className="btn-full btn-primary"
                               style={{ padding: '0.55rem', fontSize: '0.75rem', fontWeight: 800 }}
                             >
-                              {backupPasswordLoading ? 'Menyimpan...' : 'Simpan Kata Sandi Cadangan'}
+                              {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Kata Sandi Cadangan')}
                             </button>
                           </div>
                         )}
