@@ -21227,94 +21227,52 @@ Mohon informasi ketersediaan stok & alur pengiriman ya!`}
                     )}
                   </div>
 
-                  {/* Desktop Settings Segmented Sub-Tab Bar (5 Pillars + Pro Structure) */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '0.4rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    padding: '0.35rem',
-                    borderRadius: '0.75rem',
-                    border: '1px solid var(--border-light)',
-                    marginBottom: '1.5rem',
-                    flexWrap: 'wrap'
-                  }}>
-                    {[
+                  {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
+                  {(() => {
+                    const settingsTabs = [
                       { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
                       { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
-                      { id: 'master', label: 'Master Data Katalog', icon: Database }
-                    ].map(tab => {
-                      const Icon = tab.icon;
-                      const isActive = settingsSubTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setSettingsSubTab(tab.id as any)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flex: '1 1 0',
-                            minWidth: 'max-content',
-                            gap: '0.45rem',
-                            padding: '0.55rem 0.85rem',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            borderRadius: '0.55rem',
-                            cursor: 'pointer',
-                            border: isActive ? '1px solid var(--primary)' : '1px solid transparent',
-                            backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                            color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                            boxShadow: isActive ? '0 2px 8px rgba(16, 185, 129, 0.25)' : 'none',
-                            whiteSpace: 'nowrap',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <Icon size={15} strokeWidth={2} />
-                          <span>{tab.label}</span>
-                        </button>
-                      );
-                    })}
+                      { id: 'master', label: 'Master Data Katalog', icon: Database },
+                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain', label: 'Custom Domain', icon: Globe, isPro: true }] : [])
+                    ];
 
-                    {storeQuota?.plan?.has_custom_domain && (
-                      <button
-                        type="button"
-                        onClick={() => setSettingsSubTab('domain')}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flex: '1 1 0',
-                          minWidth: 'max-content',
-                          gap: '0.45rem',
-                          padding: '0.55rem 0.85rem',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          borderRadius: '0.55rem',
-                          cursor: 'pointer',
-                          border: settingsSubTab === 'domain' ? '1px solid var(--primary)' : '1px solid transparent',
-                          backgroundColor: settingsSubTab === 'domain' ? 'var(--primary)' : 'transparent',
-                          color: settingsSubTab === 'domain' ? '#ffffff' : 'var(--text-secondary)',
-                          boxShadow: settingsSubTab === 'domain' ? '0 2px 8px rgba(16, 185, 129, 0.25)' : 'none',
-                          whiteSpace: 'nowrap',
-                          transition: 'all 0.15s ease'
-                        }}
+                    return (
+                      <div
+                        className="desktop-settings-tabs-grid"
+                        style={{ '--tab-count': settingsTabs.length } as React.CSSProperties}
                       >
-                        <Globe size={15} strokeWidth={2} />
-                        <span>Custom Domain</span>
-                        <span style={{
-                          fontSize: '0.6rem',
-                          fontWeight: 900,
-                          padding: '1px 5px',
-                          borderRadius: '4px',
-                          backgroundColor: settingsSubTab === 'domain' ? 'rgba(255,255,255,0.25)' : 'var(--primary)',
-                          color: '#ffffff'
-                        }}>PRO</span>
-                      </button>
-                    )}
-                  </div>
+                        {settingsTabs.map(tab => {
+                          const Icon = tab.icon;
+                          const isActive = settingsSubTab === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setSettingsSubTab(tab.id as any)}
+                              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''}`}
+                            >
+                              <Icon size={16} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+                              <span className="tab-label">{tab.label}</span>
+                              {tab.isPro && (
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 900,
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  backgroundColor: isActive ? 'rgba(255,255,255,0.28)' : 'var(--primary)',
+                                  color: '#ffffff',
+                                  flexShrink: 0,
+                                  letterSpacing: '0.03em'
+                                }}>PRO</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   {/* 1. TEMA & TAMPILAN SUB-TAB */}
                   {settingsSubTab === 'theme' && (
