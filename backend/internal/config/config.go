@@ -48,6 +48,7 @@ var AppConfig *Config
 
 func LoadConfig() *Config {
 	_ = godotenv.Load(".env")
+	_ = godotenv.Load("backend/.env")
 	_ = godotenv.Load("../backend/.env")
 
 	port := getEnv("PORT", "8000")
