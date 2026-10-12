@@ -87,6 +87,9 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if _, ok := res["rekber_wa_number"]; !ok || res["rekber_wa_number"] == "" {
 		res["rekber_wa_number"] = "62811220227"
 	}
+	if _, ok := res["rekber_logo_url"]; !ok {
+		res["rekber_logo_url"] = ""
+	}
 	defaultPhysicalTemplate := "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
 	defaultFoodTemplate := "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
 	defaultDigitalTemplate := "Halo *{store_title}*, saya ingin membeli item digital berikut:\n\n*Item:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
@@ -247,6 +250,7 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 		"rekber_partner_name",
 		"rekber_website_url",
 		"rekber_wa_number",
+		"rekber_logo_url",
 		"rekber_template_physical",
 		"rekber_template_general",
 		"rekber_template_food",
