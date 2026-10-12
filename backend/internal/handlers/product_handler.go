@@ -886,35 +886,23 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		})
 	}
 
+	// Rate Limit Anti-Abuse: Maksimal 15 item dihapus per 24 jam per toko
+	const maxDeletionsPer24h = 15
+	var recentDeletionsCount int64
+	database.DB.Unscoped().Model(&models.Product{}).
+		Where("store_id = ? AND deleted_at IS NOT NULL AND deleted_at >= ?", store.ID, time.Now().UTC().Add(-24*time.Hour)).
+		Count(&recentDeletionsCount)
+
+	if recentDeletionsCount >= maxDeletionsPer24h {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"code":    "DELETION_LIMIT_EXCEEDED",
+			"message": fmt.Sprintf("Batas penghapusan katalog harian tercapai (maksimal %d item per 24 jam). Hal ini diterapkan untuk menjaga keamanan data transaksi. Silakan tunggu hingga antrean berkas dibersihkan atau hubungi Tim Dukungan.", maxDeletionsPer24h),
+		})
+	}
+
 	deletedTitle := product.Name
 	deletedID := product.ID
-
-	// 1. Collect all images associated with this product before deletion
-	imagesToDelete := make([]string, 0)
-	if product.ImageURL != "" {
-		imagesToDelete = append(imagesToDelete, product.ImageURL)
-	}
-
-	var prodImages []models.ProductImage
-	database.DB.Where("product_id = ?", product.ID).Find(&prodImages)
-	for _, pi := range prodImages {
-		if pi.ImageURL != "" {
-			imagesToDelete = append(imagesToDelete, pi.ImageURL)
-		}
-	}
-
-	if len(product.DetailedInfo) > 0 {
-		var dInfo map[string]interface{}
-		if err := json.Unmarshal(product.DetailedInfo, &dInfo); err == nil {
-			if rawImages, ok := dInfo["images"].([]interface{}); ok {
-				for _, itm := range rawImages {
-					if str, ok := itm.(string); ok && str != "" {
-						imagesToDelete = append(imagesToDelete, str)
-					}
-				}
-			}
-		}
-	}
 
 	// Actor context for audit log
 	userVal := c.Locals("user")
@@ -928,16 +916,16 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		actEmail = u.Email
 	}
 
-	// 2. ACID Database Transaction: All-or-Nothing (No partial deletions)
+	// 1. ACID Database Transaction: Soft Delete Product (Child images & variants retained for 72h retention)
 	txErr := database.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("product_id = ?", product.ID).Delete(&models.ProductImage{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("product_id = ?", product.ID).Delete(&models.ProductVariant{}).Error; err != nil {
-			return err
-		}
+		// Soft delete the product row (sets deleted_at = NOW())
 		if err := tx.Delete(&product).Error; err != nil {
 			return err
+		}
+
+		// Also soft delete corresponding fauna record if table exists
+		if tx.Migrator().HasTable("faunas") {
+			_ = tx.Table("faunas").Where("id = ?", product.ID).Update("deleted_at", time.Now().UTC()).Error
 		}
 
 		// Record Activity Log atomically within transaction
@@ -953,7 +941,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 			EntityType:  "product",
 			EntityID:    &deletedID,
 			EntityTitle: deletedTitle,
-			Description: fmt.Sprintf("Menghapus produk '%s' dari katalog.", deletedTitle),
+			Description: fmt.Sprintf("Menghapus produk '%s' dari katalog (memasuki masa retensi 72 jam).", deletedTitle),
 			IPAddress:   c.IP(),
 			UserAgent:   c.Get("User-Agent"),
 		})
@@ -968,21 +956,9 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Hard delete each local physical image file from storage if not used by any other active product
-	for _, imgURL := range imagesToDelete {
-		var otherProdCount int64
-		database.DB.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", product.ID, imgURL).Count(&otherProdCount)
-		var otherImgCount int64
-		database.DB.Model(&models.ProductImage{}).
-			Joins("JOIN products ON products.id = product_images.product_id").
-			Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", product.ID, imgURL).
-			Count(&otherImgCount)
-		if otherProdCount == 0 && otherImgCount == 0 {
-			_, _ = services.HardDeleteLocalStorageFile(imgURL)
-		}
-	}
-
-	// 4. Recalculate store storage used and invalidate cache
+	// 2. Real-time Quota Release:
+	// Soft-deleted product media is preserved on disk for 72-hour cooling-off investigation,
+	// but instantly excluded from merchant active quota calculation!
 	services.SyncStoreStorageUsed(database.DB, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 
@@ -990,7 +966,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Produk berhasil dihapus.",
+		"message": "Produk berhasil dihapus dari katalog.",
 	})
 }
 

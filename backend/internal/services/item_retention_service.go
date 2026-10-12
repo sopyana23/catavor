@@ -19,6 +19,8 @@ type ItemRetentionStats struct {
 	RemindersSent int `json:"reminders_sent"`
 	SoftDeleted   int `json:"soft_deleted"`
 	HardDeleted   int `json:"hard_deleted"`
+	RegularPurged int `json:"regular_purged"`
+	PurgedFiles   int `json:"purged_files"`
 	SkippedActive int `json:"skipped_active"`
 }
 
@@ -295,10 +297,113 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 		}
 	}
 
+	// =========================================================================
+	// 4. PHASE 4: REGULAR MERCHANT SOFT-DELETED PRODUCTS PURGE (>= 72 Hours / 3 Days)
+	// =========================================================================
+	regular72hThreshold := now.Add(-72 * time.Hour)
+
+	var regularCandidates []models.Product
+	err = db.Unscoped().Model(&models.Product{}).
+		Preload("Images").
+		Where("(moderation_status != 'hidden' OR moderation_status IS NULL) AND deleted_at IS NOT NULL AND deleted_at <= ?", regular72hThreshold).
+		Find(&regularCandidates).Error
+
+	if err == nil {
+		for _, p := range regularCandidates {
+			// Safety Guard / Litigation Hold: Check if an active ticket or report exists
+			if hasActiveTicket(db, p.StoreID, p.ID) || hasActiveReport(db, p.ID) {
+				stats.SkippedActive++
+				continue
+			}
+
+			// Collect all images belonging to this product
+			imagesToDelete := make([]string, 0)
+			if p.ImageURL != "" {
+				imagesToDelete = append(imagesToDelete, p.ImageURL)
+			}
+			for _, pImg := range p.Images {
+				if pImg.ImageURL != "" {
+					imagesToDelete = append(imagesToDelete, pImg.ImageURL)
+				}
+			}
+			if len(p.DetailedInfo) > 0 {
+				var dInfo map[string]interface{}
+				if err := json.Unmarshal(p.DetailedInfo, &dInfo); err == nil {
+					if rawImages, ok := dInfo["images"].([]interface{}); ok {
+						for _, itm := range rawImages {
+							if str, ok := itm.(string); ok && str != "" {
+								imagesToDelete = append(imagesToDelete, str)
+							}
+						}
+					}
+				}
+			}
+
+			// Hard delete each physical image file from storage if not used by any active product
+			for _, imgURL := range imagesToDelete {
+				var otherProdCount int64
+				db.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", p.ID, imgURL).Count(&otherProdCount)
+				var otherImgCount int64
+				db.Model(&models.ProductImage{}).
+					Joins("JOIN products ON products.id = product_images.product_id").
+					Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", p.ID, imgURL).
+					Count(&otherImgCount)
+				if otherProdCount == 0 && otherImgCount == 0 {
+					if _, errDel := HardDeleteLocalStorageFile(imgURL); errDel == nil {
+						stats.PurgedFiles++
+					}
+					if strg != nil {
+						if k := extractStorageKeyFromURL(imgURL); k != "" {
+							_ = strg.Delete(ctx, k)
+						}
+					}
+				}
+			}
+
+			// Clean child relations permanently
+			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductImage{}).Error
+			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductVariant{}).Error
+			if db.Migrator().HasTable("sightings") {
+				_ = db.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error
+			}
+
+			// Nullify FK in reports if any archived report references it
+			_ = db.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error
+
+			// Hard Delete Product row permanently
+			_ = db.Unscoped().Where("id = ?", p.ID).Delete(&models.Product{}).Error
+			if db.Migrator().HasTable("faunas") {
+				_ = db.Unscoped().Table("faunas").Where("id = ?", p.ID).Delete(nil).Error
+			}
+
+			// Record permanent purge in Activity Log
+			RecordActivity(RecordActivityParams{
+				DB:          db,
+				StoreID:     &p.StoreID,
+				ActorRole:   "system",
+				ActorName:   "Bot Retensi Katalog",
+				ActorEmail:  "system@catavor.com",
+				Action:      "product.auto_purge_regular_hard_deleted",
+				Category:    "catalog",
+				EntityType:  "product",
+				EntityID:    &p.ID,
+				EntityTitle: p.Name,
+				Description: fmt.Sprintf("Hard-delete permanen produk '%s' (#%d) setelah masa cooling-off 72 jam terpenuhi.", p.Name, p.ID),
+			})
+
+			// Recalculate store storage used
+			SyncStoreStorageUsed(db, p.StoreID)
+
+			stats.RegularPurged++
+		}
+	}
+
 	log.Info().
 		Int("reminders", stats.RemindersSent).
 		Int("soft_deleted", stats.SoftDeleted).
 		Int("hard_deleted", stats.HardDeleted).
+		Int("regular_purged", stats.RegularPurged).
+		Int("purged_files", stats.PurgedFiles).
 		Int("skipped_active", stats.SkippedActive).
 		Msg("Item retention and purge lifecycle completed")
 
@@ -311,6 +416,15 @@ func hasActiveTicket(db *gorm.DB, storeID uint, productID uint) bool {
 	searchPattern := fmt.Sprintf("%%#%d%%", productID)
 	err := db.Model(&models.SupportTicket{}).
 		Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (subject LIKE ? OR category = 'compliance')", storeID, searchPattern).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+// hasActiveReport returns true if there is an active pending/investigating report regarding this product
+func hasActiveReport(db *gorm.DB, productID uint) bool {
+	var count int64
+	err := db.Model(&models.Report{}).
+		Where("target_type = 'item' AND fauna_id = ? AND status IN ('pending', 'investigating', 'action_taken', 're_review')", productID).
 		Count(&count).Error
 	return err == nil && count > 0
 }
