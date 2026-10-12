@@ -795,7 +795,9 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	}
 
 	var products []models.Product
-	db.Select("id, image_url, detailed_info").Where("store_id = ? AND deleted_at IS NULL", storeID).Find(&products)
+	db.Select("id, image_url, detailed_info").
+		Where("store_id = ? AND deleted_at IS NULL AND (moderation_status IS NULL OR moderation_status NOT IN ('locked', 'hidden', 'banned'))", storeID).
+		Find(&products)
 	for _, p := range products {
 		registerURL(p.ImageURL)
 
@@ -824,7 +826,7 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		registerURL(store.StoreLogoURL)
 	}
 
-	// 1b. Gather files belonging to recently soft-deleted products within 72-hour cooling-off retention
+	// 1b. Gather files belonging to recently soft-deleted products (72h retention) & moderated violation products (90d retention)
 	retainedFiles := make(map[string]bool)
 	registerRetainedURL := func(rawURL string) {
 		if strings.TrimSpace(rawURL) == "" {
@@ -839,11 +841,40 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		}
 	}
 
+	// Protected category A: Regular products soft-deleted within 72-hour cooling-off retention
 	var softDeletedProducts []models.Product
 	db.Unscoped().Select("id, image_url, detailed_info").
 		Where("store_id = ? AND deleted_at IS NOT NULL AND deleted_at > ?", storeID, time.Now().UTC().Add(-72*time.Hour)).
 		Find(&softDeletedProducts)
 	for _, p := range softDeletedProducts {
+		registerRetainedURL(p.ImageURL)
+
+		var prodImages []models.ProductImage
+		db.Unscoped().Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
+		for _, pi := range prodImages {
+			registerRetainedURL(pi.ImageURL)
+		}
+
+		if len(p.DetailedInfo) > 0 {
+			var dInfo map[string]interface{}
+			if err := json.Unmarshal(p.DetailedInfo, &dInfo); err == nil {
+				if rawImages, ok := dInfo["images"].([]interface{}); ok {
+					for _, itm := range rawImages {
+						if str, ok := itm.(string); ok {
+							registerRetainedURL(str)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Protected category B: Moderated violation products (locked / hidden / banned) within 90-day legal evidence retention
+	var moderatedProducts []models.Product
+	db.Unscoped().Select("id, image_url, detailed_info").
+		Where("store_id = ? AND moderation_status IN ('locked', 'hidden', 'banned') AND (moderated_at IS NULL OR moderated_at > ?)", storeID, time.Now().UTC().AddDate(0, 0, -90)).
+		Find(&moderatedProducts)
+	for _, p := range moderatedProducts {
 		registerRetainedURL(p.ImageURL)
 
 		var prodImages []models.ProductImage
