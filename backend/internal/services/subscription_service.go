@@ -822,8 +822,10 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	}
 
 	var store models.Store
-	if err := db.Select("id, store_logo_url").First(&store, storeID).Error; err == nil && store.StoreLogoURL != "" {
-		registerURL(store.StoreLogoURL)
+	if err := db.Select("id, store_logo_url, promo_banner, dormancy_status").First(&store, storeID).Error; err == nil {
+		if store.StoreLogoURL != "" && store.DormancyStatus != "banned" {
+			registerURL(store.StoreLogoURL)
+		}
 	}
 
 	// 1b. Gather files belonging to recently soft-deleted products (72h retention) & moderated violation products (90d retention)
@@ -838,6 +840,16 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
 			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
 			retainedFiles[normPath(localPath)] = true
+		}
+	}
+
+	// Protected category: Banned store branding media (logo & banner) retained in evidence vault
+	if store.DormancyStatus == "banned" {
+		if store.StoreLogoURL != "" {
+			registerRetainedURL(store.StoreLogoURL)
+		}
+		if store.PromoBanner != "" {
+			registerRetainedURL(store.PromoBanner)
 		}
 	}
 
