@@ -77,7 +77,7 @@ func main() {
 	articleHandler := handlers.NewArticleHandler()
 	settingHandler := handlers.NewSettingHandler()
 	reportHandler := handlers.NewReportHandler()
-	supportHandler := handlers.NewSupportHandler(cfg)
+	supportHandler := handlers.NewSupportHandler(cfg, storageService)
 	analyticsHandler := handlers.NewAnalyticsHandler(cfg)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
 	notificationHandler := handlers.NewNotificationHandler(database.DB)

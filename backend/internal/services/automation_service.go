@@ -174,6 +174,16 @@ func InitAutomationTracker(db *gorm.DB, strg storage.StorageService) *Automation
 					NextRunAt:    now.Add(24 * time.Hour),
 					LastSummary:  "Memproses pengingat H-7, soft-delete hari ke-30, dan hard-delete total hari ke-90.",
 				},
+				"ticket_retention_worker": {
+					Name:         "ticket_retention_worker",
+					Title:        "Bot Retensi & Pemusnahan Data PDP Tiket",
+					Category:     "compliance",
+					Status:       "running",
+					IntervalDesc: "Setiap 24 Jam (Retensi 30-60 Hari)",
+					LastRunAt:    now,
+					NextRunAt:    now.Add(24 * time.Hour),
+					LastSummary:  "Memusnahkan tiket closed (billing/akun 30h, teknis 60h) beserta berkas lampiran fisik sesuai UU PDP No. 27/2022.",
+				},
 			},
 			runningBots: make(map[string]bool),
 			logs:        make([]AutomationLogEntry, 0, 100),
@@ -869,15 +879,20 @@ func (t *AutomationTracker) TriggerSupportLifecycleManual(db *gorm.DB) error {
 				Update("sla_breached", true)
 		}
 
+		// 5. Automated PDP Ticket Retention & Physical File Hard Purge (UU PDP No. 27/2022)
+		pdpStats, _ := PurgeExpiredClosedTickets(db, t.storage)
+
 		duration := time.Since(start).Milliseconds()
-		summary := fmt.Sprintf("Siklus Helpdesk SLA selesai: %d pengingat dikirim, %d auto-resolved, %d auto-closed, %d SLA breach diperbarui (%d ms).", reminderCount, resolveCount, closeCount, breachCount, duration)
+		totalAffected := int64(reminderCount + resolveCount + closeCount + int(pdpStats.PurgedTickets))
+		summary := fmt.Sprintf("Siklus Helpdesk SLA & PDP selesai: %d pengingat, %d auto-resolved, %d auto-closed, %d tiket PDP dimusnahkan (%d berkas fisik dihapus) (%d ms).",
+			reminderCount, resolveCount, closeCount, pdpStats.PurgedTickets, pdpStats.PurgedFiles, duration)
 
 		t.RecordWorkerHeartbeat(
 			"support_lifecycle",
 			"running",
 			summary,
 			"",
-			int64(reminderCount+resolveCount+closeCount),
+			totalAffected,
 			now.Add(15*time.Minute),
 		)
 
@@ -1019,4 +1034,56 @@ func (t *AutomationTracker) TriggerItemRetentionManual(db *gorm.DB, cfg *config.
 
 	return stats, err
 }
+
+// TriggerTicketRetentionManual executes the PDP closed ticket and media hard purge cycle manually.
+func (t *AutomationTracker) TriggerTicketRetentionManual(db *gorm.DB) (*TicketRetentionStats, error) {
+	t.mu.Lock()
+	if t.runningBots["ticket_retention_worker"] {
+		t.mu.Unlock()
+		return nil, fmt.Errorf("bot pemusnahan tiket PDP sedang berjalan")
+	}
+	t.runningBots["ticket_retention_worker"] = true
+	t.mu.Unlock()
+
+	defer func() {
+		t.mu.Lock()
+		t.runningBots["ticket_retention_worker"] = false
+		t.mu.Unlock()
+	}()
+
+	targetDB := db
+	if targetDB == nil {
+		targetDB = t.db
+	}
+
+	stats, err := PurgeExpiredClosedTickets(targetDB, t.storage)
+	now := time.Now().UTC()
+	status := "success"
+	summary := fmt.Sprintf("Pemusnahan PDP selesai: %d tiket kedaluwarsa dimusnahkan, %d berkas lampiran dihapus permanen (%.2f MB dibebaskan).",
+		stats.PurgedTickets, stats.PurgedFiles, float64(stats.FreedBytes)/(1024*1024))
+	errStr := ""
+	if err != nil {
+		status = "error"
+		errStr = err.Error()
+		summary = "Gagal memproses pemusnahan tiket PDP: " + errStr
+	}
+
+	t.RecordWorkerHeartbeat("ticket_retention_worker", status, summary, errStr, stats.PurgedTickets, now.Add(24*time.Hour))
+	t.RecordLog(AutomationLogEntry{
+		ID:            fmt.Sprintf("log_%d_ticket_pdp", now.UnixNano()),
+		BotName:       "ticket_retention_worker",
+		BotTitle:      "Bot Retensi & Pemusnahan Data PDP Tiket",
+		Target:        "Tiket Bantuan & Storage Server",
+		Action:        "purged_records",
+		TriggerType:   "manual",
+		TriggeredBy:   "Admin Portal",
+		Status:        status,
+		AffectedCount: stats.PurgedTickets,
+		Details:       summary,
+		Timestamp:     now,
+	})
+
+	return &stats, err
+}
+
 
