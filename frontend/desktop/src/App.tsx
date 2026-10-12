@@ -23087,7 +23087,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.35rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
-                              {activityTotal} Rekaman
+                              {activityTotal.toLocaleString('id-ID')} Rekaman
                             </span>
                             <button
                               type="button"
