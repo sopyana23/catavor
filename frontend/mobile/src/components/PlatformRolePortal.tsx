@@ -3186,7 +3186,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     finance: { title: 'Keuangan & Order', subtitle: `${pendingOrdersCount} Order Pending` },
     monetization: { title: 'Monetisasi & Iklan', subtitle: 'Google AdSense & GA4' },
     broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcasts.length} Siaran Aktif` },
-    automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 9} Bot & Background Workers` },
+    automation: { title: 'Mesin Otomatisasi', subtitle: `${automationStatus?.total_workers || 11} Bot & Background Workers` },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
     master_data: { 
       title: 'Data Master Platform', 
@@ -10522,7 +10522,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }}>
             {[
               { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
-              { id: 'bots', label: '9 Bot Platform', icon: Bot, badge: '9' },
+              { id: 'bots', label: `${automationStatus?.total_workers || 11} Bot Platform`, icon: Bot, badge: String(automationStatus?.total_workers || 11) },
               { id: 'logs', label: 'Riwayat & Audit', icon: Activity, badge: String(automationLogsTotal || automationLogs.length) },
               { id: 'sandbox', label: 'Sandbox Uji Coba', icon: Zap }
             ].map(tab => {
@@ -10644,10 +10644,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <span style={{ fontSize: '0.66rem', fontWeight: 700 }}>Total Bot Terdaftar</span>
                     </div>
                     <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary }}>
-                      {automationStatus?.total_workers || 9} Bot
+                      {automationStatus?.total_workers || 11} Bot
                     </div>
                     <div style={{ fontSize: '0.6rem', color: '#10b981', marginTop: '0.1rem' }}>
-                      🟢 {automationStatus?.healthy_workers || 9} Sehat / Normal
+                      🟢 {automationStatus?.healthy_workers || 11} Sehat / Normal
                     </div>
                   </div>
 
@@ -10769,7 +10769,30 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <span>Aksi Cepat &amp; Pintasan Operasional</span>
                 </h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.45rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerBot('ticket_retention_worker', 'Pemusnahan Data PDP Tiket')}
+                    disabled={isTriggeringBot !== null}
+                    style={{
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: isDark ? 'rgba(236, 72, 153, 0.12)' : 'rgba(236, 72, 153, 0.08)',
+                      border: `1px solid ${isDark ? 'rgba(236, 72, 153, 0.25)' : 'rgba(236, 72, 153, 0.2)'}`,
+                      color: '#ec4899',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <ShieldAlert size={13} />
+                    <span>Pemusnahan PDP Tiket</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => handleTriggerBot('store_expiry', 'Kedaluwarsa Toko')}
@@ -10873,7 +10896,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Bot size={15} color="#38bdf8" />
-                  <span>Katalog 9 Bot Platform (Interactive Control Matrix)</span>
+                  <span>Katalog {automationStatus?.total_workers || 11} Bot Platform (Interactive Control Matrix)</span>
                 </h4>
                 <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
                   Klik "Jalankan Sekarang" untuk pemicu paksa
@@ -10930,6 +10953,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   desc: 'Mengirimkan pengingat tiket membeku (72 jam), auto-resolve tiket tanpa respon merchant (48 jam), auto-close (7 hari), dan deteksi pelanggaran SLA.',
                   icon: <HelpCircle size={18} color="#06b6d4" />,
                   color: '#06b6d4'
+                },
+                {
+                  id: 'ticket_retention_worker',
+                  name: 'Bot Retensi & Pemusnahan Data PDP Tiket',
+                  category: 'Compliance',
+                  categoryColor: '#ec4899',
+                  freq: 'Setiap 24 Jam (Retensi 30-60 Hari)',
+                  desc: 'Memusnahkan tiket closed (billing/akun 30h, teknis 60h) beserta berkas lampiran fisik dari penyimpanan server sesuai UU PDP No. 27/2022 & prinsip Hak untuk Dilupakan.',
+                  icon: <ShieldAlert size={18} color="#ec4899" />,
+                  color: '#ec4899'
+                },
+                {
+                  id: 'item_retention_worker',
+                  name: 'Bot Retensi & Pembersihan Item Moderasi',
+                  category: 'Compliance',
+                  categoryColor: '#f43f5e',
+                  freq: 'Setiap 24 Jam (Retensi 30-90 Hari)',
+                  desc: 'Memproses pengingat H-7 barang moderasi, pengarsipan otomatis hari ke-30, dan pembersihan total dari sistem pada hari ke-90.',
+                  icon: <FileText size={18} color="#f43f5e" />,
+                  color: '#f43f5e'
                 },
                 {
                   id: 'cleaner_worker',
@@ -11141,11 +11184,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
                 {[
                   { id: 'all', label: 'Semua Bot' },
+                  { id: 'ticket_retention_worker', label: 'Retensi PDP Tiket' },
+                  { id: 'item_retention_worker', label: 'Retensi Item' },
+                  { id: 'support_lifecycle', label: 'Support SLA' },
                   { id: 'store_expiry', label: 'Toko Expired' },
                   { id: 'dormancy_worker', label: 'Dormansi' },
                   { id: 'promo_expiry', label: 'Promo' },
                   { id: 'flash_sale', label: 'Flash Sale' },
-                  { id: 'support_lifecycle', label: 'Support SLA' },
                   { id: 'cleaner_worker', label: 'Pembersih' },
                   { id: 'weekly_summary', label: 'Ringkasan' }
                 ].map(chip => (
