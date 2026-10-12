@@ -787,310 +787,471 @@ const INITIAL_TICKETS: SupportTicket[] = [
   }
 ];
 
+export const formatDisplayPrice = (val: number | string): string => {
+  if (typeof val === 'number') {
+    return `Rp ${val.toLocaleString('id-ID')}`;
+  }
+  if (typeof val === 'string') {
+    if (val.startsWith('Rp')) return val;
+    const num = parseFloat(val);
+    if (!isNaN(num)) return `Rp ${num.toLocaleString('id-ID')}`;
+    return val;
+  }
+  return 'Rp 0';
+};
+
+export const renderLandingItemSubtitle = (item: any): string => {
+  if (!item) return '';
+  const pType = item.product_type;
+  if (pType === 'digital') {
+    return `${item.attributes?.file_format ? item.attributes.file_format + ' • ' : ''}${item.attributes?.file_size || 'Digital File'}${item.attributes?.license_type ? ' • ' + item.attributes.license_type : ''}`;
+  }
+  if (pType === 'physical') {
+    return `${item.attributes?.brand ? item.attributes.brand + ' • ' : ''}${item.attributes?.weight ? item.attributes.weight + 'g' : (item.attributes?.material || 'Produk Fisik')}`;
+  }
+  if (pType === 'service') {
+    return `Durasi: ${item.attributes?.duration || '1 Sesi'}${item.attributes?.service_location ? ' • ' + item.attributes.service_location : ''}`;
+  }
+  if (pType === 'food') {
+    return `Exp: ${item.attributes?.expired_info || '7 Hari'}${item.attributes?.storage_temp ? ' • ' + item.attributes.storage_temp : ''}`;
+  }
+  if (pType === 'property') {
+    return `${item.attributes?.transaction_type || 'Dijual'} • ${item.attributes?.certificate || 'SHM'}${item.attributes?.land_area ? ' • LT ' + item.attributes.land_area + 'm²' : ''}${item.attributes?.building_area ? ' • LB ' + item.attributes.building_area + 'm²' : ''}`;
+  }
+  if (pType === 'plant') {
+    return `${item.attributes?.sunlight ? item.attributes.sunlight + ' • ' : ''}${item.attributes?.watering ? item.attributes.watering + ' • ' : ''}${item.scientific_name && item.scientific_name !== 'N/A' ? item.scientific_name : item.class}`;
+  }
+  // fauna
+  return `${item.habitat ? item.habitat + ' • ' : ''}${item.detailed_info?.native_region ? item.detailed_info.native_region + ' • ' : ''}${item.scientific_name && item.scientific_name !== 'N/A' ? item.scientific_name : (item.class || 'Satwa')}`;
+};
+
 export const LANDING_INDUSTRIES = [
   {
-    id: 'culinary',
-    name: 'Kuliner & F&B',
-    badge: 'Menu Digital & Kafe',
-    tagline: 'Restoran, Kafe, Katering, Bakery & Cloud Kitchen',
-    description: 'Buku menu digital interaktif dengan visual hidangan menggugah selera, pilihan varian, serta direct order WhatsApp.',
+    id: 'physical' as ItemCategoryType,
+    name: 'Barang Fisik',
+    badge: 'Produk & Ritel',
+    tagline: 'Busana, Kerajinan Tangan, Aksesori, & Kebutuhan Harian',
+    description: 'Etalase produk nyata dengan rincian merek, material, bobot kirim, dan pemesanan instan ke WhatsApp.',
+    icon: Package,
+    color: '#2563eb',
+    accentBg: '#eff6ff',
+    products: [
+      {
+        id: 'phys-1',
+        name: 'Heavyweight Boxy Tee 24s Cotton',
+        title: 'Heavyweight Boxy Tee 24s Cotton',
+        class: 'Pakaian & Kaos',
+        category: 'Pakaian & Kaos',
+        product_type: 'physical' as ItemCategoryType,
+        price: 115000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80',
+        description: 'Bahan 100% combed cotton 24s gramasi solid, potongan boxy fit modern tidak mudah melar setelah dicuci.',
+        merchant: 'Atelier Monochrome',
+        location: 'Jakarta Selatan',
+        attributes: { brand: 'Atelier', weight: 280, material: '100% Cotton Combed' }
+      },
+      {
+        id: 'phys-2',
+        name: 'Vegan Leather Structured Laptop Tote Bag',
+        title: 'Vegan Leather Structured Laptop Tote Bag',
+        class: 'Tas & Aksesori',
+        category: 'Tas & Aksesori',
+        product_type: 'physical' as ItemCategoryType,
+        price: 275000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&auto=format&fit=crop&q=80',
+        description: 'Tas jinjing kulit sintetis tebal anti-gores dengan kompartemen laptop 14 inch dan resleting YKK premium.',
+        merchant: 'Terra Leather Craft',
+        location: 'Yogyakarta',
+        attributes: { brand: 'Terra Goods', weight: 650, material: 'Premium PU Leather' }
+      },
+      {
+        id: 'phys-3',
+        name: 'Classic Low-Top Canvas Sneakers',
+        title: 'Classic Low-Top Canvas Sneakers',
+        class: 'Alas Kaki & Sepatu',
+        category: 'Alas Kaki & Sepatu',
+        product_type: 'physical' as ItemCategoryType,
+        price: 210000,
+        conservation_status: 'Pre-Order',
+        image_url: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=600&auto=format&fit=crop&q=80',
+        description: 'Sepatu kanvas klasik dengan sol karet vulcanized fleksibel dan insole memory foam anti-pegal.',
+        merchant: 'Karsa Footwear Studio',
+        location: 'Bandung',
+        attributes: { brand: 'Karsa Studio', weight: 820, material: 'Heavy Canvas 12oz' }
+      }
+    ]
+  },
+  {
+    id: 'food' as ItemCategoryType,
+    name: 'Kuliner',
+    badge: 'Menu Kafe & Resto',
+    tagline: 'Restoran, Kafe, Bakery, Katering & Minuman Kekinian',
+    description: 'Buku menu digital interaktif dengan visual hidangan menggugah selera, masa simpan, dan direct order WhatsApp.',
     icon: Utensils,
     color: '#f97316',
     accentBg: '#fff7ed',
     products: [
       {
-        id: 'c1',
-        title: 'Artisan Cold Brew Coffee (250ml)',
+        id: 'food-1',
+        name: 'Artisan Cold Brew Arabica (250ml)',
+        title: 'Artisan Cold Brew Arabica (250ml)',
+        class: 'Signature Drink',
         category: 'Signature Drink',
-        price: 'Rp 28.000',
-        badge: 'Best Seller',
-        rating: '4.9',
-        reviews: 142,
-        description: 'Biji kopi arabika Gayo diseduh dingin 16 jam, aroma nutty cokelat dengan manis alami aren organik.',
+        product_type: 'food' as ItemCategoryType,
+        price: 28000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600&auto=format&fit=crop&q=80',
         image: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600&auto=format&fit=crop&q=80',
+        description: 'Biji kopi arabika Gayo diseduh dingin 16 jam, aroma nutty cokelat dengan manis alami aren organik.',
         merchant: 'Kopi Senja Roastery',
-        location: 'Bandung'
+        location: 'Bandung',
+        attributes: { expired_info: '5 Hari', storage_temp: 'Dingin 4°C' }
       },
       {
-        id: 'c2',
+        id: 'food-2',
+        name: 'French Butter Croissant Supreme',
         title: 'French Butter Croissant Supreme',
+        class: 'Bakery & Pastry',
         category: 'Bakery & Pastry',
-        price: 'Rp 24.000',
-        badge: 'Fresh Daily',
-        rating: '4.8',
-        reviews: 95,
-        description: 'Pastry mentega Prancis renyah berlapis di luar dan lembut wangi di dalam, dipanggang fresh setiap pagi.',
+        product_type: 'food' as ItemCategoryType,
+        price: 24000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80',
         image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80',
+        description: 'Pastry mentega Prancis renyah berlapis di luar dan lembut wangi di dalam, dipanggang fresh setiap pagi.',
         merchant: 'Maison & Boulangerie',
-        location: 'Jakarta Selatan'
+        location: 'Jakarta Selatan',
+        attributes: { expired_info: '2 Hari', storage_temp: 'Suhu Ruang' }
       },
       {
-        id: 'c3',
+        id: 'food-3',
+        name: 'Wagyu Beef Saikoro Rice Bowl',
         title: 'Wagyu Beef Saikoro Rice Bowl',
+        class: 'Main Course',
         category: 'Main Course',
-        price: 'Rp 48.000',
-        badge: 'Chef Choice',
-        rating: '5.0',
-        reviews: 210,
-        description: 'Nasi jepang pulen dengan saikoro wagyu melt-in-mouth, onsen egg lembut, dan siraman saus tare homemade.',
+        product_type: 'food' as ItemCategoryType,
+        price: 48000,
+        conservation_status: 'Pre-Order',
+        image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
         image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
+        description: 'Nasi jepang pulen dengan saikoro wagyu melt-in-mouth, onsen egg lembut, dan siraman saus tare homemade.',
         merchant: 'Tokyo Rice & Grill',
-        location: 'Surabaya'
+        location: 'Surabaya',
+        attributes: { expired_info: 'Hari Ini', storage_temp: 'Sajikan Hangat' }
       }
     ]
   },
   {
-    id: 'fashion',
-    name: 'Fashion & Apparel',
-    badge: 'Lookbook & Butik',
-    tagline: 'Butik, Distro, Hijab, Sepatu, Tas & Aksesoris',
-    description: 'Etalase lookbook modern dengan informasi varian size/warna, panduan ukuran, dan tautan belanja WhatsApp atau marketplace.',
-    icon: Shirt,
-    color: '#2563eb',
-    accentBg: '#eff6ff',
-    products: [
-      {
-        id: 'f1',
-        title: 'Heavyweight Boxy Tee (24s Cotton)',
-        category: 'Streetwear',
-        price: 'Rp 115.000',
-        badge: 'Trending',
-        rating: '4.9',
-        reviews: 320,
-        description: 'Bahan 100% combed cotton 24s gramasi solid, potongan boxy fit modern tidak mudah melar setelah dicuci.',
-        image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Atelier Monochrome',
-        location: 'Jakarta Pusat'
-      },
-      {
-        id: 'f2',
-        title: 'Vegan Leather Structured Tote Bag',
-        category: 'Bags & Leather',
-        price: 'Rp 275.000',
-        badge: 'Premium Finish',
-        rating: '4.9',
-        reviews: 88,
-        description: 'Tas jinjing kulit sintetis tebal anti-gores dengan kompartemen laptop 14 inch dan resleting YKK premium.',
-        image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Terra Leather Craft',
-        location: 'Yogyakarta'
-      },
-      {
-        id: 'f3',
-        title: 'Daily Canvas Low-Top Sneakers',
-        category: 'Footwear',
-        price: 'Rp 210.000',
-        badge: 'Ready Stock',
-        rating: '4.8',
-        reviews: 154,
-        description: 'Sepatu kanvas klasik dengan sol karet vulcanized fleksibel dan insole memory foam anti-pegal.',
-        image: 'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Karsa Footwear Studio',
-        location: 'Tangerang'
-      }
-    ]
-  },
-  {
-    id: 'plants',
-    name: 'Tanaman & Living',
-    badge: 'Florist & Botanical',
-    tagline: 'Tanaman Hias, Pot Keramik, Florist & Dekorasi',
-    description: 'Tampilkan keindahan tanaman hias indoor, buket bunga, pot terakota, dan panduan perawatan dengan visual estetik.',
-    icon: Flower2,
-    color: '#059669',
-    accentBg: '#ecfdf5',
-    products: [
-      {
-        id: 'p1',
-        title: 'Monstera Deliciosa Variegata Albo',
-        category: 'Rare Aroids',
-        price: 'Rp 195.000',
-        badge: 'Rare Item',
-        rating: '5.0',
-        reviews: 45,
-        description: 'Corak marmer putih bersih 3-4 daun aktif dengan perakaran matang dan media tanam porous siap pajang.',
-        image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Flora Botanica House',
-        location: 'Bogor'
-      },
-      {
-        id: 'p2',
-        title: 'Handcrafted Terrazzo Ceramic Planter',
-        category: 'Pots & Living',
-        price: 'Rp 85.000',
-        badge: 'Handmade',
-        rating: '4.9',
-        reviews: 112,
-        description: 'Pot gerabah motif terrazzo minimalis dengan tatakan piringan terpisah dan lubang aerasi drainase optimal.',
-        image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Studio Pot Nusantara',
-        location: 'Bali'
-      },
-      {
-        id: 'p3',
-        title: 'Rustic Everlasting Dried Flower Bouquet',
-        category: 'Florist & Gift',
-        price: 'Rp 140.000',
-        badge: 'Tahan 3 Tahun',
-        rating: '4.8',
-        reviews: 86,
-        description: 'Rangkaian bunga kering alami bernuansa earth-tone hangat, cocok untuk kado kelulusan maupun pemanis interior.',
-        image: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Aura Flower Atelier',
-        location: 'Semarang'
-      }
-    ]
-  },
-  {
-    id: 'pets',
-    name: 'Satwa & Hewan Hias',
-    badge: 'Fauna & Aquatics',
-    tagline: 'Reptil, Aquascape, Burung, Pakan & Pet Shop',
-    description: 'Galeri spesifikasi satwa hias lengkap dengan kelas taksonomi, video satwa, garansi kesehatan, dan panduan perawatan.',
-    icon: PawPrint,
-    color: '#0891b2',
-    accentBg: '#ecfeff',
-    products: [
-      {
-        id: 'a1',
-        title: 'Crested Gecko Lily White Sub-Adult',
-        category: 'Exotic Reptiles',
-        price: 'Rp 850.000',
-        badge: 'Garansi Hidup',
-        rating: '5.0',
-        reviews: 62,
-        description: 'Karakter jinak total, kontras putih tinggi, makan rakus diet buah & serangga, aman kirim ke seluruh kota bergaransi.',
-        image: 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Exotic Fauna & Flora',
-        location: 'Jakarta Barat'
-      },
-      {
-        id: 'a2',
-        title: 'Aquascape Nature Display System (30cm)',
-        category: 'Aquatic Living',
-        price: 'Rp 480.000',
-        badge: 'Full Set System',
-        rating: '4.9',
-        reviews: 38,
-        description: 'Tank kaca optik 30cm dengan ekosistem tanaman moss hidup, hardscape lava rock, dan filter mini siap rawat.',
-        image: 'https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?w=600&auto=format&fit=crop&q=80',
-        merchant: 'AquaScaper Studio',
-        location: 'Malang'
-      },
-      {
-        id: 'a3',
-        title: 'Sugar Glider Classic Joey (2 Bulan)',
-        category: 'Small Mammals',
-        price: 'Rp 320.000',
-        badge: 'Jinak Bonding',
-        rating: '4.9',
-        reviews: 50,
-        description: 'Joey sehat aktif usia 2 bulan lepas kantung, bonding tangan manusia, sudah makan mandiri buah & bubur halus.',
-        image: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Pouch Pet Nusantara',
-        location: 'Solo'
-      }
-    ]
-  },
-  {
-    id: 'services',
-    name: 'Jasa & Layanan',
-    badge: 'Portofolio & Booking',
-    tagline: 'Barbershop, Salon & Spa, Studio Foto, Kreatif & Konsultasi',
-    description: 'Daftar tarif layanan profesional, portofolio karya, jadwal jam operasional, dan kemudahan booking langsung via WhatsApp.',
-    icon: Scissors,
+    id: 'service' as ItemCategoryType,
+    name: 'Jasa',
+    badge: 'Layanan & Booking',
+    tagline: 'Barbershop, Salon & Spa, Studio Foto, Reparasi & Konsultan',
+    description: 'Daftar paket jasa profesional, portofolio karya, estimasi durasi pengerjaan, dan booking langsung ke WhatsApp.',
+    icon: Briefcase,
     color: '#7c3aed',
     accentBg: '#f5f3ff',
     products: [
       {
-        id: 's1',
+        id: 'serv-1',
+        name: 'Executive Haircut & Hot Towel Treatment',
         title: 'Executive Haircut & Hot Towel Treatment',
+        class: 'Grooming & Barbershop',
         category: 'Grooming & Barbershop',
-        price: 'Rp 65.000',
-        badge: 'Paling Populer',
-        rating: '4.9',
-        reviews: 450,
-        description: 'Potong rambut presisi, pijat relaksasi kepala, kompres handuk hangat aromaterapi, dan styling pomade premium.',
+        product_type: 'service' as ItemCategoryType,
+        price: 65000,
+        conservation_status: 'Buka Jadwal',
+        image_url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600&auto=format&fit=crop&q=80',
         image: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600&auto=format&fit=crop&q=80',
+        description: 'Potong rambut presisi, pijat relaksasi kepala, kompres handuk hangat aromaterapi, dan styling pomade premium.',
         merchant: 'Gentleman Heritage Barber',
-        location: 'Bekasi'
+        location: 'Bekasi',
+        attributes: { duration: '45 Menit', service_location: 'Studio Barber' }
       },
       {
-        id: 's2',
-        title: 'Sesi Foto Studio Wisuda / Keluarga (1 Jam)',
-        category: 'Creative Studio',
-        price: 'Rp 299.000',
-        badge: 'Unlimited Pose',
-        rating: '5.0',
-        reviews: 184,
-        description: 'Sesi pemotretan studio ber-AC, bebas ganti kostum, 10 foto edited resolusi cetak, dan seluruh file master dikirim via Cloud.',
+        id: 'serv-2',
+        name: 'Sesi Foto Studio Wisuda & Portrait (1 Jam)',
+        title: 'Sesi Foto Studio Wisuda & Portrait (1 Jam)',
+        class: 'Studio Foto & Kreatif',
+        category: 'Studio Foto & Kreatif',
+        product_type: 'service' as ItemCategoryType,
+        price: 299000,
+        conservation_status: 'Buka Jadwal',
+        image_url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
         image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
+        description: 'Sesi pemotretan studio ber-AC, bebas ganti kostum, 10 foto edited resolusi cetak, dan seluruh file master via Cloud.',
         merchant: 'Lensa Visual Creative',
-        location: 'Depok'
+        location: 'Depok',
+        attributes: { duration: '60 Menit', service_location: 'Studio AC' }
       },
       {
-        id: 's3',
+        id: 'serv-3',
+        name: 'Jasa Desain 3D Interior & Gambar Kerja RAB',
         title: 'Jasa Desain 3D Interior & Gambar Kerja RAB',
-        category: 'Design & Living',
-        price: 'Rp 450.000',
-        badge: 'Revisi 3x',
-        rating: '4.8',
-        reviews: 76,
-        description: 'Visualisasi render 3D fotorealistik denah ruang, layout furnitur 2D skala milimeter, dan estimasi rincian anggaran material.',
+        class: 'Arsitektur & Desain',
+        category: 'Arsitektur & Desain',
+        product_type: 'service' as ItemCategoryType,
+        price: 450000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&auto=format&fit=crop&q=80',
         image: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&auto=format&fit=crop&q=80',
+        description: 'Visualisasi render 3D fotorealistik denah ruang, layout furnitur 2D skala milimeter, dan estimasi anggaran.',
         merchant: 'Ruang Idaman Studio',
-        location: 'Jakarta Barat'
+        location: 'Jakarta Barat',
+        attributes: { duration: '3-5 Hari Kerja', service_location: 'Konsultasi Online' }
       }
     ]
   },
   {
-    id: 'tech',
-    name: 'Gadget & Hobi',
-    badge: 'Spesifikasi & Garansi',
-    tagline: 'Elektronik, Audio, Aksesoris Komputer & Alat Harian',
-    description: 'Etalase produk dengan spesifikasi teknis mendalam, informasi garansi resmi, dan kemudahan tanya ketersediaan stok ke admin.',
-    icon: Smartphone,
-    color: '#db2777',
-    accentBg: '#fdf2f8',
+    id: 'digital' as ItemCategoryType,
+    name: 'Produk Digital',
+    badge: 'Aset & Lisensi',
+    tagline: 'Template Desain, E-Book, Preset, Script & Dokumen',
+    description: 'Etalase produk digital siap unduh dengan format berkas, ukuran file, dan kejelasan lisensi komersial.',
+    icon: FileCode,
+    color: '#0284c7',
+    accentBg: '#f0f9ff',
     products: [
       {
-        id: 't1',
-        title: 'Mechanical Keyboard 75% Tri-Mode RGB Hot-Swap',
-        category: 'PC Gaming & Setup',
-        price: 'Rp 499.000',
-        badge: 'Garansi 1 Tahun',
-        rating: '4.9',
-        reviews: 135,
-        description: 'Keyboard mekanikal dengan switch linear pre-lubed, keycaps PBT dye-sub, baterai 4000mAh, dan konektivitas Bluetooth/2.4G.',
-        image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80',
-        merchant: 'KeyForge Gear',
-        location: 'Tangerang Selatan'
+        id: 'dig-1',
+        name: 'UI/UX Mobile App Design System Pro',
+        title: 'UI/UX Mobile App Design System Pro',
+        class: 'Template Desain',
+        category: 'Template Desain',
+        product_type: 'digital' as ItemCategoryType,
+        price: 189000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&auto=format&fit=crop&q=80',
+        description: 'Template komponen UI lengkap dengan auto-layout, design tokens, varian light/dark mode, dan 120+ screen siap pakai.',
+        merchant: 'PixelCraft Studio',
+        location: 'Bandung',
+        attributes: { file_format: 'Figma (.fig)', file_size: '48 MB', license_type: 'Lisensi Komersial' }
       },
       {
-        id: 't2',
-        title: 'ANC Wireless Over-Ear Headphones (50H Battery)',
-        category: 'Audio & Acoustics',
-        price: 'Rp 385.000',
-        badge: 'Hi-Res Audio',
-        rating: '4.8',
-        reviews: 92,
-        description: 'Peredam bising aktif ganda, ear cushion memory foam lembut nyaman dipakai berjam-jam, serta mikrofon jernih untuk panggilan.',
-        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80',
-        merchant: 'SonicPulse Audio',
-        location: 'Jakarta Utara'
+        id: 'dig-2',
+        name: 'Financial Tracker & Otomasi Akuntansi UMKM',
+        title: 'Financial Tracker & Otomasi Akuntansi UMKM',
+        class: 'Spreadsheet Bisnis',
+        category: 'Spreadsheet Bisnis',
+        product_type: 'digital' as ItemCategoryType,
+        price: 75000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&auto=format&fit=crop&q=80',
+        description: 'File spreadsheet siap pakai dengan rumus arus kas, laba rugi otomatis, dan dashboard grafik kinerja penjualan bulanan.',
+        merchant: 'DataGrow Analytics',
+        location: 'Jakarta Pusat',
+        attributes: { file_format: 'Excel & Sheets', file_size: '12 MB', license_type: 'Single User' }
       },
       {
-        id: 't3',
-        title: 'Nordic LED Desk Lamp with 15W Qi Wireless Charger',
-        category: 'Smart Desk Living',
-        price: 'Rp 165.000',
-        badge: 'Smart Touch',
-        rating: '4.9',
-        reviews: 118,
-        description: 'Lampu baca aluminium anodized dengan 5 pilihan temperatur cahaya, sensor sentuh, dan fast wireless charging pad di dudukannya.',
-        image: 'https://images.unsplash.com/photo-1534073828943-f801091bb18c?w=600&auto=format&fit=crop&q=80',
-        merchant: 'Lumina Tech Home',
-        location: 'Bandung'
+        id: 'dig-3',
+        name: 'E-Book Strategi Branding & Penjualan WhatsApp',
+        title: 'E-Book Strategi Branding & Penjualan WhatsApp',
+        class: 'E-Book & Panduan',
+        category: 'E-Book & Panduan',
+        product_type: 'digital' as ItemCategoryType,
+        price: 49000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
+        description: 'Panduan praktis 85 halaman cara membangun biolink katalog, copywriting penawaran, dan closing order cepat via WA.',
+        merchant: 'Growth Media Lab',
+        location: 'Surabaya',
+        attributes: { file_format: 'PDF High-Res', file_size: '22 MB', license_type: 'Personal Use' }
+      }
+    ]
+  },
+  {
+    id: 'fauna' as ItemCategoryType,
+    name: 'Hewan',
+    badge: 'Satwa & Hobi',
+    tagline: 'Reptil Hias, Aquascape & Ikan, Burung, & Satwa Peliharaan',
+    description: 'Galeri spesifikasi satwa lengkap dengan taksonomi latin, daerah asal, karakter jinak, dan garansi kesehatan.',
+    icon: PawPrint,
+    color: '#059669',
+    accentBg: '#ecfdf5',
+    products: [
+      {
+        id: 'fau-1',
+        name: 'Crested Gecko Lily White Sub-Adult',
+        title: 'Crested Gecko Lily White Sub-Adult',
+        class: 'Reptil Eksotis',
+        category: 'Reptil Eksotis',
+        product_type: 'fauna' as ItemCategoryType,
+        price: 850000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1508817628294-5a453fa0b8fb?w=600&auto=format&fit=crop&q=80',
+        description: 'Karakter jinak total, kontras putih tinggi, makan rakus diet buah & serangga, aman kirim ke seluruh kota bergaransi.',
+        merchant: 'Exotic Fauna & Flora',
+        location: 'Jakarta Barat',
+        habitat: 'Terrarium Indoor',
+        detailed_info: { native_region: 'Kaledonia Baru' },
+        scientific_name: 'Correlophus ciliatus'
+      },
+      {
+        id: 'fau-2',
+        name: 'Aquascape Nature Display System (30cm)',
+        title: 'Aquascape Nature Display System (30cm)',
+        class: 'Aquatic Living',
+        category: 'Aquatic Living',
+        product_type: 'fauna' as ItemCategoryType,
+        price: 480000,
+        conservation_status: 'Pre-Order',
+        image_url: 'https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1520302630591-fd1c66edc19d?w=600&auto=format&fit=crop&q=80',
+        description: 'Tank kaca optik 30cm dengan ekosistem tanaman moss hidup, hardscape lava rock, dan filter mini siap rawat.',
+        merchant: 'AquaScaper Studio',
+        location: 'Malang',
+        habitat: 'Freshwater Aquatic',
+        detailed_info: { native_region: 'Budidaya Lokal' },
+        scientific_name: 'Planted Tank Ecosystem'
+      },
+      {
+        id: 'fau-3',
+        name: 'Sugar Glider Classic Joey (2 Bulan)',
+        title: 'Sugar Glider Classic Joey (2 Bulan)',
+        class: 'Mamalia Kecil',
+        category: 'Mamalia Kecil',
+        product_type: 'fauna' as ItemCategoryType,
+        price: 320000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=600&auto=format&fit=crop&q=80',
+        description: 'Joey sehat aktif usia 2 bulan lepas kantung, bonding tangan manusia, sudah makan mandiri buah & bubur halus.',
+        merchant: 'Pouch Pet Nusantara',
+        location: 'Solo',
+        habitat: 'Pouch Cage',
+        detailed_info: { native_region: 'Nusantara' },
+        scientific_name: 'Petaurus breviceps'
+      }
+    ]
+  },
+  {
+    id: 'plant' as ItemCategoryType,
+    name: 'Tanaman',
+    badge: 'Botani & Florist',
+    tagline: 'Tanaman Hias, Aroid, Sukulen, Florist & Perkebunan',
+    description: 'Tampilkan keindahan tanaman hias dengan panduan kebutuhan cahaya matahari, jadwal siram, dan nama latin.',
+    icon: Leaf,
+    color: '#15803d',
+    accentBg: '#f0fdf4',
+    products: [
+      {
+        id: 'plt-1',
+        name: 'Monstera Deliciosa Variegata Albo',
+        title: 'Monstera Deliciosa Variegata Albo',
+        class: 'Aroid Variegata',
+        category: 'Aroid Variegata',
+        product_type: 'plant' as ItemCategoryType,
+        price: 195000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=600&auto=format&fit=crop&q=80',
+        description: 'Corak marmer putih bersih 3-4 daun aktif dengan perakaran matang dan media tanam porous siap pajang.',
+        merchant: 'Flora Botanica House',
+        location: 'Bogor',
+        attributes: { sunlight: 'Terang Tidak Langsung', watering: '2x Seminggu' },
+        scientific_name: 'Monstera deliciosa variegata'
+      },
+      {
+        id: 'plt-2',
+        name: 'Sansevieria Masoniana Whale Fin',
+        title: 'Sansevieria Masoniana Whale Fin',
+        class: 'Sukulen & Sansevieria',
+        category: 'Sukulen & Sansevieria',
+        product_type: 'plant' as ItemCategoryType,
+        price: 85000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&auto=format&fit=crop&q=80',
+        description: 'Daun tunggal besar berbentuk sirip paus, sangat tahan banting, cocok untuk pembersih udara ruangan kantor.',
+        merchant: 'Studio Pot Nusantara',
+        location: 'Bali',
+        attributes: { sunlight: 'Toleran Semua Cahaya', watering: '1x Tiap 10 Hari' },
+        scientific_name: 'Sansevieria masoniana'
+      },
+      {
+        id: 'plt-3',
+        name: 'Philodendron Pink Princess Top Cut',
+        title: 'Philodendron Pink Princess Top Cut',
+        class: 'Aroid Koleksi',
+        category: 'Aroid Koleksi',
+        product_type: 'plant' as ItemCategoryType,
+        price: 140000,
+        conservation_status: 'Pre-Order',
+        image_url: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=600&auto=format&fit=crop&q=80',
+        description: 'Variegasi merah muda cerah kontras dengan daun hijau gelap, akar angin aktif dan daun baru sedang membuka.',
+        merchant: 'Aura Plant Atelier',
+        location: 'Semarang',
+        attributes: { sunlight: 'Cahaya Sedang Difus', watering: '2-3x Seminggu' },
+        scientific_name: 'Philodendron erubescens'
+      }
+    ]
+  },
+  {
+    id: 'property' as ItemCategoryType,
+    name: 'Properti',
+    badge: 'Listing & Hunian',
+    tagline: 'Rumah Tinggal, Ruko, Tanah Kavling, Villa & Sewa',
+    description: 'Katalog listing properti dengan status transaksi (Jual/Sewa), legalitas sertifikat (SHM), serta rincian luas tanah & bangunan.',
+    icon: Building2,
+    color: '#0d9488',
+    accentBg: '#f0fdfa',
+    products: [
+      {
+        id: 'prop-1',
+        name: 'Rumah Minimalis Modern 2 Lantai Cluster',
+        title: 'Rumah Minimalis Modern 2 Lantai Cluster',
+        class: 'Rumah Tinggal',
+        category: 'Rumah Tinggal',
+        product_type: 'property' as ItemCategoryType,
+        price: 650000000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop&q=80',
+        description: 'Hunian asri sistem cluster 1 gerbang, 3 kamar tidur, 2 kamar mandi, carport kanopi, dekat akses tol dan stasiun.',
+        merchant: 'Graha Property Mandiri',
+        location: 'Tangerang Selatan',
+        attributes: { transaction_type: 'Dijual', certificate: 'SHM & IMB', land_area: 96, building_area: 82 }
+      },
+      {
+        id: 'prop-2',
+        name: 'Ruko Strategis 3 Lantai Kawasan Bisnis',
+        title: 'Ruko Strategis 3 Lantai Kawasan Bisnis',
+        class: 'Ruko Komersial',
+        category: 'Ruko Komersial',
+        product_type: 'property' as ItemCategoryType,
+        price: 1450000000,
+        conservation_status: 'Tersedia',
+        image_url: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?w=600&auto=format&fit=crop&q=80',
+        description: 'Ruko hadap jalan raya ramai dua arah, area parkir luas, cocok untuk kantor cabang, klinik, kafe, atau minimarket.',
+        merchant: 'Puri Prima Real Estate',
+        location: 'Bekasi',
+        attributes: { transaction_type: 'Dijual', certificate: 'HGB Murni', land_area: 110, building_area: 240 }
+      },
+      {
+        id: 'prop-3',
+        name: 'Sewa Paviliun Semi Furnished (Tahunan)',
+        title: 'Sewa Paviliun Semi Furnished (Tahunan)',
+        class: 'Sewa Hunian',
+        category: 'Sewa Hunian',
+        product_type: 'property' as ItemCategoryType,
+        price: 28000000,
+        conservation_status: 'Buka Jadwal',
+        image_url: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format&fit=crop&q=80',
+        image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format&fit=crop&q=80',
+        description: 'Paviliun nyaman 1 kamar tidur, ruang tamu, dapur pantry, kamar mandi dalam water heater, lingkungan tenang dan aman.',
+        merchant: 'Wisma Asri Residence',
+        location: 'Yogyakarta',
+        attributes: { transaction_type: 'Disewa', certificate: 'SHM', land_area: 60, building_area: 45 }
       }
     ]
   }
@@ -5460,7 +5621,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
 
   const [heroEmailInput, setHeroEmailInput] = useState('');
   // Landing Page Interactive States Mobile
-  const [landingCategory, setLandingCategory] = useState<'culinary' | 'fashion' | 'plants' | 'pets' | 'services' | 'tech'>('culinary');
+  const [landingCategory, setLandingCategory] = useState<ItemCategoryType>('physical');
   const [pricingBillingCycle, setPricingBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
   const [searchStoreQuery, setSearchStoreQuery] = useState<string>('');
@@ -13982,41 +14143,89 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         {/* Mobile Product Detail & Order Simulation Modal */}
         {previewProductModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setPreviewProductModal(null)}>
-            <div className="animate-fade-in" style={{ width: '100%', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: '1.25rem', border: '1px solid #e2e8f0', background: '#ffffff', boxShadow: '0 -15px 40px rgba(15, 23, 42, 0.2)' }} onClick={e => e.stopPropagation()}>
+            <div className="animate-fade-in" style={{ width: '100%', maxHeight: '88vh', overflowY: 'auto', borderTopLeftRadius: '1.25rem', borderTopRightRadius: '1.25rem', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: '1.25rem', border: '1px solid #e2e8f0', background: '#ffffff', boxShadow: '0 -15px 40px rgba(15, 23, 42, 0.2)' }} onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ padding: '0.25rem 0.65rem', borderRadius: '999px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '0.68rem', fontWeight: 800 }}>
-                  {previewProductModal.badge || 'Katalog Produk'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    color: '#2563eb',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px'
+                  }}>
+                    <Tag size={10} strokeWidth={2.4} style={{ opacity: 0.85 }} />
+                    <span>{previewProductModal.class || previewProductModal.category}</span>
+                  </span>
+                  {previewProductModal.conservation_status && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      color: previewProductModal.conservation_status === 'Habis Terjual' ? '#b91c1c' : previewProductModal.conservation_status === 'Pre-Order' ? '#b45309' : previewProductModal.conservation_status === 'Buka Jadwal' ? '#6d28d9' : '#15803d',
+                      backgroundColor: previewProductModal.conservation_status === 'Habis Terjual' ? '#fef2f2' : previewProductModal.conservation_status === 'Pre-Order' ? '#fffbeb' : previewProductModal.conservation_status === 'Buka Jadwal' ? '#f5f3ff' : '#f0fdf4',
+                      border: '1px solid currentColor',
+                      padding: '0.18rem 0.55rem',
+                      borderRadius: '999px'
+                    }}>
+                      <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
+                      <span>{previewProductModal.conservation_status}</span>
+                    </span>
+                  )}
                 </div>
                 <button type="button" onClick={() => setPreviewProductModal(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem' }}>
                   <X size={20} />
                 </button>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.85rem', marginBottom: '1.25rem' }}>
-                <img src={previewProductModal.image} alt={previewProductModal.title} style={{ width: '90px', height: '90px', objectFit: 'cover', borderRadius: '0.65rem', border: '1px solid #e2e8f0' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: '#0f172a' }}>{previewProductModal.title}</h3>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#2563eb', marginBottom: '0.25rem' }}>{previewProductModal.price}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Oleh {previewProductModal.merchant} ({previewProductModal.location})</div>
+              <div style={{ display: 'flex', gap: '0.85rem', marginBottom: '1rem' }}>
+                <img 
+                  src={previewProductModal.image_url || previewProductModal.image} 
+                  alt={previewProductModal.name || previewProductModal.title} 
+                  style={{ width: '92px', height: '92px', objectFit: 'cover', borderRadius: '0.75rem', border: '1px solid #e2e8f0', flexShrink: 0 }} 
+                />
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: '0 0 0.2rem 0', color: '#0f172a', lineHeight: 1.3 }}>
+                    {previewProductModal.name || previewProductModal.title}
+                  </h3>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.4rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {renderLandingItemSubtitle(previewProductModal)}
+                  </div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#2563eb' }}>
+                    {formatDisplayPrice(previewProductModal.price)}
+                  </div>
                 </div>
               </div>
 
+              {previewProductModal.description && (
+                <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.5, marginBottom: '1rem', background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '0.6rem', border: '1px solid #e2e8f0' }}>
+                  {previewProductModal.description}
+                </div>
+              )}
+
               {/* Chat Format Preview Box Mobile */}
-              <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '1.25rem' }}>
+              <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '1.15rem' }}>
                 <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <MessageCircle size={13} /> Format Pesan WhatsApp Otomatis:
                 </div>
-                <div style={{ fontSize: '0.74rem', color: '#166534', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.65rem', borderRadius: '0.45rem', border: '1px solid #dcfce7', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
-{`Halo ${previewProductModal.merchant}, saya ingin memesan:
-• ${previewProductModal.title} (${previewProductModal.price})
-Mohon info ketersediaan stok & pengiriman ya!`}
+                <div style={{ fontSize: '0.74rem', color: '#166534', fontFamily: 'monospace', backgroundColor: '#ffffff', padding: '0.65rem', borderRadius: '0.45rem', border: '1px solid #dcfce7', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+{`Halo ${previewProductModal.merchant || 'Admin'}, saya ingin memesan:
+• ${previewProductModal.name || previewProductModal.title} (${formatDisplayPrice(previewProductModal.price)})
+Mohon info ketersediaan stok & proses pemesanan ya!`}
                 </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 <button type="button" className="btn-portal-whatsapp" style={{ padding: '0.75rem', justifyContent: 'center', fontSize: '0.82rem', width: '100%' }} onClick={() => {
+                  const title = previewProductModal.name || previewProductModal.title;
                   setPreviewProductModal(null);
-                  setSimulatedOrderToast(`Format order "${previewProductModal.title}" siap dikirim ke WhatsApp!`);
+                  setSimulatedOrderToast(`Format order "${title}" siap dikirim ke WhatsApp!`);
                   setTimeout(() => setSimulatedOrderToast(null), 4500);
                 }}>
                   <MessageCircle size={16} />
@@ -14210,6 +14419,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 {/* Mobile Value Pills */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.4rem', marginBottom: '1.75rem' }}>
                   <span className="hero-value-pill-clean"><Zap size={12} style={{ color: '#2563eb' }} /> 60 Detik Siap</span>
+                  <span className="hero-value-pill-clean"><Layers size={12} style={{ color: '#2563eb' }} /> 7 Format Katalog</span>
                   <span className="hero-value-pill-clean"><MessageCircle size={12} style={{ color: '#16a34a' }} /> WhatsApp Direct</span>
                   <span className="hero-value-pill-clean"><ShieldCheck size={12} style={{ color: '#2563eb' }} /> 0% Komisi</span>
                   <span className="hero-value-pill-clean"><QrCode size={12} style={{ color: '#2563eb' }} /> QR Code Instan</span>
@@ -14243,8 +14453,9 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                         <div style={{ fontSize: '0.65rem', color: '#64748b' }}>catavor.com/maison-coffee</div>
                       </div>
                     </div>
-                    <span style={{ fontSize: '0.65rem', color: '#15803d', background: '#dcfce7', padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: 700 }}>
-                      🟢 Buka
+                    <span style={{ fontSize: '0.65rem', color: '#15803d', background: '#dcfce7', border: '1px solid #bbf7d0', padding: '0.18rem 0.55rem', borderRadius: '999px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#16a34a' }} />
+                      <span>Toko Aktif</span>
                     </span>
                   </div>
 
@@ -14267,10 +14478,13 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               {/* MULTI-INDUSTRY LIVE CATALOG EXPLORER MOBILE */}
               <div>
                 <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kategori Usaha</span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Eksplorasi 7 Tipe Katalog</span>
                   <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
                     Katalog untuk Segala Industri
                   </h2>
+                  <p style={{ color: '#64748b', fontSize: '0.78rem', marginTop: '0.35rem', lineHeight: 1.45 }}>
+                    Pilih tipe format katalog di bawah untuk melihat kartu produk, atribut spesifik, dan simulasi pesanan WhatsApp seperti pada halaman katalog publik.
+                  </p>
                 </div>
 
                 {/* Horizontal Scrollable Tabs */}
@@ -14293,46 +14507,177 @@ Mohon info ketersediaan stok & pengiriman ya!`}
                 </div>
 
                 {/* Active Category Description Mobile */}
-                <div style={{ padding: '1rem', borderRadius: '0.85rem', background: activeIndustryData.accentBg, border: `1px solid ${activeIndustryData.color}33`, marginBottom: '1.25rem' }}>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.2rem' }}>{activeIndustryData.tagline}</div>
+                <div style={{ padding: '0.95rem 1rem', borderRadius: '0.85rem', background: activeIndustryData.accentBg, border: `1px solid ${activeIndustryData.color}33`, marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>{activeIndustryData.tagline}</div>
+                    <span style={{ fontSize: '0.66rem', fontWeight: 800, padding: '0.2rem 0.55rem', borderRadius: '999px', background: '#ffffff', color: activeIndustryData.color, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      {activeIndustryData.badge}
+                    </span>
+                  </div>
                   <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.45 }}>{activeIndustryData.description}</div>
                 </div>
 
-                {/* Product Cards Mobile */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                {/* Product Cards Mobile Matching Public Storefront */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {activeIndustryData.products.map((item) => (
-                    <div key={item.id} className="catalog-demo-card-clean-mobile">
-                      <div className="catalog-demo-img-box-clean-mobile">
-                        <img src={item.image} alt={item.title} />
-                        <div style={{ position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', gap: '0.35rem' }}>
-                          <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '999px', background: 'rgba(15, 23, 42, 0.8)', color: '#ffffff' }}>
-                            {item.category}
-                          </span>
-                          {item.badge && (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '999px', background: '#2563eb', color: '#ffffff' }}>
-                              {item.badge}
-                            </span>
+                    <div 
+                      key={item.id} 
+                      className="glass-panel mobile-grid-card"
+                      onClick={() => setPreviewProductModal(item)}
+                      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '0.85rem', background: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)' }}
+                    >
+                      {/* Photo Container */}
+                      <div style={{ width: '100%', height: '170px', position: 'relative', overflow: 'hidden', backgroundColor: '#f8fafc' }}>
+                        <img 
+                          src={item.image_url || item.image} 
+                          alt={item.name || item.title} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=600&q=80';
+                          }}
+                        />
+
+                        {/* Status Badge Overlay */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.5rem',
+                          left: '0.5rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
+                          alignItems: 'flex-start',
+                          zIndex: 3
+                        }}>
+                          {item.conservation_status && (
+                            <div style={{
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              backgroundColor: item.conservation_status === 'Habis Terjual'
+                                ? 'rgba(239, 68, 68, 0.92)'
+                                : item.conservation_status === 'Pre-Order'
+                                ? 'rgba(217, 119, 6, 0.92)'
+                                : item.conservation_status === 'Buka Jadwal'
+                                ? 'rgba(124, 58, 237, 0.92)'
+                                : 'rgba(22, 163, 74, 0.92)',
+                              backdropFilter: 'blur(8px)',
+                              color: '#ffffff',
+                              fontSize: '0.6rem',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
+                            }}>
+                              <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#ffffff', flexShrink: 0 }} />
+                              <span>{item.conservation_status}</span>
+                            </div>
                           )}
+                        </div>
+
+                        {/* Preview Eye Overlay */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.5rem',
+                          right: '0.5rem',
+                          zIndex: 3
+                        }}>
+                          <div style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '7px',
+                            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                            backdropFilter: 'blur(6px)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff'
+                          }}>
+                            <Eye size={13} />
+                          </div>
                         </div>
                       </div>
 
-                      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: '#64748b' }}>
-                          <span>{item.merchant} ({item.location})</span>
-                          <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 700 }}>
-                            <Star size={11} fill="#f59e0b" /> {item.rating}
-                          </span>
+                      {/* Card Body */}
+                      <div style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                        <div>
+                          {/* Category Tag Pill */}
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
+                            <span style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              padding: '0.14rem 0.55rem',
+                              borderRadius: '999px',
+                              backgroundColor: '#eff6ff',
+                              color: '#2563eb',
+                              border: '1px solid #bfdbfe',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              maxWidth: '100%',
+                              lineHeight: '1.3'
+                            }}>
+                              <Tag size={9.5} strokeWidth={2.4} style={{ flexShrink: 0, opacity: 0.85 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.class || item.category}
+                              </span>
+                            </span>
+                          </div>
+
+                          {/* Title */}
+                          <h3 style={{
+                            fontSize: '0.88rem',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.3,
+                            minHeight: '2.3rem',
+                            margin: '0.2rem 0'
+                          }}>
+                            {item.name || item.title}
+                          </h3>
+
+                          {/* Dynamic Attribute Subtitle */}
+                          <div style={{
+                            fontSize: '0.7rem',
+                            color: '#64748b',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            marginBottom: '0.6rem'
+                          }}>
+                            {renderLandingItemSubtitle(item)}
+                          </div>
                         </div>
-                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>{item.title}</h3>
-                        <p style={{ fontSize: '0.76rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>{item.description}</p>
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', marginTop: '0.25rem' }}>
-                          <span style={{ fontSize: '1.05rem', fontWeight: 900, color: '#2563eb' }}>{item.price}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => setPreviewProductModal(item)}
-                            className="btn-portal-whatsapp" 
-                            style={{ padding: '0.4rem 0.85rem', fontSize: '0.74rem' }}
+
+                        {/* Price & Action Row */}
+                        <div style={{
+                          borderTop: '1px solid #f1f5f9',
+                          paddingTop: '0.55rem',
+                          marginTop: 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}>
+                          <div>
+                            <span style={{ fontSize: '0.62rem', color: '#64748b', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
+                              Harga
+                            </span>
+                            <div style={{ fontSize: '0.98rem', fontWeight: 900, color: '#2563eb', letterSpacing: '-0.01em' }}>
+                              {formatDisplayPrice(item.price)}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewProductModal(item);
+                            }}
+                            className="btn-portal-whatsapp"
+                            style={{ padding: '0.38rem 0.75rem', fontSize: '0.72rem', fontWeight: 700 }}
                           >
                             <MessageCircle size={13} />
                             <span>Pesan via WA</span>
@@ -14347,7 +14692,7 @@ Mohon info ketersediaan stok & pengiriman ya!`}
               {/* VALUE PILLARS MOBILE */}
               <div>
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Keunggulan</span>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Keunggulan Utama</span>
                   <h2 style={{ fontSize: '1.65rem', fontWeight: 900, marginTop: '0.25rem', color: '#0f172a' }}>
                     Kenapa Pilih Catavor?
                   </h2>
@@ -14355,24 +14700,46 @@ Mohon info ketersediaan stok & pengiriman ya!`}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <Image size={20} style={{ color: '#2563eb' }} />
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>WebP High-Res</h4>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Foto produk tajam dengan kompresi otomatis kilat.</p>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                      <Layers size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>7 Format Katalog</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>Formulir spesifik untuk barang, kuliner, jasa, flora, fauna, digital &amp; properti.</p>
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <MessageCircle size={20} style={{ color: '#16a34a' }} />
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>WhatsApp Order</h4>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Format pesan terstruktur rapi siap diproses.</p>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                      <MessageCircle size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Pesanan WhatsApp</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>Format chat rapi otomatis berisi nama produk, rincian varian &amp; harga.</p>
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <Palette size={20} style={{ color: '#d97706' }} />
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>5 Pilihan Tema</h4>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Sesuaikan palet visual dengan identitas brand.</p>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#fef3c7', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                      <Palette size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Kustomisasi Tema</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>Pilihan palet tema, foto profil toko, deskripsi dan tautan medsos.</p>
                   </div>
                   <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <QrCode size={20} style={{ color: '#7c3aed' }} />
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#faf5ff', border: '1px solid #e9d5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed' }}>
+                      <QrCode size={18} />
+                    </div>
                     <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>QR Code Kasir</h4>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.35 }}>Unduh file QR Code siap cetak di kasir/meja.</p>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>File QR Code resolusi cetak siap dipajang di meja kasir &amp; kemasan.</p>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#ecfeff', border: '1px solid #a5f3fc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0891b2' }}>
+                      <ShieldCheck size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>0% Biaya Komisi</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>Seluruh keuntungan penjualan dari pembeli 100% milik pengelola usaha.</p>
+                  </div>
+                  <div className="portal-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#fff1f2', border: '1px solid #fecdd3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e11d48' }}>
+                      <Shield size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Rekber Syariah</h4>
+                    <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>Proteksi transaksi aman rekening bersama untuk kenyamanan pembeli.</p>
                   </div>
                 </div>
               </div>
