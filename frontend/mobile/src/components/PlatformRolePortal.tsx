@@ -3117,8 +3117,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     try {
       const formData = new FormData();
       formData.append('image', file);
-      formData.append('category', 'branding');
-      const res = await fetch('/api/storage/upload?category=branding', {
+      formData.append('category', 'rekber');
+      const res = await fetch('/api/storage/upload?category=rekber', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
