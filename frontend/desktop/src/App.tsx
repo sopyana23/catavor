@@ -68,6 +68,7 @@ import {
   Utensils,
   Shirt,
   Smartphone,
+  Laptop,
   PawPrint,
   Sprout,
   Scissors,
@@ -8950,7 +8951,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   // Admin Profile SubTab & State
-  const [profileSubTab, setProfileSubTab] = useState<'info' | 'logs'>(() => {
+  const [profileSubTab, setProfileSubTab] = useState<'info' | 'security' | 'logs' | 'danger'>(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const tab = (urlParams.get('tab') || '').toLowerCase();
@@ -8958,6 +8959,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const path = window.location.pathname.toLowerCase();
       if (['audit_logs', 'audit', 'logs', 'riwayat'].includes(tab) || ['audit_logs', 'audit', 'logs'].includes(sub) || path.includes('/admin/audit-logs')) {
         return 'logs';
+      }
+      if (['security', 'keamanan', 'devices', 'sesi'].includes(sub) || path.includes('/admin/security')) {
+        return 'security';
+      }
+      if (['danger', 'bahaya'].includes(sub) || path.includes('/admin/danger')) {
+        return 'danger';
       }
     }
     return 'info';
@@ -21014,15 +21021,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
                   {(() => {
-                    const settingsTabs = [
+                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger'; label: string; icon: any; isPro?: boolean; isDanger?: boolean }> = [
                       { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
                       { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
                       { id: 'master', label: 'Master Data Katalog', icon: Database },
-                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain', label: 'Custom Domain', icon: Globe, isPro: true }] : []),
-                      { id: 'security', label: 'Keamanan & Sesi', icon: ShieldCheck },
-                      { id: 'danger', label: 'Zona Berbahaya', icon: AlertTriangle, isDanger: true }
+                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : []),
+                      { id: 'security', label: 'Keamanan Sesi', icon: ShieldCheck },
+                      { id: 'danger', label: 'Zona Bahaya', icon: AlertTriangle, isDanger: true }
                     ];
 
                     return (
@@ -22013,10 +22020,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* Security & Connected Devices Section */}
+                  {/* Keamanan & Sesi Perangkat Section */}
                   {settingsSubTab === 'security' && (
                     <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
-                      <ConnectedDevicesView 
+                      <ConnectedDevicesView
                         token={token || ''}
                         apiBase={API_BASE}
                         onLogoutCurrent={handleLogout}
@@ -22025,42 +22032,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* Danger Zone Section */}
-                  {settingsSubTab === 'danger' && (
-                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
-                      <DangerZoneSettingsView
-                        currentStore={
-                          (userStores && userStores.find(s => s.slug?.toLowerCase() === (storeSlug || '').toLowerCase())) ||
-                          (userStores && userStores[0]) ||
-                          (settings ? { id: (settings as any).id || (settings as any).store_id || 0, slug: storeSlug || '', store_title: (settings as any).store_title } : null)
-                        }
-                        currentUser={adminUser ? { id: adminUser.id, email: adminUser.email, name: adminUser.name } : null}
-                        userStores={userStores || []}
-                        token={token || ''}
-                        apiBase={API_BASE}
-                        onStoreDeleted={(deletedSlug, remainingStores) => {
-                          setUserStores(remainingStores);
-                          try {
-                            localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
-                          } catch {}
-                          if (remainingStores && remainingStores.length > 0) {
-                            handleSwitchStore(remainingStores[0].slug);
-                          } else {
-                            setStoreSlug(null);
-                            setIsFirstTimeLogin(true);
-                            setView('admin');
-                            setAdminTab('items');
-                            window.history.pushState({}, '', '/admin');
-                            window.location.reload();
-                          }
-                        }}
-                        onAccountDeleted={() => {
-                          handleLogout();
-                        }}
-                        showToast={(type, msg) => showToast(msg, type)}
-                      />
-                    </div>
-                  )}
+                  {/* Zona Bahaya (Hapus Profil Katalog & Hapus Akun) Section */}
+                  {settingsSubTab === 'danger' && (() => {
+                    const activeStoreItem = userStores.find(s => s.slug === storeSlug) || (userStores.length > 0 ? userStores[0] : null);
+                    const currentStoreObj = activeStoreItem ? {
+                      id: activeStoreItem.id,
+                      store_title: activeStoreItem.store_title || settings.store_title || 'Katalog Aktif',
+                      slug: activeStoreItem.slug || storeSlug || ''
+                    } : (storeSlug ? {
+                      id: 0,
+                      store_title: settings.store_title || storeSlug,
+                      slug: storeSlug
+                    } : null);
+
+                    const handleStoreDeleted = (deletedSlug: string, remainingStores: any[]) => {
+                      setUserStores(remainingStores);
+                      try {
+                        localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+                      } catch (e) {
+                        console.error(e);
+                      }
+                      if (remainingStores.length > 0) {
+                        handleSwitchStore(remainingStores[0].slug);
+                      } else {
+                        setStoreSlug(null);
+                        localStorage.removeItem('catavor_active_slug');
+                        sessionStorage.removeItem('catavor_active_slug_selected');
+                        setShowStoreSwitcherModal(true);
+                      }
+                    };
+
+                    return (
+                      <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
+                        <DangerZoneSettingsView
+                          token={token || ''}
+                          apiBase={API_BASE}
+                          currentStore={currentStoreObj}
+                          currentUser={adminUser}
+                          userStores={userStores}
+                          onStoreDeleted={handleStoreDeleted}
+                          onAccountDeleted={handleLogout}
+                          showToast={(type, msg) => showToast(msg, type)}
+                        />
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 
@@ -22098,23 +22114,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.35rem' }}>
                         <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                          {profileSubTab === 'info' ? <UserCheck size={20} /> : <History size={20} />}
+                          {profileSubTab === 'info' ? <UserCheck size={20} /> : profileSubTab === 'security' ? <ShieldCheck size={20} /> : profileSubTab === 'danger' ? <AlertTriangle size={20} color="#ef4444" /> : <History size={20} />}
                         </div>
                         <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin)' : 'Riwayat Aktivitas & Log Audit')}
+                          {profileSubTab === 'info' ? 'Profil Pengelola Katalog' : profileSubTab === 'security' ? 'Keamanan & Sesi Perangkat' : profileSubTab === 'danger' ? 'Zona Berbahaya Akun & Katalog' : (adminUser?.email === 'admin@catavor.com' ? 'System-Wide Audit Trail (Superadmin)' : 'Riwayat Aktivitas & Log Audit')}
                         </h2>
                       </div>
                       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                         {profileSubTab === 'info' 
                           ? 'Kelola identitas akun pengelola katalog Anda dan perbarui nama profil tampilan.' 
-                          : (adminUser?.email === 'admin@catavor.com' 
-                              ? 'Audit trail seluruh aksi administratif, penertiban katalog, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
-                              : 'Riwayat aktivitas katalog, perubahan harga, password, serta login Anda')}
+                          : profileSubTab === 'security'
+                            ? 'Pantau semua perangkat komputer dan smartphone yang sedang aktif terhubung ke akun Anda.'
+                            : profileSubTab === 'danger'
+                              ? 'Tindakan permanen: hapus profil katalog aktif atau hapus akun pengguna keseluruhan.'
+                              : (adminUser?.email === 'admin@catavor.com' 
+                                  ? 'Audit trail seluruh aksi administratif, penertiban katalog, broadcast notifikasi, dan perubahan kebijakan lintas platform.' 
+                                  : 'Riwayat aktivitas katalog, perubahan harga, password, serta login Anda')}
                       </p>
                     </div>
 
                     {/* Segmented SubTab Pills */}
-                    <div style={{ display: 'flex', gap: '0.45rem', backgroundColor: 'var(--bg-deep)', padding: '0.3rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
+                    <div style={{ display: 'flex', gap: '0.45rem', backgroundColor: 'var(--bg-deep)', padding: '0.3rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
                       <button
                         type="button"
                         onClick={() => setProfileSubTab('info')}
@@ -22136,6 +22156,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       >
                         <UserCheck size={15} />
                         <span>Profil Pengguna</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setProfileSubTab('security')}
+                        style={{
+                          padding: '0.5rem 1.15rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          border: profileSubTab === 'security' ? '1px solid var(--primary)' : '1px solid transparent',
+                          backgroundColor: profileSubTab === 'security' ? 'var(--primary)' : 'transparent',
+                          color: profileSubTab === 'security' ? '#ffffff' : 'var(--text-secondary)',
+                          boxShadow: profileSubTab === 'security' ? '0 2px 8px var(--primary-glow)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <ShieldCheck size={15} />
+                        <span>Sesi &amp; Perangkat</span>
                       </button>
 
                       <button
@@ -22162,6 +22205,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       >
                         <History size={15} />
                         <span>Riwayat Log &amp; Audit</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setProfileSubTab('danger')}
+                        style={{
+                          padding: '0.5rem 1.15rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          border: profileSubTab === 'danger' ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid transparent',
+                          backgroundColor: profileSubTab === 'danger' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                          color: profileSubTab === 'danger' ? '#ef4444' : 'var(--text-secondary)',
+                          boxShadow: profileSubTab === 'danger' ? '0 2px 8px rgba(239, 68, 68, 0.2)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <AlertTriangle size={15} color="#ef4444" />
+                        <span>Zona Berbahaya</span>
                       </button>
                     </div>
                   </div>
@@ -23280,6 +23346,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {/* TAB 3: SESI & PERANGKAT TERHUBUNG */}
+                  {profileSubTab === 'security' && (
+                    <ConnectedDevicesView
+                      token={token || ''}
+                      apiBase={API_BASE}
+                      onLogoutCurrent={handleLogout}
+                      showToast={(type, msg) => showToast(msg, type)}
+                    />
+                  )}
+
+                  {/* TAB 4: ZONA BERBAHAYA */}
+                  {profileSubTab === 'danger' && (
+                    <DangerZoneSettingsView
+                      currentStore={
+                        (userStores && userStores.find(s => s.slug?.toLowerCase() === (storeSlug || '').toLowerCase())) ||
+                        (userStores && userStores[0]) ||
+                        (settings ? { id: (settings as any).id || (settings as any).store_id || 0, slug: storeSlug || '', store_title: (settings as any).store_title } : null)
+                      }
+                      currentUser={adminUser ? { id: adminUser.id, email: adminUser.email, name: adminUser.name } : null}
+                      userStores={userStores || []}
+                      token={token || ''}
+                      apiBase={API_BASE}
+                      onStoreDeleted={(deletedSlug, remainingStores) => {
+                        setUserStores(remainingStores);
+                        try {
+                          localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+                        } catch {}
+                        if (remainingStores && remainingStores.length > 0) {
+                          handleSwitchStore(remainingStores[0].slug);
+                        } else {
+                          setStoreSlug(null);
+                          setIsFirstTimeLogin(true);
+                          setView('admin');
+                          setAdminTab('items');
+                          window.history.pushState({}, '', '/admin');
+                          window.location.reload();
+                        }
+                      }}
+                      onAccountDeleted={() => {
+                        handleLogout();
+                      }}
+                      showToast={(type, msg) => showToast(msg, type)}
+                    />
                   )}
                 </div>
               )}
