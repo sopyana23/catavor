@@ -864,7 +864,14 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. POST-TRANSACTION ASYNC ACTIONS (Non-blocking)
+	// 2. POST-TRANSACTION ACTIONS
+	// Synchronize store storage used and invalidate catalog cache
+	if report.StoreID > 0 {
+		services.SyncStoreStorageUsed(database.DB, report.StoreID)
+		database.InvalidateStoreQuotaCache(context.Background(), report.StoreID)
+		InvalidateStoreProductsCache(report.StoreID)
+	}
+
 	// A. Broadcast In-App Notification via WebSocket Hub
 	if notificationCreated != nil {
 		go services.GetNotificationHub().Broadcast(notificationCreated)

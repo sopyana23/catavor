@@ -52,7 +52,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 	err := db.Model(&models.Product{}).
 		Preload("Store").
 		Preload("Store.User").
-		Where("moderation_status = 'hidden' AND moderated_at IS NOT NULL AND moderated_at <= ? AND moderated_at > ? AND deleted_at IS NULL", h7Threshold, h30Threshold).
+		Where("moderation_status IN ('hidden', 'locked', 'banned') AND moderated_at IS NOT NULL AND moderated_at <= ? AND moderated_at > ? AND deleted_at IS NULL", h7Threshold, h30Threshold).
 		Find(&h7Candidates).Error
 
 	if err == nil {
@@ -133,7 +133,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 		Preload("Store").
 		Preload("Store.User").
 		Preload("Images").
-		Where("moderation_status = 'hidden' AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NULL", h30Threshold).
+		Where("moderation_status IN ('hidden', 'locked', 'banned') AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NULL", h30Threshold).
 		Find(&h30Candidates).Error
 
 	if err == nil {
@@ -253,7 +253,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 
 	var h90Candidates []models.Product
 	err = db.Unscoped().Model(&models.Product{}).
-		Where("moderation_status = 'hidden' AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NOT NULL", h90Threshold).
+		Where("moderation_status IN ('hidden', 'locked', 'banned') AND moderated_at IS NOT NULL AND moderated_at <= ? AND deleted_at IS NOT NULL", h90Threshold).
 		Find(&h90Candidates).Error
 
 	if err == nil {
@@ -305,7 +305,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 	var regularCandidates []models.Product
 	err = db.Unscoped().Model(&models.Product{}).
 		Preload("Images").
-		Where("(moderation_status != 'hidden' OR moderation_status IS NULL) AND deleted_at IS NOT NULL AND deleted_at <= ?", regular72hThreshold).
+		Where("(moderation_status NOT IN ('hidden', 'locked', 'banned') OR moderation_status IS NULL) AND deleted_at IS NOT NULL AND deleted_at <= ?", regular72hThreshold).
 		Find(&regularCandidates).Error
 
 	if err == nil {
