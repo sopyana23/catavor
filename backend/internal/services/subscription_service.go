@@ -824,6 +824,48 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		registerURL(store.StoreLogoURL)
 	}
 
+	// 1b. Gather files belonging to recently soft-deleted products within 72-hour cooling-off retention
+	retainedFiles := make(map[string]bool)
+	registerRetainedURL := func(rawURL string) {
+		if strings.TrimSpace(rawURL) == "" {
+			return
+		}
+		idx := strings.Index(rawURL, "/storage/")
+		if idx != -1 {
+			relPath := rawURL[idx+len("/storage/"):]
+			cleanKey := strings.TrimLeft(filepath.ToSlash(relPath), "/")
+			localPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
+			retainedFiles[normPath(localPath)] = true
+		}
+	}
+
+	var softDeletedProducts []models.Product
+	db.Unscoped().Select("id, image_url, detailed_info").
+		Where("store_id = ? AND deleted_at IS NOT NULL AND deleted_at > ?", storeID, time.Now().UTC().Add(-72*time.Hour)).
+		Find(&softDeletedProducts)
+	for _, p := range softDeletedProducts {
+		registerRetainedURL(p.ImageURL)
+
+		var prodImages []models.ProductImage
+		db.Unscoped().Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
+		for _, pi := range prodImages {
+			registerRetainedURL(pi.ImageURL)
+		}
+
+		if len(p.DetailedInfo) > 0 {
+			var dInfo map[string]interface{}
+			if err := json.Unmarshal(p.DetailedInfo, &dInfo); err == nil {
+				if rawImages, ok := dInfo["images"].([]interface{}); ok {
+					for _, itm := range rawImages {
+						if str, ok := itm.(string); ok {
+							registerRetainedURL(str)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// 2. Walk physical storage folder for this store: stores/<storeID>
 	storeDir := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID))
 	prodDirPrefix := filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "products")
@@ -854,6 +896,12 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 
 				// If file is inside store's products directory and not in activeFiles:
 				if strings.HasPrefix(normClean, normProdPrefix) && !activeFiles[normClean] {
+					// Protect files of soft-deleted products during the 72-hour cooling-off retention period.
+					// They are preserved on disk for legal evidence/investigation, but EXCLUDED from active quota totalBytes.
+					if retainedFiles[normClean] {
+						return nil
+					}
+
 					// Protect recently uploaded files (drafts / pending form saves) with a 2-hour grace period
 					if time.Since(f.ModTime()) < 2*time.Hour {
 						totalBytes += f.Size()

@@ -1004,7 +1004,7 @@ func (t *AutomationTracker) TriggerItemRetentionManual(db *gorm.DB, cfg *config.
 	status := "success"
 	summary := ""
 	if stats != nil {
-		summary = fmt.Sprintf("Retensi selesai: %d pengingat H-7, %d di-soft delete (H-30), %d di-hard delete (H-90).", stats.RemindersSent, stats.SoftDeleted, stats.HardDeleted)
+		summary = fmt.Sprintf("Retensi selesai: %d produk reguler dimusnahkan (72h), %d berkas foto dihapus, %d pengingat H-7, %d moderasi soft-delete (H-30), %d moderasi hard-delete (H-90).", stats.RegularPurged, stats.PurgedFiles, stats.RemindersSent, stats.SoftDeleted, stats.HardDeleted)
 	}
 	errStr := ""
 	if err != nil {
@@ -1015,7 +1015,7 @@ func (t *AutomationTracker) TriggerItemRetentionManual(db *gorm.DB, cfg *config.
 
 	affected := int64(0)
 	if stats != nil {
-		affected = int64(stats.SoftDeleted + stats.HardDeleted)
+		affected = int64(stats.RegularPurged + stats.SoftDeleted + stats.HardDeleted)
 	}
 
 	t.RecordWorkerHeartbeat("item_retention_worker", status, summary, errStr, affected, now.Add(24*time.Hour))
