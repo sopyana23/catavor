@@ -6016,7 +6016,7 @@ Terima kasih.`;
               DOKUMEN RESMI
             </span>
             <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
-              PT Catavor Media Digital
+              Catavor
             </span>
           </div>
           <h1 style={{ fontSize: '2.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', margin: '0 0 0.5rem 0' }}>
@@ -14001,7 +14001,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </div>
                   <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Catavor</span>
                   <span style={{ color: '#94a3b8', fontSize: '0.82rem', marginLeft: '0.5rem' }}>
-                    © 2026 PT Catavor Media Digital. Hak Cipta Dilindungi.
+                    © 2026 Catavor. Hak Cipta Dilindungi.
                   </span>
                 </div>
 
