@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"catavor-backend/internal/config"
@@ -16,12 +18,13 @@ import (
 
 // ItemRetentionStats tracks outcomes from a retention processing cycle.
 type ItemRetentionStats struct {
-	RemindersSent int `json:"reminders_sent"`
-	SoftDeleted   int `json:"soft_deleted"`
-	HardDeleted   int `json:"hard_deleted"`
-	RegularPurged int `json:"regular_purged"`
-	PurgedFiles   int `json:"purged_files"`
-	SkippedActive int `json:"skipped_active"`
+	RemindersSent      int `json:"reminders_sent"`
+	SoftDeleted        int `json:"soft_deleted"`
+	HardDeleted        int `json:"hard_deleted"`
+	RegularPurged      int `json:"regular_purged"`
+	PurgedFiles        int `json:"purged_files"`
+	BannedStoresPurged int `json:"banned_stores_purged"`
+	SkippedActive      int `json:"skipped_active"`
 }
 
 // ProcessItemRetentionCycle runs the 3-phase retention lifecycle:
@@ -398,14 +401,93 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 		}
 	}
 
+	// =========================================================================
+	// 5. PHASE 5: BANNED STORE & MEDIA PERMANENT PURGE (>= 90 Days)
+	// =========================================================================
+	h90StoreThreshold := now.AddDate(0, 0, -90)
+
+	var bannedStores []models.Store
+	err = db.Model(&models.Store{}).
+		Where("dormancy_status = 'banned' AND dormancy_banned_at IS NOT NULL AND dormancy_banned_at <= ?", h90StoreThreshold).
+		Find(&bannedStores).Error
+
+	if err == nil {
+		for _, s := range bannedStores {
+			// Safety Guard / Litigation Hold: Check if active unresolved reports exist for this store
+			var activeDisputes int64
+			db.Model(&models.Report{}).
+				Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", s.ID).
+				Count(&activeDisputes)
+			if activeDisputes > 0 {
+				stats.SkippedActive++
+				continue
+			}
+
+			// Clean physical media folders from disk
+			if cfg != nil {
+				if cfg.StorageLocalRoot != "" {
+					_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
+					_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
+				}
+				if cfg.StorageDir != "" {
+					_ = os.RemoveAll(filepath.Join(cfg.StorageDir, "stores", fmt.Sprintf("%d", s.ID)))
+				}
+			}
+
+			// Clean products, variants, and product images belonging to this store
+			var prodIDs []uint
+			db.Unscoped().Model(&models.Product{}).Where("store_id = ?", s.ID).Pluck("id", &prodIDs)
+			if len(prodIDs) > 0 {
+				_ = db.Unscoped().Where("product_id IN ?", prodIDs).Delete(&models.ProductImage{}).Error
+				_ = db.Unscoped().Where("product_id IN ?", prodIDs).Delete(&models.ProductVariant{}).Error
+				if db.Migrator().HasTable("sightings") {
+					_ = db.Unscoped().Where("fauna_id IN ?", prodIDs).Delete(&models.Sighting{}).Error
+				}
+				_ = db.Unscoped().Where("id IN ?", prodIDs).Delete(&models.Product{}).Error
+				if db.Migrator().HasTable("faunas") {
+					_ = db.Unscoped().Table("faunas").Where("id IN ?", prodIDs).Delete(nil).Error
+				}
+			}
+
+			// Mark store dormancy status as 'purged' and anonymize personal details (UU PDP compliance)
+			_ = db.Model(&models.Store{}).Where("id = ?", s.ID).Updates(map[string]interface{}{
+				"dormancy_status":   "purged",
+				"whatsapp_number":   "",
+				"about_description": "",
+				"about_location":    "",
+				"store_slogan":      "",
+				"promo_banner":      "",
+				"store_logo_url":    "",
+			}).Error
+
+			// Record permanent purge in Activity Log
+			RecordActivity(RecordActivityParams{
+				DB:          db,
+				StoreID:     &s.ID,
+				ActorRole:   "system",
+				ActorName:   "Bot Retensi Kepatuhan",
+				ActorEmail:  "system@catavor.com",
+				Action:      "store.auto_purge_banned",
+				Category:    "compliance",
+				EntityType:  "store",
+				EntityID:    &s.ID,
+				EntityTitle: s.StoreTitle,
+				Description: fmt.Sprintf("Pemusnahan total media fisik dan produk toko banned '%s' (#%d) setelah masa retensi hukum 90 hari terpenuhi.", s.StoreTitle, s.ID),
+			})
+
+			stats.BannedStoresPurged++
+		}
+	}
+
 	log.Info().
 		Int("reminders", stats.RemindersSent).
 		Int("soft_deleted", stats.SoftDeleted).
 		Int("hard_deleted", stats.HardDeleted).
 		Int("regular_purged", stats.RegularPurged).
 		Int("purged_files", stats.PurgedFiles).
+		Int("banned_stores_purged", stats.BannedStoresPurged).
 		Int("skipped_active", stats.SkippedActive).
-		Msg("Item retention and purge lifecycle completed")
+		Msg("Item and banned store retention and purge lifecycle completed")
 
 	return stats, nil
 }

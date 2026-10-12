@@ -7,18 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
-	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
@@ -1246,55 +1242,16 @@ func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNu
 		}
 	}
 
-	// 6. Asynchronously Clean Physical Media Files (Logo, Banner, Products images)
-	cfg := config.LoadConfig()
-	strg, _ := storage.NewStorageService(cfg)
-	ctx := context.Background()
-
-	if store.StoreLogoURL != "" && strg != nil {
-		if k := extractStorageKeyFromURL(store.StoreLogoURL); k != "" {
-			_ = strg.Delete(ctx, k)
-		}
-	}
-	if store.PromoBanner != "" && strg != nil {
-		if k := extractStorageKeyFromURL(store.PromoBanner); k != "" {
-			_ = strg.Delete(ctx, k)
-		}
-	}
-
-	// Delete Product images from storage
-	var products []models.Product
-	if err := tx.Preload("Images").Where("store_id = ?", storeID).Find(&products).Error; err == nil {
-		for _, prod := range products {
-			if prod.ImageURL != "" && strg != nil {
-				if k := extractStorageKeyFromURL(prod.ImageURL); k != "" {
-					_ = strg.Delete(ctx, k)
-				}
-			}
-			for _, pImg := range prod.Images {
-				if pImg.ImageURL != "" && strg != nil {
-					if k := extractStorageKeyFromURL(pImg.ImageURL); k != "" {
-						_ = strg.Delete(ctx, k)
-					}
-				}
-			}
-		}
-	}
-
-	// Clean local directory folders on disk if local storage driver is used
-	if cfg.StorageLocalRoot != "" {
-		_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", storeID)))
-		_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", storeID)))
-	}
-	if cfg.StorageDir != "" {
-		_ = os.RemoveAll(filepath.Join(cfg.StorageDir, "stores", fmt.Sprintf("%d", storeID)))
-	}
-
+	// 6. Media Files Retention:
+	// In accordance with enterprise best practice and legal evidence standards (UU ITE & UU Perlindungan Konsumen),
+	// physical media files (store logo, banner, and product photos) are PRESERVED in the storage vault
+	// for a 90-day retention period before being permanently purged by the retention bot worker.
+	// This guarantees that digital evidence remains fully accessible if law enforcement or consumer disputes arise.
 	log.Info().
 		Uint("store_id", storeID).
 		Str("slug", cleanSlug).
 		Str("report", reportNumber).
-		Msg("Permanently banned store, locked slug in blacklisted_slugs, and purged media files safely.")
+		Msg("Permanently banned store, locked slug in blacklisted_slugs, entered 90-day forensic evidence retention.")
 
 	if ownerEmail != "" {
 		go services.SendSingleCatalogBannedEmail(ownerEmail, storeTitle, cleanSlug, reportNumber, reasonLabel, reviewerName)
