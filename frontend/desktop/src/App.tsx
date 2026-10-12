@@ -21169,7 +21169,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   )}
 
                   {/* FORM SUB-TABS (General, Contact, About) */}
-                  {settingsSubTab !== 'theme' && settingsSubTab !== 'master' && settingsSubTab !== 'domain' && (
+                  {(settingsSubTab === 'general' || settingsSubTab === 'contact' || settingsSubTab === 'about') && (
                     <form onSubmit={handleSettingsSave} style={{ maxWidth: '600px', marginTop: '1rem' }} className="animate-fade-in">
                       {settingsSuccess && (
                         <div className="alert-message alert-success">
