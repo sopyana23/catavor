@@ -833,6 +833,10 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	}
 
 	if info, err := os.Stat(storeDir); err == nil && info.IsDir() {
+		supportPrefix := normPath(filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "support"))
+		billingPrefix := normPath(filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "billing"))
+		brandingPrefix := normPath(filepath.Join(storageRoot, "stores", fmt.Sprintf("%d", storeID), "branding"))
+
 		_ = filepath.Walk(storeDir, func(path string, f os.FileInfo, err error) error {
 			if err == nil && !f.IsDir() {
 				if strings.HasSuffix(f.Name(), ".fiber.gz") {
@@ -841,6 +845,12 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 
 				cleanPath := filepath.Clean(path)
 				normClean := normPath(cleanPath)
+
+				// EXCLUDE non-catalog media (support tickets, chat attachments, billing receipts)
+				// Merchant cloud storage quota is STRICTLY for catalog products and store branding!
+				if strings.HasPrefix(normClean, supportPrefix) || strings.HasPrefix(normClean, billingPrefix) {
+					return nil
+				}
 
 				// If file is inside store's products directory and not in activeFiles:
 				if strings.HasPrefix(normClean, normProdPrefix) && !activeFiles[normClean] {
@@ -855,7 +865,10 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 					return nil
 				}
 
-				totalBytes += f.Size()
+				// Only count files strictly inside products/ or branding/
+				if strings.HasPrefix(normClean, normProdPrefix) || strings.HasPrefix(normClean, brandingPrefix) {
+					totalBytes += f.Size()
+				}
 			}
 			return nil
 		})
