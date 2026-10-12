@@ -78,9 +78,20 @@ func LoadConfig() *Config {
 	skipDBMigrateStr := strings.ToLower(getEnv("SKIP_DB_MIGRATE", "false"))
 	dbAutoMigrate := (dbAutoMigrateStr != "false" && dbAutoMigrateStr != "0" && dbAutoMigrateStr != "no") && (skipDBMigrateStr != "true" && skipDBMigrateStr != "1" && skipDBMigrateStr != "yes")
 
+	appEnv := strings.ToLower(strings.TrimSpace(getEnv("APP_ENV", "local")))
+	jwtSecret := getEnv("JWT_SECRET", "catavor_super_secure_jwt_secret_key_2026_industrial_saas")
+
+	// OWASP ASVS / NIST SP 800-63B: Audit validation for JWT secret key in production/staging
+	const defaultJWTSecret = "catavor_super_secure_jwt_secret_key_2026_industrial_saas"
+	if appEnv == "production" || appEnv == "staging" || appEnv == "prod" {
+		if jwtSecret == defaultJWTSecret || len(jwtSecret) < 32 {
+			fmt.Fprintf(os.Stderr, "\n[CRITICAL SECURITY WARNING] In %s environment, JWT_SECRET must NOT use default key and must be at least 32 characters (256-bit entropy). Run 'openssl rand -hex 32' to generate a secure secret!\n\n", strings.ToUpper(appEnv))
+		}
+	}
+
 	AppConfig = &Config{
 		Port:               port,
-		AppEnv:             getEnv("APP_ENV", "local"),
+		AppEnv:             appEnv,
 		AppURL:             appURL,
 		DBHost:             getEnv("DB_HOST", "127.0.0.1"),
 		DBPort:             getEnv("DB_PORT", "5432"),
@@ -89,7 +100,7 @@ func LoadConfig() *Config {
 		DBName:             getEnv("DB_NAME", "catavor"),
 		DBSSLMode:          getEnv("DB_SSLMODE", "disable"),
 		DBAutoMigrate:      dbAutoMigrate,
-		JWTSecret:          getEnv("JWT_SECRET", "catavor_super_secure_jwt_secret_key_2026_industrial_saas"),
+		JWTSecret:          jwtSecret,
 		JWTExpirationHours: jwtHours,
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),

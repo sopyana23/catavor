@@ -1,0 +1,47 @@
+#!/bin/sh
+# Catavor Pre-Commit Security Guard
+# Prevents accidental commit of .env files and hardcoded secrets
+
+# 1. Block any .env files (including .env, .env.local, .env.prod, etc., except .env.example)
+STAGED_ENV_FILES=$(git diff --cached --name-only | grep -E '(^|/)\.env($|\..*)' | grep -v '\.env\.example$')
+if [ -n "$STAGED_ENV_FILES" ]; then
+    echo "=========================================================="
+    echo " [SECURITY ERROR] ATTEMPT TO COMMIT SECRET .ENV FILE!"
+    echo "=========================================================="
+    echo "The following .env files were staged:"
+    echo "$STAGED_ENV_FILES"
+    echo ""
+    echo "Aborting commit. Please unstage with: git reset HEAD <file>"
+    echo "=========================================================="
+    exit 1
+fi
+
+# 2. Block private keys and certificates
+STAGED_KEY_FILES=$(git diff --cached --name-only | grep -E '\.(pem|key|pfx|p12|id_rsa)$')
+if [ -n "$STAGED_KEY_FILES" ]; then
+    echo "=========================================================="
+    echo " [SECURITY ERROR] ATTEMPT TO COMMIT PRIVATE KEY FILE!"
+    echo "=========================================================="
+    echo "The following key files were staged:"
+    echo "$STAGED_KEY_FILES"
+    echo ""
+    echo "Aborting commit."
+    echo "=========================================================="
+    exit 1
+fi
+
+# 3. Check staged content for known high-risk secrets (excluding security tools/hooks themselves)
+SUSPICIOUS_CONTENT=$(git diff --cached -S"BEGIN RSA PRIVATE KEY" -S"BEGIN PRIVATE KEY" -S"GOCSPX-" --name-only | grep -v 'scripts/git-hooks/' | grep -v 'hooks/' | grep -v '\.gitleaks\.toml')
+if [ -n "$SUSPICIOUS_CONTENT" ]; then
+    echo "=========================================================="
+    echo " [SECURITY ERROR] SUSPICIOUS SECRET DETECTED IN STAGED CODE!"
+    echo "=========================================================="
+    echo "Files containing private keys or client secrets:"
+    echo "$SUSPICIOUS_CONTENT"
+    echo ""
+    echo "Aborting commit."
+    echo "=========================================================="
+    exit 1
+fi
+
+exit 0
