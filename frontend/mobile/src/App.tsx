@@ -227,6 +227,25 @@ export interface AnalyticsData {
   }>;
 }
 
+/**
+ * Format metric number for compact display on mobile (e.g., 850, 1.2K, 15.4K, 1.2M)
+ * Ensures consistent length without line breaks on narrow screens.
+ */
+export const formatCompactNumber = (value: number | undefined | null): string => {
+  const num = Number(value) || 0;
+  if (num < 1000) return num.toLocaleString('id-ID');
+  if (num < 10000) {
+    const formatted = (num / 1000).toFixed(1).replace(/\.0$/, '');
+    return `${formatted}K`;
+  }
+  if (num < 1000000) {
+    const formatted = (num / 1000).toFixed(num < 100000 ? 1 : 0).replace(/\.0$/, '');
+    return `${formatted}K`;
+  }
+  const formatted = (num / 1000000).toFixed(1).replace(/\.0$/, '');
+  return `${formatted}M`;
+};
+
 // Top-level Store Slug Resolver (Accessible before component mount)
 function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
@@ -22939,24 +22958,151 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       </div>
                     </div>
 
-                    {/* 3 Metrics Clean Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                      <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.6rem 0.45rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-                        <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Pengunjung</span>
-                        <strong style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 800 }}>
-                          {analyticsData?.total_store_views ?? 0}
+                    {/* 3 Metrics Clean Grid (Responsive, Compact Number, High Readability) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.45rem' }}>
+                      {/* 1. Pengunjung */}
+                      <div 
+                        title={`Total Pengunjung: ${(analyticsData?.total_store_views ?? 0).toLocaleString('id-ID')}`}
+                        style={{ 
+                          backgroundColor: 'var(--bg-deep)', 
+                          padding: '0.6rem 0.35rem', 
+                          borderRadius: '0.65rem', 
+                          border: '1px solid var(--border-light)', 
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 0
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.2rem' }}>
+                          <Users size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span style={{ 
+                            fontSize: '0.64rem', 
+                            color: 'var(--text-secondary)', 
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            Pengunjung
+                          </span>
+                        </div>
+                        <strong 
+                          style={{ 
+                            fontSize: '1.05rem', 
+                            color: 'var(--text-primary)', 
+                            fontWeight: 800,
+                            fontVariantNumeric: 'tabular-nums',
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1.1,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '100%'
+                          }}
+                        >
+                          {formatCompactNumber(analyticsData?.total_store_views ?? 0)}
                         </strong>
                       </div>
-                      <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.6rem 0.45rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-                        <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Lihat Item</span>
-                        <strong style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 800 }}>
-                          {analyticsData?.top_products?.reduce((acc, p) => acc + (p.view_count || 0), 0) ?? 0}
-                        </strong>
-                      </div>
-                      <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.6rem 0.45rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-                        <span style={{ fontSize: '0.64rem', color: '#10b981', display: 'block', fontWeight: 600 }}>Klik Chat WA</span>
-                        <strong style={{ fontSize: '1rem', color: '#10b981', fontWeight: 800 }}>
-                          {analyticsData?.total_wa_clicks ?? 0}
+
+                      {/* 2. Lihat Item */}
+                      {(() => {
+                        const totalViews = analyticsData?.top_products?.reduce((acc, p) => acc + (p.view_count || 0), 0) ?? 0;
+                        return (
+                          <div 
+                            title={`Total Lihat Item: ${totalViews.toLocaleString('id-ID')}`}
+                            style={{ 
+                              backgroundColor: 'var(--bg-deep)', 
+                              padding: '0.6rem 0.35rem', 
+                              borderRadius: '0.65rem', 
+                              border: '1px solid var(--border-light)', 
+                              textAlign: 'center',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: 0
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.2rem' }}>
+                              <Eye size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                              <span style={{ 
+                                fontSize: '0.64rem', 
+                                color: 'var(--text-secondary)', 
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                Lihat Item
+                              </span>
+                            </div>
+                            <strong 
+                              style={{ 
+                                fontSize: '1.05rem', 
+                                color: 'var(--text-primary)', 
+                                fontWeight: 800,
+                                fontVariantNumeric: 'tabular-nums',
+                                letterSpacing: '-0.02em',
+                                lineHeight: 1.1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '100%'
+                              }}
+                            >
+                              {formatCompactNumber(totalViews)}
+                            </strong>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 3. Klik Chat WA */}
+                      <div 
+                        title={`Total Klik Chat WA: ${(analyticsData?.total_wa_clicks ?? 0).toLocaleString('id-ID')}`}
+                        style={{ 
+                          backgroundColor: 'var(--bg-deep)', 
+                          padding: '0.6rem 0.35rem', 
+                          borderRadius: '0.65rem', 
+                          border: '1px solid var(--border-light)', 
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 0
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.2rem' }}>
+                          <MessageCircle size={12} style={{ color: '#10b981', flexShrink: 0 }} />
+                          <span style={{ 
+                            fontSize: '0.64rem', 
+                            color: '#10b981', 
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            Klik Chat WA
+                          </span>
+                        </div>
+                        <strong 
+                          style={{ 
+                            fontSize: '1.05rem', 
+                            color: '#10b981', 
+                            fontWeight: 800,
+                            fontVariantNumeric: 'tabular-nums',
+                            letterSpacing: '-0.02em',
+                            lineHeight: 1.1,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '100%'
+                          }}
+                        >
+                          {formatCompactNumber(analyticsData?.total_wa_clicks ?? 0)}
                         </strong>
                       </div>
                     </div>
