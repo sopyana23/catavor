@@ -11791,6 +11791,12 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
       showToast(msg, 'error');
       return;
     }
+    if (backupPasswordForm.current_password && pass === backupPasswordForm.current_password) {
+      const msg = 'Kata sandi baru tidak boleh sama dengan kata sandi saat ini.';
+      setBackupPasswordError(msg);
+      showToast(msg, 'error');
+      return;
+    }
     setBackupPasswordLoading(true);
     setBackupPasswordError(null);
     setBackupPasswordSuccess(null);

@@ -373,11 +373,11 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	})
 
 	return c.JSON(fiber.Map{
-		"success":             true,
-		"message":             "Login berhasil.",
-		"token":               token,
-		"is_password_changed": user.IsPasswordChanged,
-		"has_custom_password": user.HasCustomPassword,
+		"success":                  true,
+		"message":                  "Login berhasil.",
+		"token":                    token,
+		"is_password_changed":      user.IsPasswordChanged,
+		"has_custom_password":      user.HasCustomPassword,
 		"stores":                   storeList,
 		"stores_count":             len(storeList),
 		"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
@@ -952,12 +952,12 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 
 		return c.JSON(fiber.Map{
-			"success":             true,
-			"is_new_user":         false,
-			"message":             "Login Google berhasil!",
-			"token":               token,
-			"is_password_changed": true,
-			"has_custom_password": user.HasCustomPassword,
+			"success":                  true,
+			"is_new_user":              false,
+			"message":                  "Login Google berhasil!",
+			"token":                    token,
+			"is_password_changed":      true,
+			"has_custom_password":      user.HasCustomPassword,
 			"stores":                   storeList,
 			"stores_count":             len(storeList),
 			"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
@@ -1443,6 +1443,21 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 				"message": "Konfirmasi kata sandi tidak cocok.",
 			})
 		}
+
+		// Industry Standard & NIST SP 800-63B / OWASP ASVS: Prevent password reuse against current active password
+		if req.CurrentPassword != "" && strings.TrimSpace(req.CurrentPassword) == strings.TrimSpace(req.Password) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Kata sandi baru tidak boleh sama dengan kata sandi saat ini.",
+			})
+		}
+		if (user.HasCustomPassword || user.Password != "") && user.CheckPassword(req.Password) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Kata sandi baru tidak boleh sama dengan kata sandi saat ini. Silakan gunakan kombinasi kata sandi yang berbeda.",
+			})
+		}
+
 		if err := user.SetPassword(req.Password); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
@@ -1716,6 +1731,14 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Pengguna tidak ditemukan.",
+		})
+	}
+
+	// Industry Standard & NIST SP 800-63B / OWASP ASVS: Prevent password reuse against previous active password
+	if user.Password != "" && user.CheckPassword(req.NewPassword) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Kata sandi baru tidak boleh sama dengan kata sandi sebelumnya. Silakan buat kombinasi kata sandi yang baru.",
 		})
 	}
 
