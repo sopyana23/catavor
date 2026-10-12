@@ -86,6 +86,10 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		category = strings.ToLower(strings.TrimSpace(c.FormValue("category", "products")))
 	}
 	switch category {
+	case "rekber", "partner", "partners", "escrow", "platform_partner", "platform_partners":
+		category = "platform_partners"
+	case "platform", "platform_branding":
+		category = "platform_branding"
 	case "branding", "logo", "banner":
 		category = "branding"
 	case "articles", "article", "blog":
@@ -97,6 +101,8 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	default:
 		category = "products"
 	}
+
+	isPlatformScope := category == "platform_partners" || category == "platform_branding"
 
 	// Check if store is suspended/banned: allow support & billing proofs, block catalog changes
 	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
@@ -189,18 +195,20 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	var objectKey string
 
 	var storeID uint = 0
-	if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
-		storeID = storeVal.ID
-	}
-	if storeID == 0 {
-		slug := strings.TrimSpace(c.Get("X-Store-Slug"))
-		if slug == "" {
-			slug = strings.TrimSpace(c.Query("slug", c.FormValue("slug", "")))
+	if !isPlatformScope {
+		if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil {
+			storeID = storeVal.ID
 		}
-		if slug != "" {
-			var s models.Store
-			if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&s).Error; err == nil {
-				storeID = s.ID
+		if storeID == 0 {
+			slug := strings.TrimSpace(c.Get("X-Store-Slug"))
+			if slug == "" {
+				slug = strings.TrimSpace(c.Query("slug", c.FormValue("slug", "")))
+			}
+			if slug != "" {
+				var s models.Store
+				if err := h.db.Where("LOWER(slug) = ?", strings.ToLower(slug)).First(&s).Error; err == nil {
+					storeID = s.ID
+				}
 			}
 		}
 	}
@@ -213,8 +221,8 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	// Capture buffer length BEFORE passing it to storage.Upload (which consumes the buffer)
 	uploadSize := int64(buf.Len())
 
-	// Validate Storage Quota for Store Media (excluding pure support tickets)
-	if storeID > 0 && category != "support" {
+	// Validate Storage Quota for Store Media (excluding pure support tickets and platform-level assets)
+	if storeID > 0 && category != "support" && !isPlatformScope {
 		if allowed, msg := services.CanUploadStorage(h.db, storeID, uploadSize); !allowed {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
@@ -223,8 +231,17 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		}
 	}
 
-	// Structure: stores/:id/:category/YYYY/MM/uuid.ext or support/users/:id/YYYY/MM/uuid.ext
-	if category == "support" {
+	// Best Practice Folder Structure:
+	// - Platform Partners: platform/partners/rekber/YYYY/MM/uuid.ext
+	// - Platform Branding: platform/branding/YYYY/MM/uuid.ext
+	// - Support Tickets: stores/:id/support/... or support/users/:id/...
+	// - Store Media: stores/:id/:category/YYYY/MM/uuid.ext
+	// - Articles: articles/YYYY/MM/uuid.ext
+	if category == "platform_partners" {
+		objectKey = fmt.Sprintf("platform/partners/rekber/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+	} else if category == "platform_branding" {
+		objectKey = fmt.Sprintf("platform/branding/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+	} else if category == "support" {
 		if storeID > 0 {
 			objectKey = fmt.Sprintf("stores/%d/support/%d/%02d/%s%s", storeID, now.Year(), now.Month(), uniqueID, ext)
 		} else if userID > 0 {
@@ -250,8 +267,8 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		})
 	}
 
-	// Atomically increment store storage_used_bytes with real upload size
-	if storeID > 0 && uploadSize > 0 {
+	// Atomically increment store storage_used_bytes with real upload size (only for tenant stores)
+	if storeID > 0 && uploadSize > 0 && !isPlatformScope {
 		h.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("storage_used_bytes", gorm.Expr("storage_used_bytes + ?", uploadSize))
 		database.InvalidateStoreQuotaCache(context.Background(), storeID)
 	}
