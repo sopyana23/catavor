@@ -149,6 +149,8 @@ import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './u
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
+import { ConnectedDevicesView } from './components/ConnectedDevicesView'
+import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { normalizeNotification } from './utils/notificationHelpers'
@@ -8743,9 +8745,9 @@ Mohon bantuan peninjauan ulang (re-evaluation) agar status visibilitas dapat seg
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [mobileSettingsTab, setMobileSettingsTabState] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain'>('menu')
+  const [mobileSettingsTab, setMobileSettingsTabState] = useState<'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger'>('menu')
 
-  const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain') => {
+  const setMobileSettingsTab = (tab: 'menu' | 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger') => {
     setMobileSettingsTabState(tab);
     try {
       if (tab === 'menu') {
@@ -19888,6 +19890,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       if (mobileSettingsTab === 'theme') return { title: 'Tema & Tampilan Visual', subtitle: 'Palet Warna & Gaya Estetik' };
                       if (mobileSettingsTab === 'domain') return { title: 'Custom Domain', subtitle: 'Hubungkan Domain Brand Anda' };
                       if (mobileSettingsTab === 'master') return { title: 'Master Data Katalog', subtitle: 'Opsi Kategori, Status & Wilayah' };
+                      if (mobileSettingsTab === 'security') return { title: 'Perangkat & Sesi Aktif', subtitle: 'Lacak & Cabut Sesi Login' };
+                      if (mobileSettingsTab === 'danger') return { title: 'Zona Berbahaya', subtitle: 'Hapus Katalog & Tutup Akun' };
                       return { title: 'Pengaturan Katalog', subtitle: 'Konfigurasi & Branding Katalog' };
                     case 'help':
                       if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
@@ -23469,11 +23473,94 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                         </div>
                       )}
+
+                      {/* Keamanan & Sesi Perangkat */}
+                      <div 
+                        className="glass-panel"
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('security');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/security`);
+                        }}
+                        style={{
+                          padding: '1rem 1.25rem',
+                          borderRadius: '0.75rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          gap: '1rem',
+                          alignItems: 'center',
+                          border: '1px solid var(--border-light)'
+                        }}
+                      >
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '0.65rem',
+                          background: 'var(--primary-glow)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--primary)',
+                          flexShrink: 0
+                        }}>
+                          <ShieldCheck size={20} style={{ color: 'var(--primary)' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Perangkat &amp; Sesi Aktif</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                            Lacak perangkat login aktif &amp; cabut sesi mencurigakan
+                          </p>
+                        </div>
+                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+
+                      {/* Zona Berbahaya */}
+                      <div 
+                        className="glass-panel"
+                        onClick={() => {
+                          const slug = getStoreSlug();
+                          setMobileSettingsTab('danger');
+                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/danger`);
+                        }}
+                        style={{
+                          padding: '1rem 1.25rem',
+                          borderRadius: '0.75rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          gap: '1rem',
+                          alignItems: 'center',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          background: 'rgba(239, 68, 68, 0.03)'
+                        }}
+                      >
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '0.65rem',
+                          background: 'rgba(239, 68, 68, 0.12)',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ef4444',
+                          flexShrink: 0
+                        }}>
+                          <AlertTriangle size={20} style={{ color: '#ef4444' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>Zona Berbahaya</h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                            Hapus profil katalog atau tutup akun permanen
+                          </p>
+                        </div>
+                        <ChevronRight size={16} style={{ color: '#ef4444' }} />
+                      </div>
                     </div>
                   ) : (
                     /* Active Settings Sub-Tab View */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {mobileSettingsTab !== 'master' && mobileSettingsTab !== 'domain' && (
+                      {mobileSettingsTab !== 'master' && mobileSettingsTab !== 'domain' && mobileSettingsTab !== 'security' && mobileSettingsTab !== 'danger' && (
                         <form onSubmit={handleSettingsSave} className="glass-panel animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border-light)' }}>
                           {/* SUB-TAB 4: TEMA */}
                           {mobileSettingsTab === 'theme' && (
@@ -24585,6 +24672,55 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               );
                             })()}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Security & Connected Devices on Mobile */}
+                      {mobileSettingsTab === 'security' && (
+                        <div className="animate-fade-in">
+                          <ConnectedDevicesView 
+                            token={token || ''}
+                            apiBase={API_BASE}
+                            onLogoutCurrent={handleLogout}
+                            showToast={(type, msg) => showToast(msg, type)}
+                          />
+                        </div>
+                      )}
+
+                      {/* Danger Zone on Mobile */}
+                      {mobileSettingsTab === 'danger' && (
+                        <div className="animate-fade-in">
+                          <DangerZoneSettingsView 
+                            currentStore={
+                              (userStores && userStores.find(s => s.slug?.toLowerCase() === (storeSlug || '').toLowerCase())) ||
+                              (userStores && userStores[0]) ||
+                              (settings ? { id: (settings as any).id || (settings as any).store_id || 0, slug: storeSlug || '', store_title: (settings as any).store_title } : null)
+                            }
+                            currentUser={adminUser ? { id: adminUser.id, email: adminUser.email, name: adminUser.name } : null}
+                            userStores={userStores || []}
+                            token={token || ''}
+                            apiBase={API_BASE}
+                            onStoreDeleted={(deletedSlug, remainingStores) => {
+                              setUserStores(remainingStores);
+                              try {
+                                localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+                              } catch {}
+                              if (remainingStores && remainingStores.length > 0) {
+                                handleSwitchStore(remainingStores[0].slug);
+                              } else {
+                                setStoreSlug(null);
+                                setIsFirstTimeLogin(true);
+                                setView('tabs');
+                                setAdminSubTab('menu');
+                                window.history.pushState({}, '', '/admin');
+                                window.location.reload();
+                              }
+                            }}
+                            onAccountDeleted={() => {
+                              handleLogout();
+                            }}
+                            showToast={(type, msg) => showToast(msg, type)}
+                          />
                         </div>
                       )}
                     </div>

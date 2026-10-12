@@ -2456,5 +2456,22 @@
   white-space: nowrap;
 }
 
+.desktop-settings-tab-btn.danger-tab {
+  color: #ef4444;
+}
+
+.desktop-settings-tab-btn.danger-tab:hover:not(.active) {
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.desktop-settings-tab-btn.danger-tab.active {
+  background-color: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.35);
+}
+
 
 

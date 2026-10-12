@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -310,13 +312,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		}
 	}
 
-	token, err := middleware.GenerateToken(&user, primaryStore, h.cfg)
+	token, tokenID, expiresAt, err := middleware.GenerateTokenWithID(&user, primaryStore, h.cfg)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat sesi login.",
 		})
 	}
+	go services.RecordUserSession(user.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
 
 	// Touch store activity upon admin login
 	for _, st := range user.Stores {
@@ -534,7 +537,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 				if theme == "" {
 					theme = "navy"
 				}
-				token, _ := middleware.GenerateToken(&existingUser, existingUser.Store, h.cfg)
+				token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&existingUser, existingUser.Store, h.cfg)
+				go services.RecordUserSession(existingUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
 				return c.JSON(fiber.Map{
 					"success": true,
 					"message": "Akun Anda telah terdaftar sebelumnya. Selamat datang kembali!",
@@ -760,7 +764,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		_ = database.DB.Create(&subOrder).Error
 	}
 
-	token, _ := middleware.GenerateToken(&targetUser, &newStore, h.cfg)
+	token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&targetUser, &newStore, h.cfg)
+	go services.RecordUserSession(targetUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
 
 	singleSummary := StoreSummary{
 		ID:             newStore.ID,
@@ -893,13 +898,14 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			}
 		}
 
-		token, err := middleware.GenerateToken(&user, primaryStore, h.cfg)
+		token, tokenID, expiresAt, err := middleware.GenerateTokenWithID(&user, primaryStore, h.cfg)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
 				"message": "Gagal membuat sesi login.",
 			})
 		}
+		go services.RecordUserSession(user.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
 
 		// Touch store activity upon Google login
 		for _, st := range user.Stores {
@@ -1093,7 +1099,8 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 	}
 
-	token, _ := middleware.GenerateToken(&newUser, &newStore, h.cfg)
+	token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&newUser, &newStore, h.cfg)
+	go services.RecordUserSession(newUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
 
 	return c.JSON(fiber.Map{
 		"success":             true,
@@ -1855,4 +1862,112 @@ func cleanSlug(s string) string {
 	s = reg.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
 	return s
+}
+
+type DeleteAccountRequest struct {
+	ConfirmPhrase string `json:"confirm_phrase"`
+	Password      string `json:"password"`
+}
+
+// DeleteAccount handles permanent deletion of user account and all owned catalogs (Right to Erasure)
+func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
+	user := c.Locals("user").(*models.User)
+
+	var req DeleteAccountRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data konfirmasi tidak valid.",
+		})
+	}
+
+	// 1. Validate confirmation phrase
+	phrase := strings.TrimSpace(req.ConfirmPhrase)
+	expectedPhrase := "HAPUS AKUN SAYA"
+	if phrase != expectedPhrase && !strings.EqualFold(phrase, user.Email) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Frasa konfirmasi tidak sesuai. Silakan ketik 'HAPUS AKUN SAYA' untuk melanjutkan.",
+		})
+	}
+
+	// 2. Validate password if user has password
+	if user.HasCustomPassword && user.Password != "" {
+		if req.Password == "" || !user.CheckPassword(req.Password) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Kata sandi akun yang Anda masukkan salah.",
+			})
+		}
+	}
+
+	cfg := h.cfg
+	if cfg == nil {
+		cfg = config.LoadConfig()
+	}
+
+	// 3. Find all stores owned by user and hard-delete their media
+	var stores []models.Store
+	database.DB.Where("user_id = ?", user.ID).Find(&stores)
+
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	for _, s := range stores {
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ProductVariant{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ProductImage{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.Product{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.Category{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.Article{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.StoreDailyAnalytics{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ProductDailyAnalytics{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.StoreDailyTrafficSource{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.NotificationRead{}).Error
+		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ActivityLog{}).Error
+		_ = tx.Delete(&s).Error
+
+		// Disk cleanup
+		if cfg.StorageLocalRoot != "" {
+			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
+			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
+		}
+	}
+
+	// Delete user sessions & agreements
+	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserSession{}).Error
+	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error
+
+	// Invalidate tokens in memory/Redis
+	user.TokenVersion += 10
+	_ = tx.Save(&user).Error
+
+	// Delete user record
+	if err := tx.Delete(&user).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus data akun dari basis data.",
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyelesaikan transaksi penghapusan akun.",
+		})
+	}
+
+	// Blacklist current token if present
+	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil && claims.ID != "" {
+		database.BlacklistToken(claims.ID, 72*time.Hour)
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Akun Anda beserta seluruh profil katalog berhasil dihapus permanen.",
+	})
 }

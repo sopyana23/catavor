@@ -27,8 +27,8 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateToken creates a cryptographically signed JWT token with algorithm pinning
-func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (string, error) {
+// GenerateTokenWithID creates a cryptographically signed JWT token with algorithm pinning and returns token string, jti UUID, and expiresAt.
+func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Config) (string, string, time.Time, error) {
 	var storeSlug string
 	var storeID uint
 	if store != nil {
@@ -41,6 +41,9 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 		tokenVersion = 1
 	}
 
+	tokenID := uuid.New().String()
+	expiresAt := time.Now().Add(time.Duration(cfg.JWTExpirationHours) * time.Hour)
+
 	claims := JWTClaims{
 		UserID:            user.ID,
 		Email:             user.Email,
@@ -50,8 +53,8 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 		IsPasswordChanged: user.IsPasswordChanged,
 		TokenVersion:      tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.New().String(),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(cfg.JWTExpirationHours) * time.Hour)),
+			ID:        tokenID,
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "catavor-saas",
@@ -60,7 +63,17 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(cfg.JWTSecret))
+	signedToken, err := token.SignedString([]byte(cfg.JWTSecret))
+	if err != nil {
+		return "", "", time.Time{}, err
+	}
+	return signedToken, tokenID, expiresAt, nil
+}
+
+// GenerateToken creates a cryptographically signed JWT token with algorithm pinning (backwards compatible)
+func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (string, error) {
+	token, _, _, err := GenerateTokenWithID(user, store, cfg)
+	return token, err
 }
 
 // ExtractOptionalClaims safely parses a Bearer token or token query without throwing HTTP 401.

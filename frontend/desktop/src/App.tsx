@@ -158,6 +158,8 @@ import { MerchantAdminShell } from './components/MerchantAdminShell'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChooserModal'
 import { DesktopCustomSelect } from './components/DesktopCustomSelect'
+import { ConnectedDevicesView } from './components/ConnectedDevicesView'
+import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
@@ -8815,7 +8817,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   }))
   const [settingsLoading, setSettingsLoading] = useState<boolean>(false)
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null)
-  const [settingsSubTab, setSettingsSubTabState] = useState<'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain'>('general')
+  const [settingsSubTab, setSettingsSubTabState] = useState<'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger'>('general')
 
   // Live Slug Settings State & Verification
   const [settingsSlug, setSettingsSlug] = useState<string>(() => ((settings as any)?.slug || storeSlug || '').toLowerCase());
@@ -8886,7 +8888,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     return () => clearTimeout(timer);
   }, [settingsSlug, storeSlug, (settings as any)?.slug]);
 
-  const setSettingsSubTab = (sub: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain') => {
+  const setSettingsSubTab = (sub: 'general' | 'contact' | 'about' | 'theme' | 'master' | 'domain' | 'security' | 'danger') => {
     setSettingsSubTabState(sub);
     try { sessionStorage.setItem('catavor_last_settings_subtab', sub); } catch (e) {}
   };
@@ -21018,7 +21020,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
                       { id: 'master', label: 'Master Data Katalog', icon: Database },
-                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain', label: 'Custom Domain', icon: Globe, isPro: true }] : [])
+                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain', label: 'Custom Domain', icon: Globe, isPro: true }] : []),
+                      { id: 'security', label: 'Keamanan & Sesi', icon: ShieldCheck },
+                      { id: 'danger', label: 'Zona Berbahaya', icon: AlertTriangle, isDanger: true }
                     ];
 
                     return (
@@ -21034,7 +21038,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               key={tab.id}
                               type="button"
                               onClick={() => setSettingsSubTab(tab.id as any)}
-                              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''}`}
+                              className={`desktop-settings-tab-btn ${isActive ? 'active' : ''} ${tab.isDanger ? 'danger-tab' : ''}`}
                             >
                               <Icon size={16} strokeWidth={2.2} style={{ flexShrink: 0 }} />
                               <span className="tab-label">{tab.label}</span>
@@ -22006,6 +22010,55 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                       {/* Dedicated Category Taxonomy Manager */}
                       {renderCategoryTaxonomyManager()}
+                    </div>
+                  )}
+
+                  {/* Security & Connected Devices Section */}
+                  {settingsSubTab === 'security' && (
+                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
+                      <ConnectedDevicesView 
+                        token={token || ''}
+                        apiBase={API_BASE}
+                        onLogoutCurrent={handleLogout}
+                        showToast={(type, msg) => showToast(msg, type)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Danger Zone Section */}
+                  {settingsSubTab === 'danger' && (
+                    <div style={{ marginTop: '1rem', paddingTop: '0.5rem' }} className="animate-fade-in">
+                      <DangerZoneSettingsView
+                        currentStore={
+                          (userStores && userStores.find(s => s.slug?.toLowerCase() === (storeSlug || '').toLowerCase())) ||
+                          (userStores && userStores[0]) ||
+                          (settings ? { id: (settings as any).id || (settings as any).store_id || 0, slug: storeSlug || '', store_title: (settings as any).store_title } : null)
+                        }
+                        currentUser={adminUser ? { id: adminUser.id, email: adminUser.email, name: adminUser.name } : null}
+                        userStores={userStores || []}
+                        token={token || ''}
+                        apiBase={API_BASE}
+                        onStoreDeleted={(deletedSlug, remainingStores) => {
+                          setUserStores(remainingStores);
+                          try {
+                            localStorage.setItem('catavor_stores', JSON.stringify(remainingStores));
+                          } catch {}
+                          if (remainingStores && remainingStores.length > 0) {
+                            handleSwitchStore(remainingStores[0].slug);
+                          } else {
+                            setStoreSlug(null);
+                            setIsFirstTimeLogin(true);
+                            setView('admin');
+                            setAdminTab('items');
+                            window.history.pushState({}, '', '/admin');
+                            window.location.reload();
+                          }
+                        }}
+                        onAccountDeleted={() => {
+                          handleLogout();
+                        }}
+                        showToast={(type, msg) => showToast(msg, type)}
+                      />
                     </div>
                   )}
                 </>
