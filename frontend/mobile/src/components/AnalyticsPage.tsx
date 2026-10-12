@@ -433,16 +433,28 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }
   };
 
-  // Format compact number for large numbers (1.2k, 15k, 1.5M)
+  // Format compact number standar Indonesia (rb / jt / M)
   const formatCompactNumber = (num?: number | null): string => {
     if (!num) return '0';
-    if (num < 1000) return String(num);
+    if (num < 1000) return num.toLocaleString('id-ID');
     if (num < 1000000) {
-      const k = num / 1000;
-      return k % 1 === 0 ? `${k}k` : `${k.toFixed(1).replace(/\.0$/, '')}k`;
+      const rb = num / 1000;
+      return rb % 1 === 0 ? `${rb} rb` : `${rb.toFixed(1).replace(/\.0$/, '').replace('.', ',')} rb`;
     }
-    const m = num / 1000000;
-    return m % 1 === 0 ? `${m}M` : `${m.toFixed(1).replace(/\.0$/, '')}M`;
+    if (num < 1000000000) {
+      const jt = num / 1000000;
+      return jt % 1 === 0 ? `${jt} jt` : `${jt.toFixed(1).replace(/\.0$/, '').replace('.', ',')} jt`;
+    }
+    const m = num / 1000000000;
+    return m % 1 === 0 ? `${m} M` : `${m.toFixed(1).replace(/\.0$/, '').replace('.', ',')} M`;
+  };
+
+  // Helper tampilan kartu metrik di mobile: jika angka < 10.000 tampilkan angka penuh (misal 9.850),
+  // jika >= 10.000 gunakan format ringkas ramah layar mobile (misal 15,4 rb, 1,2 jt)
+  const formatMetricMobile = (num?: number | null): string => {
+    if (!num) return '0';
+    if (num < 10000) return num.toLocaleString('id-ID');
+    return formatCompactNumber(num);
   };
 
   const daysCount = period === '90d' ? 90 : period === '30d' ? 30 : 7;
@@ -966,8 +978,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               <Users size={14} />
             </div>
           </div>
-          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-            {storeViews.toLocaleString()}
+          <div 
+            title={`Total Kunjungan: ${storeViews.toLocaleString('id-ID')}`}
+            style={{ 
+              fontSize: '1.45rem', 
+              fontWeight: 800, 
+              color: 'var(--text-primary)', 
+              letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {formatMetricMobile(storeViews)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
@@ -997,7 +1021,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             padding: '0.9rem',
             borderRadius: '0.75rem',
             border: '1px solid var(--border-light)',
-            backgroundColor: 'var(--bg-card)'
+            backgroundColor: 'var(--bg-card)',
+            minWidth: 0
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
@@ -1006,8 +1031,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               <Eye size={14} />
             </div>
           </div>
-          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-            {productViews.toLocaleString()}
+          <div 
+            title={`Total Tayangan Produk: ${productViews.toLocaleString('id-ID')}`}
+            style={{ 
+              fontSize: '1.45rem', 
+              fontWeight: 800, 
+              color: 'var(--text-primary)', 
+              letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {formatMetricMobile(productViews)}
           </div>
           <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
             ~{viewsPerVisitor} item per pengunjung
@@ -1021,7 +1058,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             padding: '0.9rem',
             borderRadius: '0.75rem',
             border: '1px solid var(--border-light)',
-            backgroundColor: 'var(--bg-card)'
+            backgroundColor: 'var(--bg-card)',
+            minWidth: 0
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
@@ -1030,8 +1068,20 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               <Zap size={14} />
             </div>
           </div>
-          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
-            {totalActions.toLocaleString()}
+          <div 
+            title={`Total Peminat & Aksi: ${totalActions.toLocaleString('id-ID')}`}
+            style={{ 
+              fontSize: '1.45rem', 
+              fontWeight: 800, 
+              color: '#10b981', 
+              letterSpacing: '-0.02em',
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {formatMetricMobile(totalActions)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
@@ -1814,7 +1864,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{ts.name}</strong>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{ts.views.toLocaleString()}</span>
+                      <span title={`Tayangan: ${ts.views.toLocaleString('id-ID')}`} style={{ color: 'var(--text-primary)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{formatMetricMobile(ts.views)}</span>
                       <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>({ts.percentage.toFixed(0)}%)</span>
                       <span style={{ fontSize: '0.68rem', color: ts.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700, backgroundColor: 'var(--bg-deep)', padding: '0.05rem 0.3rem', borderRadius: '4px' }}>
                         {ts.conversion_rate_percent.toFixed(0)}% CR
@@ -1864,7 +1914,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)' }}>Pengunjung Unik</span>
                 </div>
               </div>
-              <strong style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>{storeViews.toLocaleString()}</strong>
+              <strong title={`Total: ${storeViews.toLocaleString('id-ID')}`} style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{formatMetricMobile(storeViews)}</strong>
             </div>
 
             {/* Dropdown rate 1 -> 2 */}
@@ -1884,7 +1934,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)' }}>Eksplorasi Katalog</span>
                 </div>
               </div>
-              <strong style={{ fontSize: '0.88rem', fontWeight: 800, color: '#8b5cf6' }}>{productViews.toLocaleString()}</strong>
+              <strong title={`Total: ${productViews.toLocaleString('id-ID')}`} style={{ fontSize: '0.88rem', fontWeight: 800, color: '#8b5cf6', fontVariantNumeric: 'tabular-nums' }}>{formatMetricMobile(productViews)}</strong>
             </div>
 
             {/* Dropdown rate 2 -> 3 */}
@@ -1905,7 +1955,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <strong style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981' }}>{totalActions.toLocaleString()}</strong>
+                <strong title={`Total: ${totalActions.toLocaleString('id-ID')}`} style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{formatMetricMobile(totalActions)}</strong>
                 <span style={{ fontSize: '0.64rem', color: 'var(--text-secondary)', display: 'block' }}>CR: {conversionRate.toFixed(1)}%</span>
               </div>
             </div>
@@ -2223,12 +2273,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '5px', border: '1px solid var(--border-light)' }}>
                         <Eye size={11} style={{ color: '#3b82f6' }} />
-                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{prod.view_count.toLocaleString()}</span>
+                        <span title={`Tayangan: ${prod.view_count.toLocaleString('id-ID')}`} style={{ fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{formatMetricMobile(prod.view_count)}</span>
                         <span>views</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '5px', border: '1px solid var(--border-light)' }}>
                         <Zap size={11} style={{ color: '#10b981' }} />
-                        <span style={{ fontWeight: 700, color: '#10b981' }}>{itemActions.toLocaleString()}</span>
+                        <span title={`Aksi: ${itemActions.toLocaleString('id-ID')}`} style={{ fontWeight: 700, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{formatMetricMobile(itemActions)}</span>
                         <span>aksi</span>
                       </div>
                     </div>

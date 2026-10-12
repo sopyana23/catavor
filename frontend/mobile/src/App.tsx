@@ -228,22 +228,26 @@ export interface AnalyticsData {
 }
 
 /**
- * Format metric number for compact display on mobile (e.g., 850, 1.2K, 15.4K, 1.2M)
+ * Format metric number for compact display on mobile standard Indonesia (e.g., 850, 1,2 rb, 15 rb, 1,2 jt, 1 M)
  * Ensures consistent length without line breaks on narrow screens.
  */
 export const formatCompactNumber = (value: number | undefined | null): string => {
   const num = Number(value) || 0;
   if (num < 1000) return num.toLocaleString('id-ID');
   if (num < 10000) {
-    const formatted = (num / 1000).toFixed(1).replace(/\.0$/, '');
-    return `${formatted}K`;
+    const formatted = (num / 1000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+    return `${formatted} rb`;
   }
   if (num < 1000000) {
-    const formatted = (num / 1000).toFixed(num < 100000 ? 1 : 0).replace(/\.0$/, '');
-    return `${formatted}K`;
+    const formatted = (num / 1000).toFixed(num < 100000 ? 1 : 0).replace(/\.0$/, '').replace('.', ',');
+    return `${formatted} rb`;
   }
-  const formatted = (num / 1000000).toFixed(1).replace(/\.0$/, '');
-  return `${formatted}M`;
+  if (num < 1000000000) {
+    const formatted = (num / 1000000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+    return `${formatted} jt`;
+  }
+  const formatted = (num / 1000000000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+  return `${formatted} M`;
 };
 
 // Top-level Store Slug Resolver (Accessible before component mount)
